@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+  <!-- Main Application Landing Page -->
+  <url>
+    <loc>https://toolkitpro.app/</loc>
+    <lastmod>2026-06-11</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <!-- Interactive Quote Designer Tool -->
+  <url>
+    <loc>https://toolkitpro.app/#quote</loc>
+    <lastmod>2026-06-11</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <!-- Lossless Image Compressor -->
+  <url>
+    <loc>https://toolkitpro.app/#compress</loc>
+    <lastmod>2026-06-11</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <!-- QR Code Vector Generator -->
+  <url>
+    <loc>https://toolkitpro.app/#qr</loc>
+    <lastmod>2026-06-11</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <!-- Aesthetic Color Extractor -->
+  <url>
+    <loc>https://toolkitpro.app/#palette</loc>
+    <lastmod>2026-06-11</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.8</priority>
+  </url>
+  <!-- Google Drive Integration Node -->
+  <url>
+    <loc>https://toolkitpro.app/#drive</loc>
+    <lastmod>2026-06-11</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <!-- SEO Guides and Blog Articles Hub -->
+  <url>
+    <loc>https://toolkitpro.app/#resources</loc>
+    <lastmod>2026-06-11</lastmod>
+    <changefreq>daily</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <!-- Privacy, AdSense, &amp; Support Compliance Hub -->
+  <url>
+    <loc>https://toolkitpro.app/#legal</loc>
+    <lastmod>2026-06-11</lastmod>
+    <changefreq>yearly</changefreq>
+    <priority>0.5</priority>
+  </url>
+</urlset>

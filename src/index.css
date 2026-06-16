@@ -1,0 +1,177 @@
+@import "tailwindcss";
+
+html, body {
+  max-width: 100%;
+  overflow-x: hidden;
+  margin: 0;
+  padding: 0;
+  position: relative;
+}
+
+/* Page wrap overrides for mobile responsiveness */
+@media(max-width: 760px){
+  .page-wrap { padding: 0 16px 40px; }
+  
+  /* آپٹ آؤٹ کے دو کالمز کو موبائل پر اوپر نیچے کیا تاکہ متن کٹے نہ */
+  .optout-grid { grid-template-columns: 1fr; gap: 14px; }
+}
+
+/* 540px اور اس سے کم اسکرینز کے لیے (Smartphones Layout Optimization) */
+@media(max-width: 540px){
+  /* ہیرو سیکشن اور کارڈز کی پیڈنگ کم کی تاکہ موبائل پر ٹیکسٹ کے لیے زیادہ جگہ بچے */
+  .page-hero { padding: 24px 16px !important; }
+  .card { padding: 20px 14px !important; }
+  
+  /* کوکی ڈیٹا ٹیبل کو اسکرین سے باہر نکلنے سے روکنے کا حل */
+  .cookie-table, table {
+    display: block;
+    width: 100%;
+    overflow-x: auto;
+    white-space: nowrap;
+    -webkit-overflow-scrolling: touch;
+  }
+  
+  /* فوٹر کے تمام لنکس اور معلومات کو ایک کالم میں ترتیب دیا */
+  .fi { grid-template-columns: 1fr; gap: 24px; text-align: center; }
+  .fi p { max-width: 100%; margin: 0 auto; }
+  .fsoc { justify-content: center; }
+  
+  /* کاپی رائٹ بار کو موبائل پر سینٹر کیا */
+  .fb { flex-direction: column; text-align: center; gap: 10px; }
+}
+
+/* ── RESPONSIVE ──*/ 
+@media (max-width: 900px) {
+  .footer-inner { grid-template-columns: 1fr 1fr; }
+  .preview-grid { grid-template-columns: 1fr; }
+  .contact-grid { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 640px) {
+  nav { padding: 0 16px; }
+  .tools-nav { padding: 0 16px; }
+  .hero h1 { font-size: 28px; }
+  .tool-body { padding: 20px; }
+  .tool-header { padding: 20px; }
+  .qr-input-row { flex-direction: column; }
+  .about-wrap { flex-direction: column; }
+  .footer-inner { grid-template-columns: 1fr; gap: 24px; }
+  .footer-bottom { flex-direction: column; text-align: center; }
+  .pinterest-banner { flex-direction: column; }
+}
+
+img,
+table,
+iframe {
+    max-width: 100%;
+}
+
+a {
+    overflow-wrap: break-word;
+}
+
+.article,
+.layout,
+.sidebar,
+main,
+aside {
+    max-width: 100%;
+}
+
+html {
+    overscroll-behavior-y: auto;
+}
+
+body {
+    width: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+    margin: 0;
+    padding: 0;
+    overscroll-behavior-y: auto;
+    -webkit-overflow-scrolling: touch;
+}
+
+html,
+body {
+    position: relative;
+    min-height: 100%;
+    -webkit-overflow-scrolling: touch;
+}
+
+/* ── PRINT MEDIA QUERY FOR HIGH RESOLUTION SCALED QUALITY ── */
+@media print {
+  /* Hide noisy non-printable sidebar panels, buttons, tabs, input fields, header/footer elements */
+  nav, footer, .tools-nav, button, input, select, textarea,
+  .no-print, [id^="btn-"], .sidebar, .actions-row,
+  .quick-controls, .google-drive-sync, .about-wrap,
+  #compressor-drop-zone, #quote-image-drop-zone, .optout-grid, .pinterest-banner {
+    display: none !important;
+  }
+
+  /* Reset layout structure for plain paper margins */
+  html, body {
+    background-color: #ffffff !important;
+    background-image: none !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    height: auto !important;
+    overflow: visible !important;
+    width: 100% !important;
+  }
+
+  /* Scale, center, and preserve colors of the quote card preview */
+  #quote-card-preview, .print-ready-quote-card {
+    display: flex !important;
+    margin: 4cm auto !important;
+    width: 13cm !important;
+    height: 13cm !important;
+    max-width: 100% !important;
+    border-radius: 16px !important;
+    /* Instruct the browser print engine to retain background gradients/images exactly */
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+    box-shadow: none !important;
+    border: 1px solid #cbd5e1 !important;
+    page-break-inside: avoid !important;
+  }
+
+  /* Apply style preserve policies to text overlay */
+  #quote-card-preview *, .print-ready-quote-card * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+    color-adjust: exact !important;
+  }
+
+  /* Scale, border, and center customizable QR codes precisely */
+  #qr-code-preview-card, .print-ready-qr-card {
+    display: flex !important;
+    margin: 5cm auto !important;
+    padding: 24px !important;
+    width: 9.5cm !important;
+    height: 9.5cm !important;
+    background: #ffffff !important;
+    border: 1.5px solid #0f172a !important;
+    border-radius: 16px !important;
+    justify-content: center !important;
+    align-items: center !important;
+    box-shadow: none !important;
+    page-break-inside: avoid !important;
+  }
+
+  #qr-code-preview-card img, .print-ready-qr-card img {
+    width: 8.2cm !important;
+    height: 8.2cm !important;
+    max-width: 100% !important;
+  }
+
+  /* Flatten layout flow for preview container */
+  .preview-grid, .layout, main, .page-wrap {
+    display: block !important;
+    width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+}

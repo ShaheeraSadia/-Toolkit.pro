@@ -1,0 +1,8 @@
+{
+  "name": "Remix: Toolkit Pro",
+  "description": "Advanced creative tools for digital creators including a Nature Quote Designer, Image Compressor, QR Code Generator, and Color Palette Extractor, fully integrated with Google Drive to save, browse, and sync your creations.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
