@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+ import React, { useState } from "react";
 import { 
   ShieldCheck, 
   FileText, 
@@ -373,7 +373,7 @@ export default function AdSenseCompliance({ subTab, onChangeSubTab }: AdSenseCom
                 <div className="space-y-1">
                   <p className="font-bold text-slate-800 dark:text-slate-205">Alternate Communication Channels</p>
                   <p className="text-[10px] text-indigo-600 dark:text-indigo-400 font-mono">
-                    support@default-gemini-project-6075a.web.app<br />
+                    support@toolkit-pro-chi.vercel.app<br />
                     shaheerasadia@gmail.com
                   </p>
                 </div>
