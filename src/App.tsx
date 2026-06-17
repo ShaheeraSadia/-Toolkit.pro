@@ -940,8 +940,8 @@ export default function App() {
                   { icon: <Twitter className="w-3.5 h-3.5" />, label: "Twitter", href: "https://twitter.com", color: "hover:text-sky-500 hover:border-sky-400" },
                   { icon: <Linkedin className="w-3.5 h-3.5" />, label: "LinkedIn", href: "https://linkedin.com", color: "hover:text-blue-600 hover:border-blue-500" },
                   { icon: <Facebook className="w-3.5 h-3.5" />, label: "Facebook", href: "https://facebook.com", color: "hover:text-blue-700 hover:border-blue-600" },
-                  { icon: <Globe className="w-3.5 h-3.5" />, label: "Website", href: "https://default-gemini-project-6075a.web.app", color: "hover:text-emerald-600 hover:border-emerald-500" },
-                ].map((social, idx) => (
+                  { icon: <Globe className="w-3.5 h-3.5" />, label: "Website", href: "https://toolkit-pro-chi.vercel.app", color: "hover:text-emerald-600 hover:border-emerald-500" },
+                     ].map((social, idx) => (
                   <a
                     key={idx}
                     href={social.href}
