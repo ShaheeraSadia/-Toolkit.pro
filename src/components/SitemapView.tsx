@@ -134,7 +134,7 @@ export default function SitemapView({ theme, onTabChange, onClose }: SitemapView
     "itemListElement": sitemapItems.map((item, index) => ({
       "@type": "ListItem",
       "position": index + 1,
-      "url": `${typeof window !== "undefined" ? window.location.origin : "https://default-gemini-project-6075a.web.app"}${item.url}`,
+      "url": `${typeof window !== "undefined" ? window.location.origin : "https://toolkit-pro-chi.vercel.app"}${item.url}`,
       "name": item.name,
       "description": item.description
     }))
@@ -190,7 +190,7 @@ export default function SitemapView({ theme, onTabChange, onClose }: SitemapView
           <p className="text-slate-400 uppercase tracking-wider font-extrabold">Primary Host Domain</p>
           <p className="text-xs font-bold text-slate-900 dark:text-white mt-1.5 flex items-center gap-1.5">
             <Globe className="w-3.5 h-3.5 text-indigo-505" />
-            {typeof window !== "undefined" ? window.location.origin : "https://default-gemini-project-6075a.web.app"}
+            {typeof window !== "undefined" ? window.location.origin : "https://toolkit-pro-chi.vercel.app"}
           </p>
         </div>
         <div className="bg-white/40 dark:bg-slate-900/30 border border-slate-200/50 dark:border-slate-800/80 p-4 rounded-2xl flex flex-col justify-between">
