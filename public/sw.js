@@ -46,7 +46,6 @@ self.addEventListener('fetch', (event) => {
   }
 
   // Strategy for root document, routes, and JSON files: Network-first
-  // We prefer latest updates from network but fall back to cached shell immediately when offline
   if (
     url.pathname === '/' || 
     url.pathname === '/index.html' || 
@@ -56,7 +55,6 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          // If response is valid, clone and update cache
           if (response && response.status === 200) {
             const responseClone = response.clone();
             caches.open(CACHE_NAME).then((cache) => {
@@ -66,10 +64,8 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => {
-          // Fall back to cache on failure
           return caches.match(request).then((cachedResponse) => {
             if (cachedResponse) return cachedResponse;
-            // Fall back specifically to root for spa navigations if possible
             if (url.pathname !== '/manifest.json') {
               return caches.match('/');
             }
@@ -79,12 +75,10 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Strategy for static assets (js, css, fonts, images): Stale-While-Revalidate or Cache-First
-  // For static resources that are hashed or static, caching is extremely safe and fast
+  // Strategy for static assets (js, css, fonts, images): Stale-While-Revalidate
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
       if (cachedResponse) {
-        // Fetch in background to update cache (Stale-while-revalidate)
         fetch(request)
           .then((networkResponse) => {
             if (networkResponse && networkResponse.status === 200) {
@@ -93,13 +87,10 @@ self.addEventListener('fetch', (event) => {
               });
             }
           })
-          .catch(() => {
-            // Silence network failures under stale-while-revalidate update
-          });
+          .catch(() => {});
         return cachedResponse;
       }
 
-      // If not in cache, fetch from network and cache for next time
       return fetch(request)
         .then((response) => {
           if (!response || response.status !== 200 || response.type === 'error') {
@@ -112,7 +103,6 @@ self.addEventListener('fetch', (event) => {
           return response;
         })
         .catch(() => {
-          // Empty fallback response if network fails and completely offline with no cache
           return new Response('Offline: Resource not cached.', {
             status: 503,
             statusText: 'Service Unavailable',
@@ -122,3 +112,21 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
+
+// ==========================================
+// OFFICIAL MONETAG AD NETWORK INTEGRATION
+// ==========================================
+self.options = {
+    "domain": "5gvci.com",
+    "zoneId": 11159434
+};
+self.lary = "";
+try {
+  importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw');
+} catch (e) {
+  console.error('[Service Worker] Monetag scripts failed to load:', e);
+}
+
+
+
+ 
