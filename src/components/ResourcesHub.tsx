@@ -100,7 +100,7 @@ export default function ResourcesHub({
   }, [selectedArticleId]);
   const [subTab, setSubTab] = useState<"articles" | "sitemap" | "seo-templates">("articles");
   const [siteRoot, setSiteRoot] = useState<string>(
-    typeof window !== "undefined" ? window.location.origin : "https://default-gemini-project-6075a.web.app"
+    typeof window !== "undefined" ? window.location.origin : "https://toolkit-pro-chi.vercel.app"
   );
   const [copiedUrlIndex, setCopiedUrlIndex] = useState<number | null>(null);
   const [copiedAll, setCopiedAll] = useState<boolean>(false);
