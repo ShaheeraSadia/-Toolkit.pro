@@ -118,15 +118,11 @@ self.addEventListener('fetch', (event) => {
 // ==========================================
 self.options = {
     "domain": "5gvci.com",
-    "zoneId": 11159434
+    "zoneId": 11171568
 };
 self.lary = "";
 try {
   importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw');
 } catch (e) {
   console.error('[Service Worker] Monetag scripts failed to load:', e);
-}
-
-
-
- 
+} 
