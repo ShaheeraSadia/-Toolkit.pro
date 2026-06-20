@@ -1,4 +1,4 @@
-const CACHE_NAME = 'toolkit-pro-cache-v2';
+ const CACHE_NAME = 'toolkit-pro-cache-v2';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -114,15 +114,15 @@ self.addEventListener('fetch', (event) => {
 });
 
 // ==========================================
-// OFFICIAL MONETAG AD NETWORK INTEGRATION
+// OFFICIAL MONETAG AD NETWORK INTEGRATION (UPDATED MULTI TAG)
 // ==========================================
 self.options = {
-    "domain": "5gvci.com",
-    "zoneId": 11171568
+    "domain": "quge5.com",
+    "zoneId": 251776
 };
 self.lary = "";
 try {
-  importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw');
+    importScripts('https://quge5.com/88/tag.min.js?r=sw');
 } catch (e) {
-  console.error('[Service Worker] Monetag scripts failed to load:', e);
-} 
+    console.error('[Service Worker] Monetag scripts failed to load:', e);
+}
