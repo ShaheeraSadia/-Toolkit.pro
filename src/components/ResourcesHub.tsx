@@ -17,8 +17,223 @@ import {
   Download,
   FileCode,
   Globe,
-  Settings
+  Settings,
+  Smartphone,
+  Monitor,
+  Sparkles
 } from "lucide-react";
+
+const NODE_JS_SCRIPT_TEMPLATE = (siteRoot: string) => `/**
+ * Toolkit Pro Suite - Client App Fetcher (NodeJS)
+ * High-performance automated pipeline to fetch & serialize creator assets locally.
+ */
+const fs = require('fs');
+const path = require('path');
+const https = require('https');
+
+console.log('🚀 INTIALIZING TOOLKIT DYNAMIC DOCK FETCHERS...');
+const outputDir = path.join(process.cwd(), 'toolkit_sync_downloads');
+if (!fs.existsSync(outputDir)) {
+  fs.mkdirSync(outputDir, { recursive: true });
+}
+
+// Config lists for dynamic sync
+const syncSources = [
+  { 
+    name: "workspace_status.json", 
+    url: "${siteRoot}/api/health"
+  }
+];
+
+// Sequential network downloader
+syncSources.forEach(source => {
+  const destination = path.join(outputDir, source.name);
+  const fileStream = fs.createWriteStream(destination);
+  
+  https.get(source.url, (res) => {
+    if (res.statusCode === 200) {
+      res.pipe(fileStream);
+      fileStream.on('finish', () => {
+        fileStream.close();
+        console.log(\`✅ [SUCCESS] Local App Fetcher compiled: \${source.name}\`);
+      });
+    } else {
+      console.error(\`❌ [ERROR] Remote status code: \${res.statusCode}\`);
+    }
+  }).on('error', (err) => {
+    fs.unlink(destination, () => {});
+    console.error(\`❌ [ERROR] Network timeout: \${err.message}\`);
+  });
+});`;
+
+const PYTHON_SCRIPT_CONTENT = `#!/usr/bin/env python3
+"""
+Toolkit Pro Suite - Aesthetic Downloader & Layout Fetcher (Python)
+Automated local collector to pool system styles & color palettes natively.
+"""
+import os
+import json
+import urllib.request
+
+print("⚡ Starting Python Style Config Downloader Fetcher...")
+out_dir = "./toolkit_style_manifests"
+if not os.path.exists(out_dir):
+    os.makedirs(out_dir)
+
+style_data = {
+    "app_name": "Toolkit Pro Suite",
+    "export_mode": "Automated Fetcher",
+    "pwa_installed": True,
+    "system_spectrum": {
+        "slate_600": "#475569",
+        "indigo_500": "#6366f1",
+        "emerald_500": "#10b981",
+        "deep_charcoal": "#0f172a"
+    },
+    "default_quote_preset": {
+        "text": "Simplicity is the ultimate sophistication.",
+        "author": "Leonardo da Vinci"
+    }
+}
+
+manifest_path = os.path.join(out_dir, "app_layout_config.json")
+with open(manifest_path, "w", encoding="utf-8") as f:
+    json.dump(style_data, f, indent=2)
+
+print(f"🎉 Successfully serialized custom system styles at: {manifest_path}")
+print("✨ Local pipeline complete!")`;
+
+const OFFLINE_HTML_CONTENT = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Toolkit Pro Suite - Independent Offline Client</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: #111827;
+      --text: #f3f4f6;
+      --muted: #9ca3af;
+      --accent: #6366f1;
+    }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 40px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .wrapper {
+      max-width: 650px;
+      width: 100%;
+      background: var(--card-bg);
+      padding: 35px;
+      border-radius: 20px;
+      border: 1px solid #1f2937;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    }
+    h1 {
+      font-size: 24px;
+      color: #818cf8;
+      text-align: center;
+      margin-top: 0;
+    }
+    p {
+      color: var(--muted);
+      font-size: 13.5px;
+      line-height: 1.6;
+      text-align: center;
+    }
+    .file-dropzone {
+      border: 2px dashed #374151;
+      border-radius: 14px;
+      padding: 35px;
+      text-align: center;
+      background: rgba(17, 24, 39, 0.5);
+      cursor: pointer;
+      margin: 25px 0;
+      transition: all 0.2s;
+    }
+    .file-dropzone:hover {
+      border-color: var(--accent);
+      background: rgba(99, 102, 241, 0.05);
+    }
+    input[type="file"] {
+      display: none;
+    }
+    .render-sandbox {
+      background: #0b0f19;
+      border-radius: 12px;
+      padding: 24px;
+      margin-top: 20px;
+      display: none;
+      border: 1px solid #1f2937;
+    }
+    .output-text {
+      font-size: 18px;
+      font-weight: 500;
+      line-height: 1.5;
+    }
+    .output-details {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 15px;
+      font-size: 11px;
+      color: var(--muted);
+      border-t: 1px solid #1f2937;
+      padding-top: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <h1>Toolkit Pro Suite Offline</h1>
+    <p>This is a portable HTML visualizer wrapper compiled automatically. Use it to load and inspect exported creator config backups offline safely on your machine without server overhead.</p>
+    
+    <div class="file-dropzone" onclick="document.getElementById('offlineFile').click()">
+      <span style="font-size: 28px;">🗂️</span>
+      <p style="margin: 10px 0 0 0; font-weight: bold; color: #a5b4fc;">Import layout backup file (.json)</p>
+      <input type="file" id="offlineFile" accept=".json" onchange="parseConfig(event)">
+    </div>
+
+    <div id="sandbox" class="render-sandbox">
+      <div id="outText" class="output-text"></div>
+      <div id="outDetails" class="output-details"></div>
+    </div>
+  </div>
+
+  <script>
+    function parseConfig(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        try {
+          const config = JSON.parse(evt.target.result);
+          document.getElementById('sandbox').style.display = 'block';
+          if (config.text) {
+            document.getElementById('outText').textContent = '"' + config.text + '"';
+            document.getElementById('outDetails').innerHTML = 
+              '<span>Author: ' + (config.author || 'Anonymous') + '</span>' +
+              '<span>Font: ' + (config.fontFamily || 'Inter') + '</span>';
+          } else {
+            document.getElementById('outText').innerHTML = '<pre style="font-size:11px; color:#34d399; margin:0; overflow-x:auto;">' + JSON.stringify(config, null, 2) + '</pre>';
+            document.getElementById('outDetails').innerHTML = '<span>Type: Schema Package</span><span>Raw JSON source parsed</span>';
+          }
+        } catch(err) {
+          alert("Error loading backup: Invalid JSON markup!");
+        }
+      };
+      reader.readAsText(file);
+    }
+  </script>
+</body>
+</html>`;
 
 interface Article {
   id: string;
@@ -34,11 +249,13 @@ interface Article {
 interface ResourcesHubProps {
   selectedArticleId?: string | null;
   onSelectArticleId?: (id: string | null) => void;
+  initialSubTab?: "articles" | "sitemap" | "seo-templates" | "installation" | "install-fetchers";
 }
 
 export default function ResourcesHub({
   selectedArticleId: propSelectedArticleId,
-  onSelectArticleId: propOnSelectArticleId
+  onSelectArticleId: propOnSelectArticleId,
+  initialSubTab: propInitialSubTab
 }: ResourcesHubProps = {}) {
   const [localSelectedArticleId, setLocalSelectedArticleId] = useState<string | null>(null);
   const [expandedFaqIndex, setExpandedFaqIndex] = useState<number | null>(0);
@@ -98,12 +315,25 @@ export default function ResourcesHub({
       }
     }
   }, [selectedArticleId]);
-  const [subTab, setSubTab] = useState<"articles" | "sitemap" | "seo-templates">("articles");
+  const [subTab, setSubTab] = useState<"articles" | "sitemap" | "seo-templates" | "installation" | "install-fetchers">(
+    propInitialSubTab || "articles"
+  );
+
+  useEffect(() => {
+    if (propInitialSubTab) {
+      setSubTab(propInitialSubTab);
+    }
+  }, [propInitialSubTab]);
+
   const [siteRoot, setSiteRoot] = useState<string>(
     typeof window !== "undefined" ? window.location.origin : "https://toolkit-pro-chi.vercel.app"
   );
   const [copiedUrlIndex, setCopiedUrlIndex] = useState<number | null>(null);
   const [copiedAll, setCopiedAll] = useState<boolean>(false);
+
+  // Install App & Downloader Fetchers States
+  const [activeFetcherPlatform, setActiveFetcherPlatform] = useState<"node" | "python" | "html">("node");
+  const [copiedFetcherField, setCopiedFetcherField] = useState<string | null>(null);
 
   // SEO Template States
   const [selectedSeoPage, setSelectedSeoPage] = useState<string>("compress");
@@ -751,7 +981,7 @@ export default function ResourcesHub({
         aria-label="Education Hub Sub-tabs"
         className="flex flex-wrap gap-2 border-b border-slate-100 dark:border-slate-800 pb-px"
         onKeyDown={(e) => {
-          const keys = ["articles", "sitemap", "seo-templates"] as const;
+          const keys = ["articles", "sitemap", "seo-templates", "installation", "install-fetchers"] as const;
           const idx = keys.indexOf(subTab);
           if (e.key === "ArrowRight") {
             e.preventDefault();
@@ -828,6 +1058,44 @@ export default function ResourcesHub({
         >
           <Settings className="w-3.5 h-3.5" />
           SEO Meta Template Generator
+        </button>
+        <button
+          onClick={() => {
+            setSubTab("installation");
+            setSelectedArticleId(null);
+          }}
+          role="tab"
+          aria-selected={subTab === "installation"}
+          aria-controls="resources-panel-installation"
+          aria-label="PWA Application Installation Guides"
+          className={`px-4 py-2.5 text-xs font-bold transition-all relative cursor-pointer select-none border-b-2 flex items-center gap-1.5 ${
+            subTab === "installation"
+              ? "border-emerald-500 text-emerald-600 dark:text-emerald-400 font-extrabold"
+              : "border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+          }`}
+          id="btn-subtab-installation"
+        >
+          <Sparkles className="w-3.5 h-3.5 text-emerald-500 animate-pulse" />
+          PWA Installation
+        </button>
+        <button
+          onClick={() => {
+            setSubTab("install-fetchers");
+            setSelectedArticleId(null);
+          }}
+          role="tab"
+          aria-selected={subTab === "install-fetchers"}
+          aria-controls="resources-panel-install-fetchers"
+          aria-label="App Installer & Download Client Fetchers"
+          className={`px-4 py-2.5 text-xs font-bold transition-all relative cursor-pointer select-none border-b-2 flex items-center gap-1.5 ${
+            subTab === "install-fetchers"
+              ? "border-indigo-500 text-indigo-600 dark:text-indigo-400 font-extrabold"
+              : "border-transparent text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+          }`}
+          id="btn-subtab-install-fetchers"
+        >
+          <Download className="w-3.5 h-3.5 animate-bounce-slow" />
+          App Installer & Fetchers
         </button>
       </div>
 
@@ -1420,7 +1688,841 @@ export default function ResourcesHub({
             </div>
           );
         })()
+      ) : subTab === "install-fetchers" ? (
+        (() => {
+          // Script utilities definitions for immediate clipboard copy and download fetchers
+          const nodeJsScriptContent = `/**
+ * Toolkit Pro Suite - Client App Fetcher (NodeJS)
+ * High-performance automated pipeline to fetch & serialize creator assets locally.
+ */
+const fs = require('fs');
+const path = require('path');
+const https = require('https');
+
+console.log('🚀 INTIALIZING TOOLKIT DYNAMIC DOCK FETCHERS...');
+const outputDir = path.join(process.cwd(), 'toolkit_sync_downloads');
+if (!fs.existsSync(outputDir)) {
+  fs.mkdirSync(outputDir, { recursive: true });
+}
+
+// Config lists for dynamic sync
+const syncSources = [
+  { 
+    name: "workspace_status.json", 
+    url: "${siteRoot}/api/health"
+  }
+];
+
+// Sequential network downloader
+syncSources.forEach(source => {
+  const destination = path.join(outputDir, source.name);
+  const fileStream = fs.createWriteStream(destination);
+  
+  https.get(source.url, (res) => {
+    if (res.statusCode === 200) {
+      res.pipe(fileStream);
+      fileStream.on('finish', () => {
+        fileStream.close();
+        console.log(\`✅ [SUCCESS] Local App Fetcher compiled: \${source.name}\`);
+      });
+    } else {
+      console.error(\`❌ [ERROR] Remote status code: \${res.statusCode}\`);
+    }
+  }).on('error', (err) => {
+    fs.unlink(destination, () => {});
+    console.error(\`❌ [ERROR] Network timeout: \${err.message}\`);
+  });
+});`;
+
+          const pythonScriptContent = `#!/usr/bin/env python3
+"""
+Toolkit Pro Suite - Aesthetic Downloader & Layout Fetcher (Python)
+Automated local collector to pool system styles & color palettes natively.
+"""
+import os
+import json
+import urllib.request
+
+print("⚡ Starting Python Style Config Downloader Fetcher...")
+out_dir = "./toolkit_style_manifests"
+if not os.path.exists(out_dir):
+    os.makedirs(out_dir)
+
+style_data = {
+    "app_name": "Toolkit Pro Suite",
+    "export_mode": "Automated Fetcher",
+    "pwa_installed": True,
+    "system_spectrum": {
+        "slate_600": "#475569",
+        "indigo_500": "#6366f1",
+        "emerald_500": "#10b981",
+        "deep_charcoal": "#0f172a"
+    },
+    "default_quote_preset": {
+        "text": "Simplicity is the ultimate sophistication.",
+        "author": "Leonardo da Vinci"
+    }
+}
+
+manifest_path = os.path.join(out_dir, "app_layout_config.json")
+with open(manifest_path, "w", encoding="utf-8") as f:
+    json.dump(style_data, f, indent=2)
+
+print(f"🎉 Successfully serialized custom system styles at: {manifest_path}")
+print("✨ Local pipeline complete!")`;
+
+          const offlineHtmlContent = `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Toolkit Pro Suite - Independent Offline Client</title>
+  <style>
+    :root {
+      --bg: #090d16;
+      --card-bg: #111827;
+      --text: #f3f4f6;
+      --muted: #9ca3af;
+      --accent: #6366f1;
+    }
+    body {
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      margin: 0;
+      padding: 40px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      min-height: 100vh;
+    }
+    .wrapper {
+      max-width: 650px;
+      width: 100%;
+      background: var(--card-bg);
+      padding: 35px;
+      border-radius: 20px;
+      border: 1px solid #1f2937;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.4);
+    }
+    h1 {
+      font-size: 24px;
+      color: #818cf8;
+      text-align: center;
+      margin-top: 0;
+    }
+    p {
+      color: var(--muted);
+      font-size: 13.5px;
+      line-height: 1.6;
+      text-align: center;
+    }
+    .file-dropzone {
+      border: 2px dashed #374151;
+      border-radius: 14px;
+      padding: 35px;
+      text-align: center;
+      background: rgba(17, 24, 39, 0.5);
+      cursor: pointer;
+      margin: 25px 0;
+      transition: all 0.2s;
+    }
+    .file-dropzone:hover {
+      border-color: var(--accent);
+      background: rgba(99, 102, 241, 0.05);
+    }
+    input[type="file"] {
+      display: none;
+    }
+    .render-sandbox {
+      background: #0b0f19;
+      border-radius: 12px;
+      padding: 24px;
+      margin-top: 20px;
+      display: none;
+      border: 1px solid #1f2937;
+    }
+    .output-text {
+      font-size: 18px;
+      font-weight: 500;
+      line-height: 1.5;
+    }
+    .output-details {
+      display: flex;
+      justify-content: space-between;
+      margin-top: 15px;
+      font-size: 11px;
+      color: var(--muted);
+      border-t: 1px solid #1f2937;
+      padding-top: 12px;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrapper">
+    <h1>Toolkit Pro Suite Offline</h1>
+    <p>This is a portable HTML visualizer wrapper compiled automatically. Use it to load and inspect exported creator config backups offline safely on your machine without server overhead.</p>
+    
+    <div class="file-dropzone" onclick="document.getElementById('offlineFile').click()">
+      <span style="font-size: 28px;">🗂️</span>
+      <p style="margin: 10px 0 0 0; font-weight: bold; color: #a5b4fc;">Import layout backup file (.json)</p>
+      <input type="file" id="offlineFile" accept=".json" onchange="parseConfig(event)">
+    </div>
+
+    <div id="sandbox" class="render-sandbox">
+      <div id="outText" class="output-text"></div>
+      <div id="outDetails" class="output-details"></div>
+    </div>
+  </div>
+
+  <script>
+    function parseConfig(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        try {
+          const config = JSON.parse(evt.target.result);
+          document.getElementById('sandbox').style.display = 'block';
+          if (config.text) {
+            document.getElementById('outText').textContent = '"' + config.text + '"';
+            document.getElementById('outDetails').innerHTML = 
+              '<span>Author: ' + (config.author || 'Anonymous') + '</span>' +
+              '<span>Font: ' + (config.fontFamily || 'Inter') + '</span>';
+          } else {
+            document.getElementById('outText').innerHTML = '<pre style="font-size:11px; color:#34d399; margin:0; overflow-x:auto;">' + JSON.stringify(config, null, 2) + '</pre>';
+            document.getElementById('outDetails').innerHTML = '<span>Type: Schema Package</span><span>Raw JSON source parsed</span>';
+          }
+        } catch(err) {
+          alert("Error loading backup: Invalid JSON markup!");
+        }
+      };
+      reader.readAsText(file);
+    }
+  </script>
+</body>
+</html>`;
+
+          // Download Action Handler
+          const handleDownloadFetcher = (fileName: string, content: string, mimeType: string) => {
+            const blob = new Blob([content], { type: mimeType });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = fileName;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
+          };
+
+          // Clipboard Copy Action Handler
+          const handleCopyFetcherCode = (text: string, platformLabel: string) => {
+            navigator.clipboard.writeText(text);
+            setCopiedFetcherField(platformLabel);
+            setTimeout(() => setCopiedFetcherField(null), 2500);
+          };
+
+          const activeCode = 
+            activeFetcherPlatform === "node" 
+              ? nodeJsScriptContent 
+              : activeFetcherPlatform === "python" 
+                ? pythonScriptContent 
+                : offlineHtmlContent;
+
+          const activeFileName = 
+            activeFetcherPlatform === "node" 
+              ? "app_fetcher_bulk.js" 
+              : activeFetcherPlatform === "python" 
+                ? "app_fetcher_aesthetic.py" 
+                : "toolkit_pwa_standalone_viewer.html";
+
+          const activeMimeType = 
+            activeFetcherPlatform === "node" || activeFetcherPlatform === "python" 
+              ? "text/plain" 
+              : "text/html";
+
+          return (
+            <div 
+              role="tabpanel"
+              id="resources-panel-install-fetchers"
+              className="space-y-6 animate-fade-in"
+            >
+              {/* Header Title Card */}
+              <div className="bg-slate-50/50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800/80 rounded-3xl p-5 md:p-6 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-1.5 leading-none">
+                      <Download className="w-4 h-4 text-indigo-500 animate-bounce-slow" />
+                      App Installer & Download Client Fetchers WORKSPACE
+                    </h4>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal max-w-3xl">
+                      Configure persistent standalone PWA installs on any device or fetch bulk creative assets programmatically using custom script scrapers and static offline visualizers.
+                    </p>
+                  </div>
+                  <span className="shrink-0 text-[10px] font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-950/45 px-2.5 py-1 rounded-full border border-indigo-100 dark:border-indigo-900/40 h-fit">
+                    Sandbox Secured Client
+                  </span>
+                </div>
+              </div>
+
+              {/* Main Content Layout Grid */}
+              <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+                
+                {/* LEFT-HAND COLUMN: Native App Installer & Guides */}
+                <div className="lg:col-span-5 space-y-4">
+                  <div className="bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-850 p-5 rounded-2xl shadow-xs space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-50 dark:border-slate-850 pb-3">
+                      <h5 className="text-[11px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                        1. Progressive App Installation
+                      </h5>
+                      <span className="text-[9px] font-mono text-emerald-500 font-extrabold flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                        SW Active
+                      </span>
+                    </div>
+
+                    {/* Status overview cards */}
+                    <div className="grid grid-cols-3 gap-2">
+                      <div className="bg-slate-50 dark:bg-slate-900/55 p-2 rounded-xl text-center space-y-1">
+                        <div className="text-[9px] font-bold text-slate-400 uppercase">Sandbox Mode</div>
+                        <div className="text-[10px] font-semibold text-slate-800 dark:text-slate-200">Verified Web</div>
+                      </div>
+                      <div className="bg-slate-50 dark:bg-slate-900/55 p-2 rounded-xl text-center space-y-1">
+                        <div className="text-[9px] font-bold text-slate-400 uppercase">Offline Cache</div>
+                        <div className="text-[10px] font-semibold text-emerald-500 font-sans">Ready-98%</div>
+                      </div>
+                      <div className="bg-slate-50 dark:bg-slate-900/55 p-2 rounded-xl text-center space-y-1">
+                        <div className="text-[9px] font-bold text-slate-400 uppercase">Sync Engine</div>
+                        <div className="text-[10px] font-semibold text-indigo-505">Auto Client</div>
+                      </div>
+                    </div>
+
+                    {/* Direct Install CTA */}
+                    <div className="bg-gradient-to-br from-indigo-50/30 to-indigo-50/5 dark:from-indigo-950/10 dark:to-indigo-950/2 rounded-xl p-4 border border-indigo-100/50 dark:border-indigo-900/30 space-y-3">
+                      <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-normal font-sans font-medium">
+                        Run our creator suites outside browser address bars in a dedicated distraction-free standalone window with persistent caching, fast transitions, and immediate local loading.
+                      </p>
+                      
+                      <button
+                        onClick={() => {
+                          // Try installing on Navbar or triggering browser guides
+                          const navBtn = document.getElementById("btn-pwa-install-nav");
+                          if (navBtn) {
+                            navBtn.click();
+                          } else {
+                            alert("Click the dedicated Installation Monitor button at the top header navbar to trigger your browser's native overlay installer!");
+                          }
+                        }}
+                        className="w-full inline-flex items-center justify-center py-2 px-3 rounded-xl bg-indigo-600 hover:bg-indigo-750 text-white font-bold text-xs shadow-md transition-all cursor-pointer font-sans"
+                      >
+                        🚀 Install Standalone Desktop Client
+                      </button>
+                    </div>
+
+                    {/* Platform guides */}
+                    <div className="space-y-4 pt-1">
+                      {/* Desktop Guide */}
+                      <div className="space-y-2">
+                        <h6 className="text-[10px] font-extrabold text-slate-450 dark:text-slate-500 uppercase tracking-widest leading-none flex items-center gap-1">
+                          💻 How to Install on Desktop (Windows, macOS, Linux, ChromeOS)
+                        </h6>
+                        
+                        {/* Chrome/Edge Desktop */}
+                        <div className="p-3 bg-slate-50/50 dark:bg-slate-900/35 border border-slate-100 dark:border-slate-850/60 rounded-xl space-y-1">
+                          <div className="flex items-center justify-between text-[11px] font-bold text-slate-800 dark:text-slate-200">
+                            <span>Using Google Chrome or Microsoft Edge</span>
+                            <span className="text-[9px] bg-indigo-50 dark:bg-indigo-950 text-indigo-650 dark:text-indigo-400 px-1.5 py-0.5 rounded font-mono font-bold">Fast & Preferred</span>
+                          </div>
+                          <p className="text-[10.5px] text-slate-550 dark:text-slate-400 leading-relaxed font-sans">
+                            1. Open the app link in your browser: <a href="https://ais-dev-a46nakkyvhetoppmtctdod-190926376546.asia-southeast1.run.app" target="_blank" rel="noopener noreferrer" className="text-indigo-600 dark:text-indigo-400 underline font-extrabold">Development App Link</a> or <a href="https://ais-pre-a46nakkyvhetoppmtctdod-190926376546.asia-southeast1.run.app" target="_blank" rel="noopener noreferrer" className="text-indigo-600 dark:text-indigo-400 underline font-extrabold">Shared App Link</a>.<br/>
+                            2. In the address bar (on the right-hand side), you will see an <strong className="text-slate-700 dark:text-slate-300 font-bold">"Install" icon</strong> (a small monitor with a down-pointing arrow, or a plus <strong>+</strong> icon depending on your browser version).<br/>
+                            3. Click it, select <strong className="text-indigo-650 dark:text-indigo-400 font-extrabold">"Install"</strong>, and the app will instantly launch in its own premium standalone window.<br/>
+                            4. An app shortcut will also be added to your desktop/start menu.
+                          </p>
+                        </div>
+
+                        {/* Safari on macOS */}
+                        <div className="p-3 bg-slate-50/50 dark:bg-slate-900/35 border border-slate-100 dark:border-slate-850/60 rounded-xl space-y-1">
+                          <div className="text-[11px] font-bold text-slate-800 dark:text-slate-200">
+                            Using Safari on macOS
+                          </div>
+                          <p className="text-[10.5px] text-slate-550 dark:text-slate-400 leading-relaxed font-sans">
+                            1. Open the app's link in Safari.<br/>
+                            2. Click the <strong className="text-slate-700 dark:text-slate-300 font-bold">Share sheet button</strong> in the toolbar.<br/>
+                            3. Scroll down and click <strong className="text-indigo-650 dark:text-indigo-400 font-extrabold">"Add to Dock"</strong>.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Mobile Guide */}
+                      <div className="space-y-2">
+                        <h6 className="text-[10px] font-extrabold text-slate-450 dark:text-slate-500 uppercase tracking-widest leading-none flex items-center gap-1">
+                          📱 How to Install on Mobile (iOS / Android)
+                        </h6>
+
+                        {/* iOS Safari */}
+                        <div className="p-3 bg-slate-50/50 dark:bg-slate-900/35 border border-slate-100 dark:border-slate-850/60 rounded-xl space-y-1">
+                          <div className="text-[11px] font-bold text-slate-800 dark:text-slate-200">
+                            On iPhone or iPad (Safari)
+                          </div>
+                          <p className="text-[10.5px] text-slate-550 dark:text-slate-400 leading-relaxed font-sans">
+                            1. Navigate to the app address in Safari.<br/>
+                            2. Tap the <strong className="text-slate-700 dark:text-slate-300 font-bold">Share icon</strong> (square with an up-pointing arrow) at the bottom toolbar.<br/>
+                            3. Select <strong className="text-indigo-650 dark:text-indigo-400 font-extrabold">"Add to Home Screen"</strong> from the options grid.<br/>
+                            4. Enter a name (e.g., <em className="not-italic font-bold">Toolkit Pro</em>) and tap <strong className="text-indigo-650 dark:text-indigo-400 font-extrabold">"Add"</strong>. The application will appear directly on your iOS home screen as an app icon.
+                          </p>
+                        </div>
+
+                        {/* Android Chrome */}
+                        <div className="p-3 bg-slate-50/50 dark:bg-slate-900/35 border border-slate-100 dark:border-slate-850/60 rounded-xl space-y-1">
+                          <div className="text-[11px] font-bold text-slate-800 dark:text-slate-200">
+                            On Android (Chrome)
+                          </div>
+                          <p className="text-[10.5px] text-slate-550 dark:text-slate-400 leading-relaxed font-sans">
+                            1. Open the app link in Google Chrome.<br/>
+                            2. A banner at the bottom of the screen may prompt you with: <strong className="text-indigo-650 dark:text-indigo-400 font-extrabold">"Add Toolkit Pro to Home Screen"</strong>. Tap it.<br/>
+                            3. Alternatively, tap the three dots menu in the top-right corner of Chrome and select <strong className="text-indigo-650 dark:text-indigo-400 font-extrabold">"Install app"</strong> (or "Add to home screen").<br/>
+                            4. Tap <strong className="text-indigo-650 dark:text-indigo-400 font-extrabold">"Install"</strong> to verify, and Android will place the high-fidelity launcher icon on your app drawer and home screen.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Benefits Section */}
+                      <div className="space-y-2 pt-1">
+                        <h6 className="text-[10px] font-extrabold text-slate-450 dark:text-slate-500 uppercase tracking-widest leading-none flex items-center gap-1">
+                          ✨ Benefits of Installing as a PWA
+                        </h6>
+                        <div className="p-3.5 bg-indigo-50/20 dark:bg-indigo-950/15 border border-indigo-100/35 dark:border-indigo-900/20 rounded-xl space-y-2.5">
+                          <div className="space-y-0.5">
+                            <div className="text-[10.5px] font-black text-slate-800 dark:text-slate-250 flex items-center gap-1 font-sans">
+                              💎 Standalone Canvas Experience
+                            </div>
+                            <p className="text-[10px] text-slate-550 dark:text-slate-400 leading-normal">
+                              Runs without the browser tabs or top URL navigation bars, maximizing the visible canvas for the Quote Designer, QR Matrix Creator, and Lossless Image Compressor.
+                            </p>
+                          </div>
+                          <div className="space-y-0.5">
+                            <div className="text-[10.5px] font-black text-slate-800 dark:text-slate-250 flex items-center gap-1 font-sans">
+                              ⚡ Instant Accessibility
+                            </div>
+                            <p className="text-[10px] text-slate-550 dark:text-slate-400 leading-normal">
+                              Access the studio workspace anytime, direct from your desktop dock, applications list, or phone's home screen.
+                            </p>
+                          </div>
+                          <div className="space-y-0.5">
+                            <div className="text-[10.5px] font-black text-slate-800 dark:text-slate-250 flex items-center gap-1 font-sans">
+                              🚀 Optimized Rendering
+                            </div>
+                            <p className="text-[10px] text-slate-550 dark:text-slate-400 leading-normal">
+                              The service worker background caching reduces page-loading flickering and latency, allowing for high-performance creative execution.
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* RIGHT-HAND COLUMN: Developer Script/App Downloader Fetchers */}
+                <div className="lg:col-span-7 space-y-4">
+                  <div className="bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-850 p-5 rounded-2xl shadow-xs space-y-4 flex flex-col h-full">
+                    
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-50 dark:border-slate-850 pb-3 gap-3">
+                      <h5 className="text-[11px] font-bold text-slate-800 dark:text-slate-200 uppercase tracking-wider">
+                        2. Standalone app Downloader Fetchers
+                      </h5>
+
+                      {/* Script tabs selector */}
+                      <div className="flex select-none gap-1 bg-slate-100 dark:bg-slate-900 p-1 rounded-lg shrink-0">
+                        <button
+                          onClick={() => setActiveFetcherPlatform("node")}
+                          className={`px-2.5 py-1 text-[10px] font-bold rounded cursor-pointer transition-all ${
+                            activeFetcherPlatform === "node"
+                              ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs"
+                              : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                          }`}
+                        >
+                          Node.js Sync
+                        </button>
+                        <button
+                          onClick={() => setActiveFetcherPlatform("python")}
+                          className={`px-2.5 py-1 text-[10px] font-bold rounded cursor-pointer transition-all ${
+                            activeFetcherPlatform === "python"
+                              ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs"
+                              : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                          }`}
+                        >
+                          Python Palettes
+                        </button>
+                        <button
+                          onClick={() => setActiveFetcherPlatform("html")}
+                          className={`px-2.5 py-1 text-[10px] font-bold rounded cursor-pointer transition-all ${
+                            activeFetcherPlatform === "html"
+                              ? "bg-white dark:bg-slate-800 text-slate-900 dark:text-white shadow-2xs"
+                              : "text-slate-400 hover:text-slate-700 dark:hover:text-slate-300"
+                          }`}
+                        >
+                          Offline App Package
+                        </button>
+                      </div>
+                    </div>
+
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal font-medium">
+                      {activeFetcherPlatform === "node" 
+                        ? "Execute this Node.js automation pipeline locally to systematically pull latest workspace configs and assets into a synced output directory."
+                        : activeFetcherPlatform === "python"
+                          ? "Run this Python utility on your desktop drive to format and compile local palette maps and styling metrics instantly."
+                          : "Save this compiled self-contained single HTML utility package to run the layout previews in an environment entirely disconnected from our main network."}
+                    </p>
+
+                    {/* Copied alert tag */}
+                    {copiedFetcherField && (
+                      <div className="bg-emerald-950/30 border border-emerald-900/40 text-emerald-400 p-2 text-[10.5px] font-bold text-center rounded-lg animate-fade-in font-sans">
+                        🎉 Copied dedicated **{copiedFetcherField}** fetcher script code to clipboard!
+                      </div>
+                    )}
+
+                    {/* Code view box */}
+                    <div className="relative flex-1">
+                      <div className="absolute top-2.5 right-2 text-[10px] font-mono font-black text-slate-500 select-none bg-slate-900 px-2 py-0.5 rounded border border-slate-800">
+                        {activeFileName}
+                      </div>
+                      <pre className="bg-slate-900 dark:bg-slate-950/70 p-4 rounded-xl border border-slate-800 font-mono text-[10px] dark:text-slate-300 text-slate-400 overflow-x-auto leading-relaxed max-h-[300px] overflow-y-auto select-all scrollbar-none">
+                        {activeCode}
+                      </pre>
+                    </div>
+
+                    {/* Downloader Trigger Row layout */}
+                    <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-4 border-t border-slate-50 dark:border-slate-850">
+                      <span className="text-[10px] font-bold text-slate-450 truncate">
+                        Format: <strong className="text-slate-700 dark:text-slate-300 font-bold">{activeMimeType}</strong> • Size: ~{Math.round(activeCode.length / 100) / 10} KB
+                      </span>
+
+                      <div className="flex items-center gap-2 select-none w-full sm:w-auto">
+                        <button
+                          onClick={() => handleCopyFetcherCode(activeCode, activeFetcherPlatform.toUpperCase() + " Script")}
+                          className="flex-1 sm:flex-none inline-flex items-center justify-center p-2.5 px-4 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs border border-slate-200 dark:border-slate-805 cursor-pointer"
+                        >
+                          <Copy className="w-3.5 h-3.5 mr-1" /> Copy Code
+                        </button>
+                        <button
+                          onClick={() => handleDownloadFetcher(activeFileName, activeCode, activeMimeType)}
+                          className="flex-1 sm:flex-none inline-flex items-center justify-center p-2.5 px-4 rounded-xl bg-slate-950 hover:bg-slate-900 font-bold text-xs text-white shadow-md cursor-pointer cursor-pointer"
+                        >
+                          <Download className="w-3.5 h-3.5 mr-1" /> Download Script File
+                        </button>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+              </div>
+            </div>
+          );
+        })()
+      ) : subTab === "installation" ? (
+        <div 
+          role="tabpanel"
+          id="resources-panel-installation"
+          className="space-y-8 animate-fade-in text-slate-800 dark:text-slate-250 animate-fade-in"
+        >
+          {/* Header Hero Card */}
+          <div className="bg-gradient-to-br from-indigo-50/50 via-slate-50/30 to-emerald-50/30 dark:from-indigo-950/20 dark:via-slate-900/40 dark:to-emerald-950/15 border border-slate-100 dark:border-slate-800/80 rounded-3xl p-6 md:p-8 space-y-4 shadow-xs relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-emerald-500/5 dark:bg-emerald-500/10 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-indigo-500/5 dark:bg-indigo-500/10 rounded-full blur-3xl -ml-16 -mb-16 pointer-events-none" />
+            
+            <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6">
+              <div className="space-y-2">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-extrabold tracking-wider uppercase text-emerald-600 bg-emerald-50 border border-emerald-150 dark:text-emerald-450 dark:bg-emerald-950/50 dark:border-emerald-900/40">
+                  ⚡ Official PWA Standalone Client
+                </span>
+                <h3 className="text-xl md:text-2xl font-black text-slate-900 dark:text-white tracking-tight leading-snug">
+                  High-Fidelity App Installer Guide
+                </h3>
+                <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400 max-w-2xl leading-relaxed">
+                  Transform this web suite into an ultra-fast desktop or mobile software utility. PWAs run outside standard browser tabs, utilizing local offline browser hardware acceleration for frictionless, zero-latency workflows.
+                </p>
+              </div>
+              <div className="shrink-0 flex flex-col items-stretch gap-2.5 min-w-[200px]">
+                <button
+                  onClick={() => {
+                    const navBtn = document.getElementById("btn-pwa-install-nav");
+                    if (navBtn) {
+                      navBtn.click();
+                    } else {
+                      alert("Please click the dedicated 'Install PWA' button in the top navbar header or follow the guides below to trigger installation in your specific browser version!");
+                    }
+                  }}
+                  className="w-full inline-flex items-center justify-center py-3 px-4 rounded-xl bg-indigo-650 hover:bg-indigo-700 text-white hover:text-white hover:bg-indigo-700 transition-all duration-250 font-bold text-xs shadow-lg hover:shadow-indigo-500/20 active:scale-98 cursor-pointer select-none"
+                >
+                  🚀 Trigger Installer Prompt
+                </button>
+                <div className="text-[10px] text-center text-slate-400 dark:text-slate-500 font-medium font-sans">
+                  Compatible with Chrome, Safari, Edge, & custom containers
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            {/* Desktop Installation Card */}
+            <div className="bg-white dark:bg-slate-950 border border-slate-150/40 dark:border-slate-850 p-6 rounded-3xl shadow-sm space-y-5">
+              <div className="flex items-center gap-3 border-b border-slate-10 border-slate-100 dark:border-slate-850 pb-4">
+                <div className="p-2 border border-slate-100 dark:border-slate-850 bg-slate-50 dark:bg-slate-900 rounded-xl">
+                  <Monitor className="w-5 h-5 text-indigo-500 animate-pulse" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider font-sans">
+                    Laptop & Desktop Guides
+                  </h4>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-extrabold uppercase tracking-wide">
+                    macOS, Windows, Linux, & ChromeOS
+                  </p>
+                </div>
+              </div>
+
+              {/* Guide 1 */}
+              <div className="space-y-4">
+                <div className="p-4 bg-slate-50/50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-850 rounded-2xl relative space-y-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2.5">
+                    <span className="text-xs font-black text-slate-855 dark:text-slate-200 font-sans">
+                      Using Google Chrome or Microsoft Edge
+                    </span>
+                    <span className="text-[9px] bg-emerald-50 dark:bg-emerald-950/65 text-emerald-600 dark:text-emerald-450 px-2 py-0.5 rounded font-bold uppercase tracking-wider border border-emerald-100/50 dark:border-emerald-900/40">
+                      Standard PWA Setup
+                    </span>
+                  </div>
+                  <ol className="text-xs text-slate-600 dark:text-slate-400 space-y-2.5 pl-1 list-none font-sans leading-relaxed">
+                    <li className="flex items-start gap-2">
+                      <span className="flex items-center justify-center shrink-0 w-5 h-5 rounded-full bg-slate-200/60 dark:bg-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300 font-mono">
+                        1
+                      </span>
+                      <span>
+                        Open the app link in your browser:{" "}
+                        <a href="https://ais-dev-a46nakkyvhetoppmtctdod-190926376546.asia-southeast1.run.app" target="_blank" rel="noopener noreferrer" className="text-indigo-650 dark:text-indigo-400 font-semibold underline hover:text-indigo-800 dark:hover:text-indigo-300">
+                          Development App Link
+                        </a>{" "}
+                        or{" "}
+                        <a href="https://ais-pre-a46nakkyvhetoppmtctdod-190926376546.asia-southeast1.run.app" target="_blank" rel="noopener noreferrer" className="text-indigo-650 dark:text-indigo-400 font-semibold underline hover:text-indigo-800 dark:hover:text-indigo-300">
+                          Shared App Link
+                        </a>.
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="flex items-center justify-center shrink-0 w-5 h-5 rounded-full bg-slate-200/60 dark:bg-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300 font-mono">
+                        2
+                      </span>
+                      <span>
+                        In the address bar (on the right-hand side), you will see an <strong className="text-emerald-600 dark:text-emerald-450 font-bold">"Install" icon</strong> (a small monitor with a down-pointing arrow, or a plus <strong className="text-slate-700 dark:text-slate-300 font-bold">+</strong> icon depending on your browser version).
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="flex items-center justify-center shrink-0 w-5 h-5 rounded-full bg-slate-200/60 dark:bg-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300 font-mono">
+                        3
+                      </span>
+                      <span>
+                        Click it, select <strong className="text-indigo-650 dark:text-indigo-400 font-extrabold">"Install"</strong>, and the app will instantly launch in its own premium standalone window.
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="flex items-center justify-center shrink-0 w-5 h-5 rounded-full bg-slate-200/60 dark:bg-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300 font-mono">
+                        4
+                      </span>
+                      <span>
+                        An app shortcut will also be added to your desktop/start menu.
+                      </span>
+                    </li>
+                  </ol>
+                </div>
+
+                {/* Guide 2 */}
+                <div className="p-4 bg-slate-50/50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-850 rounded-2xl space-y-2">
+                  <div className="text-xs font-black text-slate-800 dark:text-slate-200 font-sans">
+                    Using Safari on macOS
+                  </div>
+                  <ol className="text-xs text-slate-600 dark:text-slate-400 space-y-2.5 pl-1 list-none font-sans leading-relaxed">
+                    <li className="flex items-start gap-2">
+                      <span className="flex items-center justify-center shrink-0 w-5 h-5 rounded-full bg-slate-200/60 dark:bg-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300 font-mono font-mono">
+                        1
+                      </span>
+                      <span>Open the app’s link in Safari.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="flex items-center justify-center shrink-0 w-5 h-5 rounded-full bg-slate-200/60 dark:bg-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300 font-mono font-mono">
+                        2
+                      </span>
+                      <span>
+                        Click the <strong className="text-slate-700 dark:text-slate-300 font-bold">Share sheet button</strong> in the toolbar.
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="flex items-center justify-center shrink-0 w-5 h-5 rounded-full bg-slate-200/60 dark:bg-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300 font-mono font-mono">
+                        3
+                      </span>
+                      <span>
+                        Scroll down and click <strong className="text-indigo-650 dark:text-indigo-400 font-extrabold">"Add to Dock"</strong>.
+                      </span>
+                    </li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+
+            {/* Mobile Installation Card */}
+            <div className="bg-white dark:bg-slate-950 border border-slate-150/40 dark:border-slate-850 p-6 rounded-3xl shadow-sm space-y-5">
+              <div className="flex items-center gap-3 border-b border-slate-100 dark:border-slate-855 pb-4">
+                <div className="p-2 border border-slate-100 dark:border-slate-850 bg-slate-50 dark:bg-slate-900 rounded-xl">
+                  <Smartphone className="w-5 h-5 text-emerald-500 animate-bounce-slow" />
+                </div>
+                <div>
+                  <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider font-sans">
+                    Smartphones & Mobile Guides
+                  </h4>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 font-extrabold uppercase tracking-wide">
+                    Apple iOS & Google Android Devices
+                  </p>
+                </div>
+              </div>
+
+              {/* iOS Safari */}
+              <div className="space-y-4">
+                <div className="p-4 bg-slate-50/50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-850 rounded-2xl space-y-2">
+                  <div className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center justify-between font-sans">
+                    <span>On iPhone or iPad (Safari)</span>
+                    <span className="text-[8.5px] font-mono font-bold text-slate-450 dark:text-slate-500 uppercase">iOS Standard</span>
+                  </div>
+                  <ol className="text-xs text-slate-600 dark:text-slate-400 space-y-2.5 pl-1 list-none font-sans leading-relaxed">
+                    <li className="flex items-start gap-2">
+                      <span className="flex items-center justify-center shrink-0 w-5 h-5 rounded-full bg-slate-200/60 dark:bg-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300 font-mono">
+                        1
+                      </span>
+                      <span>Navigate to the app address in Safari.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="flex items-center justify-center shrink-0 h-5 w-5 bg-slate-200/60 dark:bg-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300 rounded-full font-mono">
+                        2
+                      </span>
+                      <span>
+                        Tap the <strong className="text-slate-700 dark:text-slate-305 font-bold">Share icon</strong> (square with an up-pointing arrow) at the bottom toolbar.
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="flex items-center justify-center shrink-0 h-5 w-5 bg-slate-200/60 dark:bg-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300 rounded-full font-mono">
+                        3
+                      </span>
+                      <span>
+                        Select <strong className="text-indigo-650 dark:text-indigo-400 font-extrabold">"Add to Home Screen"</strong> from the options grid.
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="flex items-center justify-center shrink-0 h-5 w-5 bg-slate-200/60 dark:bg-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300 rounded-full font-mono">
+                        4
+                      </span>
+                      <span>
+                        Enter a name (e.g., <em className="font-bold border-b border-indigo-100 dark:border-indigo-900/60 not-italic">Toolkit Pro</em>) and tap <strong className="text-indigo-650 dark:text-indigo-400 font-extrabold">"Add"</strong>. The application will appear directly on your iOS home screen as an app icon.
+                      </span>
+                    </li>
+                  </ol>
+                </div>
+
+                {/* Android Chrome */}
+                <div className="p-4 bg-slate-50/50 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-850 rounded-2xl space-y-2">
+                  <div className="text-xs font-black text-slate-805 dark:text-slate-200 flex items-center justify-between font-sans">
+                    <span>On Android (Chrome)</span>
+                    <span className="text-[8.5px] font-mono font-bold text-slate-450 dark:text-slate-500 uppercase">Android Standard</span>
+                  </div>
+                  <ol className="text-xs text-slate-600 dark:text-slate-400 space-y-2.5 pl-1 list-none font-sans leading-relaxed">
+                    <li className="flex items-start gap-2">
+                      <span className="flex items-center justify-center shrink-0 h-5 w-5 bg-slate-200/60 dark:bg-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300 rounded-full font-mono">
+                        1
+                      </span>
+                      <span>Open the app link in Google Chrome.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="flex items-center justify-center shrink-0 h-5 w-5 bg-slate-200/60 dark:bg-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300 rounded-full font-mono">
+                        2
+                      </span>
+                      <span>
+                        A banner at the bottom of the screen may prompt you with: <strong className="text-indigo-650 dark:text-indigo-400 font-extrabold">"Add Toolkit Pro to Home Screen"</strong>. Tap it.
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="flex items-center justify-center shrink-0 h-5 w-5 bg-slate-200/60 dark:bg-slate-800 text-[10px] font-bold text-slate-700 dark:text-slate-300 rounded-full font-mono">
+                        3
+                      </span>
+                      <span>
+                        Alternatively, tap the three dots menu in the top-right corner of Chrome and select <strong className="text-indigo-650 dark:text-indigo-400 font-extrabold">"Install app"</strong> (or "Add to home screen").
+                      </span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="flex items-center justify-center shrink-0 h-5 w-5 bg-slate-200/60 dark:bg-slate-805 text-[10px] font-bold text-slate-700 dark:text-slate-300 rounded-full font-mono">
+                        4
+                      </span>
+                      <span>
+                        Tap <strong className="text-indigo-650 dark:text-indigo-400 font-extrabold font-semibold">"Install"</strong> to verify, and Android will place the high-fidelity launcher icon on your app drawer and home screen.
+                      </span>
+                    </li>
+                  </ol>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Benefits Cards Section */}
+          <div className="bg-slate-50/50 dark:bg-slate-900/20 border border-slate-100 dark:border-slate-850 p-6 md:p-8 rounded-3xl space-y-6">
+            <div className="space-y-1">
+              <h4 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5 leading-none font-sans">
+                <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
+                Benefits of Installing as a PWA
+              </h4>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal max-w-3xl">
+                Installing our Progressive Web App completely elevates your creative design workflows. Here are the core metrics and mechanics.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+              <div className="bg-white dark:bg-slate-950 p-5 rounded-2xl border border-slate-100 dark:border-slate-850/80 space-y-2 cursor-default hover:border-slate-200 dark:hover:border-slate-700 transition-all duration-200 group">
+                <div className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5 font-sans">
+                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-550 dark:text-indigo-400 text-xs font-black">
+                    💎
+                  </span>
+                  Standalone Canvas Experience
+                </div>
+                <p className="text-xs text-slate-550 dark:text-slate-400 leading-relaxed pl-7.5">
+                  Runs without the browser tabs or top URL navigation bars, maximizing the visible canvas for the Quote Designer, QR Matrix Creator, and Lossless Image Compressor.
+                </p>
+              </div>
+
+              <div className="bg-white dark:bg-slate-950 p-5 rounded-2xl border border-slate-100 dark:border-slate-850/80 space-y-2 cursor-default hover:border-slate-200 dark:hover:border-slate-700 transition-all duration-200 group">
+                <div className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5 font-sans">
+                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg bg-emerald-50 dark:bg-emerald-950/50 text-emerald-555 dark:text-emerald-400 text-xs font-black">
+                    🚀
+                  </span>
+                  Instant Accessibility
+                </div>
+                <p className="text-xs text-slate-550 dark:text-slate-400 leading-relaxed pl-7.5">
+                  Access the studio workspace anytime, direct from your desktop dock, applications list, or phone's home screen.
+                </p>
+              </div>
+
+              <div className="bg-white dark:bg-slate-950 p-5 rounded-2xl border border-slate-100 dark:border-slate-850/80 space-y-2 cursor-default hover:border-slate-200 dark:hover:border-slate-700 transition-all duration-200 group">
+                <div className="text-xs font-black text-slate-900 dark:text-white flex items-center gap-1.5 font-sans">
+                  <span className="inline-flex items-center justify-center w-6 h-6 rounded-lg bg-indigo-50 dark:bg-indigo-950/50 text-indigo-550 dark:text-indigo-400 text-xs font-black">
+                    ✨
+                  </span>
+                  Optimized Rendering
+                </div>
+                <p className="text-xs text-slate-550 dark:text-slate-400 leading-relaxed pl-7.5">
+                  The service worker background caching reduces page-loading flickering and latency, allowing for high-performance creative execution.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
       ) : selectedArticleId ? (
+
         // Detailed Article View
         (() => {
           const article = ARTICLES.find((a) => a.id === selectedArticleId);

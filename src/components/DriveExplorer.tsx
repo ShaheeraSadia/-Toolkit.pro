@@ -26,6 +26,7 @@ import {
   CheckSquare,
   Sparkles,
   ArrowUpDown,
+  Download,
 } from "lucide-react";
 
 interface DriveExplorerProps {
@@ -529,6 +530,70 @@ export default function DriveExplorer({
     return "general";
   };
 
+  // Check if a file or folder matches the search query by name or date
+  const matchFileByDateOrName = (file: DriveFile, query: string): boolean => {
+    if (!query) return true;
+    const q = query.toLowerCase().trim();
+
+    // 1. Match name
+    if (file.name.toLowerCase().includes(q)) return true;
+
+    // 2. Match date (createdTime)
+    if (file.createdTime) {
+      const createdDate = new Date(file.createdTime);
+      const isoStr = file.createdTime.toLowerCase();
+      if (isoStr.includes(q)) return true;
+
+      const localStr = createdDate.toLocaleDateString().toLowerCase();
+      if (localStr.includes(q)) return true;
+
+      // Match common parts of date: month name, day, year
+      const options: Intl.DateTimeFormatOptions[] = [
+        { month: "long" },
+        { month: "short" },
+        { weekday: "long" },
+        { weekday: "short" },
+        { year: "numeric" },
+        { day: "numeric" },
+      ];
+
+      for (const opt of options) {
+        try {
+          const part = createdDate.toLocaleDateString(undefined, opt).toLowerCase();
+          if (part.includes(q)) return true;
+        } catch (e) {}
+      }
+    }
+
+    // 3. Match date (modifiedTime)
+    if (file.modifiedTime) {
+      const modifiedDate = new Date(file.modifiedTime);
+      const isoStr = file.modifiedTime.toLowerCase();
+      if (isoStr.includes(q)) return true;
+
+      const localStr = modifiedDate.toLocaleDateString().toLowerCase();
+      if (localStr.includes(q)) return true;
+
+      const options: Intl.DateTimeFormatOptions[] = [
+        { month: "long" },
+        { month: "short" },
+        { weekday: "long" },
+        { weekday: "short" },
+        { year: "numeric" },
+        { day: "numeric" },
+      ];
+
+      for (const opt of options) {
+        try {
+          const part = modifiedDate.toLocaleDateString(undefined, opt).toLowerCase();
+          if (part.includes(q)) return true;
+        } catch (e) {}
+      }
+    }
+
+    return false;
+  };
+
   // Real-time keyword filter highlighting
   const highlightMatch = (text: string, searchStr: string) => {
     if (!searchStr) return text;
@@ -561,7 +626,7 @@ export default function DriveExplorer({
     const parentId = currentFolderId || appRootId;
     const isDirectChild = f.parents?.includes(parentId || "");
 
-    const matchesSearch = f.name.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = matchFileByDateOrName(f, search);
     return isDirectChild && matchesSearch;
   });
 
@@ -588,7 +653,7 @@ export default function DriveExplorer({
       if (!isDirectChild) return false;
     }
 
-    const matchesSearch = f.name.toLowerCase().includes(search.toLowerCase());
+    const matchesSearch = matchFileByDateOrName(f, search);
     if (!matchesSearch) return false;
 
     if (filterType !== "all") {
@@ -629,6 +694,58 @@ export default function DriveExplorer({
     const sizes = ["Bytes", "KB", "MB", "GB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  };
+
+  const handleDownloadCSV = () => {
+    if (currentFiles.length === 0) {
+      alert("No files currently displayed to export!");
+      return;
+    }
+
+    const escapeCsvValue = (val: string) => {
+      const clean = val.replace(/"/g, '""');
+      return `"${clean}"`;
+    };
+
+    const headers = ["File Name", "Type / Category", "Formatted Size", "Last Modified"];
+    const rows = [headers.join(",")];
+
+    for (const file of currentFiles) {
+      const categoryName = getFileCategory(file.name).toUpperCase();
+      const formattedSizeValue = formatBytes(file.size);
+      const lastModifiedDate = new Date(file.modifiedTime || file.createdTime || "").toLocaleString();
+
+      const row = [
+        escapeCsvValue(file.name),
+        escapeCsvValue(categoryName),
+        escapeCsvValue(formattedSizeValue),
+        escapeCsvValue(lastModifiedDate),
+      ];
+      rows.push(row.join(","));
+    }
+
+    const csvContent = "data:text/csv;charset=utf-8,\uFEFF" + encodeURIComponent(rows.join("\n"));
+    
+    const link = document.createElement("a");
+    link.setAttribute("href", csvContent);
+    const dateStr = new Date().toISOString().split("T")[0];
+    link.setAttribute("download", `drive_export_${dateStr}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    // Trigger activity logging if registered
+    window.dispatchEvent(
+      new CustomEvent("toolkit-add-activity", {
+        detail: {
+          type: "download",
+          title: "Downloaded CSV File List",
+          detail: `Exported ${currentFiles.length} file metadata entries to CSV`,
+          icon: "Download",
+          tab: "drive"
+        }
+      })
+    );
   };
 
   const handlePrevPreview = (e: React.MouseEvent) => {
@@ -938,7 +1055,7 @@ export default function DriveExplorer({
               type="text"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Search saved files in Drive..."
+              placeholder="Search by name or date (e.g. June, 2026)..."
               className="w-full text-xs pl-10 pr-20 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 focus:outline-none focus:border-slate-800 dark:focus:border-slate-700 bg-slate-50 dark:bg-slate-950 text-slate-905 dark:text-white shadow-inner"
             />
             {search ? (
@@ -961,16 +1078,31 @@ export default function DriveExplorer({
             )}
           </div>
 
-          {/* Sync Manual Refresh */}
-          <button
-            onClick={onRefresh}
-            disabled={isLoading}
-            className="inline-flex items-center gap-1.5 bg-white dark:bg-slate-955 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-xl px-4 py-2 font-bold text-xs cursor-pointer disabled:opacity-50 transition-all select-none shadow-3xs hover:shadow-xs"
-            id="btn-refresh-drive-list"
-          >
-            <RefreshCw className={`w-3.5 h-3.5 text-indigo-500 ${isLoading ? "animate-spin" : ""}`} />
-            <span>Sync Cloud Storage</span>
-          </button>
+          {/* Action buttons (CSV Download & Sync Refresh) */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Download CSV Button */}
+            <button
+              onClick={handleDownloadCSV}
+              disabled={currentFiles.length === 0}
+              className="inline-flex items-center gap-1.5 bg-indigo-50 dark:bg-indigo-950/30 hover:bg-indigo-100 dark:hover:bg-indigo-950/60 text-indigo-750 dark:text-indigo-400 border border-indigo-150 dark:border-indigo-900/60 rounded-xl px-4 py-2 font-bold text-xs cursor-pointer disabled:opacity-40 transition-all select-none shadow-3xs hover:shadow-xs"
+              id="btn-download-drive-csv"
+              title="Download currently displayed file details as a CSV sheet"
+            >
+              <Download className="w-3.5 h-3.5" />
+              <span>Download CSV</span>
+            </button>
+
+            {/* Sync Manual Refresh */}
+            <button
+              onClick={onRefresh}
+              disabled={isLoading}
+              className="inline-flex items-center gap-1.5 bg-white dark:bg-slate-955 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 rounded-xl px-4 py-2 font-bold text-xs cursor-pointer disabled:opacity-50 transition-all select-none shadow-3xs hover:shadow-xs"
+              id="btn-refresh-drive-list"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 text-indigo-500 ${isLoading ? "animate-spin" : ""}`} />
+              <span>Sync Cloud Storage</span>
+            </button>
+          </div>
         </div>
 
         <div className="h-px bg-slate-100 dark:bg-slate-800/60" />

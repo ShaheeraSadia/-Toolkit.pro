@@ -238,7 +238,7 @@ export const RGBHistogram: React.FC<RGBHistogramProps> = ({
 
   return (
     <div 
-      className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800/80 rounded-2xl p-3 flex flex-col font-sans relative overflow-hidden shadow-2xs"
+      className="bg-slate-50 dark:bg-slate-900/50 border border-slate-200/60 dark:border-slate-800/80 rounded-2xl p-3 flex flex-col font-sans relative overflow-hidden shadow-2xs color-histogram-chart"
       id={id}
     >
       {/* Header and Controls Row */}

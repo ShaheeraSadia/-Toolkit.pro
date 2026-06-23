@@ -24,6 +24,7 @@ export interface QuoteConfig {
   overlayOpacity: number; // 0 to 1
   overlayBlur: number; // 0 to 20 px
   padding: number; // card padding
+  aspectRatio?: "1:1" | "9:16" | "3:1";
 }
 
 export interface PaletteColor {

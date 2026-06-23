@@ -107,6 +107,55 @@ RULES:
     }
   });
 
+  // API route to shorten a URL utilizing high-availability failsafe providers (is.gd with tinyurl.com fallback)
+  app.post("/api/url/shorten", async (req, res) => {
+    try {
+      const { url } = req.body;
+      if (!url) {
+        return res.status(400).json({ error: "A target URL is required to compile a shortened redirect link." });
+      }
+
+      // Quick syntax normalization
+      let targetUrl = url.trim();
+      if (!/^https?:\/\//i.test(targetUrl)) {
+        targetUrl = "https://" + targetUrl;
+      }
+
+      console.log(`Shortening URL: ${targetUrl}`);
+
+      // Try is.gd first
+      try {
+        const response = await fetch(`https://is.gd/create.php?format=json&url=${encodeURIComponent(targetUrl)}`);
+        if (response.ok) {
+          const data: any = await response.json();
+          if (data && data.shorturl) {
+            return res.json({ shortUrl: data.shorturl, provider: "is.gd" });
+          }
+        }
+      } catch (isGdErr) {
+        console.warn("is.gd shortener request failed, falling back to tinyurl.com:", isGdErr);
+      }
+
+      // Fallback to tinyurl.com
+      try {
+        const response = await fetch(`https://tinyurl.com/api-create.php?url=${encodeURIComponent(targetUrl)}`);
+        if (response.ok) {
+          const shortUrl = await response.text();
+          if (shortUrl && shortUrl.startsWith("http")) {
+            return res.json({ shortUrl: shortUrl.trim(), provider: "tinyurl.com" });
+          }
+        }
+      } catch (tinyErr) {
+        console.error("tinyurl fallback also failed:", tinyErr);
+      }
+
+      return res.status(502).json({ error: "All shortening gateways failed or timed out. Please check your URL value." });
+    } catch (err: any) {
+      console.error("Shortener route exception:", err);
+      return res.status(500).json({ error: err.message || "An unexpected error occurred during link compilation." });
+    }
+  });
+
   // Vite middleware for development or fallback static files in production
   if (process.env.NODE_ENV !== "production") {
     const vite = await createViteServer({

@@ -151,9 +151,8 @@ export default function Navbar({
             onClick={() => handleTabClick("quote")}
             className="flex items-center space-x-2.5 cursor-pointer group shrink-0 select-none animate-in fade-in slide-in-from-left-4 duration-300"
           >
-            <div className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-slate-955 relative overflow-hidden text-white shadow-md transform group-hover:scale-102 transition-all">
-              <span className="absolute inset-0 bg-gradient-to-tr from-indigo-650 to-emerald-500 opacity-15" />
-              <LayoutGrid className="w-5 h-5 text-emerald-400 relative z-10" />
+            <div className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 relative overflow-hidden shadow-md transform group-hover:scale-102 transition-all">
+              <img src="/src/assets/images/toolkit_pro_logo_1781887052514.jpg" className="w-full h-full object-cover" alt="Toolkit Pro Logo" referrerPolicy="no-referrer" />
             </div>
             <div className="text-left leading-none font-sans">
               <div className="flex items-center space-x-2">
@@ -506,7 +505,7 @@ export default function Navbar({
               <button
                 onClick={onLogin}
                 disabled={isLoggingIn}
-                className={`inline-flex items-center justify-center gap-1.5 font-bold text-xs px-3.5 py-1.5 sm:px-4 sm:py-2.2 rounded-xl transition-all hover:scale-101 cursor-pointer shadow-md disabled:opacity-50 select-none border shrink-0 ${
+                className={`inline-flex items-center justify-center gap-1.5 font-bold text-xs sm:text-sm px-3 py-1.5 rounded-xl transition-all hover:scale-101 cursor-pointer shadow-md disabled:opacity-50 select-none border shrink-0 ${
                   theme === "dark"
                     ? "bg-white hover:bg-slate-50 text-slate-950 border-slate-100/15"
                     : "bg-slate-950 hover:bg-slate-900 text-white border-slate-950"

@@ -3,7 +3,16 @@ import { motion } from "motion/react";
 import { User } from "firebase/auth";
 import { PaletteColor } from "../types";
 import { uploadFileToDrive, getOrCreateFolder } from "../lib/drive";
-import { Cloud, Download, Copy, Pipette, UploadCloud, Check, Sparkles, AlertCircle, Code, Sun, ArrowUpDown, Share2, Eye, CheckCircle2, Sliders } from "lucide-react";
+import { Cloud, Download, Copy, Pipette, UploadCloud, Check, Sparkles, AlertCircle, Code, Sun, ArrowUpDown, Share2, Eye, CheckCircle2, Sliders, FileCode, FileJson, Search, X, History, RotateCcw } from "lucide-react";
+
+interface SessionPalette {
+  id: string;
+  name: string;
+  timestamp: number;
+  fileName: string;
+  imageUrl: string | null;
+  palette: PaletteColor[];
+}
 
 interface ColorExtractorProps {
   user: User | null;
@@ -116,12 +125,70 @@ export default function ColorExtractor({
 
   const [wcagTextColor, setWcagTextColor] = useState<string>("#0f172a");
   const [wcagBgColor, setWcagBgColor] = useState<string>("#ffffff");
-  const [validatorMode, setValidatorMode] = useState<"multi" | "pair">("multi");
+  const [validatorMode, setValidatorMode] = useState<"multi" | "pair" | "pairs-grid">("multi");
   const [fontSize, setFontSize] = useState<number>(18);
   const [fontWeight, setFontWeight] = useState<"light" | "normal" | "bold">("normal");
   const [multiFilter, setMultiFilter] = useState<"all" | "aaa" | "aa" | "large">("all");
   const [customBgInput, setCustomBgInput] = useState<string>("#ffffff");
   const [customTxInput, setCustomTxInput] = useState<string>("#0f172a");
+  const [paletteSortMode, setPaletteSortMode] = useState<"hue" | "saturation" | "brightness" | "luminance">("hue");
+  const [paletteSearchQuery, setPaletteSearchQuery] = useState<string>("");
+  const [customPaletteName, setCustomPaletteName] = useState<string>("");
+  const [isSavingPaletteObject, setIsSavingPaletteObject] = useState<boolean>(false);
+
+  const [sessionHistory, setSessionHistory] = useState<SessionPalette[]>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("toolkit_pro_palette_history");
+      if (stored) {
+        try {
+          return JSON.parse(stored);
+        } catch (e) {
+          console.error("Failed to parse history palettes:", e);
+        }
+      }
+    }
+    return [];
+  });
+
+  const addToHistory = (newPalette: PaletteColor[], name: string, imgDataUrl: string | null) => {
+    if (!newPalette || newPalette.length === 0) return;
+    setSessionHistory((prev) => {
+      const list = [...prev];
+      const signature = newPalette.map(p => p.hex).join(",");
+      const existingIndex = list.findIndex(item => item.palette.map(p => p.hex).join(",") === signature);
+      
+      if (existingIndex !== -1) {
+        // Move to front/top and update details
+        const [existing] = list.splice(existingIndex, 1);
+        existing.name = name;
+        existing.fileName = name;
+        existing.imageUrl = imgDataUrl;
+        list.unshift(existing);
+      } else {
+        const newItem: SessionPalette = {
+          id: Math.random().toString(36).substring(2, 9),
+          name: name || "Custom Palette",
+          fileName: name || "Custom Palette",
+          timestamp: Date.now(),
+          imageUrl: imgDataUrl,
+          palette: newPalette
+        };
+        list.unshift(newItem);
+      }
+      const trimmed = list.slice(0, 5);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("toolkit_pro_palette_history", JSON.stringify(trimmed));
+      }
+      return trimmed;
+    });
+  };
+
+  useEffect(() => {
+    if (fileName) {
+      const clean = fileName.replace(/\.[^/.]+$/, "");
+      setCustomPaletteName(clean || "Custom Palette");
+    }
+  }, [fileName]);
 
   useEffect(() => {
     setCustomBgInput(wcagBgColor);
@@ -210,7 +277,7 @@ export default function ColorExtractor({
   }, [palette]);
 
   // Extract palette when image loads
-  const extractPalette = (imgSrc: string) => {
+  const extractPalette = (imgSrc: string, customFileName?: string) => {
     if (paletteTimeoutRef.current) {
       clearTimeout(paletteTimeoutRef.current);
     }
@@ -228,82 +295,172 @@ export default function ColorExtractor({
           return;
         }
 
-        // Resize very small to downsample and grab key clusters
-        canvas.width = 12;
-        canvas.height = 12;
-        ctx.drawImage(img, 0, 0, 12, 12);
+        // Resize canvas for high resolution sample density to preserve fine visual details
+        canvas.width = 64;
+        canvas.height = 64;
+        ctx.drawImage(img, 0, 0, 64, 64);
 
-        const imgData = ctx.getImageData(0, 0, 12, 12).data;
-        const rgbList: { r: number; g: number; b: number }[] = [];
+        const imgData = ctx.getImageData(0, 0, 64, 64).data;
+        
+        interface LocalQuantizedBucket {
+          rSum: number;
+          gSum: number;
+          bSum: number;
+          weight: number;
+        }
+        
+        const bucketMap: Record<string, LocalQuantizedBucket> = {};
 
         for (let i = 0; i < imgData.length; i += 4) {
           const r = imgData[i];
           const g = imgData[i + 1];
           const b = imgData[i + 2];
           const a = imgData[i + 3];
-          // Only sample if pixel is mostly opaque
-          if (a > 200) {
-            rgbList.push({ r, g, b });
+
+          // Skip low-opacity pixels
+          if (a < 180) continue;
+
+          // Relative luminance calculation
+          const lum = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+          // Skip absolute whites and pure blacks
+          if (lum > 248 || lum < 10) continue;
+
+          // Compute Saturation and Lightness
+          const maxVal = Math.max(r, g, b);
+          const minVal = Math.min(r, g, b);
+          const delta = maxVal - minVal;
+          const sum = maxVal + minVal;
+          const saturation = maxVal === 0 ? 0 : delta / maxVal;
+          const lightness = sum / 510;
+
+          // Base weight boosts saturated colors
+          let chromaWeight = 1.0 + saturation * 5.0;
+
+          // Calculate Hue for target boosts (pink blossoms / green foliage)
+          let hue = 0;
+          if (delta > 0) {
+            if (maxVal === r) {
+              hue = ((g - b) / delta) % 6;
+            } else if (maxVal === g) {
+              hue = (b - r) / delta + 2;
+            } else {
+              hue = (r - g) / delta + 4;
+            }
+            hue = Math.round(hue * 60);
+            if (hue < 0) hue += 360;
           }
-        }
 
-        // Convert RGBs to Hex
-        const hexList = rgbList.map((rgb) => {
-          const toHex = (c: number) => {
-            const hex = c.toString(16);
-            return hex.length === 1 ? "0" + hex : hex;
-          };
-          return `#${toHex(rgb.r)}${toHex(rgb.g)}${toHex(rgb.b)}`;
-        });
-
-        // Filter out hex values that are extremely close to white/black or duplicate
-        const uniqueHex: string[] = [];
-        const threshold = 18; // Euclidean RGB spacing threshold
-
-        const parseHex = (hex: string) => {
-          const r = parseInt(hex.substring(1, 3), 16);
-          const g = parseInt(hex.substring(3, 5), 16);
-          const b = parseInt(hex.substring(5, 7), 16);
-          return { r, g, b };
-        };
-
-        for (let i = 0; i < hexList.length; i++) {
-          const currentHex = hexList[i];
-          const currentRgb = parseHex(currentHex);
-
-          // Skip absolute whites or pure blacks
-          const luminance = 0.2126 * currentRgb.r + 0.7152 * currentRgb.g + 0.0722 * currentRgb.b;
-          if (luminance > 248 || luminance < 8) continue;
-
-          let isDistinct = true;
-          for (let j = 0; j < uniqueHex.length; j++) {
-            const uRgb = parseHex(uniqueHex[j]);
-            // Calculate Euclidean distance in RGB color space
-            const dist = Math.sqrt(
-              Math.pow(currentRgb.r - uRgb.r, 2) +
-                Math.pow(currentRgb.g - uRgb.g, 2) +
-                Math.pow(currentRgb.b - uRgb.b, 2)
-            );
-            if (dist < threshold) {
-              isDistinct = false;
-              break;
+          // Force highlight beautiful, highly vibrant pinks, rich greens, and warm gold/oranges
+          if (saturation > 0.15 && lightness > 0.15 && lightness < 0.85) {
+            if (hue >= 310 && hue <= 358) {
+              // High priority boost for pink blossoms (e.g., #FF9EAF, #E27387)
+              chromaWeight *= 4.5;
+            } else if (hue >= 75 && hue <= 165) {
+              // High priority boost for foliage / tree green (e.g., #5E8A4F, #2D5337)
+              chromaWeight *= 4.0;
+            } else if (hue >= 15 && hue <= 60) {
+              // Priority boost for golden hour / sun tones
+              chromaWeight *= 2.5;
             }
           }
 
-          if (isDistinct) {
-            uniqueHex.push(currentHex);
-            if (uniqueHex.length >= 6) break; // Limit to sweet-spot 5-6 designer colors
+          // Grid size quantization (16x16x16 voxel buckets) to group very close shades
+          const q = 16;
+          const rQ = Math.floor(r / q) * q;
+          const gQ = Math.floor(g / q) * q;
+          const bQ = Math.floor(b / q) * q;
+          const key = `${rQ}-${gQ}-${bQ}`;
+
+          if (!bucketMap[key]) {
+            bucketMap[key] = { rSum: 0, gSum: 0, bSum: 0, weight: 0 };
           }
+          bucketMap[key].rSum += r * chromaWeight;
+          bucketMap[key].gSum += g * chromaWeight;
+          bucketMap[key].bSum += b * chromaWeight;
+          bucketMap[key].weight += chromaWeight;
+        }
+
+        // Compute average colors for all quantized buckets
+        const computedClusters = Object.keys(bucketMap).map(key => {
+          const bucket = bucketMap[key];
+          const avgR = Math.min(255, Math.max(0, Math.round(bucket.rSum / bucket.weight)));
+          const avgG = Math.min(255, Math.max(0, Math.round(bucket.gSum / bucket.weight)));
+          const avgB = Math.min(255, Math.max(0, Math.round(bucket.bSum / bucket.weight)));
+          
+          const toHex = (c: number) => {
+            const h = c.toString(16);
+            return h.length === 1 ? "0" + h : h;
+          };
+          
+          return {
+            hex: `#${toHex(avgR)}${toHex(avgG)}${toHex(avgB)}`,
+            r: avgR,
+            g: avgG,
+            b: avgB,
+            weight: bucket.weight
+          };
+        });
+
+        // Sort clusters by weight descending
+        computedClusters.sort((a, b) => b.weight - a.weight);
+
+        // Filter and collect 6 highly distinct colors
+        const selectedHex: string[] = [];
+        const diversityThresholds = [38, 28, 18, 10]; // progressively relax distance to guarantee full palette count
+
+        for (const distThresh of diversityThresholds) {
+          for (const cl of computedClusters) {
+            if (selectedHex.length >= 6) break;
+
+            // Check distance of cl from all selectedHex items
+            let isDiverse = true;
+            for (const sel of selectedHex) {
+              const parseHexLocal = (h: string) => {
+                const clean = h.startsWith("#") ? h.slice(1) : h;
+                return {
+                  r: parseInt(clean.substring(0, 2), 16),
+                  g: parseInt(clean.substring(2, 4), 16),
+                  b: parseInt(clean.substring(4, 6), 16)
+                };
+              };
+              const sRgb = parseHexLocal(sel);
+              const d = Math.sqrt(
+                Math.pow(cl.r - sRgb.r, 2) +
+                Math.pow(cl.g - sRgb.g, 2) +
+                Math.pow(cl.b - sRgb.b, 2)
+              );
+              if (d < distThresh) {
+                isDiverse = false;
+                break;
+              }
+            }
+
+            if (isDiverse) {
+              selectedHex.push(cl.hex);
+            }
+          }
+          if (selectedHex.length >= 6) break;
         }
 
         // Standard Fallback colors if none found
-        if (uniqueHex.length === 0) {
-          uniqueHex.push("#0f172a", "#3b82f6", "#10b981", "#f59e0b", "#ef4444");
+        while (selectedHex.length < 6) {
+          const fallbacks = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#ec4899"];
+          const f = fallbacks.find(c => !selectedHex.includes(c));
+          if (f) selectedHex.push(f);
+          else selectedHex.push("#6b7280"); // fallback gray
         }
 
         // Build model structures
-        const paletteColors = uniqueHex.map((hex, index) => {
-          const rgb = parseHex(hex);
+        const paletteColors = selectedHex.map((hex, index) => {
+          const parseHexLocal = (h: string) => {
+            const clean = h.startsWith("#") ? h.slice(1) : h;
+            return {
+              r: parseInt(clean.substring(0, 2), 16),
+              g: parseInt(clean.substring(2, 4), 16),
+              b: parseInt(clean.substring(4, 6), 16)
+            };
+          };
+          const rgb = parseHexLocal(hex);
           const yiq = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
           const contrastColor = yiq >= 128 ? "#090d16" : "#ffffff";
           return {
@@ -313,8 +470,10 @@ export default function ColorExtractor({
           };
         });
 
+        const nameToUse = customFileName || fileName || "Extracted Palette";
         setPalette(paletteColors);
         setIsProcessing(false);
+        addToHistory(paletteColors, nameToUse, imgSrc);
       };
       img.src = imgSrc;
     }, 750);
@@ -332,7 +491,7 @@ export default function ColorExtractor({
         const resultSrc = e.target.result as string;
         setImageUrl(resultSrc);
         setFileName(file.name);
-        extractPalette(resultSrc);
+        extractPalette(resultSrc, file.name);
         window.dispatchEvent(new CustomEvent("toolkit-add-activity", {
           detail: {
             type: "file",
@@ -551,6 +710,236 @@ export default function ColorExtractor({
     }
   };
 
+  const handleDownloadCSS = () => {
+    try {
+      const cleanName = fileName.replace(/\.[^/.]+$/, "") || "palette";
+      const slugName = cleanName.toLowerCase().replace(/[^a-z0-9]+/g, "-");
+      
+      let cssContent = `/* Color Palette generated by Digital Creator Suite - ${cleanName} */\n`;
+      cssContent += `:root {\n`;
+      palette.forEach((color, idx) => {
+        const key = color.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") || `swatch-${idx + 1}`;
+        cssContent += `  --color-${key}: ${color.hex.toLowerCase()};\n`;
+      });
+      cssContent += `\n  /* Contrast Colors for accessibility or text matching */\n`;
+      palette.forEach((color, idx) => {
+        const key = color.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") || `swatch-${idx + 1}`;
+        cssContent += `  --color-${key}-contrast: ${color.contrastColor.toLowerCase()};\n`;
+      });
+      cssContent += `}\n`;
+
+      const blob = new Blob([cssContent], { type: "text/css;charset=utf-8;" });
+      const downloadName = `toolkit_pro_palette_${slugName}.css`;
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.setAttribute("download", downloadName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      window.dispatchEvent(new CustomEvent("toolkit-add-activity", {
+        detail: {
+          type: "file",
+          title: "Exported Palette CSS",
+          detail: `Saved CSS variables as ${downloadName}`,
+          icon: "FileCode",
+          tab: "palette"
+        }
+      }));
+    } catch (err) {
+      console.error(err);
+      alert("Failed to export CSS variables.");
+    }
+  };
+
+  const handleDownloadJSON = () => {
+    try {
+      const cleanName = fileName.replace(/\.[^/.]+$/, "") || "palette";
+      const slugName = cleanName.toLowerCase().replace(/[^a-z0-0]+/g, "-");
+      
+      const themeObject = {
+        themeName: cleanName,
+        createdAt: new Date().toISOString(),
+        exportedBy: "Digital Creator Suite",
+        colors: palette.reduce((acc, color, idx) => {
+          const key = color.name.toLowerCase().replace(/[^a-z0-9]+/g, "_") || `swatch_${idx + 1}`;
+          acc[key] = {
+            hex: color.hex.toLowerCase(),
+            contrast: color.contrastColor.toLowerCase()
+          };
+          return acc;
+        }, {} as Record<string, { hex: string; contrast: string }>),
+        rawList: palette.map(color => ({
+          name: color.name,
+          hex: color.hex,
+          contrast: color.contrastColor
+        }))
+      };
+
+      const jsonString = JSON.stringify(themeObject, null, 2);
+      const blob = new Blob([jsonString], { type: "application/json;charset=utf-8;" });
+      const downloadName = `toolkit_pro_palette_${slugName}.json`;
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.setAttribute("download", downloadName);
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+
+      window.dispatchEvent(new CustomEvent("toolkit-add-activity", {
+        detail: {
+          type: "file",
+          title: "Exported Palette JSON",
+          detail: `Saved theme JSON as ${downloadName}`,
+          icon: "FileJson",
+          tab: "palette"
+        }
+      }));
+    } catch (err) {
+      console.error(err);
+      alert("Failed to export JSON theme.");
+    }
+  };
+
+  // Generate a random high-quality color theme based on professional harmony formulas
+  const handleGenerateRandomPalette = () => {
+    // Helper to parse hex to sub-RGB structures (as in the unique extraction loop)
+    const parseHexLocal = (hexStr: string) => {
+      const r = parseInt(hexStr.substring(1, 3), 16);
+      const g = parseInt(hexStr.substring(3, 5), 16);
+      const b = parseInt(hexStr.substring(5, 7), 16);
+      return { r, g, b };
+    };
+
+    // Helper to convert HSL to HEX
+    const hslToHex = (h: number, s: number, l: number): string => {
+      l /= 100;
+      const a = (s * Math.min(l, 1 - l)) / 100;
+      const f = (n: number) => {
+        const k = (n + h / 30) % 12;
+        const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+        return Math.round(255 * color)
+          .toString(16)
+          .padStart(2, "0");
+      };
+      return `#${f(0)}${f(8)}${f(4)}`;
+    };
+
+    // Pick a random palette generation strategy
+    const strategies = ["analogous", "triadic", "complementary", "vibrant-mix", "pastel-cream", "retro"];
+    const chosenStrategy = strategies[Math.floor(Math.random() * strategies.length)];
+
+    // Seed base hue, saturation and lightness
+    const baseHue = Math.floor(Math.random() * 360);
+    const hexList: string[] = [];
+
+    // Let's name the colors based on their role in the palette
+    const names: string[] = [];
+
+    if (chosenStrategy === "analogous") {
+      // 5-6 colors close together in hue
+      const s = 65 + Math.floor(Math.random() * 20); // 65-85%
+      const l = 45 + Math.floor(Math.random() * 15); // 45-60%
+      for (let i = 0; i < 6; i++) {
+        const hue = (baseHue + i * 20) % 360;
+        hexList.push(hslToHex(hue, s, l));
+        names.push(`Analogous Tone ${i + 1}`);
+      }
+    } else if (chosenStrategy === "triadic") {
+      // Base + surrounding analogous, + 2 triadic offsets
+      const s = 70 + Math.floor(Math.random() * 15);
+      const l = 40 + Math.floor(Math.random() * 20);
+      hexList.push(hslToHex(baseHue, s, l), hslToHex((baseHue + 20) % 360, s - 10, l + 10));
+      hexList.push(hslToHex((baseHue + 120) % 360, s, l), hslToHex((baseHue + 140) % 360, s - 15, l + 5));
+      hexList.push(hslToHex((baseHue + 240) % 360, s, l), hslToHex((baseHue + 260) % 360, s - 10, l - 5));
+      
+      names.push("Primary Accent", "Subtle Primary", "Triadic Warm", "Subtle Triadic", "Triadic Cool", "Deep Highlight");
+    } else if (chosenStrategy === "complementary") {
+      // Base + analogous tints/shades, then complementary contrast values
+      const s = 65 + Math.floor(Math.random() * 20); 
+      const l = 41 + Math.floor(Math.random() * 15); 
+      const compHue = (baseHue + 180) % 360;
+      
+      // Base tones
+      hexList.push(hslToHex(baseHue, s, l - 15));
+      hexList.push(hslToHex(baseHue, s - 10, l));
+      hexList.push(hslToHex(baseHue, s + 10, l + 15));
+      
+      // Opposite/Complementary accent tones
+      hexList.push(hslToHex(compHue, s, l - 10));
+      hexList.push(hslToHex(compHue, s + 5, l));
+      hexList.push(hslToHex(compHue, s - 15, l + 15));
+
+      names.push("Dominant Dark", "Dominant Mid", "Dominant Light", "Contrast Complement", "Accent Complement", "Light Complement");
+    } else if (chosenStrategy === "vibrant-mix") {
+      // Balanced saturated mix across spectrum with dark/light anchor and pops
+      hexList.push(hslToHex(baseHue, 85, 30)); // Deep vibrant anchor
+      hexList.push(hslToHex((baseHue + 60) % 360, 80, 50)); // Pop 1
+      hexList.push(hslToHex((baseHue + 150) % 360, 75, 45)); // Pop 2
+      hexList.push(hslToHex((baseHue + 210) % 360, 90, 55)); // Pop 3
+      hexList.push(hslToHex((baseHue + 280) % 360, 85, 60)); // Pop 4
+      hexList.push(hslToHex((baseHue + 330) % 360, 70, 70)); // Bright pastel shade
+
+      names.push("Deep Anchor", "Vibrant Amber", "Teal Shade", "Ocean Pop", "Royal Accent", "Pastel Punch");
+    } else if (chosenStrategy === "pastel-cream") {
+      // Highly aesthetic pastel tones
+      const s = 35 + Math.floor(Math.random() * 20); // Soft saturation (35-55%)
+      const l = 75 + Math.floor(Math.random() * 15); // High lightness (75-90%)
+      for (let i = 0; i < 6; i++) {
+        const hue = (baseHue + i * 60) % 360;
+        hexList.push(hslToHex(hue, s, l));
+        names.push(`Creamy Pastel ${i + 1}`);
+      }
+    } else {
+      // Retro / Earthy palette elements: balanced desaturated tones
+      const s = 40 + Math.floor(Math.random() * 20); // 40-60%
+      hexList.push(hslToHex(baseHue, s, 35)); // Deep earth
+      hexList.push(hslToHex((baseHue + 40) % 360, s - 10, 45)); // Warm clay
+      hexList.push(hslToHex((baseHue + 80) % 360, s + 10, 55)); // Sand / Olive
+      hexList.push(hslToHex((baseHue + 180) % 360, s - 5, 25)); // Charcoal forest
+      hexList.push(hslToHex((baseHue + 220) % 360, s + 5, 50)); // Retro denim
+      hexList.push(hslToHex((baseHue + 310) % 360, s + 15, 65)); // Dusty rose
+
+      names.push("Earthen Base", "Terracotta Mid", "Serrated Olive", "Retro Obsidian", "Denim Accent", "Dusty Rose Glow");
+    }
+
+    // Build the structural models with exact same contrast calculation logic as used in imagery
+    const randomPalette = hexList.slice(0, 6).map((hex, index) => {
+      const rgb = parseHexLocal(hex);
+      const yiq = (rgb.r * 299 + rgb.g * 587 + rgb.b * 114) / 1000;
+      const contrastColor = yiq >= 128 ? "#090d16" : "#ffffff";
+      return {
+        hex,
+        name: names[index] || `Swatch Hue ${index + 1}`,
+        contrastColor,
+      };
+    });
+
+    // Save state & persist
+    setPalette(randomPalette);
+    
+    // Set file name parameter to indicate it's generated
+    const formattedStrategy = chosenStrategy.replace("-", " ").replace(/\b\w/g, c => c.toUpperCase());
+    const randomName = `Aesthetic ${formattedStrategy} Palette`;
+    setFileName(randomName);
+    
+    // Clear image preview so user sees they've generated a fresh palette
+    setImageUrl(null);
+
+    addToHistory(randomPalette, randomName, null);
+
+    // Register Activity Logs beautifully
+    window.dispatchEvent(new CustomEvent("toolkit-add-activity", {
+      detail: {
+        type: "palette",
+        title: "Generated Random Palette",
+        detail: `Created a beautiful '${formattedStrategy}' designer color palette on demand`,
+        icon: "Sparkles",
+        tab: "palette"
+      }
+    }));
+  };
+
   const handleSaveToDrive = async () => {
     if (!user || !accessToken) {
       onLogin();
@@ -596,14 +985,84 @@ export default function ColorExtractor({
     }
   };
 
-  const handleSortByLuminance = () => {
+  const hexToHslLocal = (hexStr: string) => {
+    const clean = hexStr.startsWith("#") ? hexStr.slice(1) : hexStr;
+    let rHex = clean.substring(0, 2);
+    let gHex = clean.substring(2, 4);
+    let bHex = clean.substring(4, 6);
+    if (clean.length === 3) {
+      rHex = clean.substring(0, 1) + clean.substring(0, 1);
+      gHex = clean.substring(1, 2) + clean.substring(1, 2);
+      bHex = clean.substring(2, 3) + clean.substring(2, 3);
+    }
+    const r = parseInt(rHex || "0", 16) / 255;
+    const g = parseInt(gHex || "0", 16) / 255;
+    const b = parseInt(bHex || "0", 16) / 255;
+
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    let h = 0;
+    let s = 0;
+    const l = (max + min) / 2;
+
+    if (max !== min) {
+      const d = max - min;
+      s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+      switch (max) {
+        case r:
+          h = (g - b) / d + (g < b ? 6 : 0);
+          break;
+        case g:
+          h = (b - r) / d + 2;
+          break;
+        case b:
+          h = (r - g) / d + 4;
+          break;
+      }
+      h /= 6;
+    }
+
+    return {
+      h: Math.round(h * 360),
+      s: Math.round(s * 100),
+      l: Math.round(l * 100),
+    };
+  };
+
+  const handleSortPalette = (mode: "hue" | "saturation" | "brightness" | "luminance") => {
+    setPaletteSortMode(mode);
     if (palette.length === 0) return;
+
     const sorted = [...palette].sort((a, b) => {
-      const lumA = getRelativeLuminance(a.hex);
-      const lumB = getRelativeLuminance(b.hex);
-      return lumA - lumB; // Darkest to lightest
+      if (mode === "luminance") {
+        const lumA = getRelativeLuminance(a.hex);
+        const lumB = getRelativeLuminance(b.hex);
+        return lumA - lumB; // Darkest to lightest
+      }
+      
+      const hslA = hexToHslLocal(a.hex);
+      const hslB = hexToHslLocal(b.hex);
+
+      if (mode === "hue") {
+        return hslA.h - hslB.h; // Hue spectrum order
+      } else if (mode === "saturation") {
+        return hslB.s - hslA.s; // High saturation to desaturated
+      } else {
+        return hslB.l - hslA.l; // Brightest to darkest
+      }
     });
+
     setPalette(sorted);
+
+    window.dispatchEvent(new CustomEvent("toolkit-add-activity", {
+      detail: {
+        type: "palette",
+        title: `Sorted Palette`,
+        detail: `Organized color swatches by ${mode.toUpperCase()} dynamically`,
+        icon: "Sliders",
+        tab: "palette"
+      }
+    }));
   };
 
   const handleSaveAllToDrive = async () => {
@@ -666,6 +1125,93 @@ export default function ColorExtractor({
       });
     } finally {
       setIsSavingAll(false);
+    }
+  };
+
+  const handleSavePaletteObjectToDrive = async () => {
+    if (!user || !accessToken) {
+      onLogin();
+      return;
+    }
+
+    if (palette.length === 0) {
+      alert("No swatches extracted to save yet!");
+      return;
+    }
+
+    const trimmedName = customPaletteName.trim();
+    if (!trimmedName) {
+      alert("Please enter a valid custom name for your palette!");
+      return;
+    }
+
+    setIsSavingPaletteObject(true);
+    setSaveStatus(null);
+
+    try {
+      // 1. Resolve folder path (ToolkitPro/Palettes)
+      const appFolderName = "ToolkitPro";
+      const appFolderId = await getOrCreateFolder(accessToken, appFolderName);
+      
+      const palettesFolderName = "Palettes";
+      const palettesFolderId = await getOrCreateFolder(accessToken, palettesFolderName, appFolderId);
+
+      // 2. Build the comprehensive Palette Object
+      const cleanJsonFilename = trimmedName.replace(/[\s/\\?%*|"<:;]+/g, "_");
+      
+      const paletteDetailsObj = {
+        paletteName: trimmedName,
+        createdAt: new Date().toISOString(),
+        colorsCount: palette.length,
+        sortMode: paletteSortMode,
+        swatches: palette.map((color, index) => {
+          const contrastWhite = getContrastRatio(color.hex, "#ffffff");
+          const contrastBlack = getContrastRatio(color.hex, "#000000");
+          return {
+            index: index + 1,
+            name: color.name,
+            hex: color.hex,
+            contrastWhiteText: parseFloat(contrastWhite.toFixed(2)),
+            contrastBlackText: parseFloat(contrastBlack.toFixed(2)),
+            wcagRatingWhiteText: contrastWhite >= 7.0 ? "AAA" : contrastWhite >= 4.5 ? "AA" : contrastWhite >= 3.0 ? "A" : "Fail",
+            wcagRatingBlackText: contrastBlack >= 7.0 ? "AAA" : contrastBlack >= 4.5 ? "AA" : contrastBlack >= 3.0 ? "A" : "Fail",
+            contrastColorPreference: color.contrastColor
+          };
+        }),
+        cssThemeVariables: JSON.parse(getThemeJson())
+      };
+
+      const jsonStr = JSON.stringify(paletteDetailsObj, null, 2);
+      const base64Json = btoa(unescape(encodeURIComponent(jsonStr)));
+      const jsonDataUrl = `data:application/json;base64,${base64Json}`;
+      const finalFilename = `${cleanJsonFilename}.palette.json`;
+
+      // 3. Upload file to targets
+      await uploadFileToDrive(accessToken, finalFilename, "application/json", jsonDataUrl, palettesFolderId);
+
+      setSaveStatus({
+        success: true,
+        msg: `Successfully saved palette object as "${finalFilename}" under "ToolkitPro/Palettes" in Google Drive!`,
+      });
+      onRefreshDrive();
+
+      window.dispatchEvent(new CustomEvent("toolkit-add-activity", {
+        detail: {
+          type: "file",
+          title: `Saved Custom Palette: ${finalFilename}`,
+          detail: `Saved structured palette object "${trimmedName}" directly to Google Drive`,
+          icon: "Cloud",
+          tab: "palette"
+        }
+      }));
+    } catch (err: any) {
+      console.error(err);
+      setSaveStatus({
+        success: false,
+        msg: err.message || "Failed to upload palette object to Google Drive.",
+      });
+    } finally {
+      setIsSavingPaletteObject(false);
     }
   };
 
@@ -783,6 +1329,31 @@ export default function ColorExtractor({
           )}
         </div>
 
+        {/* Dynamic theme generation or manual upload actions */}
+        <div className="grid grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="inline-flex items-center justify-center px-3 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 font-bold rounded-xl text-xs transition-all shadow-3xs cursor-pointer"
+            id="btn-trigger-manual-picker"
+            title="Browse your system files to upload an image from local storage"
+          >
+            <UploadCloud className="w-3.5 h-3.5 mr-1.5 text-slate-400" />
+            Upload File
+          </button>
+
+          <button
+            type="button"
+            onClick={handleGenerateRandomPalette}
+            className="inline-flex items-center justify-center px-3 py-2.5 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 text-emerald-800 font-bold rounded-xl text-xs transition-all shadow-3xs cursor-pointer hover:scale-[1.01] active:scale-[0.99]"
+            id="btn-generate-random-palette"
+            title="Create a fresh, aesthetically pleasing random color theme using design harmony formulas"
+          >
+            <Sparkles className="w-3.5 h-3.5 mr-1.5 text-emerald-500 animate-pulse" />
+            Random Theme
+          </button>
+        </div>
+
         {/* Pipette hover tooltip helper */}
         {imageUrl && (
           <div className="p-3.5 bg-indigo-50 border border-indigo-100/50 rounded-xl flex items-start space-x-2.5 text-xs text-indigo-800">
@@ -827,7 +1398,7 @@ export default function ColorExtractor({
                 }`}
                 id="tab-validator-multi"
               >
-                Multi-Swatch Validator
+                Multi-Swatch
               </button>
               <button
                 onClick={() => setValidatorMode("pair")}
@@ -838,7 +1409,18 @@ export default function ColorExtractor({
                 }`}
                 id="tab-validator-pair"
               >
-                Single Pair Evaluator
+                Single Pair
+              </button>
+              <button
+                onClick={() => setValidatorMode("pairs-grid")}
+                className={`flex-1 text-[10px] uppercase tracking-wider font-bold py-1.5 px-2 rounded-lg text-center transition-all cursor-pointer border-0 ${
+                  validatorMode === "pairs-grid" 
+                    ? "bg-white text-slate-900 shadow-xs font-black" 
+                    : "text-slate-400 hover:text-slate-600"
+                }`}
+                id="tab-validator-grid"
+              >
+                Pairs Matrix
               </button>
             </div>
 
@@ -1451,8 +2033,354 @@ export default function ColorExtractor({
                 })()}
               </>
             )}
+
+            {/* RENDER VIEW 3: SWATCH PAIRS MATRIX & ACCESSIBILITY SCOREBOARD */}
+            {validatorMode === "pairs-grid" && (
+              <div className="space-y-4">
+                <div className="space-y-1 text-left">
+                  <span className="text-[10px] font-bold text-slate-550 dark:text-slate-400 uppercase tracking-wider block">
+                    Swatch Color Pairings Access Contrast Matrix
+                  </span>
+                  <p className="text-[10px] text-slate-400 leading-normal">
+                    Interactive score table. Rows represent <strong className="text-slate-600 dark:text-slate-350">Background (BG)</strong> and columns are <strong className="text-slate-600 dark:text-slate-350 font-bold">Text (TX)</strong>. Tap any passing coordinate to examine that pair inside the live Single Pair tab.
+                  </p>
+                </div>
+
+                <div className="overflow-x-auto rounded-xl border border-slate-150 dark:border-slate-800 shadow-2xs">
+                  <table className="w-full text-center border-collapse min-w-[340px]">
+                    <thead>
+                      <tr className="bg-slate-50 dark:bg-slate-950 border-b border-slate-150 dark:border-slate-800">
+                        <th className="p-2 text-[9px] font-black uppercase text-slate-400 select-none text-left font-mono">
+                          BG \ TX
+                        </th>
+                        {palette.map((color, colIdx) => (
+                          <th key={colIdx} className="p-2 text-[9px] font-extrabold font-mono text-slate-550 dark:text-slate-400">
+                            <div className="flex flex-col items-center gap-0.5">
+                              <span 
+                                className="w-4 h-4 rounded-full border border-black/15 shadow-3xs" 
+                                style={{ backgroundColor: color.hex }} 
+                                title={color.hex}
+                              />
+                              <span>C{colIdx + 1}</span>
+                            </div>
+                          </th>
+                        ))}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {palette.map((rowColor, rowIdx) => (
+                        <tr key={rowIdx} className="border-b border-slate-150/60 dark:border-slate-800/60 hover:bg-slate-50/45 dark:hover:bg-slate-900/40">
+                          {/* Row Header (Background) */}
+                          <td className="p-2 text-[9px] font-extrabold font-mono text-slate-550 dark:text-slate-400 text-left bg-slate-50/50 dark:bg-slate-950/20">
+                            <div className="flex items-center gap-1.5 font-sans">
+                              <span 
+                                className="w-4 h-4 rounded-full border border-black/15 shadow-3xs shrink-0" 
+                                style={{ backgroundColor: rowColor.hex }} 
+                                title={rowColor.hex}
+                              />
+                              <span>C{rowIdx + 1}</span>
+                            </div>
+                          </td>
+
+                          {/* Matrix Cells */}
+                          {palette.map((colColor, colIdx) => {
+                            if (rowIdx === colIdx) {
+                              return (
+                                <td key={colIdx} className="p-2 text-[9px] text-slate-350 dark:text-slate-600 bg-slate-100/50 dark:bg-slate-950/40 select-none font-mono">
+                                  —
+                                </td>
+                              );
+                            }
+
+                            const ratio = getContrastRatio(rowColor.hex, colColor.hex);
+                            let bgClass = "bg-rose-50/45 hover:bg-rose-100/60 text-rose-700 dark:bg-rose-950/15";
+                            let badgeLabel = "FAIL";
+                            let badgeClass = "bg-rose-50 dark:bg-rose-950/30 border border-rose-150 dark:border-rose-900/60 text-rose-600 dark:text-rose-450";
+                            if (ratio >= 7.0) {
+                              bgClass = "bg-emerald-50/45 hover:bg-emerald-100/60 text-emerald-800 dark:bg-emerald-950/15";
+                              badgeLabel = "AAA";
+                              badgeClass = "bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-150 dark:border-emerald-900/60 text-emerald-600 dark:text-emerald-450 font-extrabold";
+                            } else if (ratio >= 4.5) {
+                              bgClass = "bg-indigo-50/45 hover:bg-indigo-100/60 text-indigo-800 dark:bg-indigo-950/15";
+                              badgeLabel = "AA";
+                              badgeClass = "bg-indigo-50 dark:bg-indigo-950/30 border border-indigo-150 dark:border-indigo-900/60 text-indigo-600 dark:text-indigo-405 font-extrabold";
+                            } else if (ratio >= 3.0) {
+                              bgClass = "bg-amber-50/45 hover:bg-amber-100/60 text-amber-800 dark:bg-amber-950/15";
+                              badgeLabel = "AA-LG";
+                              badgeClass = "bg-amber-50 dark:bg-amber-950/30 border border-amber-150 dark:border-amber-900/60 text-amber-650 dark:text-amber-450 font-extrabold";
+                            }
+
+                            return (
+                              <td 
+                                key={colIdx} 
+                                onClick={() => {
+                                  setWcagBgColor(rowColor.hex);
+                                  setCustomBgInput(rowColor.hex);
+                                  setWcagTextColor(colColor.hex);
+                                  setCustomTxInput(colColor.hex);
+                                  setValidatorMode("pair");
+                                }}
+                                className={`p-2 transition-colors cursor-pointer select-none text-center ${bgClass}`}
+                                title={`Backdrop ${rowColor.hex} with text color ${colColor.hex}. Click to examine inside Single Pair tool.`}
+                              >
+                                <div className="flex flex-col items-center gap-0.5">
+                                  <span className="font-mono text-[9px] font-black">{ratio.toFixed(1)}:1</span>
+                                  <span className={`text-[7px] px-1 rounded uppercase tracking-wider scale-90 ${badgeClass}`}>
+                                    {badgeLabel}
+                                  </span>
+                                </div>
+                              </td>
+                            );
+                          })}
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                {/* Ranked Combination List */}
+                <div className="space-y-2 pt-1 text-left">
+                  <span className="text-[10px] font-bold text-slate-450 dark:text-slate-400 uppercase tracking-wider block">
+                    All Extracted Pairs (Ranked by Color Contrast Score)
+                  </span>
+                  <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1">
+                    {(() => {
+                      const list: { bg: PaletteColor; tx: PaletteColor; ratio: number }[] = [];
+                      palette.forEach((pBg) => {
+                        palette.forEach((pTx) => {
+                          if (pBg.hex !== pTx.hex) {
+                            list.push({ bg: pBg, tx: pTx, ratio: getContrastRatio(pBg.hex, pTx.hex) });
+                          }
+                        });
+                      });
+
+                      list.sort((a, b) => b.ratio - a.ratio);
+
+                      if (list.length === 0) {
+                        return (
+                          <div className="py-8 text-center text-slate-400 text-[10px] dark:text-slate-500">
+                            Extract or choose a color palette to construct combinations.
+                          </div>
+                        );
+                      }
+
+                      return list.map((item, idx) => {
+                        const passAAA = item.ratio >= 7.0;
+                        const passAA = item.ratio >= 4.5;
+                        const passLg = item.ratio >= 3.0;
+
+                        let scoreBadge = "text-rose-600 bg-rose-50 border-rose-100 dark:bg-rose-955/10 dark:border-rose-900/40 dark:text-rose-400";
+                        let levelText = "Fail (Low Contrast)";
+                        if (passAAA) {
+                          scoreBadge = "text-emerald-705 bg-emerald-50 border-emerald-100 dark:bg-emerald-955/10 dark:border-emerald-900/40 dark:text-emerald-400";
+                          levelText = "AAA Compliant (Excellent)";
+                        } else if (passAA) {
+                          scoreBadge = "text-indigo-705 bg-indigo-50 border-indigo-100 dark:bg-indigo-955/10 dark:border-indigo-900/40 dark:text-indigo-400";
+                          levelText = "AA Compliant (Good)";
+                        } else if (passLg) {
+                          scoreBadge = "text-amber-705 bg-amber-50 border-amber-100 dark:bg-amber-955/10 dark:border-amber-900/40 dark:text-amber-400";
+                          levelText = "AA Large compliant (Headers)";
+                        }
+
+                        return (
+                          <div 
+                            key={idx}
+                            onClick={() => {
+                              setWcagBgColor(item.bg.hex);
+                              setCustomBgInput(item.bg.hex);
+                              setWcagTextColor(item.tx.hex);
+                              setCustomTxInput(item.tx.hex);
+                              setValidatorMode("pair");
+                            }}
+                            className="flex items-center justify-between p-2 rounded-xl border border-slate-150 dark:border-slate-800/80 bg-slate-50/55 hover:bg-slate-100 dark:bg-slate-900/20 dark:hover:bg-slate-900/60 hover:border-slate-200 transition-all cursor-pointer text-left gap-2"
+                            title="Click to load into the single pair editor"
+                          >
+                            <div className="flex items-center gap-2">
+                              {/* Preview swatches pair visual */}
+                              <div className="flex -space-x-1 shrink-0 select-none">
+                                <span 
+                                  className="w-5 h-5 rounded-full border border-white dark:border-slate-950 shadow-3xs z-1" 
+                                  style={{ backgroundColor: item.bg.hex }}
+                                />
+                                <span 
+                                  className="w-5 h-5 rounded-full border border-white dark:border-slate-950 shadow-3xs text-center flex items-center justify-center font-bold text-[8px]" 
+                                  style={{ backgroundColor: item.tx.hex, color: getRelativeLuminance(item.tx.hex) > 0.5 ? "#000000" : "#ffffff" }}
+                                >
+                                  T
+                                </span>
+                              </div>
+                              <div className="flex flex-col select-none">
+                                <div className="flex items-center gap-1">
+                                  <span className="font-mono text-[9px] font-semibold text-slate-700 dark:text-slate-300">{item.bg.hex.toUpperCase()}</span>
+                                  <span className="text-[10px] text-slate-300 dark:text-slate-650">→</span>
+                                  <span className="font-mono text-[9px] font-semibold text-slate-700 dark:text-slate-300">{item.tx.hex.toUpperCase()}</span>
+                                </div>
+                                <span className="text-[8px] text-slate-400 dark:text-slate-500 font-medium leading-none">BG Backdrop & Text Pair</span>
+                              </div>
+                            </div>
+
+                            {/* Demo Text swatch */}
+                            <div 
+                              className="px-2 py-0.5 rounded text-[10px] font-bold shrink-0 tracking-tight select-none border border-black/5 dark:border-white/5 hidden xs:block font-sans"
+                              style={{ backgroundColor: item.bg.hex, color: item.tx.hex }}
+                            >
+                              Aa Preview
+                            </div>
+
+                            <div className="flex items-center gap-2 text-right shrink-0">
+                              <div className="flex flex-col select-none text-right">
+                                <span className="font-mono text-[10px] font-bold text-slate-705 dark:text-slate-300 leading-tight">{item.ratio.toFixed(2)}:1</span>
+                                <span className="text-[7px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">{levelText}</span>
+                              </div>
+                              <div className={`px-1 rounded border text-[8px] font-black leading-none py-1 min-w-[32px] text-center ${scoreBadge}`}>
+                                {passAAA ? "AAA" : passAA ? "AA" : passLg ? "AA-LG" : "FAIL"}
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      });
+                    })()}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         )}
+
+        {/* Local Session History */}
+        <div className="bg-white rounded-2xl p-5 border border-slate-200/60 shadow-xs space-y-4">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <h4 className="text-xs font-bold text-slate-800 uppercase tracking-widest flex items-center gap-1.5">
+              <History className="w-4 h-4 text-emerald-500" /> Recent Palettes
+            </h4>
+            {sessionHistory.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  if (window.confirm("Are you sure you want to clear your local palette history?")) {
+                    setSessionHistory([]);
+                    localStorage.removeItem("toolkit_pro_palette_history");
+                  }
+                }}
+                className="text-[9px] font-semibold text-slate-400 hover:text-rose-600 bg-slate-50 hover:bg-rose-50 px-2 py-1 rounded transition-colors cursor-pointer border-0"
+              >
+                Clear All
+              </button>
+            )}
+          </div>
+
+          {sessionHistory.length === 0 ? (
+            <p className="text-[11px] text-slate-400 text-center py-4">
+              No recent palettes in this session. Extract some from an image to see them here!
+            </p>
+          ) : (
+            <div className="space-y-2.5">
+              {sessionHistory.map((item) => {
+                const isSelected = fileName === item.fileName && palette.map(p => p.hex).join(",") === item.palette.map(p => p.hex).join(",");
+                return (
+                  <div
+                    key={item.id}
+                    className={`p-3 rounded-xl border flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-left transition-all ${
+                      isSelected
+                        ? "border-emerald-500 bg-emerald-50/20"
+                        : "border-slate-100 bg-slate-50/50 hover:bg-slate-100 focus-within:ring-1 focus-within:ring-emerald-500"
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                      {/* Image Preview or Sparkles Icon */}
+                      {item.imageUrl ? (
+                        <img
+                          src={item.imageUrl}
+                          alt={item.fileName}
+                          referrerPolicy="no-referrer"
+                          className="w-10 h-10 rounded-lg object-cover bg-slate-100 shrink-0 border border-slate-200"
+                        />
+                      ) : (
+                        <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 border border-emerald-100">
+                          <Sparkles className="w-5 h-5 animate-pulse" />
+                        </div>
+                      )}
+                      
+                      {/* Name and color swatches */}
+                      <div className="min-w-0 flex-1 space-y-1">
+                        <div className="text-[11px] font-bold text-slate-800 truncate" title={item.fileName}>
+                          {item.fileName}
+                        </div>
+                        {/* 6 swatches row */}
+                        <div className="flex gap-1">
+                          {item.palette.map((color, cIdx) => (
+                            <span
+                              key={cIdx}
+                              className="w-3.5 h-3.5 rounded-md border border-white dark:border-slate-900 shadow-4xs"
+                              style={{ backgroundColor: color.hex }}
+                              title={color.hex.toUpperCase()}
+                            />
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Action buttons */}
+                    <div className="flex items-center gap-1.5 shrink-0 self-end sm:self-auto">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPalette(item.palette);
+                          setFileName(item.fileName);
+                          setImageUrl(item.imageUrl);
+                          window.dispatchEvent(
+                            new CustomEvent("toolkit-add-activity", {
+                              detail: {
+                                type: "palette",
+                                title: "Restored Historical Palette",
+                                detail: `Loaded ${item.fileName} successfully back to workbench`,
+                                icon: "RotateCcw",
+                                tab: "palette"
+                              }
+                            })
+                          );
+                        }}
+                        className="p-1.5 rounded-lg text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100/30 transition-colors cursor-pointer flex items-center gap-1 text-[10px] font-bold"
+                        title="Load this palette and original image back into workspace"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                        <span>Re-apply</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(item.palette, null, 2));
+                          const dlAnchorElem = document.createElement("a");
+                          const slugName = item.fileName.toLowerCase().replace(/[^a-z0-9]/g, "_") || "palette";
+                          dlAnchorElem.setAttribute("href", dataStr);
+                          dlAnchorElem.setAttribute("download", `toolkit_pro_palette_${slugName}.json`);
+                          dlAnchorElem.click();
+
+                          window.dispatchEvent(
+                            new CustomEvent("toolkit-add-activity", {
+                              detail: {
+                                type: "file",
+                                title: "Downloaded Historical JSON",
+                                detail: `Saved toolkit_pro_palette_${slugName}.json`,
+                                icon: "FileJson",
+                                tab: "palette"
+                              }
+                            })
+                          );
+                        }}
+                        className="p-1.5 rounded-lg text-slate-500 bg-white border border-slate-200 hover:text-indigo-650 hover:bg-indigo-50 transition-colors cursor-pointer"
+                        title="Direct JSON download of these colors"
+                      >
+                        <FileJson className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </div>
 
       {/* Interactive Display Area: 7 Cols */}
@@ -1518,100 +2446,204 @@ export default function ColorExtractor({
 
               {/* Extracted Swatches row */}
               <div>
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 bg-white/60 p-2.5 rounded-xl border border-slate-200/50">
-                  <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest flex items-center gap-1.5">
-                    <Pipette className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> Color Spec Swatches (Tap to copy hex)
-                  </span>
-                  <button
-                    onClick={handleSortByLuminance}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100/70 border border-emerald-200/55 rounded-lg shadow-2xs transition-all cursor-pointer select-none"
-                    title="Sort color swatches by relative luminance (darkest to lightest)"
-                  >
-                    <ArrowUpDown className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
-                    <span>Sort by Luminance</span>
-                  </button>
-                </div>
-                
-                <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-6 gap-3.5">
-                  {palette.map((color, idx) => {
-                    const rgbText = hexToRgb(color.hex);
-                    const isCopied = copiedHex === color.hex || (copiedToast && copiedToast.value === rgbText);
+                {(() => {
+                  const filteredPalette = palette.filter((color) => {
+                    if (!paletteSearchQuery) return true;
+                    const query = paletteSearchQuery.toLowerCase().trim();
                     return (
-                      <motion.div
-                        key={idx}
-                        whileHover={{ scale: 1.04, y: -3 }}
-                        whileTap={{ scale: 0.98 }}
-                        transition={{ type: "spring", stiffness: 400, damping: 20 }}
-                        style={{ backgroundColor: color.hex }}
-                        className="h-[105px] rounded-2xl relative overflow-hidden flex flex-col justify-between p-2.5 text-left border border-black/10 group shadow-md"
-                      >
-                        {/* Card top banner (Ordinal + Checkmark) */}
-                        <div className="flex justify-between items-center w-full select-none">
-                          <span 
-                            style={{ color: color.contrastColor }} 
-                            className="text-[9px] font-extrabold tracking-wider font-mono opacity-50"
-                          >
-                            C{idx + 1}
+                      color.hex.toLowerCase().includes(query) ||
+                      color.name.toLowerCase().includes(query)
+                    );
+                  });
+
+                  return (
+                    <>
+                      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4 bg-white/60 p-2.5 rounded-xl border border-slate-200/50">
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-1">
+                          <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest flex items-center gap-1.5 whitespace-nowrap">
+                            <Pipette className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> Color Spec Swatches (Tap to copy hex)
                           </span>
-                          {isCopied && (
-                            <Check 
-                              style={{ color: color.contrastColor }} 
-                              className="w-3.5 h-3.5 select-none animate-in zoom-in duration-200" 
+                          <div className="relative flex-1 max-w-sm">
+                            <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
+                            <input
+                              type="text"
+                              placeholder="Search hex, name..."
+                              value={paletteSearchQuery}
+                              onChange={(e) => setPaletteSearchQuery(e.target.value)}
+                              className="w-full bg-slate-50 hover:bg-slate-100/50 focus:bg-white border border-slate-200 focus:border-emerald-500 rounded-lg py-1.5 pl-8 pr-7 text-xs font-semibold text-slate-700 placeholder-slate-400 outline-none transition-all shadow-3xs"
+                              id="input-palette-search"
                             />
-                          )}
-                        </div>
-
-                        {/* Labels & Copy Actions */}
-                        <div className="space-y-1.5 font-sans">
-                          {/* Value Display */}
-                          <span
-                            style={{ color: color.contrastColor }}
-                            className="text-[10px] uppercase font-bold tracking-tighter block leading-none select-all"
-                            title={color.hex}
-                          >
-                            {color.hex}
-                          </span>
-
-                          {/* Quick copy buttons */}
-                          <div className="flex gap-1 w-full">
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCopyValue(color.hex, "HEX");
-                              }}
-                              style={{ 
-                                borderColor: `${color.contrastColor}25`,
-                                color: color.contrastColor,
-                                background: `${color.contrastColor}15`
-                              }}
-                              className="flex-1 py-0.5 rounded-lg text-[8.5px] font-black tracking-wider text-center border cursor-pointer hover:bg-white/10 active:scale-95 transition-all flex items-center justify-center gap-0.5 select-none"
-                              title={`Copy HEX: ${color.hex}`}
-                            >
-                              HEX
-                            </button>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleCopyValue(rgbText, "RGB");
-                              }}
-                              style={{ 
-                                borderColor: `${color.contrastColor}25`,
-                                color: color.contrastColor,
-                                background: `${color.contrastColor}15`
-                              }}
-                              className="flex-1 py-0.5 rounded-lg text-[8.5px] font-black tracking-wider text-center border cursor-pointer hover:bg-white/10 active:scale-95 transition-all flex items-center justify-center gap-0.5 select-none"
-                              title={`Copy RGB: ${rgbText}`}
-                            >
-                              RGB
-                            </button>
+                            {paletteSearchQuery && (
+                              <button
+                                type="button"
+                                onClick={() => setPaletteSearchQuery("")}
+                                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-0.5 rounded cursor-pointer"
+                                title="Clear search"
+                              >
+                                <X className="w-3 h-3" />
+                              </button>
+                            )}
                           </div>
                         </div>
-                      </motion.div>
-                    );
-                  })}
-                </div>
+                        <div className="flex items-center gap-1.5 self-start lg:self-auto select-none">
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide font-mono whitespace-nowrap">Sort Palette:</span>
+                          <select
+                            value={paletteSortMode}
+                            onChange={(e) => handleSortPalette(e.target.value as any)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100/70 border border-emerald-200/55 rounded-lg shadow-2xs transition-all cursor-pointer outline-none select-none appearance-none"
+                            title="Sort color swatches dynamically by Hue, Saturation, Brightness, or Luminance"
+                            id="select-palette-sort"
+                          >
+                            <option value="hue">🌈 Hue (Spectrum)</option>
+                            <option value="saturation">🔥 Saturation (Intensity)</option>
+                            <option value="brightness">☀️ Brightness (Lightness)</option>
+                            <option value="luminance">👁️ Luminance (Contrast)</option>
+                          </select>
+                        </div>
+                      </div>
+                      
+                      <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-6 gap-3.5 palette-swatches-grid extracted-palette-view">
+                        {filteredPalette.length > 0 ? (
+                          filteredPalette.map((color, idx) => {
+                            const rgbText = hexToRgb(color.hex);
+                            const isCopied = copiedHex === color.hex || (copiedToast && copiedToast.value === rgbText);
+                            const contrastWhite = getContrastRatio(color.hex, "#ffffff");
+                            const contrastBlack = getContrastRatio(color.hex, "#000000");
+
+                            return (
+                              <motion.div
+                                key={idx}
+                                whileHover={{ scale: 1.04, y: -3 }}
+                                whileTap={{ scale: 0.98 }}
+                                transition={{ type: "spring", stiffness: 400, damping: 20 }}
+                                style={{ backgroundColor: color.hex }}
+                                className="min-h-[170px] rounded-2xl relative overflow-hidden flex flex-col justify-between p-2.5 text-left border border-black/10 group shadow-md"
+                              >
+                                {/* Card top banner (Ordinal + Checkmark) */}
+                                <div className="flex justify-between items-center w-full select-none">
+                                  <span 
+                                    style={{ color: color.contrastColor }} 
+                                    className="text-[9px] font-extrabold tracking-wider font-mono opacity-50"
+                                  >
+                                    C{idx + 1}
+                                  </span>
+                                  {isCopied && (
+                                    <Check 
+                                      style={{ color: color.contrastColor }} 
+                                      className="w-3.5 h-3.5 select-none animate-in zoom-in duration-200" 
+                                    />
+                                  )}
+                                </div>
+
+                                {/* Accessibility Contrast Ratios against Black & White */}
+                                <div className="space-y-1 my-1.5 select-none font-mono">
+                                  {/* Contrast with White Text */}
+                                  <div 
+                                    style={{ 
+                                      color: "#ffffff", 
+                                      backgroundColor: "rgba(15, 23, 42, 0.75)",
+                                      border: "1px solid rgba(255, 255, 255, 0.12)"
+                                    }} 
+                                    className="px-1.5 py-0.5 rounded-lg flex items-center justify-between text-[8.5px] font-bold"
+                                    title={`Contrast against White text background: ${contrastWhite.toFixed(1)}:1`}
+                                  >
+                                    <span className="flex items-center gap-1 leading-none">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-white block" />
+                                      <span>W {contrastWhite.toFixed(1)}:1</span>
+                                    </span>
+                                    <span className={contrastWhite >= 4.5 ? "text-emerald-400 font-extrabold leading-none" : contrastWhite >= 3.0 ? "text-amber-400 leading-none" : "text-rose-400 leading-none"}>
+                                      {contrastWhite >= 7.0 ? "AAA" : contrastWhite >= 4.5 ? "AA" : contrastWhite >= 3.0 ? "A" : "Fail"}
+                                    </span>
+                                  </div>
+
+                                  {/* Contrast with Black Text */}
+                                  <div 
+                                    style={{ 
+                                      color: "#0f172a", 
+                                      backgroundColor: "rgba(255, 255, 255, 0.8)",
+                                      border: "1px solid rgba(15, 23, 42, 0.08)"
+                                    }} 
+                                    className="px-1.5 py-0.5 rounded-lg flex items-center justify-between text-[8.5px] font-bold"
+                                    title={`Contrast against Black text background: ${contrastBlack.toFixed(1)}:1`}
+                                  >
+                                    <span className="flex items-center gap-1 leading-none">
+                                      <span className="w-1.5 h-1.5 rounded-full bg-slate-900 block" />
+                                      <span>B {contrastBlack.toFixed(1)}:1</span>
+                                    </span>
+                                    <span className={contrastBlack >= 4.5 ? "text-emerald-700 font-extrabold leading-none" : contrastBlack >= 3.0 ? "text-amber-700 leading-none" : "text-rose-600 leading-none"}>
+                                      {contrastBlack >= 7.0 ? "AAA" : contrastBlack >= 4.5 ? "AA" : contrastBlack >= 3.0 ? "A" : "Fail"}
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Labels & Copy Actions */}
+                                <div className="space-y-1.5 font-sans">
+                                  {/* Value Display */}
+                                  <span
+                                    style={{ color: color.contrastColor }}
+                                    className="text-[10px] uppercase font-bold tracking-tighter block leading-none select-all"
+                                    title={color.hex}
+                                  >
+                                    {color.hex}
+                                  </span>
+
+                                  {/* Quick copy buttons */}
+                                  <div className="flex gap-1 w-full">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleCopyValue(color.hex, "HEX");
+                                      }}
+                                      style={{ 
+                                        borderColor: `${color.contrastColor}25`,
+                                        color: color.contrastColor,
+                                        background: `${color.contrastColor}15`
+                                      }}
+                                      className="flex-1 py-0.5 rounded-lg text-[8.5px] font-black tracking-wider text-center border cursor-pointer hover:bg-white/10 active:scale-95 transition-all flex items-center justify-center gap-0.5 select-none"
+                                      title={`Copy HEX: ${color.hex}`}
+                                    >
+                                      HEX
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        handleCopyValue(rgbText, "RGB");
+                                      }}
+                                      style={{ 
+                                        borderColor: `${color.contrastColor}25`,
+                                        color: color.contrastColor,
+                                        background: `${color.contrastColor}15`
+                                      }}
+                                      className="flex-1 py-0.5 rounded-lg text-[8.5px] font-black tracking-wider text-center border cursor-pointer hover:bg-white/10 active:scale-95 transition-all flex items-center justify-center gap-0.5 select-none"
+                                      title={`Copy RGB: ${rgbText}`}
+                                    >
+                                      RGB
+                                    </button>
+                                  </div>
+                                </div>
+                              </motion.div>
+                            );
+                          })
+                        ) : (
+                          <div className="col-span-full py-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl p-5 select-none">
+                            <Search className="w-8 h-8 text-slate-300 mx-auto mb-2 animate-pulse" />
+                            <p className="text-xs font-bold text-slate-600">No matching swatches found</p>
+                            <p className="text-[10px] text-slate-400 mt-0.5">Try searching for a different name or hex value.</p>
+                            <button
+                              type="button"
+                              onClick={() => setPaletteSearchQuery("")}
+                              className="mt-3 px-3 py-1 bg-slate-200 hover:bg-slate-300 text-slate-705 text-[10px] font-bold rounded-lg cursor-pointer transition-all"
+                            >
+                              Clear Search Filter
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </>
+                  );
+                })()}
               </div>
 
               {/* Theme JSON Variables Export Section */}
@@ -1657,58 +2689,163 @@ export default function ColorExtractor({
 
         {/* Sync trigger row */}
         {palette.length > 0 && (
-          <div className="flex flex-col md:flex-row gap-3 pt-3 text-xs">
-            <button
-              onClick={handleDownload}
-              className="md:w-1/4 inline-flex items-center justify-center px-4 py-3 border border-slate-200 hover:bg-slate-50 rounded-xl bg-white text-slate-800 font-semibold shadow-sm transition-all cursor-pointer"
-              id="btn-download-palette"
-            >
-              <Download className="w-4 h-4 mr-1.5 text-slate-400" />
-              Download Spec Sheet
-            </button>
-
-            <button
-              onClick={handleSharePalette}
-              className="md:w-1/4 inline-flex items-center justify-center px-4 py-3 border border-slate-200 hover:bg-slate-50 rounded-xl bg-white text-slate-800 font-semibold shadow-sm transition-all cursor-pointer"
-              id="btn-share-palette"
-            >
-              <Share2 className="w-4 h-4 mr-1.5 text-emerald-500 hover:scale-105 transition-transform" />
-              Share Palette
-            </button>
-
-            {user ? (
-              <div className="flex-1 flex flex-col sm:flex-row gap-3">
-                <button
-                  onClick={handleSaveToDrive}
-                  disabled={isSaving || isSavingAll}
-                  className="flex-1 inline-flex items-center justify-center px-4 py-3 rounded-xl bg-slate-800 text-white hover:bg-slate-700 font-semibold transition-all cursor-pointer disabled:opacity-50"
-                  id="btn-save-palette-drive"
-                >
-                  <Cloud className="w-3.5 h-3.5 mr-1.5 text-slate-300" />
-                  {isSaving ? "Saving PNG..." : "Save PNG to Drive"}
-                </button>
-
-                <button
-                  onClick={handleSaveAllToDrive}
-                  disabled={isSaving || isSavingAll}
-                  className="flex-1 inline-flex items-center justify-center px-4 py-3 rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 font-bold shadow-md transition-all cursor-pointer disabled:opacity-50"
-                  id="btn-save-all-palette-drive"
-                >
-                  <Sparkles className="w-3.5 h-3.5 mr-1.5 text-emerald-100 animate-pulse" />
-                  {isSavingAll ? "Saving Pack..." : "Save All (JSON + PNG)"}
-                </button>
-              </div>
-            ) : (
+          <div className="space-y-3 pt-3">
+            {/* Primary Action Row: Downloads & Export */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
               <button
-                onClick={onLogin}
-                className="flex-1 inline-flex items-center justify-center px-5 py-3 rounded-xl bg-slate-200 text-slate-800 hover:bg-slate-300 font-semibold transition-all shadow-sm"
-                title="Authenticate Drive upload via your Google Workspace account"
-                id="btn-prompt-login-palette"
+                onClick={handleDownload}
+                className="inline-flex items-center justify-center px-4 py-3 border border-slate-200 hover:bg-slate-50 rounded-xl bg-white text-slate-800 font-semibold shadow-sm transition-all cursor-pointer"
+                id="btn-download-palette"
               >
-                <Cloud className="w-4 h-4 mr-2 text-slate-600" />
-                Sign in to Save Pack to Drive
+                <Download className="w-4 h-4 mr-1.5 text-slate-400" />
+                Download Spec Sheet
               </button>
-            )}
+
+              <button
+                onClick={handleDownloadCSS}
+                className="inline-flex items-center justify-center px-4 py-3 border border-slate-200 hover:bg-slate-50 rounded-xl bg-white text-slate-800 font-semibold shadow-sm transition-all cursor-pointer"
+                id="btn-download-palette-css"
+                title="Download swatches as CSS variables (.css)"
+              >
+                <FileCode className="w-4 h-4 mr-1.5 text-indigo-500" />
+                Download CSS (.css)
+              </button>
+
+              <button
+                onClick={handleDownloadJSON}
+                className="inline-flex items-center justify-center px-4 py-3 border border-slate-200 hover:bg-slate-50 rounded-xl bg-white text-slate-800 font-semibold shadow-sm transition-all cursor-pointer"
+                id="btn-download-palette-json"
+                title="Download swatches as a JSON theme object (.json)"
+              >
+                <FileJson className="w-4 h-4 mr-1.5 text-amber-500" />
+                Download JSON (.json)
+              </button>
+
+              <button
+                onClick={handleSharePalette}
+                className="inline-flex items-center justify-center px-4 py-3 border border-slate-200 hover:bg-slate-50 rounded-xl bg-white text-slate-800 font-semibold shadow-sm transition-all cursor-pointer"
+                id="btn-share-palette"
+              >
+                <Share2 className="w-4 h-4 mr-1.5 text-emerald-500 hover:scale-105 transition-transform" />
+                Share Palette
+              </button>
+            </div>
+
+            {/* Google Drive Authorization / Synchronization Row */}
+            <div className="text-xs bg-slate-50 border border-slate-150 rounded-2xl p-4 space-y-4">
+              <div className="flex items-center justify-between border-b border-slate-200/60 pb-2">
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                  <Cloud className="w-3.5 h-3.5 text-slate-400 shrink-0" /> Google Drive Cloud Storage
+                </span>
+                {user && (
+                  <span className="text-[10px] bg-emerald-50 text-emerald-700 font-bold px-2 py-0.5 rounded-full font-sans">
+                    Connected: {user.email || "User"}
+                  </span>
+                )}
+              </div>
+
+              {user ? (
+                <div className="space-y-4">
+                  {/* Custom Palette Object Save Interface */}
+                  <div className="bg-white border border-slate-200/80 rounded-xl p-3.5 space-y-3.5">
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+                        <FileJson className="w-3.5 h-3.5 text-emerald-500" />
+                        Save Palette Object to Drive
+                      </h4>
+                      <p className="text-[10px] text-slate-400 mt-1">
+                        Saves a structured JSON file containing hex codes, names, current sorting metadata, and accessibility contrast rating results.
+                      </p>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label htmlFor="input-custom-palette-name" className="text-[10px] font-black text-slate-450 uppercase tracking-wider block">
+                        Custom Palette Name
+                      </label>
+                      <div className="flex flex-col sm:flex-row gap-2">
+                        <div className="flex-1 min-w-0">
+                          <input
+                            type="text"
+                            id="input-custom-palette-name"
+                            value={customPaletteName}
+                            onChange={(e) => setCustomPaletteName(e.target.value)}
+                            placeholder="e.g. Dreamy Rose Garden"
+                            className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 focus:outline-none focus:border-emerald-500 focus:bg-white transition-all"
+                          />
+                        </div>
+                        <button
+                          onClick={handleSavePaletteObjectToDrive}
+                          disabled={isSaving || isSavingAll || isSavingPaletteObject}
+                          className="px-4 py-2 bg-emerald-600 text-white font-bold rounded-xl hover:bg-emerald-700 transition-all cursor-pointer whitespace-nowrap disabled:opacity-50 inline-flex items-center justify-center text-xs shadow-3xs"
+                          id="btn-save-as-palette-object"
+                        >
+                          {isSavingPaletteObject ? (
+                            <>
+                              <Sparkles className="w-3 h-3 mr-1.5 animate-spin" />
+                              Saving Object...
+                            </>
+                          ) : (
+                            <>
+                              <Cloud className="w-3 h-3 mr-1.5" />
+                              Save Palette Object
+                            </>
+                          )}
+                        </button>
+                      </div>
+                      <p className="text-[9px] text-slate-400 font-mono italic">
+                        Preview target path: ToolkitPro/Palettes/{customPaletteName.trim() ? customPaletteName.trim().replace(/[\s/\\?%*|"<:;]+/g, "_") : "palette"}.palette.json
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Other standard Google Drive Exports */}
+                  <div className="space-y-2">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-widest block font-mono">
+                      Alternative Backups
+                    </span>
+                    <div className="flex flex-col sm:flex-row gap-2.5">
+                      <button
+                        onClick={handleSaveToDrive}
+                        disabled={isSaving || isSavingAll || isSavingPaletteObject}
+                        className="flex-1 inline-flex items-center justify-center px-3 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 bg-white text-slate-700 font-bold transition-all cursor-pointer disabled:opacity-50 text-xs shadow-3xs"
+                        id="btn-save-palette-drive"
+                      >
+                        <Cloud className="w-3.5 h-3.5 mr-1.5 text-slate-400" />
+                        {isSaving ? "Saving PNG..." : "Save PNG Spec Sheet"}
+                      </button>
+
+                      <button
+                        onClick={handleSaveAllToDrive}
+                        disabled={isSaving || isSavingAll || isSavingPaletteObject}
+                        className="flex-1 inline-flex items-center justify-center px-3 py-2.5 rounded-xl border border-slate-200 hover:bg-slate-50 bg-white text-slate-700 font-bold transition-all cursor-pointer disabled:opacity-50 text-xs shadow-3xs"
+                        id="btn-save-all-palette-drive"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 mr-1.5 text-emerald-500" />
+                        {isSavingAll ? "Saving Pack..." : "Save Pack (JSON + PNG)"}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row items-center justify-between gap-3 bg-white border border-slate-200/80 rounded-xl p-3.5">
+                  <div className="text-left">
+                    <h5 className="text-xs font-bold text-slate-800">Authorization Required</h5>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      Connect your Google Account to export specs, schemas, and palette objects.
+                    </p>
+                  </div>
+                  <button
+                    onClick={onLogin}
+                    className="w-full sm:w-auto inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-slate-800 text-white hover:bg-slate-700 font-bold transition-all shadow-3xs cursor-pointer text-xs"
+                    title="Authenticate Drive upload via your Google Workspace account"
+                    id="btn-prompt-login-palette"
+                  >
+                    <Cloud className="w-3.5 h-3.5 mr-1.5 text-white animate-pulse" />
+                    Sign in to Save
+                  </button>
+                </div>
+              )}
+            </div>
           </div>
         )}
       </div>

@@ -164,6 +164,7 @@ export interface QueueItem {
   cropWidth?: number;
   cropHeight?: number;
   rotation?: number;
+  filter?: "none" | "grayscale" | "sepia" | "invert" | "blur";
 }
 
 export interface CompressionSession {
@@ -305,6 +306,7 @@ export default function ImageCompressor({
     cropWidth: number;
     cropHeight: number;
     rotation: number;
+    filter?: "none" | "grayscale" | "sepia" | "invert" | "blur";
   }>>>({});
   const [isGlobalDragging, setIsGlobalDragging] = useState<boolean>(false);
   const [isBatchCompressing, setIsBatchCompressing] = useState<boolean>(false);
@@ -516,6 +518,95 @@ export default function ImageCompressor({
   const [restorableDraftData, setRestorableDraftData] = useState<any>(null);
   const [isRestoringDraft, setIsRestoringDraft] = useState<boolean>(false);
 
+  // Auto-Clear Workspace Configuration
+  const [autoClearOnNavigate, setAutoClearOnNavigate] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("toolkit_image_auto_clear_on_navigate") === "true";
+    }
+    return false;
+  });
+  const [autoClearTimeout, setAutoClearTimeout] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("toolkit_image_auto_clear_timeout");
+      return saved ? parseInt(saved, 10) : 0; // 0 means disabled
+    }
+    return 0;
+  });
+
+  const driveDraftRef = useRef<{ id: string | null; token: string | null }>({ id: null, token: null });
+
+  useEffect(() => {
+    driveDraftRef.current = { id: draftFileId, token: accessToken };
+  }, [draftFileId, accessToken]);
+
+  // Track idle time to auto-clear the session
+  useEffect(() => {
+    if (autoClearTimeout <= 0 || queue.length === 0) return;
+
+    let timer: number;
+    const resetTimer = () => {
+      if (timer) window.clearTimeout(timer);
+      timer = window.setTimeout(() => {
+        handleClearQueue();
+
+        const shouldClear = localStorage.getItem("toolkit_image_auto_clear_on_navigate") === "true";
+        if (shouldClear) {
+          localStorage.removeItem("toolkit_recent_compression_sessions");
+          setSessions([]);
+          const { id, token } = driveDraftRef.current;
+          if (id && token) {
+            fetch(`https://www.googleapis.com/drive/v3/files/${id}`, {
+              method: "DELETE",
+              headers: {
+                Authorization: `Bearer ${token}`
+              }
+            }).catch(err => console.error("Failed to delete draft on idle clear:", err));
+          }
+        }
+
+        setAutoSaveToast({
+          isOpen: true,
+          message: "Workspace automatically cleared due to inactivity to secure session state."
+        });
+      }, autoClearTimeout * 60 * 1000);
+    };
+
+    resetTimer();
+
+    const events = ["mousedown", "mousemove", "keypress", "scroll", "touchstart"];
+    const onUserActivity = () => resetTimer();
+
+    events.forEach(event => {
+      window.addEventListener(event, onUserActivity);
+    });
+
+    return () => {
+      if (timer) window.clearTimeout(timer);
+      events.forEach(event => {
+        window.removeEventListener(event, onUserActivity);
+      });
+    };
+  }, [autoClearTimeout, queue.length]);
+
+  // Cleanup on navigating away
+  useEffect(() => {
+    return () => {
+      const shouldClear = localStorage.getItem("toolkit_image_auto_clear_on_navigate") === "true";
+      if (shouldClear) {
+        localStorage.removeItem("toolkit_recent_compression_sessions");
+        const { id, token } = driveDraftRef.current;
+        if (id && token) {
+          fetch(`https://www.googleapis.com/drive/v3/files/${id}`, {
+            method: "DELETE",
+            headers: {
+              Authorization: `Bearer ${token}`
+            }
+          }).catch(err => console.error("Failed to delete draft on unmount navigate away:", err));
+        }
+      }
+    };
+  }, []);
+
   const saveTimeoutRef = useRef<number | null>(null);
 
   // Drag and Drop reordering states and handlers for the image queue
@@ -628,7 +719,8 @@ export default function ImageCompressor({
           cropY: item.cropY,
           cropWidth: item.cropWidth,
           cropHeight: item.cropHeight,
-          rotation: item.rotation
+          rotation: item.rotation,
+          filter: item.filter || "none"
         }));
 
         const draftPayload = {
@@ -744,6 +836,7 @@ export default function ImageCompressor({
           cropWidth: item.cropWidth,
           cropHeight: item.cropHeight,
           rotation: item.rotation,
+          filter: item.filter || "none",
           isCompressing: false,
           isSaving: false,
           saveStatus: null,
@@ -842,6 +935,7 @@ export default function ImageCompressor({
   const [aspectRatio, setAspectRatio] = useState<string>("original");
   const [customAspectW, setCustomAspectW] = useState<string>("4");
   const [customAspectH, setCustomAspectH] = useState<string>("3");
+  const [imgFilter, setImgFilter] = useState<"none" | "grayscale" | "sepia" | "invert" | "blur">("none");
   
   // Drag-to-crop visual interaction states
   const [dragMode, setDragMode] = useState<"none" | "move" | "resize">("none");
@@ -857,7 +951,7 @@ export default function ImageCompressor({
   // Full-Screen Image Preview & Comparison Modal States
   const [isPreviewModalOpen, setIsPreviewModalOpen] = useState<boolean>(false);
   const [previewMode, setPreviewMode] = useState<"side-by-side" | "slider" | "ab-toggle">("side-by-side");
-  const [dashboardView, setDashboardView] = useState<"side-by-side" | "original" | "compressed" | "quick-toggle">("side-by-side");
+  const [dashboardView, setDashboardView] = useState<"side-by-side" | "slider" | "original" | "compressed" | "quick-toggle">("side-by-side");
   const [sliderPosition, setSliderPosition] = useState<number>(50);
   const [isDraggingSlider, setIsDraggingSlider] = useState<boolean>(false);
   const [showOriginalInAB, setShowOriginalInAB] = useState<boolean>(false);
@@ -870,9 +964,12 @@ export default function ImageCompressor({
   const [loadingExifIds, setLoadingExifIds] = useState<string[]>([]);
 
   const sliderContainerRef = useRef<HTMLDivElement>(null);
+  const inlineSliderContainerRef = useRef<HTMLDivElement>(null);
+
   const handleSliderMove = (clientX: number) => {
-    if (!sliderContainerRef.current) return;
-    const rect = sliderContainerRef.current.getBoundingClientRect();
+    const targetRef = isPreviewModalOpen ? sliderContainerRef : inlineSliderContainerRef;
+    if (!targetRef.current) return;
+    const rect = targetRef.current.getBoundingClientRect();
     const x = clientX - rect.left;
     const pct = (x / rect.width) * 100;
     setSliderPosition(Math.max(0, Math.min(100, pct)));
@@ -907,7 +1004,7 @@ export default function ImageCompressor({
       window.removeEventListener("touchmove", handleWindowTouchMove);
       window.removeEventListener("touchend", handleWindowMouseUp);
     };
-  }, [isDraggingSlider]);
+  }, [isDraggingSlider, isPreviewModalOpen]);
 
   const onSliderMouseDown = (e: React.MouseEvent) => {
     handleSliderMove(e.clientX);
@@ -935,6 +1032,7 @@ export default function ImageCompressor({
       cropWidth: activeItem.cropWidth !== undefined ? activeItem.cropWidth : 1,
       cropHeight: activeItem.cropHeight !== undefined ? activeItem.cropHeight : 1,
       rotation: activeItem.rotation || 0,
+      filter: activeItem.filter || "none" as const,
     };
 
     setUndoHistory(prev => {
@@ -948,7 +1046,8 @@ export default function ImageCompressor({
           last.cropY === currentState.cropY &&
           last.cropWidth === currentState.cropWidth &&
           last.cropHeight === currentState.cropHeight &&
-          last.rotation === currentState.rotation) {
+          last.rotation === currentState.rotation &&
+          last.filter === currentState.filter) {
         return prev;
       }
       return {
@@ -983,6 +1082,7 @@ export default function ImageCompressor({
           cropWidth: previousState.cropWidth,
           cropHeight: previousState.cropHeight,
           rotation: previousState.rotation,
+          filter: previousState.filter || "none",
           compressedResult: null, // Clear compression cache
         };
       }
@@ -992,6 +1092,7 @@ export default function ImageCompressor({
     // Synergize and synchronize local standard states for sliders to refresh real-time
     setQuality(previousState.quality);
     setAspectRatio(previousState.aspectRatio);
+    setImgFilter(previousState.filter || "none");
   };
 
   // Sync active queue item back into compatibility states
@@ -1009,6 +1110,7 @@ export default function ImageCompressor({
       setIsCompressing(activeItem.isCompressing);
       setIsSaving(activeItem.isSaving);
       setSaveStatus(activeItem.saveStatus);
+      setImgFilter(activeItem.filter || "none");
     } else {
       setOriginalFile(null);
       setOriginalUrl(null);
@@ -1018,6 +1120,7 @@ export default function ImageCompressor({
       setIsCompressing(false);
       setIsSaving(false);
       setSaveStatus(null);
+      setImgFilter("none");
     }
   }, [activeItem, selectedId, queue]);
 
@@ -1480,6 +1583,15 @@ export default function ImageCompressor({
     setIsGlobalDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
       processMultipleFiles(e.dataTransfer.files);
+    }
+  };
+
+  // Visual filter sync for the currently selected item
+  const handleFilterChange = (val: "none" | "grayscale" | "sepia" | "invert" | "blur") => {
+    saveToUndoActiveItem();
+    setImgFilter(val);
+    if (selectedId) {
+      setQueue(prev => prev.map(item => item.id === selectedId ? { ...item, filter: val, compressedResult: null } : item));
     }
   };
 
@@ -1990,7 +2102,17 @@ export default function ImageCompressor({
         }
         ctx.translate(canvasWidth / 2, canvasHeight / 2);
         ctx.rotate(angleRad);
+        
+        // Apply visual filter before drawing if set!
+        if (item.filter && item.filter !== "none") {
+          if (item.filter === "grayscale") ctx.filter = "grayscale(100%)";
+          else if (item.filter === "sepia") ctx.filter = "sepia(100%)";
+          else if (item.filter === "invert") ctx.filter = "invert(100%)";
+          else if (item.filter === "blur") ctx.filter = "blur(4px)";
+        }
+        
         ctx.drawImage(img, sx, sy, sWidth, sHeight, -sWidth / 2, -sHeight / 2, sWidth, sHeight);
+        ctx.filter = "none"; // Reset filter context for watermarks or future actions
         
         // Draw Watermark if enabled
         if (isWatermarkEnabled) {
@@ -2199,6 +2321,7 @@ export default function ImageCompressor({
         ...el.compressedResult,
         dataUrl: el.compressedResult.dataUrl.length > 300000 ? "" : el.compressedResult.dataUrl
       } : null,
+      filter: el.filter,
     }));
 
     const newSession: CompressionSession = {
@@ -2249,7 +2372,8 @@ export default function ImageCompressor({
         } : null,
         isCompressing: false,
         isSaving: false,
-        saveStatus: null
+        saveStatus: null,
+        filter: (f as any).filter || "none"
       };
     });
 
@@ -2964,23 +3088,23 @@ export default function ImageCompressor({
         </div>
 
         {/* Auto-Save & Quick Compress Control Grid */}
-        <div className="grid grid-cols-2 gap-3 sm:gap-4">
+        <div className="grid grid-cols-3 gap-2 sm:gap-3">
           {/* Quick Compress Toggle Control Switch */}
           <div 
-            className="flex flex-col justify-between p-3.5 rounded-2xl bg-white dark:bg-slate-950 border border-slate-205 dark:border-slate-800/80 shadow-3xs select-none cursor-pointer hover:border-emerald-400 dark:hover:border-emerald-600 transition-all duration-300 group"
+            className="flex flex-col justify-between p-2.5 sm:p-3 rounded-2xl bg-white dark:bg-slate-950 border border-slate-205 dark:border-slate-800/80 shadow-3xs select-none cursor-pointer hover:border-emerald-400 dark:hover:border-emerald-600 transition-all duration-300 group"
             onClick={handleToggleQuickCompress}
           >
             <div className="space-y-0.5 text-left mb-2">
-              <label className="text-[11px] font-black uppercase text-slate-700 dark:text-slate-300 tracking-wider flex items-center gap-1 cursor-pointer">
-                ⚡ Quick Compress
+              <label className="text-[10px] sm:text-[11px] font-black uppercase text-slate-700 dark:text-slate-300 tracking-wider flex items-center gap-1 cursor-pointer truncate">
+                ⚡ Quick Comp
               </label>
-              <p className="text-[9.5px] text-slate-400 dark:text-slate-500 leading-snug">
+              <p className="text-[8.5px] sm:text-[9.5px] text-slate-400 dark:text-slate-500 leading-snug">
                 Bypass previews, auto-compress on drops.
               </p>
             </div>
             <div className="flex justify-between items-center mt-1">
               <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded ${isQuickCompressEnabled ? "bg-emerald-50 text-emerald-650 dark:bg-emerald-950/40 dark:text-emerald-400" : "bg-slate-100 dark:bg-slate-900 text-slate-400"}`}>
-                {isQuickCompressEnabled ? "Active" : "Bypassed"}
+                {isQuickCompressEnabled ? "Active" : "Bypass"}
               </span>
               <button
                 id="quick-compress-toggle"
@@ -3002,17 +3126,17 @@ export default function ImageCompressor({
 
           {/* Auto-Save Configuration Trigger */}
           <div 
-            className="flex flex-col justify-between p-3.5 rounded-2xl bg-white dark:bg-slate-950 border border-slate-205 dark:border-slate-800/80 shadow-3xs select-none cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-600 transition-all duration-300 group"
+            className="flex flex-col justify-between p-2.5 sm:p-3 rounded-2xl bg-white dark:bg-slate-950 border border-slate-205 dark:border-slate-800/80 shadow-3xs select-none cursor-pointer hover:border-indigo-400 dark:hover:border-indigo-600 transition-all duration-300 group"
             onClick={() => setIsAutoSaveDialogOpen(true)}
           >
             <div className="space-y-0.5 text-left mb-2">
-              <label className="text-[11px] font-black uppercase text-slate-700 dark:text-slate-300 tracking-wider flex items-center gap-1 cursor-pointer">
-                💾 Auto-Save File
+              <label className="text-[10px] sm:text-[11px] font-black uppercase text-slate-700 dark:text-slate-300 tracking-wider flex items-center gap-1 cursor-pointer truncate">
+                💾 Auto-Save
               </label>
-              <p className="text-[9.5px] text-slate-400 dark:text-slate-500 leading-snug">
+              <p className="text-[8.5px] sm:text-[9.5px] text-slate-400 dark:text-slate-500 leading-snug">
                 {isAutoSaveEnabled 
-                  ? `Saves immediately to ${autoSaveTarget === "local" ? "Downloads" : "Google Drive"}`
-                  : "Inactive • Click to configure auto-saving."}
+                  ? `Saves to ${autoSaveTarget === "local" ? "Downloads" : "Drive"}`
+                  : "Inactive • Configure auto-saves."}
               </p>
             </div>
             <div className="flex justify-between items-center mt-1">
@@ -3023,6 +3147,35 @@ export default function ImageCompressor({
                 type="button"
                 className="p-1 rounded bg-slate-50 dark:bg-slate-900 group-hover:bg-indigo-50 dark:group-hover:bg-indigo-950/40 text-slate-500 group-hover:text-indigo-600 transition-all"
                 title="Configure Auto-Save Rules"
+              >
+                <SlidersHorizontal className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          </div>
+
+          {/* Workspace Auto-Clear configuration button */}
+          <div 
+            className="flex flex-col justify-between p-2.5 sm:p-3 rounded-2xl bg-white dark:bg-slate-950 border border-slate-205 dark:border-slate-800/80 shadow-3xs select-none cursor-pointer hover:border-rose-400 dark:hover:border-rose-600 transition-all duration-300 group"
+            onClick={() => setIsAutoSaveDialogOpen(true)}
+          >
+            <div className="space-y-0.5 text-left mb-2">
+              <label className="text-[10px] sm:text-[11px] font-black uppercase text-slate-700 dark:text-slate-300 tracking-wider flex items-center gap-1 cursor-pointer truncate">
+                🧹 Auto-Clear
+              </label>
+              <p className="text-[8.5px] sm:text-[9.5px] text-slate-400 dark:text-slate-500 leading-snug">
+                {autoClearTimeout > 0 || autoClearOnNavigate
+                  ? `Active • ${autoClearTimeout > 0 ? `${autoClearTimeout}m` : ""} ${autoClearOnNavigate ? "Away" : ""}`
+                  : "Disabled • Keep workspace sessions."}
+              </p>
+            </div>
+            <div className="flex justify-between items-center mt-1">
+              <span className={`text-[8px] font-black uppercase px-1.5 py-0.5 rounded ${autoClearTimeout > 0 || autoClearOnNavigate ? "bg-rose-50 text-rose-650 dark:bg-rose-950/40 dark:text-rose-400" : "bg-slate-100 dark:bg-slate-900 text-slate-400"}`}>
+                {autoClearTimeout > 0 || autoClearOnNavigate ? "ON" : "OFF"}
+              </span>
+              <button
+                type="button"
+                className="p-1 rounded bg-slate-50 dark:bg-slate-900 group-hover:bg-rose-50 dark:group-hover:bg-rose-950/40 text-slate-500 group-hover:text-rose-600 transition-all"
+                title="Configure Auto-Clear Rules"
               >
                 <SlidersHorizontal className="w-3.5 h-3.5" />
               </button>
@@ -3130,6 +3283,12 @@ export default function ImageCompressor({
             const totalSavingsBytes = Math.max(0, totalOriginal - totalProjected);
             const savingsPercentage = totalOriginal > 0 ? Math.round((totalSavingsBytes / totalOriginal) * 100) : 0;
 
+            const compressedItemsInQueue = queue.filter(item => item.compressedResult);
+            const totalOriginalCompressedSpace = compressedItemsInQueue.reduce((sum, item) => sum + item.size, 0);
+            const totalActualCompressedSpace = compressedItemsInQueue.reduce((sum, item) => sum + (item.compressedResult?.compressedSize || 0), 0);
+            const actualDiskSpaceSaved = Math.max(0, totalOriginalCompressedSpace - totalActualCompressedSpace);
+            const actualSavingPercentage = totalOriginalCompressedSpace > 0 ? Math.round((actualDiskSpaceSaved / totalOriginalCompressedSpace) * 100) : 0;
+
             return (
               <div className="space-y-3">
                 <div className="grid grid-cols-2 gap-4">
@@ -3164,6 +3323,44 @@ export default function ImageCompressor({
                     />
                   </div>
                 </div>
+
+                {compressedItemsInQueue.length > 0 && (
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.96 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    className="mt-3 p-3 bg-emerald-50/70 dark:bg-emerald-950/20 border-2 border-emerald-500/20 rounded-2xl flex flex-col gap-2 relative overflow-hidden"
+                  >
+                    <div className="absolute right-0 top-0 bottom-0 w-24 bg-emerald-500/5 [mask-image:radial-gradient(ellipse_at_center,rgba(0,0,0,1),transparent)] pointer-events-none" />
+                    
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1">
+                        🚀 Actual Disk Saved
+                      </span>
+                      <span className="text-[9px] font-black uppercase text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 px-2 py-0.5 rounded-full">
+                        -{actualSavingPercentage}% Saved
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-left pt-0.5">
+                      <div>
+                        <span className="text-[8.5px] text-slate-400 dark:text-slate-500 block font-bold uppercase tracking-wider">
+                          Optimized Size ({compressedItemsInQueue.length} files)
+                        </span>
+                        <span className="text-xs font-black text-slate-800 dark:text-slate-205 font-mono">
+                          {formatFileSize(totalActualCompressedSpace)}
+                        </span>
+                      </div>
+                      <div>
+                        <span className="text-[8.5px] text-emerald-600 dark:text-emerald-450 block font-bold uppercase tracking-wider">
+                          Total Storage Saved 🎉
+                        </span>
+                        <span className="text-xs sm:text-sm font-black text-emerald-600 dark:text-emerald-400 font-mono">
+                          {formatFileSize(actualDiskSpaceSaved)}
+                        </span>
+                      </div>
+                    </div>
+                  </motion.div>
+                )}
 
                 <p className="text-[9.5px] text-slate-450 dark:text-slate-500 leading-normal border-t border-slate-100 dark:border-slate-900 pt-2">
                   AdSense Compliance: Photo pruning occurs within local browsers, discarding bulky EXIF camera headers prior to transmission to uphold stringent privacy mandates.
@@ -3444,10 +3641,15 @@ export default function ImageCompressor({
                           <span className="text-[10px] text-slate-400 dark:text-slate-500">
                             {formatFileSize(item.size)}
                           </span>
-                          {hasResult && (
-                            <span className="text-[9px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1 py-0.2 rounded">
-                              -{item.compressedResult?.savingPercentage}%
-                            </span>
+                          {hasResult && item.compressedResult && (
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <span className="text-[9px] font-extrabold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1 py-0.2 rounded">
+                                -{item.compressedResult.savingPercentage}%
+                              </span>
+                              <span className="text-[8.5px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-100/35 dark:bg-emerald-950/25 px-1 py-0.2 rounded border border-emerald-500/10" title={`Reduced from ${formatFileSize(item.size)} to ${formatFileSize(item.compressedResult.compressedSize)}`}>
+                                Saved {formatFileSize(item.size - item.compressedResult.compressedSize)}
+                              </span>
+                            </div>
                           )}
                         </div>
                         {/* Interactive dynamic progress feedback bar */}
@@ -4602,16 +4804,23 @@ export default function ImageCompressor({
                 <div className="space-y-6 flex-1 flex flex-col justify-between">
                   {/* Sync Details Banner */}
                   <div className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200/50 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm" id="banner-compress-status">
-                    <div className="flex items-center space-x-3">
+                    <div className="flex flex-col xs:flex-row xs:items-center gap-3">
                       <div className="w-10 h-10 bg-emerald-50 dark:bg-emerald-950 text-emerald-600 dark:text-emerald-400 rounded-lg flex items-center justify-center shrink-0">
                         <CheckCircle2 className="w-5 h-5" />
                       </div>
                       <div className="text-left">
-                        <p className="text-xs font-bold text-slate-900 dark:text-white leading-tight">
-                          Compression Completed!
-                        </p>
-                        <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate max-w-[180px] xs:max-w-[280px]">
-                          Saved {formatFileSize(compressedResult.originalSize - compressedResult.compressedSize)} space.
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-xs font-bold text-slate-900 dark:text-white leading-tight">
+                            Compression Completed!
+                          </p>
+                          {/* Small Efficiency Saved Badge */}
+                          <div className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-705 dark:text-emerald-400 border border-emerald-500/20 dark:border-emerald-500/30 text-[9px] font-black uppercase tracking-wider select-none shadow-3xs" id="efficiency-saved-badge">
+                            <Sparkles className="w-2.5 h-2.5 text-emerald-600 dark:text-emerald-400 animate-pulse" />
+                            <span>Saved {formatFileSize(compressedResult.originalSize - compressedResult.compressedSize)}</span>
+                          </div>
+                        </div>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-1 truncate max-w-[180px] xs:max-w-[280px]">
+                          Reduced from {formatFileSize(compressedResult.originalSize)} to {formatFileSize(compressedResult.compressedSize)}.
                         </p>
                       </div>
                     </div>
@@ -4646,6 +4855,7 @@ export default function ImageCompressor({
                       <div className="bg-slate-200/50 dark:bg-slate-900 p-0.5 rounded-xl flex items-center space-x-0.5 border border-slate-300/30 dark:border-slate-800">
                         {[
                           { id: "side-by-side", label: "Side-by-Side", icon: ImageIcon },
+                          { id: "slider", label: "Compare Slider", icon: SlidersHorizontal },
                           { id: "quick-toggle", label: "A/B Flip", icon: Eye },
                           { id: "original", label: "Original Only", icon: FileImage },
                           { id: "compressed", label: "Optimized Only", icon: Sparkles },
@@ -4685,6 +4895,12 @@ export default function ImageCompressor({
                             <img 
                               src={originalUrl || undefined} 
                               alt="Original" 
+                              style={{
+                                filter: imgFilter === "grayscale" ? "grayscale(100%)" :
+                                        imgFilter === "sepia" ? "sepia(100%)" :
+                                        imgFilter === "invert" ? "invert(100%)" :
+                                        imgFilter === "blur" ? "blur(4px)" : "none"
+                              }}
                               className="object-contain max-h-40 font-semibold group-hover/img:scale-105 transition-transform duration-300" 
                               referrerPolicy="no-referrer"
                             />
@@ -4725,6 +4941,66 @@ export default function ImageCompressor({
                       </div>
                     )}
 
+                    {dashboardView === "slider" && (
+                      <div className="flex-1 flex flex-col items-center justify-center py-2 select-none">
+                        <div 
+                          ref={inlineSliderContainerRef}
+                          onMouseDown={onSliderMouseDown}
+                          onTouchStart={onSliderTouchStart}
+                          className="relative aspect-video w-full rounded-2xl bg-black/5 dark:bg-black/40 border border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden cursor-ew-resize group shadow-inner"
+                          title="Drag the slider handle to compare before and after"
+                          id="inline-compare-slider-container"
+                        >
+                          {/* Optimized image as background */}
+                          <img 
+                            src={compressedResult.dataUrl} 
+                            alt="Optimized inline element"
+                            style={{ transform: `rotate(${activeItem?.rotation || 0}deg)` }}
+                            className="absolute inset-0 w-full h-full object-contain pointer-events-none transition-transform duration-150"
+                            referrerPolicy="no-referrer"
+                          />
+                          
+                          {/* Original image as absolute clip layer overlay */}
+                          <img 
+                            src={originalUrl || undefined} 
+                            alt="Original inline element"
+                            className="absolute inset-0 w-full h-full object-contain pointer-events-none transition-transform duration-150"
+                            style={{ 
+                              clipPath: `inset(0 ${100 - sliderPosition}% 0 0)`,
+                              transform: `rotate(${activeItem?.rotation || 0}deg)`,
+                              filter: imgFilter === "grayscale" ? "grayscale(100%)" :
+                                      imgFilter === "sepia" ? "sepia(105%)" :
+                                      imgFilter === "invert" ? "invert(100%)" :
+                                      imgFilter === "blur" ? "blur(4px)" : "none"
+                            }}
+                            referrerPolicy="no-referrer"
+                          />
+
+                          {/* Slider bar splitter line element */}
+                          <div 
+                            className="absolute inset-y-0 w-1 bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)] flex items-center justify-center cursor-ew-resize z-10"
+                            style={{ left: `${sliderPosition}%` }}
+                          >
+                            <div className="w-7 h-7 rounded-full bg-indigo-600 hover:bg-indigo-500 border border-indigo-200 text-white flex items-center justify-center font-bold text-xs select-none shadow-[0_0_10px_rgba(99,102,241,0.6)] transition-all duration-150 transform -translate-x-1/2">
+                              ↔
+                            </div>
+                          </div>
+
+                          {/* Overlay Badge Labels */}
+                          <span className="absolute left-3 top-3 text-[8.5px] font-black uppercase text-white bg-slate-950/80 border border-slate-850 px-2 py-0.5 rounded shadow z-10 pointer-events-none">
+                            Original
+                          </span>
+                          <span className="absolute right-3 top-3 text-[8.5px] font-black uppercase text-emerald-400 bg-slate-950/80 border border-slate-850 px-2 py-0.5 rounded shadow z-10 pointer-events-none">
+                            Optimized
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between w-full mt-3 font-mono text-[11px] text-slate-500 border-t border-slate-100 dark:border-slate-900 pt-2.5">
+                          <span>Original: <strong className="text-slate-755 dark:text-slate-300 font-bold">{formatFileSize(compressedResult.originalSize)}</strong></span>
+                          <span>Optimized: <strong className="text-emerald-600 dark:text-emerald-400 font-black">{formatFileSize(compressedResult.compressedSize)}</strong></span>
+                        </div>
+                      </div>
+                    )}
+
                     {dashboardView === "quick-toggle" && (
                       <div className="flex-1 flex flex-col items-center justify-center py-2">
                         <div 
@@ -4735,6 +5011,12 @@ export default function ImageCompressor({
                           <img 
                             src={showOriginalInAB ? (originalUrl || undefined) : compressedResult.dataUrl} 
                             alt="A/B Quick Switch in Dashboard" 
+                            style={showOriginalInAB ? {
+                              filter: imgFilter === "grayscale" ? "grayscale(100%)" :
+                                      imgFilter === "sepia" ? "sepia(100%)" :
+                                      imgFilter === "invert" ? "invert(100%)" :
+                                      imgFilter === "blur" ? "blur(4px)" : "none"
+                            } : undefined}
                             className="object-contain max-h-40 group-hover:scale-102 transition-transform duration-150" 
                             referrerPolicy="no-referrer"
                           />
@@ -4762,6 +5044,12 @@ export default function ImageCompressor({
                           <img 
                             src={originalUrl || undefined} 
                             alt="Original Perspective View" 
+                            style={{
+                              filter: imgFilter === "grayscale" ? "grayscale(100%)" :
+                                      imgFilter === "sepia" ? "sepia(100%)" :
+                                      imgFilter === "invert" ? "invert(100%)" :
+                                      imgFilter === "blur" ? "blur(4px)" : "none"
+                            }}
                             className="object-contain max-h-40 group-hover:scale-102 transition-transform duration-150" 
                             referrerPolicy="no-referrer"
                           />
@@ -4878,6 +5166,12 @@ export default function ImageCompressor({
                         id="cropping-target-img"
                         src={originalUrl || activeItem.thumbnailUrl || undefined} 
                         alt="Cropping dynamic source" 
+                        style={{
+                          filter: imgFilter === "grayscale" ? "grayscale(100%)" :
+                                  imgFilter === "sepia" ? "sepia(100%)" :
+                                  imgFilter === "invert" ? "invert(100%)" :
+                                  imgFilter === "blur" ? "blur(4px)" : "none"
+                        }}
                         className="max-h-[280px] sm:max-h-[320px] max-w-full block select-none pointer-events-none rounded-xl"
                         referrerPolicy="no-referrer"
                       />
@@ -4967,6 +5261,60 @@ export default function ImageCompressor({
                       >
                         1:1
                       </button>
+                    </div>
+                  </div>
+
+                  {/* Real-time Visual Filters Selector */}
+                  <div className="w-full mt-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-left space-y-2.5">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-black uppercase text-slate-700 dark:text-slate-300 tracking-wider flex items-center gap-1.5 selection:bg-indigo-500">
+                        ✨ Image Visual Filters
+                      </span>
+                      <span className="text-[9.5px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded leading-none">
+                        Active: {imgFilter === "none" ? "Raw Default" : imgFilter}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-snug">
+                       Apply a custom artistic palette directly to the image pixels before encoding.
+                    </p>
+                    
+                    <div className="grid grid-cols-5 gap-2 pt-1">
+                      {[
+                        { id: "none", label: "None", filterStyle: "none" },
+                        { id: "grayscale", label: "Grayscale", filterStyle: "grayscale(100%)" },
+                        { id: "sepia", label: "Sepia", filterStyle: "sepia(100%)" },
+                        { id: "invert", label: "Invert", filterStyle: "invert(100%)" },
+                        { id: "blur", label: "Blur", filterStyle: "blur(2px)" },
+                      ].map((item) => {
+                        const isActive = imgFilter === item.id;
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => handleFilterChange(item.id as any)}
+                            className={`flex flex-col items-center p-1.5 rounded-xl border transition-all duration-200 text-center relative overflow-hidden group cursor-pointer ${
+                              isActive
+                                ? "bg-indigo-50/50 dark:bg-indigo-950/20 border-indigo-500 ring-1 ring-indigo-500/50 shadow-3xs"
+                                : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-705 hover:bg-slate-100/50 dark:hover:bg-slate-900/60"
+                            }`}
+                          >
+                            {/* Filter Preview micro viewport */}
+                            <div className="w-full aspect-video rounded-lg overflow-hidden bg-slate-900 relative">
+                              <img
+                                src={originalUrl || activeItem.thumbnailUrl || undefined}
+                                alt={item.label}
+                                className="w-full h-full object-cover select-none pointer-events-none scale-110"
+                                style={{ filter: item.filterStyle }}
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
+                            
+                            <span className={`text-[9px] mt-1.5 font-bold ${isActive ? "text-indigo-600 dark:text-indigo-400 font-extrabold" : "text-slate-600 dark:text-slate-400"}`}>
+                              {item.label}
+                            </span>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -5262,7 +5610,13 @@ export default function ImageCompressor({
                     <img 
                       src={originalUrl || undefined} 
                       alt="Original full quality" 
-                      style={{ transform: `rotate(${activeItem?.rotation || 0}deg)` }}
+                      style={{ 
+                        transform: `rotate(${activeItem?.rotation || 0}deg)`,
+                        filter: imgFilter === "grayscale" ? "grayscale(100%)" :
+                                imgFilter === "sepia" ? "sepia(100%)" :
+                                imgFilter === "invert" ? "invert(100%)" :
+                                imgFilter === "blur" ? "blur(4px)" : "none"
+                      }}
                       className="max-h-[50vh] object-contain transition-transform"
                       referrerPolicy="no-referrer"
                     />
@@ -5316,7 +5670,11 @@ export default function ImageCompressor({
                   className="absolute inset-0 w-full h-full object-contain pointer-events-none transition-transform"
                   style={{ 
                     clipPath: `inset(0 ${100 - sliderPosition}% 0 0)`,
-                    transform: `rotate(${activeItem?.rotation || 0}deg)`
+                    transform: `rotate(${activeItem?.rotation || 0}deg)`,
+                    filter: imgFilter === "grayscale" ? "grayscale(100%)" :
+                            imgFilter === "sepia" ? "sepia(100%)" :
+                            imgFilter === "invert" ? "invert(100%)" :
+                            imgFilter === "blur" ? "blur(4px)" : "none"
                   }}
                   referrerPolicy="no-referrer"
                 />
@@ -5350,7 +5708,13 @@ export default function ImageCompressor({
                 <img 
                   src={showOriginalInAB ? (originalUrl || undefined) : compressedResult.dataUrl} 
                   alt="A/B toggle element"
-                  style={showOriginalInAB ? { transform: `rotate(${activeItem?.rotation || 0}deg)` } : undefined}
+                  style={showOriginalInAB ? { 
+                    transform: `rotate(${activeItem?.rotation || 0}deg)`,
+                    filter: imgFilter === "grayscale" ? "grayscale(100%)" :
+                            imgFilter === "sepia" ? "sepia(100%)" :
+                            imgFilter === "invert" ? "invert(100%)" :
+                            imgFilter === "blur" ? "blur(4px)" : "none"
+                  } : undefined}
                   className="max-w-full max-h-full object-contain transition-all duration-150"
                   referrerPolicy="no-referrer"
                 />
@@ -5842,6 +6206,86 @@ export default function ImageCompressor({
                         Login Req
                       </span>
                     )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Workspace Auto-Clear and Session Safety Configuration */}
+              <div className="space-y-3.5 text-left pt-3 border-t border-slate-100 dark:border-slate-900">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-amber-550">🧹</span>
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-450">
+                    Workspace Auto-Clear & Security
+                  </label>
+                </div>
+
+                {/* Auto-Clear Period Select Dropdown */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between items-center">
+                    <span className="text-[11px] font-bold text-slate-850 dark:text-slate-205">
+                      Inactivity Clear Timer
+                    </span>
+                    <span className="text-[9px] font-bold text-indigo-550 dark:text-indigo-400 font-mono">
+                      {autoClearTimeout === 0 ? "Disabled" : `${autoClearTimeout} Min`}
+                    </span>
+                  </div>
+                  <select
+                    value={autoClearTimeout}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value, 10);
+                      setAutoClearTimeout(val);
+                      localStorage.setItem("toolkit_image_auto_clear_timeout", String(val));
+                    }}
+                    className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-xs font-semibold text-slate-800 dark:text-slate-200 focus:outline-none focus:border-indigo-500"
+                  >
+                    <option value="0">Never Clear (Keep Session)</option>
+                    <option value="1">1 Minute</option>
+                    <option value="5">5 Minutes</option>
+                    <option value="15">15 Minutes</option>
+                    <option value="30">30 Minutes</option>
+                    <option value="60">1 Hour</option>
+                  </select>
+                  <p className="text-[9px] text-slate-400 dark:text-slate-500 leading-normal">
+                    Wipes the active workspace image list automatically when not in use.
+                  </p>
+                </div>
+
+                {/* Navigate Away Clear Toggle Switch */}
+                <div 
+                  className={`p-3.5 rounded-2xl border transition-all cursor-pointer text-left ${
+                    autoClearOnNavigate 
+                      ? "border-rose-250 bg-rose-50/10 dark:bg-rose-950/10" 
+                      : "border-slate-100 dark:border-slate-900 bg-slate-50/50 dark:bg-slate-900/10"
+                  }`}
+                  onClick={() => {
+                    setAutoClearOnNavigate(prev => {
+                      const next = !prev;
+                      localStorage.setItem("toolkit_image_auto_clear_on_navigate", next ? "true" : "false");
+                      return next;
+                    });
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <span className="text-xs font-bold text-slate-850 dark:text-slate-250 uppercase tracking-wide">
+                        Wipe on Navigate Away
+                      </span>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 leading-snug">
+                        Instantly wipe active cache, history list, and Google Drive drafts when leaving the tool
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-300 focus:outline-none cursor-pointer relative shrink-0 ${
+                        autoClearOnNavigate ? "bg-rose-500" : "bg-slate-200 dark:bg-slate-800"
+                      }`}
+                    >
+                      <div
+                        className={`w-4.5 h-4.5 rounded-full bg-white shadow-sm transform transition-transform duration-300 ${
+                          autoClearOnNavigate ? "translate-x-4.5" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
                   </div>
                 </div>
               </div>

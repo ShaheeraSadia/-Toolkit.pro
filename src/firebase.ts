@@ -1,4 +1,4 @@
-import { initializeApp } from "firebase/app";
+ import { initializeApp } from "firebase/app";
 import {
   getAuth,
   signInWithPopup,
@@ -6,7 +6,17 @@ import {
   onAuthStateChanged,
   User,
 } from "firebase/auth";
-import firebaseConfig from "../firebase-applet-config.json";
+
+// 🛠 متبادل حل: خراب JSON فائل امپورٹ کرنے کے بجائے اصلی کنفگریشن کو یہیں ہارڈ کوڈ کر دیا
+const firebaseConfig = {
+  apiKey: "AIzaSyBTkKgI8fOig33bqUF91-rgoCtliDjxLHo",
+  authDomain: "default-gemini-project-6075a.firebaseapp.com",
+  projectId: "default-gemini-project-6075a",
+  storageBucket: "default-gemini-project-6075a.firebasestorage.app",
+  messagingSenderId: "902695205105",
+  appId: "1:902695205105:web:7e87a3e9123d9e8cb91150",
+  measurementId: "G-GM4LK86180"
+};
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);

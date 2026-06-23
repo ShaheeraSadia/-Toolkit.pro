@@ -17,6 +17,9 @@ import CommandPalette from "./components/CommandPalette";
 import ShortcutsModal from "./components/ShortcutsModal";
 import RecentActivitiesWidget from "./components/RecentActivitiesWidget";
 import UsageInsightsWidget from "./components/UsageInsightsWidget";
+import AppTourOverlay from "./components/AppTourOverlay";
+import FeedbackModal from "./components/FeedbackModal";
+import { motion, AnimatePresence } from "motion/react";
 
 import {
   Sparkles,
@@ -37,6 +40,11 @@ import {
   Command,
   ArrowUp,
   Keyboard,
+  MessageSquare,
+  Printer,
+  Monitor,
+  Smartphone,
+  Download,
 } from "lucide-react";
 
 export default function App() {
@@ -68,7 +76,21 @@ export default function App() {
   // Command Palette & Global Shortcut Trace Alert states
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState<boolean>(false);
   const [isShortcutsHelpOpen, setIsShortcutsHelpOpen] = useState<boolean>(false);
+  const [isTourOpen, setIsTourOpen] = useState<boolean>(false);
+  const [isFeedbackOpen, setIsFeedbackOpen] = useState<boolean>(false);
   const [lastShortcutPressed, setLastShortcutPressed] = useState<string | null>(null);
+
+  // Auto trigger the interactive App Tour on the first visit
+  useEffect(() => {
+    try {
+      const tourSeen = localStorage.getItem("toolkit_pro_tour_done");
+      if (!tourSeen) {
+        setIsTourOpen(true);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
 
   const triggerShortcutFeedback = (shortcutLabel: string) => {
     setLastShortcutPressed(shortcutLabel);
@@ -163,6 +185,8 @@ export default function App() {
     }
     return null;
   });
+
+  const [resourcesSubTab, setResourcesSubTab] = useState<"articles" | "sitemap" | "seo-templates" | "installation" | "install-fetchers">("articles");
 
   const [isSitemapView, setIsSitemapView] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
@@ -608,8 +632,72 @@ export default function App() {
           : "bg-gradient-to-b from-white to-transparent border-slate-100"
       }`}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-3 select-none">
-          <div className="inline-flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-955 px-3.5 py-1.5 rounded-full text-[11px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-widest leading-none shadow-sm shadow-emerald-500/5">
-            <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-spin" /> Toolkit Pro Drive Sync
+          <div className="flex flex-wrap items-center justify-center gap-2 pb-1">
+            <div className="inline-flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-955 px-3.5 py-1.5 rounded-full text-[11px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-widest leading-none shadow-sm shadow-emerald-500/5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-spin" /> Toolkit Pro Drive Sync
+            </div>
+
+            {/* Installable PWA Badge with Tooltip */}
+            <div className="relative group inline-block">
+              <button
+                onClick={() => {
+                  setActiveTab("resources");
+                  setResourcesSubTab("installation");
+                  // Smoothly scroll to the content
+                  setTimeout(() => {
+                    const el = document.getElementById("resources-panel-installation");
+                    if (el) {
+                      el.scrollIntoView({ behavior: "smooth", block: "start" });
+                    }
+                  }, 100);
+                }}
+                className="inline-flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/40 border border-blue-150/40 dark:border-blue-900/30 px-3.5 py-1.5 rounded-full text-[11px] font-extrabold text-blue-700 dark:text-blue-350 uppercase tracking-widest leading-none shadow-sm shadow-blue-500/5 cursor-pointer select-none transition-all hover:scale-102 hover:shadow-md"
+                title="PWA Installable Software Utility"
+              >
+                <Monitor className="w-3 h-3 text-blue-500" />
+                <span className="flex items-center gap-1">
+                  Installable PWA
+                  <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                </span>
+              </button>
+
+              {/* High-Fidelity Tooltip describing PWA benefits */}
+              <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2.5 z-40 w-72 p-4 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 pointer-events-none scale-95 group-hover:scale-100 text-left space-y-3">
+                <div className="flex items-center gap-1.5 pb-1.5 border-b border-slate-100 dark:border-slate-850">
+                  <span className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/55">
+                    <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+                  </span>
+                  <div>
+                    <h5 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                      Standalone Utility
+                    </h5>
+                    <p className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-widest">
+                      Elevate Your Experience
+                    </p>
+                  </div>
+                </div>
+
+                <ul className="space-y-2 text-[11px] text-slate-650 dark:text-slate-400">
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-indigo-500 mt-0.5 text-xs">✦</span>
+                    <span><strong>No Browser Clutter:</strong> Removes URL bars to maximize rendering space for your active canvas.</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-indigo-500 mt-0.5 text-xs">✦</span>
+                    <span><strong>Dock & Desktop Access:</strong> Launch application directly from macOS/Windows Dock or your home screen.</span>
+                  </li>
+                  <li className="flex items-start gap-1.5">
+                    <span className="text-indigo-500 mt-0.5 text-xs">✦</span>
+                    <span><strong>Zero Latency:</strong> Uses background caching for lightning-fast workflow transition speed.</span>
+                  </li>
+                </ul>
+
+                <div className="pt-1.5 border-t border-slate-100 dark:border-slate-850 flex items-center justify-between text-[9px] text-indigo-650 dark:text-indigo-400 font-extrabold uppercase tracking-wider">
+                  <span>Click to view installation guides</span>
+                  <span>➔</span>
+                </div>
+              </div>
+            </div>
           </div>
           <h2 className={`text-3xl sm:text-4xl font-extrabold tracking-tight font-sans ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
             Advanced Tools for Digital Creators
@@ -654,12 +742,12 @@ export default function App() {
       </section>
 
       {/* Dynamic AdSense Leaderboard Placement Box - Essential for structural human reviewer validation */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full pt-6 select-none">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full pt-6 select-none" id="home-adsense-leaderboard-wrapper">
         <AdSenseMock slot="top-leaderboard-home" type="leaderboard" />
       </div>
 
       {/* Interactive Session Insights & Activity Streams row */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full mt-6 grid grid-cols-1 lg:grid-cols-5 gap-6 select-none">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full mt-6 grid grid-cols-1 lg:grid-cols-5 gap-6 select-none" id="home-insights-widgets-row">
         <div className="lg:col-span-3">
           <RecentActivitiesWidget 
             activities={recentActivities}
@@ -795,98 +883,109 @@ export default function App() {
               : "bg-white border-slate-100 shadow-sm"
           }`}
         >
-          {isSitemapView ? (
-            <SitemapView
-              theme={theme}
-              onTabChange={(tab) => {
-                setActiveTab(tab);
-                setIsSitemapView(false);
-              }}
-              onClose={() => setIsSitemapView(false)}
-            />
-          ) : (
-            <>
-              {activeTab === "quote" && (
-                <QuoteDesigner
-                  user={user}
-                  accessToken={accessToken}
-                  onRefreshDrive={handleRefreshDrive}
-                  onLogin={handleLogin}
+          <AnimatePresence mode="wait">
+            <motion.div
+              key={isSitemapView ? "sitemap" : activeTab}
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+            >
+              {isSitemapView ? (
+                <SitemapView
+                  theme={theme}
+                  onTabChange={(tab) => {
+                    setActiveTab(tab);
+                    setIsSitemapView(false);
+                  }}
+                  onClose={() => setIsSitemapView(false)}
                 />
-              )}
-
-              {activeTab === "compress" && (
-                <ImageCompressor
-                  user={user}
-                  accessToken={accessToken}
-                  onRefreshDrive={handleRefreshDrive}
-                  onLogin={handleLogin}
-                  initialFiles={draggedFiles}
-                  onClearInitialFiles={() => setDraggedFiles(null)}
-                />
-              )}
-
-              {activeTab === "qr" && (
-                <QrGenerator
-                  user={user}
-                  accessToken={accessToken}
-                  onRefreshDrive={handleRefreshDrive}
-                  onLogin={handleLogin}
-                />
-              )}
-
-              {activeTab === "palette" && (
-                <ColorExtractor
-                  user={user}
-                  accessToken={accessToken}
-                  onRefreshDrive={handleRefreshDrive}
-                  onLogin={handleLogin}
-                />
-              )}
-
-              {activeTab === "drive" && (
-                <div>
-                  {user ? (
-                    <DriveExplorer
+              ) : (
+                <>
+                  {activeTab === "quote" && (
+                    <QuoteDesigner
                       user={user}
                       accessToken={accessToken}
-                      files={files}
-                      isLoading={isLoadingDrive}
-                      onRefresh={handleRefreshDrive}
-                      onSelectTab={setActiveTab}
+                      onRefreshDrive={handleRefreshDrive}
+                      onLogin={handleLogin}
                     />
-                  ) : (
-                    <div className="py-12 text-center flex flex-col items-center justify-center max-w-md mx-auto">
-                      <CloudLightning className="w-12 h-12 text-slate-300 mb-3" />
-                      <h4 className="text-sm font-bold text-slate-800">Authentication Required</h4>
-                      <p className="text-xs text-slate-400 mt-1 mb-6 leading-relaxed">
-                        Connecting your Google Drive account is required to browse, preview, and sync assets created within Toolkit automotive spaces.
-                      </p>
-                      <button
-                        onClick={handleLogin}
-                        disabled={isLoggingIn}
-                        className="inline-flex items-center justify-center px-4.5 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-900 font-semibold text-xs text-white shadow-md cursor-pointer"
-                        id="btn-explorer-auth-prompt"
-                      >
-                        Authenticate with Google Drive
-                      </button>
+                  )}
+
+                  {activeTab === "compress" && (
+                    <ImageCompressor
+                      user={user}
+                      accessToken={accessToken}
+                      onRefreshDrive={handleRefreshDrive}
+                      onLogin={handleLogin}
+                      initialFiles={draggedFiles}
+                      onClearInitialFiles={() => setDraggedFiles(null)}
+                    />
+                  )}
+
+                  {activeTab === "qr" && (
+                    <QrGenerator
+                      user={user}
+                      accessToken={accessToken}
+                      onRefreshDrive={handleRefreshDrive}
+                      onLogin={handleLogin}
+                    />
+                  )}
+
+                  {activeTab === "palette" && (
+                    <ColorExtractor
+                      user={user}
+                      accessToken={accessToken}
+                      onRefreshDrive={handleRefreshDrive}
+                      onLogin={handleLogin}
+                    />
+                  )}
+
+                  {activeTab === "drive" && (
+                    <div>
+                      {user ? (
+                        <DriveExplorer
+                          user={user}
+                          accessToken={accessToken}
+                          files={files}
+                          isLoading={isLoadingDrive}
+                          onRefresh={handleRefreshDrive}
+                          onSelectTab={setActiveTab}
+                        />
+                      ) : (
+                        <div className="py-12 text-center flex flex-col items-center justify-center max-w-md mx-auto">
+                          <CloudLightning className="w-12 h-12 text-slate-300 mb-3" />
+                          <h4 className="text-sm font-bold text-slate-800">Authentication Required</h4>
+                          <p className="text-xs text-slate-400 mt-1 mb-6 leading-relaxed">
+                            Connecting your Google Drive account is required to browse, preview, and sync assets created within Toolkit automotive spaces.
+                          </p>
+                          <button
+                            onClick={handleLogin}
+                            disabled={isLoggingIn}
+                            className="inline-flex items-center justify-center px-4.5 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-900 font-semibold text-xs text-white shadow-md cursor-pointer"
+                            id="btn-explorer-auth-prompt"
+                          >
+                            Authenticate with Google Drive
+                          </button>
+                        </div>
+                      )}
                     </div>
                   )}
-                </div>
-              )}
 
-              {activeTab === "resources" && (
-                <ResourcesHub 
-                  selectedArticleId={selectedArticleId}
-                  onSelectArticleId={setSelectedArticleId}
-                />
-              )}
+                  {activeTab === "resources" && (
+                    <ResourcesHub 
+                      selectedArticleId={selectedArticleId}
+                      onSelectArticleId={setSelectedArticleId}
+                      initialSubTab={resourcesSubTab}
+                    />
+                  )}
 
-              {activeTab === "legal" && (
-                <AdSenseCompliance subTab={legalSubTab} onChangeSubTab={setLegalSubTab} />
+                  {activeTab === "legal" && (
+                    <AdSenseCompliance subTab={legalSubTab} onChangeSubTab={setLegalSubTab} />
+                  )}
+                </>
               )}
-            </>
-          )}
+            </motion.div>
+          </AnimatePresence>
 
           {/* AdSense Inline Responsive Banner below active editor grids */}
           <div className={`mt-8 pt-6 border-t select-none ${theme === "dark" ? "border-slate-800" : "border-slate-50"}`}>
@@ -939,15 +1038,16 @@ export default function App() {
                   { icon: <Github className="w-3.5 h-3.5" />, label: "GitHub", href: "https://github.com", color: "hover:text-slate-900 dark:hover:text-white hover:border-slate-400" },
                   { icon: <Twitter className="w-3.5 h-3.5" />, label: "Twitter", href: "https://twitter.com", color: "hover:text-sky-500 hover:border-sky-400" },
                   { icon: <Linkedin className="w-3.5 h-3.5" />, label: "LinkedIn", href: "https://linkedin.com", color: "hover:text-blue-600 hover:border-blue-500" },
-                  { icon: <Facebook className="w-3.5 h-3.5" />, label: "Facebook", href: "https://facebook.com", color: "hover:text-blue-700 hover:border-blue-600" },
+                 { icon: <Facebook className="w-3.5 h-3.5" />, label: "Facebook", href: "https://facebook.com", color: "hover:text-blue-700 hover:border-blue-600" },
                   { icon: <Globe className="w-3.5 h-3.5" />, label: "Website", href: "https://toolkit-pro-chi.vercel.app", color: "hover:text-emerald-600 hover:border-emerald-500" },
-                     ].map((social, idx) => (
+               
+                   ].map((social, idx) => (
                   <a
                     key={idx}
                     href={social.href}
                     target="_blank"
                     rel="noreferrer"
-                    className={`p-2 rounded-xl border border-slate-200 dark:border-slate-800/80 bg-white dark:bg-slate-900/40 text-slate-400 dark:text-slate-550 shadow-3xs hover:shadow-2xs hover:scale-105 transition-all duration-200 flex items-center justify-center cursor-pointer hover:-translate-y-0.5 ${social.color}`}
+                    className={`p-2 rounded-xl border border-slate-200 dark:border-slate-800/80 bg-white dark:bg-slate-900/40 text-slate-600 dark:text-slate-350 shadow-3xs hover:shadow-2xs hover:scale-105 transition-all duration-200 flex items-center justify-center cursor-pointer hover:-translate-y-0.5 ${social.color}`}
                     title={`Connect on ${social.label}`}
                   >
                     {social.icon}
@@ -1037,7 +1137,7 @@ export default function App() {
               <h4 className="text-[10px] font-black tracking-widest uppercase text-indigo-650 dark:text-indigo-450 select-none">
                 Subscribe to Newsletter
               </h4>
-              <p className="text-[11px] text-slate-450 dark:text-slate-400 leading-normal">
+              <p className="text-[11px] text-slate-500 dark:text-slate-300 leading-normal">
                 Join our list of designers and developers receiving tools, preset packs, and resources.
               </p>
               
@@ -1068,7 +1168,7 @@ export default function App() {
 
           {/* Quick-links for manual AdSense verification agents */}
           <div className={`flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs font-semibold border-t border-b py-4 ${
-            theme === "dark" ? "text-slate-405 border-slate-800" : "text-slate-550 border-slate-200/50"
+            theme === "dark" ? "text-slate-400 border-slate-800" : "text-slate-600 border-slate-200/50"
           }`}>
             <button
               onClick={() => {
@@ -1116,7 +1216,7 @@ export default function App() {
             >
               About Shaheera
             </button>
-            <span className="text-slate-305 dark:text-slate-707 select-none">•</span>
+            <span className="text-slate-300 dark:text-slate-700 select-none">•</span>
             
             <button
               onClick={() => {
@@ -1168,10 +1268,50 @@ export default function App() {
             >
               Dynamic Sitemap
             </button>
+            <span className="text-slate-300 dark:text-slate-700 select-none">•</span>
+            
+            <button
+              onClick={() => setIsFeedbackOpen(true)}
+              className="hover:text-indigo-650 dark:hover:text-amber-400 cursor-pointer font-bold flex items-center gap-1.5 text-slate-700 dark:text-slate-300"
+              id="footer-feedback-trigger-btn"
+              title="Share rating and commentary feedback about your experience"
+            >
+              <MessageSquare className="w-3.5 h-3.5 text-indigo-500 dark:text-amber-400" />
+              <span>Send Feedback</span>
+            </button>
+            <span className="text-slate-300 dark:text-slate-700 select-none">•</span>
+
+            <button
+              onClick={() => {
+                window.print();
+                logSessionActivity({
+                  type: "tool",
+                  title: "Printed Active Workspace",
+                  detail: `Triggered high-fidelity browser print layout for active ${activeTab} tool`,
+                  icon: "ShieldCheck",
+                  tab: activeTab
+                });
+              }}
+              className="hover:bg-indigo-50 dark:hover:bg-slate-800/80 cursor-pointer font-bold flex items-center gap-1.5 text-indigo-600 dark:text-amber-400 border border-indigo-100 dark:border-slate-800 bg-white dark:bg-slate-900/40 px-3 py-1.5 rounded-xl transition-all shadow-3xs hover:scale-102 active:scale-97 select-none"
+              title="Print high-fidelity design layout of the active creator space utilizing dedicated stylesheet media queries"
+              id="footer-print-view-trigger-btn"
+            >
+              <Printer className="w-3.5 h-3.5 text-indigo-500 dark:text-amber-400 animate-pulse" />
+              <span>
+                Print Active {
+                  activeTab === "quote" ? "Quote" : 
+                  activeTab === "compress" ? "Compression Proof" :
+                  activeTab === "qr" ? "QR Code" : 
+                  activeTab === "palette" ? "Palette" : 
+                  activeTab === "drive" ? "Drive Panel" : 
+                  activeTab === "resources" ? "Content Guides" : "Compliance View"
+                }
+              </span>
+            </button>
           </div>
 
           {/* Bottom Bar: Copyright and Badging */}
-          <div className="flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-450 dark:text-slate-400 font-medium pt-2">
+          <div className="flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-500 dark:text-slate-350 font-medium pt-2">
             <p>© 2026 Toolkit Pro Suite. All rights registered.</p>
             <p className={`mt-2 sm:mt-0 font-semibold flex items-center gap-1.5 select-none ${theme === "dark" ? "text-slate-500" : "text-slate-400"}`}>
               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
@@ -1206,8 +1346,37 @@ export default function App() {
         onClose={() => setIsShortcutsHelpOpen(false)} 
       />
 
+      {/* Interactive step-by-step App Tour Overlay panel */}
+      <AppTourOverlay
+        isOpen={isTourOpen}
+        onClose={() => setIsTourOpen(false)}
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        theme={theme}
+      />
+
+      {/* Interactive user satisfaction survey & feedback commentary submission card */}
+      <FeedbackModal
+        isOpen={isFeedbackOpen}
+        onClose={() => setIsFeedbackOpen(false)}
+        theme={theme}
+      />
+
       {/* Floating launcher badges for quick clicking visual palette and accessibility discovery */}
       <div className="fixed bottom-6 right-6 z-40 flex items-center gap-3">
+        {/* Visual App Tour launcher */}
+        <button
+          onClick={() => setIsTourOpen(true)}
+          className="bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-850 hover:text-indigo-650 dark:hover:text-amber-400 p-3 sm:px-4 sm:py-3.5 rounded-full sm:rounded-2xl shadow-xl flex items-center gap-2.5 transition-all duration-300 hover:scale-103 active:scale-97 select-none cursor-pointer border border-slate-200 dark:border-slate-800"
+          title="Restart Interactive App Tour"
+          id="floating-tour-launcher-btn"
+        >
+          <Sparkles className="w-4 h-4 shrink-0 text-indigo-500 dark:text-amber-400 animate-pulse" />
+          <span className="text-xs font-extrabold hidden sm:inline-block">
+            App Tour
+          </span>
+        </button>
+
         {/* Visual Keyboard Shortcuts Accessibility Launcher Button */}
         <button
           onClick={() => setIsShortcutsHelpOpen(true)}
@@ -1219,7 +1388,7 @@ export default function App() {
           <span className="text-xs font-extrabold hidden sm:inline-block">
             Shortcuts
           </span>
-          <kbd className="hidden sm:inline-flex bg-slate-100 dark:bg-slate-950 border border-slate-205 dark:border-slate-800 text-[10px] px-1.5 py-0.5 rounded font-mono font-bold leading-none text-slate-450">
+          <kbd className="hidden sm:inline-flex bg-slate-100 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 text-[10px] px-1.5 py-0.5 rounded font-mono font-bold leading-none text-slate-500">
             ?
           </kbd>
         </button>
@@ -1245,7 +1414,7 @@ export default function App() {
       {showScrollTop && (
         <button
           onClick={handleScrollToTop}
-          className="fixed bottom-24 right-6.5 sm:right-7.5 z-40 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-755 dark:text-slate-250 hover:text-indigo-650 dark:hover:text-indigo-400 hover:border-indigo-200 dark:hover:border-slate-700/60 p-3 rounded-full shadow-2xl transition-all duration-300 hover:scale-110 active:scale-93 select-none cursor-pointer animate-fade-in group"
+          className="fixed bottom-24 right-6.5 sm:right-7.5 z-40 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:text-indigo-650 dark:hover:text-indigo-400 hover:border-indigo-200 dark:hover:border-slate-700/60 p-3 rounded-full shadow-2xl transition-all duration-300 hover:scale-110 active:scale-93 select-none cursor-pointer animate-fade-in group"
           title="Zoom to scroll-top frame"
           id="scroll-to-top-floating-btn"
         >

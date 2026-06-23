@@ -1,4 +1,4 @@
- const CACHE_NAME = 'toolkit-pro-cache-v2';
+const CACHE_NAME = 'toolkit-pro-cache-v2';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
@@ -40,10 +40,12 @@ self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
 
+  // Skip non-GET requests or browser extension/chrome-extension requests
   if (request.method !== 'GET' || !url.protocol.startsWith('http')) {
     return;
   }
 
+  // Strategy for root document, routes, and JSON files: Network-first
   if (
     url.pathname === '/' || 
     url.pathname === '/index.html' || 
@@ -73,6 +75,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Strategy for static assets (js, css, fonts, images): Stale-While-Revalidate
   event.respondWith(
     caches.match(request).then((cachedResponse) => {
       if (cachedResponse) {
@@ -111,7 +114,7 @@ self.addEventListener('fetch', (event) => {
 });
 
 // ==========================================
-// OFFICIAL MONETAG AD NETWORK INTEGRATION (UPDATED TO MATCH INDEX.HTML)
+// OFFICIAL MONETAG AD NETWORK INTEGRATION
 // ==========================================
 self.options = {
     "domain": "5gvci.com",
@@ -119,7 +122,7 @@ self.options = {
 };
 self.lary = "";
 try {
-    importScripts('https://5gvci.com/act/files/tag.min.js?r=sw');
+  importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw');
 } catch (e) {
-    console.error('[Service Worker] Monetag scripts failed to load:', e);
+  console.error('[Service Worker] Monetag scripts failed to load:', e);
 }

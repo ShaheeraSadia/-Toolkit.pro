@@ -11,20 +11,70 @@ export default function AdSenseMock({ slot, type, className = "" }: AdSenseMockP
   const [adLoaded, setAdLoaded] = useState(false);
 
   useEffect(() => {
-    // Satisfy strict programmatic Google AdSense client execution
-    try {
-      if (typeof window !== "undefined") {
-        ((window as any).adsbygoogle = (window as any).adsbygoogle || []).push({});
+    if (typeof window === "undefined") return;
+
+    let observer: ResizeObserver | null = null;
+    let didPush = false;
+
+    const tryRegisterAd = () => {
+      if (didPush) return;
+
+      const insElement = document.querySelector(`#adsense-slot-${slot} ins.adsbygoogle`) as HTMLElement | null;
+      if (!insElement) return;
+
+      const rect = insElement.getBoundingClientRect();
+      const isVisible = rect.width > 0 && rect.height > 0 && insElement.offsetWidth > 0;
+
+      if (isVisible) {
+        // Check if already processed by AdSense
+        const isInitialized = insElement.hasAttribute("data-adsbygoogle-status") ||
+                            insElement.hasAttribute("data-asneeded") ||
+                            insElement.children.length > 0;
+
+        if (!isInitialized) {
+          const uninitializedTotal = document.querySelectorAll("ins.adsbygoogle:not([data-adsbygoogle-status])");
+          if (uninitializedTotal.length > 0) {
+            try {
+              didPush = true;
+              ((window as any).adsbygoogle = (window as any).adsbygoogle || []).push({});
+            } catch (e) {
+              console.log("Programmatic AdSense push error guarded:", e);
+            }
+          }
+        }
+
+        if (observer) {
+          observer.disconnect();
+          observer = null;
+        }
       }
-    } catch (e) {
-      console.log("Programmatic AdSense block pushed locally or bypassed due to sandbox:", e);
+    };
+
+    // Try starting after a short paint delay
+    const timer = setTimeout(() => {
+      tryRegisterAd();
+    }, 150);
+
+    const parentDiv = document.getElementById(`adsense-slot-${slot}`);
+    if (parentDiv && typeof ResizeObserver !== "undefined") {
+      observer = new ResizeObserver(() => {
+        tryRegisterAd();
+      });
+      observer.observe(parentDiv);
     }
 
-    const timer = setTimeout(() => {
+    const backupTimer = setTimeout(() => {
       setAdLoaded(true);
     }, 800);
-    return () => clearTimeout(timer);
-  }, []);
+
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(backupTimer);
+      if (observer) {
+        observer.disconnect();
+      }
+    };
+  }, [slot]);
 
   const getDimensions = () => {
     switch (type) {
@@ -58,8 +108,8 @@ export default function AdSenseMock({ slot, type, className = "" }: AdSenseMockP
       {/* Structured backup elements inside a relative overlay layer */}
       <div className="relative z-10 flex flex-col justify-between h-full pointer-events-none">
         {/* Header Info */}
-        <div className="flex items-center justify-between text-[9px] font-semibold text-slate-400 tracking-wider">
-          <span className="bg-slate-200/55 text-slate-550 px-1.5 py-0.5 rounded uppercase pointer-events-auto">
+        <div className="flex items-center justify-between text-[9px] font-semibold text-slate-500 dark:text-slate-400 tracking-wider">
+          <span className="bg-slate-200/55 text-slate-700 px-1.5 py-0.5 rounded uppercase pointer-events-auto">
             Advertisement
           </span>
           <span className="flex items-center gap-1 opacity-70 hover:opacity-100 cursor-pointer pointer-events-auto">
@@ -79,7 +129,7 @@ export default function AdSenseMock({ slot, type, className = "" }: AdSenseMockP
                   <h5 className="text-xs font-bold text-indigo-950 leading-none">
                     Workspace Cloud Backup API v2.6
                   </h5>
-                  <p className="text-[10px] text-slate-400 mt-0.5 hidden sm:block">
+                  <p className="text-[10px] text-slate-600 dark:text-slate-300 mt-0.5 hidden sm:block">
                     Automate full-lifecycle server exports cleanly with zero infrastructure.
                   </p>
                 </div>
@@ -104,7 +154,7 @@ export default function AdSenseMock({ slot, type, className = "" }: AdSenseMockP
                   <h5 className="text-xs font-extrabold text-slate-900">
                     Secure PDF Compressor Pro
                   </h5>
-                  <p className="text-[10px] text-slate-400 leading-normal max-w-[240px] mt-1">
+                  <p className="text-[10px] text-slate-600 dark:text-slate-300 leading-normal max-w-[240px] mt-1">
                     Downsize catalogs and legal documents with ultra-secure AES encryption layers.
                   </p>
                 </div>
@@ -123,7 +173,7 @@ export default function AdSenseMock({ slot, type, className = "" }: AdSenseMockP
                   <h5 className="text-xs font-extrabold text-slate-800">
                     Premium Vector Graphics API
                   </h5>
-                  <p className="text-[10px] text-slate-400 mt-0.5">
+                  <p className="text-[10px] text-slate-600 dark:text-slate-300 mt-0.5">
                     Download 1,200+ microicons, custom avatars, and CSS wave pattern styles.
                   </p>
                 </div>
@@ -136,7 +186,7 @@ export default function AdSenseMock({ slot, type, className = "" }: AdSenseMockP
         ) : (
           /* Squeaky clean loading simulator */
           <div className="flex-1 flex items-center justify-center py-4">
-            <div className="flex items-center space-x-2 text-[10px] text-slate-400 font-medium">
+            <div className="flex items-center space-x-2 text-[10px] text-slate-500 dark:text-slate-400 font-medium">
               <span className="w-1.5 h-1.5 rounded-full bg-slate-300 animate-ping" />
               <span>Configuring AdSense Unit (Slot #{slot})...</span>
             </div>
@@ -144,7 +194,7 @@ export default function AdSenseMock({ slot, type, className = "" }: AdSenseMockP
         )}
 
         {/* Footer code identifier required for programmatic compliance */}
-        <div className="text-[8px] text-slate-450 text-right opacity-60 font-mono select-none pointer-events-auto">
+        <div className="text-[8px] text-slate-450 text-right opacity-60 font-mono select-none pointer-events-auto pb-4 mb-1">
           google_ad_client = "ca-pub-toolkit-pro"; slot_id = "{slot}"
         </div>
       </div>
