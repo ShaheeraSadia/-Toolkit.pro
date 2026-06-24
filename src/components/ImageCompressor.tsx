@@ -38,7 +38,9 @@ import {
   GripVertical,
   Share2,
   Layers,
-  Undo
+  Undo,
+  Smartphone,
+  ExternalLink
 } from "lucide-react";
 import ExifReader from "exifreader";
 import { RGBHistogram } from "./RGBHistogram";
@@ -297,6 +299,42 @@ export default function ImageCompressor({
   const [queue, setQueue] = useState<QueueItem[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
 
+  // 1-Click PWA Installation States
+  const [pwaInstallPrompt, setPwaInstallPrompt] = useState<any>(
+    typeof window !== "undefined" ? window.deferredInstallPrompt || null : null
+  );
+  const [isStandalone, setIsStandalone] = useState<boolean>(false);
+  const [isIframe, setIsIframe] = useState<boolean>(true);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIsIframe(window.self !== window.top);
+      setIsStandalone(
+        window.matchMedia('(display-mode: standalone)').matches || 
+        (window.navigator as any).standalone === true
+      );
+
+      const handlePromptReady = () => {
+        if (window.deferredInstallPrompt) {
+          setPwaInstallPrompt(window.deferredInstallPrompt);
+        }
+      };
+
+      const handleBeforePrompt = (e: Event) => {
+        e.preventDefault();
+        setPwaInstallPrompt(e);
+      };
+
+      window.addEventListener("installpromptready", handlePromptReady);
+      window.addEventListener("beforeinstallprompt", handleBeforePrompt);
+
+      return () => {
+        window.removeEventListener("installpromptready", handlePromptReady);
+        window.removeEventListener("beforeinstallprompt", handleBeforePrompt);
+      };
+    }
+  }, []);
+
   // Undo history map (file id -> snapshotted states list)
   const [undoHistory, setUndoHistory] = useState<Record<string, Array<{
     quality: number;
@@ -334,11 +372,18 @@ export default function ImageCompressor({
     }
     return false;
   });
-  const [keepExifMetadata, setKeepExifMetadata] = useState<boolean>(() => {
+  const [stripExifMetadata, setStripExifMetadata] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
-      return localStorage.getItem("toolkit_image_keep_exif") === "true";
+      const storedStrip = localStorage.getItem("toolkit_image_strip_exif");
+      if (storedStrip !== null) {
+        return storedStrip === "true";
+      }
+      const storedKeep = localStorage.getItem("toolkit_image_keep_exif");
+      if (storedKeep !== null) {
+        return storedKeep !== "true";
+      }
     }
-    return false;
+    return true; // Strip EXIF metadata by default for privacy
   });
   const [isSmartResizeEnabled, setIsSmartResizeEnabled] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
@@ -502,7 +547,7 @@ export default function ImageCompressor({
     return "local";
   });
   const [isAutoSaveDialogOpen, setIsAutoSaveDialogOpen] = useState<boolean>(false);
-  const [autoSaveToast, setAutoSaveToast] = useState<{ isOpen: boolean; message: string; isError?: boolean } | null>(null);
+  const [autoSaveToast, setAutoSaveToast] = useState<{ isOpen: boolean; message: string; isError?: boolean; title?: string } | null>(null);
 
   // Image editing session draft states for Google Drive
   const [isAutoSaveDraftEnabled, setIsAutoSaveDraftEnabled] = useState<boolean>(() => {
@@ -609,9 +654,12 @@ export default function ImageCompressor({
 
   const saveTimeoutRef = useRef<number | null>(null);
 
-  // Drag and Drop reordering states and handlers for the image queue
+  // Drag and Drop reordering states and handlers for the image queue and batch summary
   const [draggedIndex, setDraggedIndex] = useState<number | null>(null);
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+
+  const [draggedSummaryIndex, setDraggedSummaryIndex] = useState<number | null>(null);
+  const [dragOverSummaryIndex, setDragOverSummaryIndex] = useState<number | null>(null);
 
   const handleQueueDragStart = (e: React.DragEvent<HTMLDivElement>, index: number) => {
     setDraggedIndex(index);
@@ -642,6 +690,14 @@ export default function ImageCompressor({
       updated.splice(targetIndex, 0, removed);
       
       saveBatchSession(updated);
+      
+      // Keep batch summary items sorted in the same order as the queue
+      setBatchSummaryItems((prevSummary) => {
+        if (prevSummary.length === 0) return prevSummary;
+        const updatedIds = updated.map(item => item.id);
+        return [...prevSummary].sort((a, b) => updatedIds.indexOf(a.id) - updatedIds.indexOf(b.id));
+      });
+
       return updated;
     });
 
@@ -652,6 +708,61 @@ export default function ImageCompressor({
   const handleQueueDragEnd = () => {
     setDraggedIndex(null);
     setDragOverIndex(null);
+  };
+
+  const handleSummaryDragStart = (e: React.DragEvent<HTMLTableRowElement>, index: number) => {
+    setDraggedSummaryIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+    try {
+      e.dataTransfer.setData("text/plain", String(index));
+    } catch (_) {}
+  };
+
+  const handleSummaryDragOver = (e: React.DragEvent<HTMLTableRowElement>, index: number) => {
+    e.preventDefault();
+    if (dragOverSummaryIndex !== index) {
+      setDragOverSummaryIndex(index);
+    }
+  };
+
+  const handleSummaryDrop = (e: React.DragEvent<HTMLTableRowElement>, targetIndex: number) => {
+    e.preventDefault();
+    if (draggedSummaryIndex === null || draggedSummaryIndex === targetIndex) {
+      setDraggedSummaryIndex(null);
+      setDragOverSummaryIndex(null);
+      return;
+    }
+
+    setBatchSummaryItems((prev) => {
+      const updated = [...prev];
+      const [removed] = updated.splice(draggedSummaryIndex, 1);
+      updated.splice(targetIndex, 0, removed);
+      
+      // Sync the main workspace queue in the exact same order of IDs
+      setQueue((prevQueue) => {
+        const updatedIds = updated.map(item => item.id);
+        const reordered = [...prevQueue].sort((a, b) => {
+          const idxA = updatedIds.indexOf(a.id);
+          const idxB = updatedIds.indexOf(b.id);
+          if (idxA === -1 && idxB === -1) return 0;
+          if (idxA === -1) return 1;
+          if (idxB === -1) return -1;
+          return idxA - idxB;
+        });
+        saveBatchSession(reordered);
+        return reordered;
+      });
+
+      return updated;
+    });
+
+    setDraggedSummaryIndex(null);
+    setDragOverSummaryIndex(null);
+  };
+
+  const handleSummaryDragEnd = () => {
+    setDraggedSummaryIndex(null);
+    setDragOverSummaryIndex(null);
   };
 
   // Load/Check for existing draft on mount or when credentials arrive
@@ -902,6 +1013,116 @@ export default function ImageCompressor({
   // Recent Sessions State
   const [sessions, setSessions] = useState<CompressionSession[]>([]);
 
+  // Interrupted local queue backup state
+  const [localBackupAvailable, setLocalBackupAvailable] = useState<boolean>(false);
+  const [localBackupData, setLocalBackupData] = useState<any>(null);
+
+  // Auto-save active queue state to local storage to recover interrupted sessions
+  useEffect(() => {
+    if (queue.length === 0) {
+      localStorage.removeItem("toolkit_active_queue_interrupted_backup");
+      return;
+    }
+
+    const backupTimeout = setTimeout(() => {
+      try {
+        const serializedItems = queue.map(item => ({
+          id: item.id,
+          name: item.name,
+          size: item.size,
+          type: item.type,
+          // Limit base64 URLs to avoid hitting localStorage 5MB quota
+          originalUrl: item.originalUrl && item.originalUrl.length < 300000 ? item.originalUrl : "",
+          thumbnailUrl: item.thumbnailUrl && item.thumbnailUrl.length < 150000 ? item.thumbnailUrl : "",
+          quality: item.quality,
+          aspectRatio: item.aspectRatio,
+          cropX: item.cropX,
+          cropY: item.cropY,
+          cropWidth: item.cropWidth,
+          cropHeight: item.cropHeight,
+          rotation: item.rotation,
+          filter: item.filter || "none",
+          compressedResult: item.compressedResult ? {
+            fileName: item.compressedResult.fileName,
+            originalSize: item.compressedResult.originalSize,
+            compressedSize: item.compressedResult.compressedSize,
+            savingPercentage: item.compressedResult.savingPercentage,
+            mimeType: item.compressedResult.mimeType,
+            dataUrl: item.compressedResult.dataUrl && item.compressedResult.dataUrl.length < 300000 ? item.compressedResult.dataUrl : ""
+          } : null
+        }));
+
+        const payload = {
+          timestamp: new Date().toISOString(),
+          items: serializedItems
+        };
+
+        localStorage.setItem("toolkit_active_queue_interrupted_backup", JSON.stringify(payload));
+      } catch (err) {
+        console.warn("Failed to auto-save local active queue backup:", err);
+      }
+    }, 1500);
+
+    return () => clearTimeout(backupTimeout);
+  }, [queue]);
+
+  const handleRestoreLocalBackup = () => {
+    if (!localBackupData || !localBackupData.items) return;
+    try {
+      const restoredQueue: QueueItem[] = localBackupData.items.map((item: any) => {
+        let reconstructedFile = new File([], item.name, { type: item.type });
+        const fallbackUrl = item.originalUrl || "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=300&q=80";
+
+        return {
+          id: item.id,
+          file: reconstructedFile,
+          name: item.name,
+          size: item.size,
+          type: item.type,
+          originalUrl: item.originalUrl || fallbackUrl,
+          thumbnailUrl: item.thumbnailUrl,
+          quality: item.quality,
+          aspectRatio: item.aspectRatio,
+          cropX: item.cropX,
+          cropY: item.cropY,
+          cropWidth: item.cropWidth,
+          cropHeight: item.cropHeight,
+          rotation: item.rotation,
+          filter: item.filter || "none",
+          isCompressing: false,
+          isSaving: false,
+          saveStatus: null,
+          compressedResult: item.compressedResult ? {
+            ...item.compressedResult,
+            dataUrl: item.compressedResult.dataUrl || fallbackUrl
+          } : null
+        };
+      });
+
+      setQueue(restoredQueue);
+      if (restoredQueue.length > 0) {
+        setSelectedId(restoredQueue[0].id);
+      }
+      setLocalBackupAvailable(false);
+      setLocalBackupData(null);
+
+      localStorage.removeItem("toolkit_active_queue_interrupted_backup");
+
+      setAutoSaveToast({
+        isOpen: true,
+        message: `Successfully restored interrupted session with ${restoredQueue.length} files.`
+      });
+    } catch (err) {
+      console.error("Failed to restore local interrupted session:", err);
+    }
+  };
+
+  const handleDiscardLocalBackup = () => {
+    localStorage.removeItem("toolkit_active_queue_interrupted_backup");
+    setLocalBackupAvailable(false);
+    setLocalBackupData(null);
+  };
+
   // Batch compression summary modal states
   const [isBatchSummaryOpen, setIsBatchSummaryOpen] = useState<boolean>(false);
   const [batchSummaryItems, setBatchSummaryItems] = useState<QueueItem[]>([]);
@@ -915,6 +1136,19 @@ export default function ImageCompressor({
       }
     } catch (e) {
       console.error("Failed to parse sessions:", e);
+    }
+
+    try {
+      const backup = localStorage.getItem("toolkit_active_queue_interrupted_backup");
+      if (backup) {
+        const parsed = JSON.parse(backup);
+        if (parsed && parsed.items && parsed.items.length > 0) {
+          setLocalBackupAvailable(true);
+          setLocalBackupData(parsed);
+        }
+      }
+    } catch (err) {
+      console.error("Failed to check for local active queue backup:", err);
     }
   }, []);
 
@@ -2262,7 +2496,7 @@ export default function ImageCompressor({
         const base64Content = compressedDataUrl.substring(compressedDataUrl.indexOf(",") + 1);
         const compressedSize = Math.round((base64Content.length * 3) / 4);
 
-        if (keepExifMetadata && targetMime === "image/jpeg" && item.file) {
+        if (!stripExifMetadata && targetMime === "image/jpeg" && item.file) {
           const reader = new FileReader();
           reader.onload = () => {
             try {
@@ -2758,6 +2992,13 @@ export default function ImageCompressor({
     link.href = compressedResult.dataUrl;
     link.click();
 
+    // Trigger confirmation toast
+    setAutoSaveToast({
+      isOpen: true,
+      title: "Download Completed",
+      message: `Successfully downloaded "${compressedResult.fileName}" (1 file).`
+    });
+
     // Support Monetag Direct Link Integration
     try {
       window.open("https://omg10.com/4/11125963", "_blank", "noopener,noreferrer");
@@ -2795,6 +3036,13 @@ export default function ImageCompressor({
         }
       } : item));
       onRefreshDrive();
+
+      // Trigger confirmation toast
+      setAutoSaveToast({
+        isOpen: true,
+        title: "Google Drive Sync",
+        message: `Successfully uploaded "${compressedResult.fileName}" (1 file) to your Google Drive.`
+      });
     } catch (err: any) {
       console.error(err);
       setQueue(prev => prev.map(item => item.id === activeItem.id ? {
@@ -2805,6 +3053,93 @@ export default function ImageCompressor({
           msg: err.message || "Failed to upload to Google Drive.",
         }
       } : item));
+
+      // Trigger failure toast
+      setAutoSaveToast({
+        isOpen: true,
+        title: "Google Drive Sync Failed",
+        message: err.message || "Failed to upload file to Google Drive.",
+        isError: true
+      });
+    }
+  };
+
+  const handleSaveItemToDrive = async (item: QueueItem, e?: React.MouseEvent) => {
+    if (e) {
+      e.stopPropagation();
+    }
+
+    if (!user || !accessToken) {
+      onLogin();
+      return;
+    }
+
+    if (!item.compressedResult) return;
+
+    setQueue(prev => prev.map(qItem => qItem.id === item.id ? { ...qItem, isSaving: true, saveStatus: null } : qItem));
+    setBatchSummaryItems(prev => prev.map(qItem => qItem.id === item.id ? { ...qItem, isSaving: true, saveStatus: null } : qItem));
+
+    try {
+      await uploadFileToDrive(
+        accessToken,
+        item.compressedResult.fileName,
+        item.compressedResult.mimeType,
+        item.compressedResult.dataUrl
+      );
+      
+      setQueue(prev => prev.map(qItem => qItem.id === item.id ? {
+        ...qItem,
+        isSaving: false,
+        saveStatus: {
+          success: true,
+          msg: "Successfully uploaded to Google Drive!",
+        }
+      } : qItem));
+
+      setBatchSummaryItems(prev => prev.map(qItem => qItem.id === item.id ? {
+        ...qItem,
+        isSaving: false,
+        saveStatus: {
+          success: true,
+          msg: "Successfully uploaded to Google Drive!",
+        }
+      } : qItem));
+
+      onRefreshDrive();
+
+      // Trigger confirmation toast
+      setAutoSaveToast({
+        isOpen: true,
+        title: "Google Drive Sync",
+        message: `Successfully uploaded "${item.compressedResult.fileName}" to your Google Drive.`
+      });
+    } catch (err: any) {
+      console.error(err);
+      setQueue(prev => prev.map(qItem => qItem.id === item.id ? {
+        ...qItem,
+        isSaving: false,
+        saveStatus: {
+          success: false,
+          msg: err.message || "Failed to upload to Google Drive.",
+        }
+      } : qItem));
+
+      setBatchSummaryItems(prev => prev.map(qItem => qItem.id === item.id ? {
+        ...qItem,
+        isSaving: false,
+        saveStatus: {
+          success: false,
+          msg: err.message || "Failed to upload to Google Drive.",
+        }
+      } : qItem));
+
+      // Trigger failure toast
+      setAutoSaveToast({
+        isOpen: true,
+        title: "Google Drive Sync Failed",
+        message: err.message || "Failed to upload file to Google Drive.",
+        isError: true
+      });
     }
   };
 
@@ -2837,6 +3172,13 @@ export default function ImageCompressor({
       dlLink.click();
       document.body.removeChild(dlLink);
 
+      // Trigger confirmation toast
+      setAutoSaveToast({
+        isOpen: true,
+        title: "ZIP Download Completed",
+        message: `Successfully packaged and downloaded ${compressedItems.length} compressed image(s) in a single ZIP archive.`
+      });
+
       // Support Monetag Direct Link Integration
       try {
         window.open("https://omg10.com/4/11125963", "_blank", "noopener,noreferrer");
@@ -2868,6 +3210,13 @@ export default function ImageCompressor({
       }, index * 200);
     });
 
+    // Trigger confirmation toast
+    setAutoSaveToast({
+      isOpen: true,
+      title: "Batch Download Triggered",
+      message: `Initiated individual file downloads for all ${compressedItems.length} compressed image(s).`
+    });
+
     // Support Monetag Direct Link Integration
     try {
       window.open("https://omg10.com/4/11125963", "_blank", "noopener,noreferrer");
@@ -2875,6 +3224,29 @@ export default function ImageCompressor({
       console.warn("Direct link popup blocked by browser policies", e);
     }
   };
+
+  // Keyboard shortcut Alt + D to Download All as ZIP (Image Compressor Tab specific/triggered)
+  useEffect(() => {
+    const handleKeyboardShortcut = (e: KeyboardEvent) => {
+      if (e.altKey && e.key.toLowerCase() === "d") {
+        const activeEl = document.activeElement;
+        const isInput = activeEl && (
+          activeEl.tagName === "INPUT" || 
+          activeEl.tagName === "TEXTAREA" || 
+          (activeEl as HTMLElement).isContentEditable
+        );
+        if (isInput) return;
+
+        e.preventDefault();
+        handleDownloadAllAsZip();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyboardShortcut);
+    return () => {
+      window.removeEventListener("keydown", handleKeyboardShortcut);
+    };
+  }, [queue, isZipping]);
 
   const handleSaveAllToDrive = async () => {
     if (!user || !accessToken) {
@@ -2894,6 +3266,7 @@ export default function ImageCompressor({
     if (!confirmSave) return;
 
     setIsBatchSaving(true);
+    let successCount = 0;
 
     for (let i = 0; i < queue.length; i++) {
       const item = queue[i];
@@ -2913,6 +3286,7 @@ export default function ImageCompressor({
           isSaving: false,
           saveStatus: { success: true, msg: "Saved to Google Drive" }
         } : q));
+        successCount++;
       } catch (err: any) {
         console.error(err);
         setQueue(prev => prev.map(q => q.id === item.id ? {
@@ -2925,6 +3299,21 @@ export default function ImageCompressor({
 
     setIsBatchSaving(false);
     onRefreshDrive();
+
+    if (successCount > 0) {
+      setAutoSaveToast({
+        isOpen: true,
+        title: "Google Drive Sync",
+        message: `Successfully uploaded ${successCount} of ${compressedItems.length} compressed file(s) to your Google Drive.`
+      });
+    } else {
+      setAutoSaveToast({
+        isOpen: true,
+        title: "Google Drive Sync Failed",
+        message: "Failed to upload any compressed files to Google Drive.",
+        isError: true
+      });
+    }
   };
 
   const handleRemoveFromQueue = (idToRemove: string, e: React.MouseEvent) => {
@@ -3054,6 +3443,45 @@ export default function ImageCompressor({
                   <Cloud className="w-4 h-4" /> Restore Session
                 </>
               )}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Local Interrupted Session Restoration Banner */}
+      {localBackupAvailable && queue.length === 0 && (
+        <div className="col-span-1 lg:col-span-2 xl:col-span-12 bg-gradient-to-r from-emerald-500/10 via-teal-500/10 to-indigo-500/10 dark:from-emerald-950/20 dark:via-teal-950/20 dark:to-indigo-950/20 border border-emerald-100 dark:border-emerald-950 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 select-none">
+          <div className="flex items-center gap-3.5 text-left">
+            <div className="w-10 h-10 rounded-xl bg-emerald-550/10 dark:bg-emerald-500/20 flex items-center justify-center text-emerald-650 dark:text-emerald-400 shrink-0">
+              <History className="w-5.5 h-5.5 animate-pulse" />
+            </div>
+            <div>
+              <h4 className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider flex items-center gap-1.5">
+                <span className="inline-block w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                Interrupted Session Recovered!
+              </h4>
+              <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+                We detected an interrupted compression session with <strong className="font-bold text-emerald-600 dark:text-emerald-400">{localBackupData?.items?.length || 0} file(s)</strong>. Would you like to restore your files, configurations, and compressed results?
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5 shrink-0 w-full sm:w-auto justify-end">
+            <button
+              type="button"
+              onClick={handleDiscardLocalBackup}
+              className="px-3.5 py-1.5 text-[10px] font-bold text-slate-500 dark:text-slate-450 hover:text-slate-700 dark:hover:text-slate-350 bg-slate-100 hover:bg-slate-200/60 dark:bg-slate-900 dark:hover:bg-slate-850 rounded-lg cursor-pointer transition-all"
+              id="btn-discard-local-backup"
+            >
+              Discard Backup
+            </button>
+            <button
+              type="button"
+              onClick={handleRestoreLocalBackup}
+              className="px-4 py-1.5 text-[10px] font-black uppercase tracking-wider bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg flex items-center gap-1.5 cursor-pointer transition-all shadow-sm"
+              id="btn-restore-local-backup"
+            >
+              <RefreshCw className="w-3.5 h-3.5 animate-spin" style={{ animationDuration: '3s' }} />
+              <span>Restore Session</span>
             </button>
           </div>
         </div>
@@ -3374,9 +3802,14 @@ export default function ImageCompressor({
         {queue.length > 0 && (
           <div className="space-y-3 pt-4 border-t border-slate-200/60 dark:border-slate-800/60 flex-1 flex flex-col justify-start">
             <div className="flex items-center justify-between">
-              <h4 className="text-[11px] font-bold text-slate-550 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5 font-sans">
-                Workspace Queue ({queue.length})
-              </h4>
+              <div className="flex flex-col text-left">
+                <h4 className="text-[11px] font-bold text-slate-550 dark:text-slate-400 uppercase tracking-wider flex items-center gap-1.5 font-sans">
+                  Workspace Queue ({queue.length})
+                </h4>
+                <span className="text-[9px] text-indigo-500 dark:text-indigo-400 font-bold tracking-tight">
+                  ↕ Drag items to set sequence order for the final ZIP
+                </span>
+              </div>
               <div className="flex items-center space-x-2 font-sans select-none">
                 {accessToken && isAutoSaveDraftEnabled && (
                   <div className="flex items-center gap-1.5 mr-2 px-2 py-0.5 rounded-lg bg-indigo-50/40 dark:bg-indigo-950/20 text-[10px] select-none" title={isDraftSaving ? "Saving draft to Google Drive..." : lastDraftSavedAt ? `Draft auto-saved to Google Drive at ${lastDraftSavedAt.toLocaleTimeString()}` : "Draft auto-save active"}>
@@ -3591,7 +4024,8 @@ export default function ImageCompressor({
                 const isDragOver = dragOverIndex === index;
 
                 return (
-                  <div
+                  <motion.div
+                    layout
                     key={item.id}
                     onClick={() => setSelectedId(item.id)}
                     draggable
@@ -3661,6 +4095,33 @@ export default function ImageCompressor({
                       <span className="text-[9px] font-mono text-slate-400 dark:text-slate-600 pr-1 select-none">
                         #{index + 1}
                       </span>
+                      {hasResult && item.compressedResult && (
+                        user ? (
+                          <button
+                            onClick={(e) => handleSaveItemToDrive(item, e)}
+                            disabled={item.isSaving}
+                            className="p-1 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/20 text-slate-400 hover:text-indigo-500 dark:text-slate-500 transition-colors cursor-pointer shrink-0 disabled:opacity-30"
+                            title={item.isSaving ? "Saving to Drive..." : item.saveStatus?.success ? "Saved to Drive! Click to upload again." : "Save this individual file to Google Drive"}
+                          >
+                            {item.isSaving ? (
+                              <RefreshCw className="w-3.5 h-3.5 text-indigo-500 animate-spin" />
+                            ) : (
+                              <Cloud className={`w-3.5 h-3.5 ${item.saveStatus?.success ? "text-emerald-500" : ""}`} />
+                            )}
+                          </button>
+                        ) : (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onLogin();
+                            }}
+                            className="p-1 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/20 text-slate-400 hover:text-indigo-500 dark:text-slate-500 transition-colors cursor-pointer shrink-0"
+                            title="Sign in to save this file to Google Drive"
+                          >
+                            <Cloud className="w-3.5 h-3.5" />
+                          </button>
+                        )
+                      )}
                       {item.isCompressing ? (
                         <RefreshCw className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400 animate-spin shrink-0" title="Active compression" />
                       ) : item.saveStatus?.success ? (
@@ -3675,7 +4136,7 @@ export default function ImageCompressor({
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
                     </div>
-                  </div>
+                  </motion.div>
                 );
               })}
             </div>
@@ -3711,7 +4172,7 @@ export default function ImageCompressor({
                   onClick={handleDownloadAllAsZip}
                   disabled={isZipping}
                   className="px-4 py-2.5 bg-gradient-to-r from-emerald-400 to-teal-500 hover:from-emerald-350 hover:to-teal-400 text-slate-950 font-black text-[11px] uppercase tracking-wider rounded-xl transition-all hover:scale-[1.03] active:scale-97 cursor-pointer select-none shrink-0 flex items-center justify-center gap-1.5 shadow-md shadow-emerald-500/20 active:translate-y-0"
-                  title="Generate and download a single ZIP package containing All compressed images"
+                  title="Generate and download a single ZIP package containing All compressed images (Shortcut: Alt + D)"
                 >
                   {isZipping ? (
                     <>
@@ -3722,6 +4183,9 @@ export default function ImageCompressor({
                     <>
                       <FileArchive className="w-4 h-4 shrink-0" />
                       <span>Download ZIP</span>
+                      <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-slate-950/10 text-[9px] font-mono text-slate-900 border border-slate-950/20 uppercase tracking-normal leading-none font-bold">
+                        Alt+D
+                      </kbd>
                     </>
                   )}
                 </button>
@@ -3754,6 +4218,7 @@ export default function ImageCompressor({
                 disabled={isZipping || queue.filter(item => item.compressedResult).length === 0}
                 className="col-span-2 py-3 rounded-2xl bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-550 hover:to-indigo-650 dark:from-indigo-500 dark:to-indigo-600 dark:hover:from-indigo-400 dark:hover:to-indigo-500 text-white font-black text-xs uppercase tracking-wider transition-all duration-300 flex items-center justify-center gap-2 disabled:opacity-50 cursor-pointer shadow-md shadow-indigo-500/20 hover:shadow-lg hover:shadow-indigo-500/30 border border-indigo-500/20 hover:-translate-y-0.5 active:translate-y-0 active:scale-[0.98]"
                 id="btn-download-all-zip"
+                title="Download all processed images compiled inside a single ZIP package (Shortcut: Alt + D)"
               >
                 {isZipping ? (
                   <>
@@ -3763,7 +4228,10 @@ export default function ImageCompressor({
                 ) : (
                   <>
                     <FileArchive className="w-4 h-4 text-indigo-305 shrink-0" />
-                    Download All as ZIP (.zip)
+                    <span>Download All as ZIP (.zip)</span>
+                    <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-indigo-800/60 dark:bg-slate-900/60 text-[9px] font-mono text-indigo-200 border border-indigo-700/50 dark:border-slate-800/50 uppercase tracking-normal leading-none ml-1.5 font-bold">
+                      Alt+D
+                    </kbd>
                   </>
                 )}
               </button>
@@ -4405,24 +4873,25 @@ export default function ImageCompressor({
             <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-150 dark:border-slate-800/85 hover:border-indigo-305 dark:hover:border-indigo-900/40 transition-colors select-none">
               <input
                 type="checkbox"
-                id="checkbox-keep-exif"
-                checked={keepExifMetadata}
+                id="checkbox-strip-exif"
+                checked={stripExifMetadata}
                 onChange={(e) => {
                   const val = e.target.checked;
-                  setKeepExifMetadata(val);
-                  localStorage.setItem("toolkit_image_keep_exif", String(val));
+                  setStripExifMetadata(val);
+                  localStorage.setItem("toolkit_image_strip_exif", String(val));
                 }}
                 className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 accent-indigo-500 cursor-pointer"
               />
               <div className="flex flex-col text-left">
                 <label 
-                  htmlFor="checkbox-keep-exif" 
+                  htmlFor="checkbox-strip-exif" 
                   className="text-[11px] font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none leading-none flex items-center gap-1.5"
                 >
-                  Include EXIF Metadata
+                  <span>Strip Metadata (EXIF)</span>
+                  <span className="text-[8px] bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-450 font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider">Privacy Guard</span>
                 </label>
                 <span className="text-[9px] text-slate-400 dark:text-slate-500 leading-tight mt-1">
-                  Keep original camera model, lens, coordinates, and date tags (uncheck to strip EXIF for extra privacy and size optimization)
+                  Remove sensitive camera model, GPS coordinates, lens specs, creation date, and device headers from compressed images
                 </span>
               </div>
             </div>
@@ -4775,6 +5244,135 @@ export default function ImageCompressor({
 
       {/* Comparisons and Stage Area: 5 Cols */}
       <div className="lg:col-span-1 xl:col-span-5 flex flex-col justify-between space-y-4">
+        {/* 1-Click PWA App Installer Banner */}
+        {!isStandalone && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="p-3.5 rounded-2xl bg-gradient-to-r from-indigo-650 via-indigo-700 to-violet-700 text-white shadow-md shadow-indigo-600/15 border border-indigo-500/20 flex flex-col sm:flex-row items-center justify-between gap-3 font-sans text-left"
+            id="pwa-one-click-install-banner"
+          >
+            <div className="flex items-center gap-3 w-full sm:w-auto">
+              <div className="w-9 h-9 rounded-xl bg-white/10 backdrop-blur-sm text-white flex items-center justify-center shrink-0">
+                <Smartphone className="w-5 h-5 text-indigo-200 animate-bounce" />
+              </div>
+              <div className="text-left">
+                <h4 className="text-xs font-extrabold uppercase tracking-wider text-indigo-100">
+                  Run Toolkit Pro Offline
+                </h4>
+                <p className="text-[10px] text-indigo-200 mt-0.5 leading-snug font-medium">
+                  Install as a lightweight desktop/mobile app in 1-Click for instant offline utilities.
+                </p>
+              </div>
+            </div>
+
+            <div className="w-full sm:w-auto shrink-0 flex items-center justify-end">
+              {isIframe ? (
+                <a
+                  href={`${window.location.origin}${window.location.pathname}#install`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-white text-indigo-700 hover:bg-slate-100 font-extrabold text-[10.5px] uppercase tracking-wider shadow-md transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98] no-underline text-center"
+                >
+                  <ExternalLink className="w-3.5 h-3.5" />
+                  Launch & Install (1-Click)
+                </a>
+              ) : (pwaInstallPrompt || (typeof window !== "undefined" && window.deferredInstallPrompt)) ? (
+                <button
+                  onClick={async () => {
+                    const promptToUse = pwaInstallPrompt || (typeof window !== "undefined" ? window.deferredInstallPrompt : null);
+                    if (promptToUse) {
+                      try {
+                        await promptToUse.prompt();
+                        const { outcome } = await promptToUse.userChoice;
+                        console.log(`User response to installation: ${outcome}`);
+                        setPwaInstallPrompt(null);
+                        if (typeof window !== "undefined") {
+                          window.deferredInstallPrompt = null;
+                        }
+                      } catch (err) {
+                        console.error("Installation prompt execution failed:", err);
+                      }
+                    }
+                  }}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-white font-extrabold text-[10.5px] uppercase tracking-wider shadow-md transition-all cursor-pointer hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Install Now (1-Click)
+                </button>
+              ) : (
+                <button
+                  onClick={() => {
+                    const navBtn = document.getElementById("btn-pwa-install-nav");
+                    if (navBtn) {
+                      navBtn.click();
+                    } else {
+                      alert("Please use the dedicated Install App button in your browser address bar or menu!");
+                    }
+                  }}
+                  className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-500/30 hover:bg-indigo-500/50 text-indigo-100 font-extrabold text-[10.5px] uppercase tracking-wider transition-all cursor-pointer"
+                >
+                  <Info className="w-3.5 h-3.5" />
+                  PWA Install Info
+                </button>
+              )}
+            </div>
+          </motion.div>
+        )}
+
+        {/* Batch Savings Summary Card */}
+        {(() => {
+          const compressedItems = queue.filter(item => item.compressedResult);
+          if (compressedItems.length === 0) return null;
+
+          const totalOriginal = compressedItems.reduce((sum, item) => sum + item.size, 0);
+          const totalCompressed = compressedItems.reduce((sum, item) => sum + (item.compressedResult?.compressedSize || 0), 0);
+          const totalSavedBytes = Math.max(0, totalOriginal - totalCompressed);
+          const savingPercentage = totalOriginal > 0 ? Math.round((totalSavedBytes / totalOriginal) * 100) : 0;
+
+          return (
+            <motion.div 
+              initial={{ opacity: 0, y: -10 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-4 rounded-2xl bg-gradient-to-br from-emerald-500/10 via-indigo-500/5 to-purple-500/10 dark:from-emerald-950/20 dark:via-indigo-950/10 dark:to-purple-950/20 border border-emerald-500/20 dark:border-emerald-500/30 shadow-md flex flex-col md:flex-row items-center justify-between gap-4 font-sans text-left"
+              id="batch-savings-summary-card"
+            >
+              <div className="flex items-center gap-3 w-full md:w-auto">
+                <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-emerald-500 to-teal-500 text-white flex items-center justify-center shadow-sm shadow-emerald-500/25 shrink-0">
+                  <Sparkles className="w-5 h-5 animate-pulse" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider flex items-center gap-1">
+                    Batch Optimization Saved
+                  </h4>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 font-medium">
+                    Successfully shrunk {compressedItems.length} of {queue.length} queue images!
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap items-center gap-4 sm:gap-6 w-full md:w-auto justify-between md:justify-end">
+                <div className="text-left md:text-right">
+                  <span className="text-[8.5px] text-slate-400 dark:text-slate-500 block font-bold uppercase tracking-wider">Before</span>
+                  <span className="text-xs font-bold text-slate-700 dark:text-slate-300 font-mono">{formatFileSize(totalOriginal)}</span>
+                </div>
+                
+                <div className="text-left md:text-right">
+                  <span className="text-[8.5px] text-slate-400 dark:text-slate-500 block font-bold uppercase tracking-wider">After</span>
+                  <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200 font-mono">{formatFileSize(totalCompressed)}</span>
+                </div>
+
+                <div className="px-3 py-1 rounded-xl bg-emerald-500/15 dark:bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 text-center shrink-0">
+                  <span className="text-[9px] font-black uppercase block tracking-wider leading-none">Net Savings</span>
+                  <span className="text-sm font-black font-mono leading-tight block mt-1">
+                    -{savingPercentage}% ({formatFileSize(totalSavedBytes)})
+                  </span>
+                </div>
+              </div>
+            </motion.div>
+          );
+        })()}
+
         {saveStatus && (
           <div
             className={`p-4 rounded-xl border text-xs flex items-center ${
@@ -5426,12 +6024,46 @@ export default function ImageCompressor({
       <div className="lg:col-span-2 xl:col-span-3 bg-slate-50 dark:bg-slate-905/30 rounded-2xl p-4 sm:p-5 border border-slate-100 dark:border-slate-800/60 flex flex-col space-y-4 text-left" id="recent-sessions-sidebar">
         <div>
           <h3 className="text-sm font-semibold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5 mb-1 select-none">
-            <History className="w-4 h-4 text-indigo-500 animate-[spin_10s_linear_infinite]" /> Session History
+            <History className="w-4 h-4 text-indigo-500 animate-[spin_10s_linear_infinite]" /> Recent Sessions & Recovery
           </h3>
           <p className="text-[11px] text-slate-505 dark:text-slate-400">
-            Access and manage settings or direct downloads for your last 10 compression jobs.
+            Access, manage settings, restore previous interrupted batches, or direct download your last 10 compression jobs.
           </p>
         </div>
+
+        {localBackupAvailable && (
+          <div className="bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/60 p-3.5 rounded-xl flex flex-col space-y-2 select-none shadow-3xs border-dashed">
+            <div className="flex items-center justify-between">
+              <span className="text-[9px] font-black uppercase text-emerald-600 dark:text-emerald-400 bg-emerald-100/60 dark:bg-emerald-950 px-2 py-0.5 rounded flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
+                Interrupted Draft
+              </span>
+              <span className="text-[9px] font-mono text-slate-400 dark:text-slate-500">
+                {localBackupData?.timestamp ? new Date(localBackupData.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Recently"}
+              </span>
+            </div>
+            <p className="text-[10px] text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+              An active session with <strong className="font-bold text-slate-800 dark:text-slate-200">{localBackupData?.items?.length || 0} file(s)</strong> was interrupted. Restore it to retrieve files, quality, and configurations!
+            </p>
+            <div className="flex gap-1.5 pt-1">
+              <button
+                type="button"
+                onClick={handleDiscardLocalBackup}
+                className="flex-1 py-1 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-850 text-slate-500 dark:text-slate-450 text-[9px] font-bold cursor-pointer"
+              >
+                Discard
+              </button>
+              <button
+                type="button"
+                onClick={handleRestoreLocalBackup}
+                className="flex-1 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[9px] font-black uppercase tracking-wide cursor-pointer flex items-center justify-center gap-1 shadow-sm"
+              >
+                <RefreshCw className="w-2.5 h-2.5 animate-spin" style={{ animationDuration: '3s' }} />
+                <span>Restore</span>
+              </button>
+            </div>
+          </div>
+        )}
 
         <div className="flex-1 flex flex-col space-y-3 overflow-y-auto max-h-[500px]" id="sessions-timeline-container">
           {sessions.length === 0 ? (
@@ -6030,8 +6662,8 @@ export default function ImageCompressor({
             {autoSaveToast.isError ? <X className="w-4 h-4" /> : <CheckCircle2 className="w-4 h-4" />}
           </div>
           <div className="flex-1 min-w-0 text-left">
-            <p className="text-[11px] font-black uppercase text-slate-400 tracking-wider">
-              {autoSaveToast.isError ? "System Alert" : "Auto-Save Engine Active"}
+            <p className="text-[11px] font-black uppercase text-indigo-400 tracking-wider">
+              {autoSaveToast.title || (autoSaveToast.isError ? "System Alert" : "Auto-Save Engine Active")}
             </p>
             <p className="text-xs text-slate-200 mt-0.5 font-medium leading-relaxed">
               {autoSaveToast.message}
@@ -6707,19 +7339,43 @@ export default function ImageCompressor({
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-slate-100 dark:divide-slate-900 font-medium">
-                            {batchSummaryItems.map((item) => {
+                            {batchSummaryItems.map((item, index) => {
                               const original = item.size;
                               const compressed = item.compressedResult?.compressedSize ?? item.size;
                               const percent = item.compressedResult?.savingPercentage ?? 0;
                               const hasResult = !!item.compressedResult;
+                              const isCurrentlyDragged = draggedSummaryIndex === index;
+                              const isDragOver = dragOverSummaryIndex === index;
 
                               return (
                                 <tr
                                   key={item.id}
-                                  className="hover:bg-slate-50/55 dark:hover:bg-slate-900/20 transition-colors"
+                                  draggable
+                                  onDragStart={(e) => handleSummaryDragStart(e, index)}
+                                  onDragOver={(e) => handleSummaryDragOver(e, index)}
+                                  onDragEnd={handleSummaryDragEnd}
+                                  onDrop={(e) => handleSummaryDrop(e, index)}
+                                  className={`transition-all cursor-grab active:cursor-grabbing ${
+                                    isCurrentlyDragged
+                                      ? "opacity-30 bg-slate-100 dark:bg-slate-900 border-dashed border-slate-300"
+                                      : isDragOver
+                                      ? "bg-indigo-50/40 dark:bg-indigo-950/20 border-y border-indigo-500 scale-[1.005] shadow-sm"
+                                      : "hover:bg-slate-50/55 dark:hover:bg-slate-900/20"
+                                  }`}
                                 >
                                   <td className="py-3 px-4 max-w-[240px] truncate font-bold text-slate-800 dark:text-slate-200">
-                                    <span title={item.name}>{item.name}</span>
+                                    <div className="flex items-center gap-2">
+                                      <div 
+                                        className="p-1 text-slate-350 dark:text-slate-600 hover:text-slate-500 dark:hover:text-slate-400 cursor-grab shrink-0 flex items-center justify-center select-none"
+                                        title="Drag item to change order in ZIP archive"
+                                      >
+                                        <GripVertical className="w-3.5 h-3.5" />
+                                      </div>
+                                      <span className="text-[10px] text-slate-400 dark:text-slate-500 font-mono select-none">
+                                        #{index + 1}
+                                      </span>
+                                      <span title={item.name} className="truncate">{item.name}</span>
+                                    </div>
                                   </td>
                                   <td className="py-3 px-4 text-right font-mono text-slate-500">
                                     {formatFileSize(original)}
@@ -6739,21 +7395,51 @@ export default function ImageCompressor({
                                   <td className="py-3 px-4">
                                     <div className="flex items-center justify-center gap-1.5">
                                       {hasResult && item.compressedResult ? (
-                                        <button
-                                          onClick={() => {
-                                            const link = document.createElement("a");
-                                            link.download = item.compressedResult!.fileName;
-                                            link.href = item.compressedResult!.dataUrl;
-                                            document.body.appendChild(link);
-                                            link.click();
-                                            document.body.removeChild(link);
-                                          }}
-                                          className="p-1 px-2.5 rounded bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 dark:bg-slate-900 dark:hover:bg-indigo-950/40 dark:hover:text-indigo-400 text-slate-600 dark:text-slate-450 text-[10px] uppercase font-extrabold tracking-wide cursor-pointer transition-all flex items-center gap-1"
-                                          title="Download this single file"
-                                        >
-                                          <Download className="w-3 h-3" />
-                                          <span>Get</span>
-                                        </button>
+                                        <>
+                                          <button
+                                            onClick={() => {
+                                              const link = document.createElement("a");
+                                              link.download = item.compressedResult!.fileName;
+                                              link.href = item.compressedResult!.dataUrl;
+                                              document.body.appendChild(link);
+                                              link.click();
+                                              document.body.removeChild(link);
+                                            }}
+                                            className="p-1 px-2.5 rounded bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 dark:bg-slate-900 dark:hover:bg-indigo-950/40 dark:hover:text-indigo-400 text-slate-600 dark:text-slate-450 text-[10px] uppercase font-extrabold tracking-wide cursor-pointer transition-all flex items-center gap-1 shrink-0"
+                                            title="Download this single file"
+                                          >
+                                            <Download className="w-3 h-3" />
+                                            <span>Get</span>
+                                          </button>
+
+                                          {user ? (
+                                            <button
+                                              onClick={(e) => handleSaveItemToDrive(item, e)}
+                                              disabled={item.isSaving}
+                                              className="p-1 px-2.5 rounded bg-slate-100 hover:bg-emerald-50 hover:text-emerald-600 dark:bg-slate-900 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-450 text-slate-600 dark:text-slate-450 text-[10px] uppercase font-extrabold tracking-wide cursor-pointer transition-all flex items-center gap-1 shrink-0 disabled:opacity-40"
+                                              title={item.isSaving ? "Saving..." : item.saveStatus?.success ? "Saved to Drive! Click to upload again." : "Save this individual file to Google Drive"}
+                                            >
+                                              {item.isSaving ? (
+                                                <RefreshCw className="w-3 h-3 text-emerald-500 animate-spin shrink-0" />
+                                              ) : (
+                                                <Cloud className={`w-3 h-3 shrink-0 ${item.saveStatus?.success ? "text-emerald-500" : ""}`} />
+                                              )}
+                                              <span>{item.saveStatus?.success ? "Saved" : "Drive"}</span>
+                                            </button>
+                                          ) : (
+                                            <button
+                                              onClick={(e) => {
+                                                e.stopPropagation();
+                                                onLogin();
+                                              }}
+                                              className="p-1 px-2.5 rounded bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 dark:bg-slate-900 dark:hover:bg-indigo-950/40 dark:hover:text-indigo-400 text-slate-600 dark:text-slate-450 text-[10px] uppercase font-extrabold tracking-wide cursor-pointer transition-all flex items-center gap-1 shrink-0"
+                                              title="Sign in to save this file to Google Drive"
+                                            >
+                                              <Cloud className="w-3 h-3 shrink-0" />
+                                              <span>Drive</span>
+                                            </button>
+                                          )}
+                                        </>
                                       ) : (
                                         <span className="text-[10px] text-slate-400">N/A</span>
                                       )}

@@ -181,6 +181,12 @@ export default function ShortcutsModal({ isOpen, onClose }: ShortcutsModalProps)
       purpose: "Launch the image optimizer to squeeze payload weights of WebP/PNG/JPG files."
     },
     {
+      keys: ["Alt", "D"],
+      description: "ZIP Download All (Image Compressor)",
+      category: "Workspace Modules",
+      purpose: "Within the Image Compressor, instantly packages and downloads all compressed images as a ZIP archive."
+    },
+    {
       keys: ["Alt", "3"],
       description: "QR Code Vector Engine",
       category: "Workspace Modules",

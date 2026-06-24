@@ -21,11 +21,16 @@ import {
   Laptop,
   Smartphone,
   Search,
-  Sparkles
-} from "lucide-react";
+  Sparkles,
+  ExternalLink
+}//  from "lucide-react";
+
+ //import { ActiveTab } from "../types";
+ from "lucide-react";
 import { ActiveTab } from "../types";
 // @ts-ignore
 import logoUrl from "../assets/images/toolkit_pro_logo_1781887052514.jpg";
+
 
 interface NavbarProps {
   user: User | null;
@@ -55,18 +60,76 @@ export default function Navbar({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showToolsDropdown, setShowToolsDropdown] = useState(false);
   const [showRecentDropdown, setShowRecentDropdown] = useState(false);
-  const [installPrompt, setInstallPrompt] = useState<any>(null);
+  const [installPrompt, setInstallPrompt] = useState<any>(
+    typeof window !== "undefined" ? window.deferredInstallPrompt || null : null
+  );
   const [showInstallModal, setShowInstallModal] = useState(false);
+  const [isInstalled, setIsInstalled] = useState(false);
+  const [isIframe, setIsIframe] = useState(true);
+  const [deviceType, setDeviceType] = useState<"desktop" | "ios" | "android">("desktop");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setIsIframe(window.self !== window.top);
+
+      const ua = navigator.userAgent;
+      if (/iPad|iPhone|iPod/.test(ua)) {
+        setDeviceType("ios");
+      } else if (/Android/i.test(ua)) {
+        setDeviceType("android");
+      } else {
+        setDeviceType("desktop");
+      }
+
+      const checkStandalone = () => {
+        const isStandalone = 
+          window.matchMedia('(display-mode: standalone)').matches || 
+          (window.navigator as any).standalone === true;
+        setIsInstalled(isStandalone);
+      };
+      checkStandalone();
+      
+      const mediaQuery = window.matchMedia('(display-mode: standalone)');
+      if (mediaQuery.addEventListener) {
+        mediaQuery.addEventListener('change', checkStandalone);
+        return () => mediaQuery.removeEventListener('change', checkStandalone);
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const handleBeforeInstallPrompt = (e: Event) => {
       e.preventDefault();
       setInstallPrompt(e);
     };
+    const handleCustomReady = () => {
+      if (typeof window !== "undefined" && window.deferredInstallPrompt) {
+        setInstallPrompt(window.deferredInstallPrompt);
+      }
+    };
     window.addEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+    window.addEventListener("installpromptready", handleCustomReady);
+
+    // If already captured by the early main.tsx listener, use it immediately
+    if (typeof window !== "undefined" && window.deferredInstallPrompt) {
+      setInstallPrompt(window.deferredInstallPrompt);
+    }
+
     return () => {
       window.removeEventListener("beforeinstallprompt", handleBeforeInstallPrompt);
+      window.removeEventListener("installpromptready", handleCustomReady);
     };
+  }, []);
+
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.hash === "#install") {
+      setShowInstallModal(true);
+      try {
+        window.history.replaceState(null, "", window.location.pathname + window.location.search);
+      } catch (e) {
+        console.error(e);
+      }
+    }
   }, []);
 
   const tabDetails: Record<ActiveTab, { label: string; icon: React.ComponentType<any>; color: string; desc: string }> = {
@@ -422,27 +485,43 @@ export default function Navbar({
             </div>
 
             {/* Direct PWA Install trigger shortcut */}
-            <button
-              onClick={async () => {
-                if (installPrompt) {
-                  installPrompt.prompt();
-                  const { outcome } = await installPrompt.userChoice;
-                  console.log(`User response to installation: ${outcome}`);
-                  setInstallPrompt(null);
-                } else {
-                  setShowInstallModal(true);
-                }
-              }}
-              className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-extrabold border transition-colors cursor-pointer select-none leading-none ${
-                theme === "dark"
-                  ? "border-slate-805 bg-slate-900/40 text-indigo-400 hover:text-indigo-300 hover:bg-slate-850"
-                  : "border-slate-200 bg-indigo-50/40 text-indigo-750 hover:text-indigo-900 hover:bg-indigo-50/80"
-              }`}
-              title="PWA App Installation configuration guide & Direct Shortcut installation"
-            >
-              <Download className={`w-3 h-3 shrink-0 ${installPrompt ? "animate-bounce" : ""}`} />
-              <span>Install App</span>
-            </button>
+            {!isInstalled && (
+              <button
+                onClick={async () => {
+                  const promptToUse = installPrompt || (typeof window !== "undefined" ? window.deferredInstallPrompt : null);
+                  if (promptToUse) {
+                    try {
+                      await promptToUse.prompt();
+                      const { outcome } = await promptToUse.userChoice;
+                      console.log(`User response to installation: ${outcome}`);
+                      setInstallPrompt(null);
+                      if (typeof window !== "undefined") {
+                        window.deferredInstallPrompt = null;
+                      }
+                    } catch (e) {
+                      console.error("Installation error:", e);
+                      setShowInstallModal(true);
+                    }
+                  } else {
+                    setShowInstallModal(true);
+                  }
+                }}
+                className={`relative flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-[11px] font-black transition-all cursor-pointer select-none leading-none shadow-md hover:scale-[1.02] active:scale-[0.98] ${
+                  theme === "dark"
+                    ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white border border-indigo-500/35 hover:from-indigo-500 hover:to-violet-500 shadow-indigo-950/40"
+                    : "bg-gradient-to-r from-indigo-600 to-indigo-700 text-white border border-indigo-500/20 hover:from-indigo-550 hover:to-indigo-650 shadow-indigo-200/45"
+                }`}
+                title="Install Toolkit Pro as a native standalone app"
+              >
+                <Download className={`w-3.5 h-3.5 shrink-0 ${(installPrompt || (typeof window !== "undefined" && window.deferredInstallPrompt)) ? "animate-bounce" : ""}`} />
+                <span className="hidden xs:inline">Install App</span>
+                <span className="xs:hidden">Install</span>
+                <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+              </button>
+            )}
 
             {/* Elegant Sun/Moon Dark Selector Switch */}
             <button
@@ -643,20 +722,28 @@ export default function Navbar({
           )}
 
           <div className={`border-t pt-3.5 space-y-1.5 ${theme === "dark" ? "border-slate-850" : "border-slate-200/50"}`}>
-            <button
-              onClick={() => {
-                setMobileMenuOpen(false);
-                setShowInstallModal(true);
-              }}
-              className={`w-full flex items-center gap-2 p-2.5 rounded-xl text-xs font-bold border transition-colors select-none cursor-pointer ${
-                theme === "dark"
-                  ? "border-slate-800 bg-slate-900/30 text-indigo-400"
-                  : "border-indigo-100 bg-indigo-50/40 text-indigo-700"
-              }`}
-            >
-              <Download className="w-4 h-4 text-indigo-500 shrink-0" />
-              <span>PWA App Settings Guide</span>
-            </button>
+            {!isInstalled && (
+              <button
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setShowInstallModal(true);
+                }}
+                className={`w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-bold border transition-all select-none cursor-pointer hover:scale-[1.01] ${
+                  theme === "dark"
+                    ? "border-indigo-500/25 bg-indigo-950/20 text-indigo-400"
+                    : "border-indigo-150 bg-indigo-50/50 text-indigo-750"
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <Download className="w-4 h-4 text-indigo-500 shrink-0" />
+                  <span>Install App Widget</span>
+                </span>
+                <span className="flex h-2 w-2 relative">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                </span>
+              </button>
+            )}
 
             <button
               onClick={() => handleTabClick("resources")}
@@ -734,70 +821,141 @@ export default function Navbar({
                 <h3 className="text-sm font-black tracking-tight uppercase">Install Toolkit Pro</h3>
                 <p className="text-[10px] text-slate-400 mt-1.5 font-bold uppercase tracking-wider font-mono">Offline-Ready • Safe Sandbox</p>
               </div>
-            </div>
-
-            {installPrompt ? (
-              <div className="mb-5 p-4 bg-indigo-50 dark:bg-indigo-950/35 rounded-xl border border-indigo-100/50 dark:border-indigo-900/30 text-left font-sans">
-                <p className="text-xs font-bold text-indigo-900 dark:text-indigo-305">Your browser supports instant standalone deployment!</p>
+            </div>            {isIframe ? (
+              <div className="mb-5 p-5 bg-gradient-to-br from-indigo-50/70 to-indigo-50/10 dark:from-indigo-950/30 dark:to-indigo-950/5 rounded-2xl border border-indigo-150/60 dark:border-indigo-900/30 text-left animate-fade-in">
+                <p className="text-xs font-black text-indigo-900 dark:text-indigo-300 flex items-center gap-2 uppercase tracking-wider">
+                  <Sparkles className="w-4 h-4 text-indigo-650 dark:text-indigo-400 animate-spin-slow" />
+                  Browser Security Restriction
+                </p>
+                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mt-2 font-medium">
+                  Browsers do not allow app installation inside editor preview screens. Click the button below to open the app in a new tab to install it to your device instantly!
+                </p>
+                <a
+                  href={`${window.location.origin}${window.location.pathname}#install`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="mt-4 w-full inline-flex items-center justify-center gap-2 py-3 px-5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white font-extrabold text-xs tracking-wider uppercase transition-all cursor-pointer shadow-lg shadow-indigo-600/25 text-center decoration-none no-underline hover:scale-[1.01] active:scale-[0.99]"
+                >
+                  <ExternalLink className="w-4 h-4" />
+                  Launch & Install Instantly
+                </a>
+              </div>
+            ) : (installPrompt || (typeof window !== "undefined" && window.deferredInstallPrompt)) ? (
+              <div className="mb-5 p-5 bg-gradient-to-br from-emerald-50/70 to-emerald-50/10 dark:from-emerald-950/20 dark:to-emerald-950/5 rounded-2xl border border-emerald-150/60 dark:border-emerald-900/30 text-left animate-fade-in">
+                <p className="text-xs font-black text-emerald-900 dark:text-emerald-300 flex items-center gap-2 uppercase tracking-wider">
+                  <Sparkles className="w-4 h-4 text-emerald-500 animate-bounce" />
+                  App Ready to Install!
+                </p>
+                <p className="text-xs text-slate-600 dark:text-slate-300 leading-relaxed mt-2 font-medium">
+                  Your browser supports direct installation. Click below to add the app to your Home Screen or Desktop now!
+                </p>
                 <button
                   onClick={async () => {
-                    if (installPrompt) {
-                      installPrompt.prompt();
-                      const { outcome } = await installPrompt.userChoice;
-                      console.log(`User response to installation: ${outcome}`);
-                      setInstallPrompt(null);
-                      setShowInstallModal(false);
+                    const promptToUse = installPrompt || (typeof window !== "undefined" ? window.deferredInstallPrompt : null);
+                    if (promptToUse) {
+                      try {
+                        await promptToUse.prompt();
+                        const { outcome } = await promptToUse.userChoice;
+                        console.log(`User response to installation: ${outcome}`);
+                        setInstallPrompt(null);
+                        if (typeof window !== "undefined") {
+                          window.deferredInstallPrompt = null;
+                        }
+                        setShowInstallModal(false);
+                      } catch (err) {
+                        console.error("Install prompt trigger error:", err);
+                      }
                     }
                   }}
-                  className="mt-2.5 w-full inline-flex items-center justify-center gap-1.5 py-2 px-4.5 rounded-lg bg-indigo-600 text-white font-bold text-xs hover:brightness-105 transition-all cursor-pointer shadow-md shadow-indigo-200/20"
+                  className="mt-4 w-full inline-flex items-center justify-center gap-2 py-3 px-5 rounded-xl bg-gradient-to-r from-emerald-650 to-teal-600 hover:from-emerald-550 hover:to-teal-500 text-white font-extrabold text-xs tracking-wider uppercase transition-all cursor-pointer shadow-lg shadow-emerald-600/25 hover:scale-[1.01] active:scale-[0.99]"
                 >
-                  <Download className="w-3.5 h-3.5" />
-                  Direct Install App
+                  <Download className="w-4 h-4" />
+                  Install Instantly on Device
                 </button>
               </div>
             ) : (
-              <div className="mb-5 p-3.5 bg-indigo-50/50 dark:bg-emerald-950/15 rounded-xl border border-indigo-100/30 dark:border-emerald-900/30 text-left">
-                <p className="text-xs font-bold text-indigo-900 dark:text-emerald-400">⚡ PWA Standalone Engine</p>
-                <p className="text-[10.5px] text-slate-500 dark:text-slate-405 leading-relaxed mt-1 font-semibold">
-                  Secure direct widget launcher status by pinning Toolkit Pro to your phone dashboard or desktop panel. This unlocks standalone full-screen capabilities.
+              <div className="mb-5 p-4 bg-slate-50/80 dark:bg-slate-900/40 rounded-2xl border border-slate-200/50 dark:border-slate-800/40 text-left animate-fade-in">
+                <p className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-2 uppercase tracking-wider">
+                  <Smartphone className="w-4 h-4 text-indigo-500" />
+                  Easy Home Screen Setup
+                </p>
+                <p className="text-[11.5px] text-slate-550 dark:text-slate-400 leading-relaxed mt-2 font-medium">
+                  Since direct browser-triggered PWA installations require user-initiated menus on this browser/platform (especially iOS Safari), please use the extremely simple, 5-second guide below to add it directly to your home screen!
                 </p>
               </div>
             )}
 
-            {/* Device Installation Guides */}
-            <div className="space-y-4 text-left max-h-[250px] overflow-y-auto pr-1 select-none font-sans">
-              <div className="border-t border-slate-100 dark:border-slate-800/80 pt-3">
-                <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-450 flex items-center gap-1.5 mb-2">
-                  <Laptop className="w-3.5 h-3.5 text-indigo-505 shrink-0" /> Chrome / Edge (Desktop PC)
-                </h4>
-                <ol className="list-decimal list-inside text-[10.5px] text-slate-550 dark:text-slate-400 space-y-1.5 pl-1 font-semibold">
-                  <li>Look in the top-right address bar.</li>
-                  <li>Click the tiny <span className="font-extrabold underline text-indigo-600 dark:text-indigo-400">App Available</span> or <span className="font-extrabold underline">Install App</span> icon next to the bookmark star ⭐️.</li>
-                  <li>Press <span className="font-extrabold">Install</span> to create standard system shortcuts.</li>
-                </ol>
-              </div>
+            {/* Target-Specific Device Installation Guide */}
+            {!isIframe && !installPrompt && (
+              <div className="text-left select-none font-sans animate-fade-in">
+                {deviceType === "ios" && (
+                  <div className="rounded-xl p-4 bg-indigo-55/40 dark:bg-indigo-950/15 border border-indigo-150/50 dark:border-indigo-900/30">
+                    <div className="flex items-center gap-2 mb-2.5">
+                      <Smartphone className="w-4 h-4 text-indigo-500 shrink-0" />
+                      <h4 className="text-[11.5px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                        iOS Apple Safari (iPhone/iPad)
+                      </h4>
+                    </div>
+                    <ol className="list-decimal list-inside text-xs text-slate-600 dark:text-slate-400 space-y-2.5 pl-1 font-semibold leading-relaxed">
+                      <li>
+                        Tap the Safari browser <span className="font-extrabold text-indigo-600 dark:text-indigo-400">Share button</span>{" "}
+                        <span className="inline-block p-1 bg-white dark:bg-slate-800 rounded shadow-xs border border-slate-200/50 dark:border-slate-700/50">📤</span> at the bottom of your screen.
+                      </li>
+                      <li>
+                        Scroll down the menu list and tap <span className="font-extrabold underline text-indigo-600 dark:text-indigo-400">"Add to Home Screen"</span>.
+                      </li>
+                      <li>
+                        Tap <span className="font-extrabold text-indigo-600 dark:text-indigo-400">"Add"</span> in the upper-right corner to complete!
+                      </li>
+                    </ol>
+                  </div>
+                )}
 
-              <div className="border-t border-slate-100 dark:border-slate-800/80 pt-3">
-                <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-455 flex items-center gap-1.5 mb-2">
-                  <Smartphone className="w-3.5 h-3.5 text-indigo-505 shrink-0" /> iOS Apple Safari (iPhone/iPad)
-                </h4>
-                <ol className="list-decimal list-inside text-[10.5px] text-slate-555 dark:text-slate-400 space-y-1.5 pl-1 font-semibold">
-                  <li>Tap the Safari screen Share button 📤.</li>
-                  <li>Scroll and select <span className="font-extrabold text-indigo-600 dark:text-indigo-400">"Add to Home Screen"</span> from list.</li>
-                  <li>Tap <span className="font-extrabold">Add</span> in upper right to save standard launch parameters.</li>
-                </ol>
-              </div>
+                {deviceType === "android" && (
+                  <div className="rounded-xl p-4 bg-indigo-55/40 dark:bg-indigo-950/15 border border-indigo-150/50 dark:border-indigo-900/30">
+                    <div className="flex items-center gap-2 mb-2.5">
+                      <Smartphone className="w-4 h-4 text-indigo-500 shrink-0" />
+                      <h4 className="text-[11.5px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                        Android Chrome Browser
+                      </h4>
+                    </div>
+                    <ol className="list-decimal list-inside text-xs text-slate-600 dark:text-slate-400 space-y-2.5 pl-1 font-semibold leading-relaxed">
+                      <li>
+                        Tap the browser Menu button <span className="font-extrabold text-indigo-600 dark:text-indigo-400">📤 (3 vertical dots)</span> in the top-right corner.
+                      </li>
+                      <li>
+                        Tap <span className="font-extrabold underline text-indigo-600 dark:text-indigo-400">"Install app"</span> or <span className="font-extrabold">"Add to Home screen"</span>.
+                      </li>
+                      <li>
+                        Confirm by tapping <span className="font-extrabold text-indigo-600 dark:text-indigo-400">"Install"</span> to complete!
+                      </li>
+                    </ol>
+                  </div>
+                )}
 
-              <div className="border-t border-slate-100 dark:border-slate-800/80 pt-3">
-                <h4 className="text-[11px] font-black uppercase tracking-wider text-slate-455 flex items-center gap-1.5 mb-2">
-                  <Smartphone className="w-3.5 h-3.5 text-indigo-555 shrink-0" /> Android Browser (Chrome)
-                </h4>
-                <ol className="list-decimal list-inside text-[10.5px] text-slate-555 dark:text-slate-400 space-y-1.5 pl-1 font-semibold">
-                  <li>Tap browser Menu dots list <span className="font-extrabold text-slate-700 dark:text-slate-300">(3 vertical dots in Chrome)</span>.</li>
-                  <li>Scroll down and tap <span className="font-extrabold text-indigo-600 dark:text-indigo-400">"Install app"</span> or <span className="font-extrabold">"Add to Home Screen"</span>.</li>
-                </ol>
+                {deviceType === "desktop" && (
+                  <div className="rounded-xl p-4 bg-indigo-55/40 dark:bg-indigo-950/15 border border-indigo-150/50 dark:border-indigo-900/30">
+                    <div className="flex items-center gap-2 mb-2.5">
+                      <Laptop className="w-4 h-4 text-indigo-500 shrink-0" />
+                      <h4 className="text-[11.5px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                        Desktop Chrome / Edge PC
+                      </h4>
+                    </div>
+                    <ol className="list-decimal list-inside text-xs text-slate-600 dark:text-slate-400 space-y-2.5 pl-1 font-semibold leading-relaxed">
+                      <li>
+                        Look at the <span className="font-extrabold text-indigo-600 dark:text-indigo-400">top-right corner of your browser's address bar</span> (next to the bookmark star ⭐️).
+                      </li>
+                      <li>
+                        Click the tiny <span className="font-extrabold underline text-indigo-600 dark:text-indigo-400">App Available</span> or <span className="font-extrabold underline">Install App</span> icon.
+                      </li>
+                      <li>
+                        Press <span className="font-extrabold text-indigo-600 dark:text-indigo-400">Install</span> in the browser popup to finalize!
+                      </li>
+                    </ol>
+                  </div>
+                )}
               </div>
-            </div>
+            )}
 
             <div className="mt-5 pt-3.5 border-t border-slate-100 dark:border-slate-800/85 flex justify-end font-sans">
               <button
@@ -813,29 +971,3 @@ export default function Navbar({
     </header>
   );
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
- 

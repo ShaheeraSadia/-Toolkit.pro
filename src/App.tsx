@@ -45,6 +45,7 @@ import {
   Monitor,
   Smartphone,
   Download,
+  Loader2,
 } from "lucide-react";
 
 export default function App() {
@@ -53,6 +54,66 @@ export default function App() {
   const [needsAuth, setNeedsAuth] = useState<boolean>(true);
   const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [hasDeferredPrompt, setHasDeferredPrompt] = useState<boolean>(() => {
+    return typeof window !== "undefined" && !!window.deferredInstallPrompt;
+  });
+
+  const [pwaChecking, setPwaChecking] = useState<boolean>(true);
+  const [pwaProgress, setPwaProgress] = useState<number>(0);
+  const [pwaStatusText, setPwaStatusText] = useState<string>("Initializing PWA...");
+
+  useEffect(() => {
+    const handlePromptReady = () => {
+      setHasDeferredPrompt(true);
+    };
+    window.addEventListener("installpromptready", handlePromptReady);
+    return () => {
+      window.removeEventListener("installpromptready", handlePromptReady);
+    };
+  }, []);
+
+  // Simulate compatibility verification and check on initialization
+  useEffect(() => {
+    let timer: any;
+    let currentProgress = 0;
+
+    const steps = [
+      { progress: 25, text: "Checking browser secure context..." },
+      { progress: 55, text: "Verifying service worker support..." },
+      { progress: 80, text: "Scanning display layout capability..." },
+      { progress: 100, text: "PWA Engine initialized" }
+    ];
+
+    let stepIndex = 0;
+
+    const runProgressStep = () => {
+      if (stepIndex >= steps.length) {
+        setPwaChecking(false);
+        return;
+      }
+
+      const currentStep = steps[stepIndex];
+      setPwaStatusText(currentStep.text);
+
+      const targetProgress = currentStep.progress;
+      const interval = setInterval(() => {
+        currentProgress += 4;
+        if (currentProgress >= targetProgress) {
+          currentProgress = targetProgress;
+          clearInterval(interval);
+          stepIndex++;
+          timer = setTimeout(runProgressStep, 100);
+        }
+        setPwaProgress(currentProgress);
+      }, 20);
+    };
+
+    timer = setTimeout(runProgressStep, 150);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, []);
 
   // Global drag and drop files trace state
   const [draggedFiles, setDraggedFiles] = useState<File[] | null>(null);
@@ -640,62 +701,103 @@ export default function App() {
             {/* Installable PWA Badge with Tooltip */}
             <div className="relative group inline-block">
               <button
-                onClick={() => {
-                  setActiveTab("resources");
-                  setResourcesSubTab("installation");
-                  // Smoothly scroll to the content
-                  setTimeout(() => {
-                    const el = document.getElementById("resources-panel-installation");
-                    if (el) {
-                      el.scrollIntoView({ behavior: "smooth", block: "start" });
+                disabled={pwaChecking}
+                onClick={async () => {
+                  const promptToUse = typeof window !== "undefined" ? window.deferredInstallPrompt : null;
+                  if (promptToUse) {
+                    try {
+                      await promptToUse.prompt();
+                      const { outcome } = await promptToUse.userChoice;
+                      console.log(`User response to native installation: ${outcome}`);
+                      if (typeof window !== "undefined") {
+                        window.deferredInstallPrompt = null;
+                      }
+                      setHasDeferredPrompt(false);
+                    } catch (err) {
+                      console.error("Native install prompt trigger error:", err);
                     }
-                  }, 100);
+                  } else {
+                    setActiveTab("resources");
+                    setResourcesSubTab("installation");
+                    // Smoothly scroll to the content
+                    setTimeout(() => {
+                      const el = document.getElementById("resources-panel-installation");
+                      if (el) {
+                        el.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }
+                    }, 100);
+                  }
                 }}
-                className="inline-flex items-center gap-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/40 border border-blue-150/40 dark:border-blue-900/30 px-3.5 py-1.5 rounded-full text-[11px] font-extrabold text-blue-700 dark:text-blue-350 uppercase tracking-widest leading-none shadow-sm shadow-blue-500/5 cursor-pointer select-none transition-all hover:scale-102 hover:shadow-md"
-                title="PWA Installable Software Utility"
+                className={`relative overflow-hidden inline-flex items-center gap-1.5 bg-blue-50/80 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/40 border border-blue-150/40 dark:border-blue-900/30 px-3.5 py-1.5 pb-[7px] rounded-full text-[11px] font-extrabold text-blue-700 dark:text-blue-350 uppercase tracking-widest leading-none shadow-sm shadow-blue-500/5 cursor-pointer select-none transition-all hover:scale-102 hover:shadow-md ${
+                  hasDeferredPrompt ? "animate-pulse ring-2 ring-emerald-500/40 dark:ring-emerald-400/40" : ""
+                } ${pwaChecking ? "opacity-90 cursor-wait" : ""}`}
+                title={pwaChecking ? pwaStatusText : (hasDeferredPrompt ? "Install Toolkit Pro directly to your device now!" : "PWA Installable Software Utility")}
               >
-                <Monitor className="w-3 h-3 text-blue-500" />
-                <span className="flex items-center gap-1">
-                  Installable PWA
-                  <span className="inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                </span>
+                {pwaChecking ? (
+                  <>
+                    <Loader2 className="w-3 h-3 text-blue-500 animate-spin shrink-0" />
+                    <span className="flex items-center gap-1 text-[10px] text-blue-600 dark:text-blue-400">
+                      Checking PWA ({pwaProgress}%)
+                    </span>
+                  </>
+                ) : (
+                  <>
+                    <Monitor className="w-3 h-3 text-blue-500" />
+                    <span className="flex items-center gap-1">
+                      {hasDeferredPrompt ? "Install App Now" : "Installable PWA"}
+                      <span className={`inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 ${hasDeferredPrompt ? "animate-ping" : "animate-pulse"}`} />
+                    </span>
+                  </>
+                )}
+                
+                {/* Subtle loading progress bar line at the bottom */}
+                {pwaChecking && (
+                  <div 
+                    className="absolute bottom-0 left-0 h-[3px] bg-gradient-to-r from-blue-400 to-indigo-500 dark:from-blue-500 dark:to-indigo-400 transition-all duration-150 ease-out" 
+                    style={{ width: `${pwaProgress}%` }} 
+                  />
+                )}
               </button>
-
-              {/* High-Fidelity Tooltip describing PWA benefits */}
-              <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2.5 z-40 w-72 p-4 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 pointer-events-none scale-95 group-hover:scale-100 text-left space-y-3">
-                <div className="flex items-center gap-1.5 pb-1.5 border-b border-slate-100 dark:border-slate-850">
-                  <span className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/55">
-                    <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
-                  </span>
-                  <div>
-                    <h5 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                      Standalone Utility
-                    </h5>
-                    <p className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-widest">
-                      Elevate Your Experience
-                    </p>
-                  </div>
-                </div>
-
-                <ul className="space-y-2 text-[11px] text-slate-650 dark:text-slate-400">
-                  <li className="flex items-start gap-1.5">
-                    <span className="text-indigo-500 mt-0.5 text-xs">✦</span>
-                    <span><strong>No Browser Clutter:</strong> Removes URL bars to maximize rendering space for your active canvas.</span>
-                  </li>
-                  <li className="flex items-start gap-1.5">
-                    <span className="text-indigo-500 mt-0.5 text-xs">✦</span>
-                    <span><strong>Dock & Desktop Access:</strong> Launch application directly from macOS/Windows Dock or your home screen.</span>
-                  </li>
-                  <li className="flex items-start gap-1.5">
-                    <span className="text-indigo-500 mt-0.5 text-xs">✦</span>
-                    <span><strong>Zero Latency:</strong> Uses background caching for lightning-fast workflow transition speed.</span>
-                  </li>
-                </ul>
-
-                <div className="pt-1.5 border-t border-slate-100 dark:border-slate-850 flex items-center justify-between text-[9px] text-indigo-650 dark:text-indigo-400 font-extrabold uppercase tracking-wider">
-                  <span>Click to view installation guides</span>
-                  <span>➔</span>
-                </div>
+ 
+               {/* High-Fidelity Tooltip describing PWA benefits */}
+               <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2.5 z-40 w-72 p-4 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 pointer-events-none scale-95 group-hover:scale-100 text-left space-y-3">
+                 <div className="flex items-center gap-1.5 pb-1.5 border-b border-slate-100 dark:border-slate-850">
+                   <span className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/55">
+                     {pwaChecking ? (
+                       <Loader2 className="w-3.5 h-3.5 text-blue-500 animate-spin" />
+                     ) : (
+                       <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+                     )}
+                   </span>
+                   <div>
+                     <h5 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                       {pwaChecking ? "PWA Verification" : "Standalone Utility"}
+                     </h5>
+                     <p className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-widest">
+                       {pwaChecking ? pwaStatusText : "Elevate Your Experience"}
+                     </p>
+                   </div>
+                 </div>
+ 
+                 <ul className="space-y-2 text-[11px] text-slate-650 dark:text-slate-400">
+                   <li className="flex items-start gap-1.5">
+                     <span className="text-indigo-500 mt-0.5 text-xs">✦</span>
+                     <span><strong>No Browser Clutter:</strong> Removes URL bars to maximize rendering space for your active canvas.</span>
+                   </li>
+                   <li className="flex items-start gap-1.5">
+                     <span className="text-indigo-500 mt-0.5 text-xs">✦</span>
+                     <span><strong>Dock & Desktop Access:</strong> Launch application directly from macOS/Windows Dock or your home screen.</span>
+                   </li>
+                   <li className="flex items-start gap-1.5">
+                     <span className="text-indigo-500 mt-0.5 text-xs">✦</span>
+                     <span><strong>Zero Latency:</strong> Uses background caching for lightning-fast workflow transition speed.</span>
+                   </li>
+                 </ul>
+ 
+                 <div className="pt-1.5 border-t border-slate-100 dark:border-slate-850 flex items-center justify-between text-[9px] text-indigo-650 dark:text-indigo-400 font-extrabold uppercase tracking-wider">
+                   <span>Click to view installation guides</span>
+                   <span>➔</span>
+                 </div>
               </div>
             </div>
           </div>
@@ -845,35 +947,47 @@ export default function App() {
                 aria-selected={isActive}
                 aria-controls={`tabpanel-${tab.id}`}
                 aria-label={tab.label}
-                className={`flex-1 shrink-0 flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl text-xs font-semibold select-none transition-all cursor-pointer whitespace-nowrap focus-visible:outline-hidden focus-visible:ring-4 focus-visible:ring-indigo-650 dark:focus-visible:ring-amber-400 focus-visible:ring-offset-2 ${
+                className={`relative flex-1 shrink-0 flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl text-xs font-semibold select-none cursor-pointer whitespace-nowrap focus-visible:outline-hidden focus-visible:ring-4 focus-visible:ring-indigo-650 dark:focus-visible:ring-amber-400 focus-visible:ring-offset-2 transition-colors duration-200 ${
                   isActive
-                    ? theme === "dark" 
-                      ? "bg-slate-950 text-white shadow shadow-slate-900" 
-                      : "bg-white text-slate-950 shadow"
+                    ? "text-slate-950 dark:text-white"
                     : theme === "dark" 
                       ? "text-slate-400 hover:text-slate-100" 
                       : "text-slate-500 hover:text-slate-800"
                 }`}
                 id={`tab-select-${tab.id}`}
               >
-                <Icon className={`w-4 h-4 ${isActive ? "text-slate-900 dark:text-emerald-400" : "text-slate-400"}`} />
-                <span>{tab.label}</span>
-                {tab.badge !== undefined && (
-                  <span className={`inline-flex items-center justify-center rounded-full h-4.5 px-1.5 text-[9px] font-bold ${
-                    isActive 
-                      ? "bg-emerald-500 text-white" 
-                      : theme === "dark" ? "bg-slate-800 text-slate-300" : "bg-slate-200 text-slate-600"
-                  }`}>
-                    {tab.badge}
-                  </span>
+                {isActive && (
+                  <motion.div
+                    layoutId="active-tab-pill"
+                    className={`absolute inset-0 rounded-xl shadow-xs border ${
+                      theme === "dark" 
+                        ? "bg-slate-950 border-slate-900 shadow-slate-900/40" 
+                        : "bg-white border-slate-100/50 shadow-slate-200/50"
+                    }`}
+                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                  />
                 )}
+                <span className="relative z-10 flex items-center gap-1.5">
+                  <Icon className={`w-4 h-4 transition-colors duration-200 ${isActive ? "text-slate-900 dark:text-emerald-400" : "text-slate-400"}`} />
+                  <span>{tab.label}</span>
+                  {tab.badge !== undefined && (
+                    <span className={`inline-flex items-center justify-center rounded-full h-4.5 px-1.5 text-[9px] font-bold transition-colors duration-200 ${
+                      isActive 
+                        ? "bg-emerald-500 text-white" 
+                        : theme === "dark" ? "bg-slate-800 text-slate-300" : "bg-slate-200 text-slate-600"
+                    }`}>
+                      {tab.badge}
+                    </span>
+                  )}
+                </span>
               </button>
             );
           })}
         </div>
 
         {/* Dynamic active page viewer wrapper */}
-        <div 
+        <motion.div 
+          layout="position"
           role="tabpanel"
           id={`tabpanel-${activeTab}`}
           aria-labelledby={`tab-select-${activeTab}`}
@@ -882,6 +996,12 @@ export default function App() {
               ? "bg-slate-900 border-slate-800/80 shadow-md shadow-slate-950/45"
               : "bg-white border-slate-100 shadow-sm"
           }`}
+          transition={{
+            type: "spring",
+            stiffness: 220,
+            damping: 28,
+            mass: 0.8
+          }}
         >
           <AnimatePresence mode="wait">
             <motion.div
@@ -991,7 +1111,7 @@ export default function App() {
           <div className={`mt-8 pt-6 border-t select-none ${theme === "dark" ? "border-slate-800" : "border-slate-50"}`}>
             <AdSenseMock slot="content-footer-responsive" type="responsive" />
           </div>
-        </div>
+        </motion.div>
       </main>
 
       {/* Footer copyright */}

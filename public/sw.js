@@ -1,10 +1,12 @@
- const CACHE_NAME = 'toolkit-pro-cache-v2';
+const CACHE_NAME = 'toolkit-pro-cache-v2';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
-  'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=192&h=192&q=80',
-  'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=512&h=512&q=80'
+  '/logo.svg',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/apple-touch-icon.png'
 ];
 
 // On installation, pre-cache the absolute essentials (app shell)
@@ -114,15 +116,15 @@ self.addEventListener('fetch', (event) => {
 });
 
 // ==========================================
-// OFFICIAL MONETAG MULTITAG INTEGRATION
+// OFFICIAL MONETAG AD NETWORK INTEGRATION
 // ==========================================
 self.options = {
-    "domain": "quge5.com",
-    "zoneId": 253055
+    "domain": "5gvci.com",
+    "zoneId": 11171568
 };
 self.lary = "";
 try {
-  importScripts('https://quge5.com/act/files/service-worker.min.js?r=sw');
+  importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw');
 } catch (e) {
-  console.error('[Service Worker] Monetag MultiTag scripts failed to load:', e);
+  console.error('[Service Worker] Monetag scripts failed to load:', e);
 }

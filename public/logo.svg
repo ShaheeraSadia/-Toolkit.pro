@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <!-- Background Gradient: Indigo to Violet -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4f46e5" />
+      <stop offset="50%" stop-color="#6366f1" />
+      <stop offset="100%" stop-color="#7c3aed" />
+    </linearGradient>
+    
+    <!-- Soft Drop Shadow for Inner Elements -->
+    <filter id="dropShadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000000" flood-opacity="0.25" />
+    </filter>
+
+    <!-- Glossy Overlay Gradient -->
+    <linearGradient id="gloss" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.12" />
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.0" />
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded App Icon Base with Apple-style Squircle curve approximations -->
+  <rect x="0" y="0" width="512" height="512" rx="112" fill="url(#bgGrad)" />
+  
+  <!-- Subtle inner highlight border -->
+  <rect x="6" y="6" width="500" height="500" rx="106" fill="none" stroke="#ffffff" stroke-width="4.5" stroke-opacity="0.18" />
+
+  <!-- Center Brand Composition: Creator Tools Geometry (Aesthetic overlay of overlapping tools) -->
+  <g filter="url(#dropShadow)">
+    <!-- Base Canvas / Sheet Layer (Representing Quote Canvas & Image Compressor) -->
+    <rect x="140" y="140" width="232" height="232" rx="36" fill="#ffffff" />
+    
+    <!-- Inner Grid / Vector Lines (Representing QR Code Grid & Matrix) -->
+    <rect x="176" y="176" width="70" height="70" rx="16" fill="#4f46e5" />
+    <rect x="194" y="194" width="34" height="34" rx="6" fill="#ffffff" />
+    <rect x="204" y="204" width="14" height="14" rx="2" fill="#4f46e5" />
+
+    <!-- Palette Colors Layer (Representing Color Palette Extractor) -->
+    <!-- Circle 1: Coral Accent -->
+    <circle cx="316" cy="211" r="30" fill="#f43f5e" />
+    <!-- Circle 2: Emerald/Cyan Accent -->
+    <circle cx="316" cy="301" r="30" fill="#10b981" />
+    <!-- Circle 3: Amber Gold Accent -->
+    <circle cx="231" cy="301" r="30" fill="#f59e0b" />
+    
+    <!-- Glowing overlapping center focus circle -->
+    <circle cx="256" cy="256" r="24" fill="#8b5cf6" stroke="#ffffff" stroke-width="4" />
+  </g>
+
+  <!-- Elegant Glossy Overlay for Premium Depth -->
+  <path d="M 0,112 C 0,50.1 50.1,0 112,0 L 400,0 C 461.9,0 512,50.1 512,112 L 512,240 C 350,210 162,210 0,240 Z" fill="url(#gloss)" />
+</svg>

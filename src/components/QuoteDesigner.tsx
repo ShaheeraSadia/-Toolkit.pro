@@ -3,7 +3,7 @@ import { User } from "firebase/auth";
 import { motion } from "motion/react";
 import { QuoteConfig, BgStyleType } from "../types";
 import { uploadFileToDrive } from "../lib/drive";
-import { Download, Cloud, Sparkles, Image as ImageIcon, Type, AlignLeft, AlignCenter, AlignRight, Check, Printer, Share2, Smartphone, LayoutGrid, Monitor, Upload, FileJson } from "lucide-react";
+import { Download, Cloud, Sparkles, Image as ImageIcon, Type, AlignLeft, AlignCenter, AlignRight, Check, Printer, Share2, Smartphone, LayoutGrid, Monitor, Upload, FileJson, Scissors } from "lucide-react";
 
 interface QuoteDesignerProps {
   user: User | null;
@@ -193,6 +193,7 @@ export default function QuoteDesigner({
   const [saveStatus, setSaveStatus] = useState<{ success?: boolean; msg?: string } | null>(null);
   const [downloadDpi, setDownloadDpi] = useState<number>(300); // Customizable export DPI
   const [previewZoom, setPreviewZoom] = useState<number>(1.0); // Dynamic inspection zoom level
+  const [showBleed, setShowBleed] = useState<boolean>(false); // Visual print bleed boundary toggle
   const previewRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const jsonFileInputRef = useRef<HTMLInputElement>(null);
@@ -1190,6 +1191,23 @@ export default function QuoteDesigner({
                 {Math.round(previewZoom * 100)}%
               </span>
             </div>
+
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowBleed(prev => !prev)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer border ${
+                  showBleed
+                    ? "bg-rose-50 border-rose-200 dark:bg-rose-950/20 dark:border-rose-900/50 text-rose-600 dark:text-rose-400 shadow-3xs"
+                    : "bg-slate-50 hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-850 text-slate-500 dark:text-slate-450 border-slate-200 dark:border-slate-800"
+                }`}
+                title="Toggle visual 3mm (12px) print bleed boundary lines and out-of-bounds warning shading"
+                id="btn-toggle-bleed-guard"
+              >
+                <Scissors className={`w-3 h-3 ${showBleed ? "animate-pulse text-rose-500" : ""}`} />
+                <span>Bleed Guard: <strong className="font-black">{showBleed ? "ON" : "OFF"}</strong></span>
+              </button>
+            </div>
             
             <div className="flex items-center gap-2.5">
               <button
@@ -1282,6 +1300,33 @@ export default function QuoteDesigner({
               }}
               className="absolute inset-0 z-5 pointer-events-none transition-all"
             />
+
+            {/* Visual Print Bleed Overlay / Bleed Guard */}
+            {showBleed && (
+              <div className="absolute inset-0 z-20 pointer-events-none print:hidden select-none">
+                {/* 12px outer Bleed Zone warning overlay (3mm equivalent) */}
+                <div className="absolute inset-0 border-[12px] border-slate-950/45 dark:border-slate-950/65 transition-all" />
+                
+                {/* Trim line boundary (Dashed red/rose line at 12px from outer edges) */}
+                <div className="absolute inset-[12px] border border-dashed border-rose-500 shadow-[0_0_0_1px_rgba(255,255,255,0.25)] transition-all" />
+
+                {/* Corner Crop Marks (classic print registration guides) */}
+                <div className="absolute top-1 left-1 w-3 h-3 border-t border-l border-rose-400 opacity-80" />
+                <div className="absolute top-1 right-1 w-3 h-3 border-t border-r border-rose-400 opacity-80" />
+                <div className="absolute bottom-1 left-1 w-3 h-3 border-b border-l border-rose-400 opacity-80" />
+                <div className="absolute bottom-1 right-1 w-3 h-3 border-b border-r border-rose-400 opacity-80" />
+
+                {/* Bleed Guide Label - Mono styled */}
+                <div className="absolute top-4 left-4 bg-rose-600 dark:bg-rose-700 text-white font-mono text-[7.5px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm font-black shadow-xs flex items-center gap-1 select-none">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                  <span>3mm Bleed Zone (Trims Off)</span>
+                </div>
+
+                <div className="absolute bottom-4 right-4 bg-slate-900/80 dark:bg-black/80 text-slate-100 dark:text-slate-200 font-mono text-[7.5px] uppercase tracking-widest px-1.5 py-0.5 rounded-sm font-bold border border-white/10 select-none">
+                  Safe Area
+                </div>
+              </div>
+            )}
 
             {/* Inner Content Area */}
             <div className="flex flex-col h-full justify-center relative z-10 select-none">
