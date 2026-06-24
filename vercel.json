@@ -1,5 +1,10 @@
+
 {
   "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
+    {
+      "source": "/((?!sitemap\\.xml|manifest\\.json|sw\\.js|logo\\.jpg).*)" ,
+      "destination": "/index.html"
+    }
   ]
-} 
+}
+ 
