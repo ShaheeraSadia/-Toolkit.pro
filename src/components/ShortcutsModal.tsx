@@ -441,7 +441,7 @@ export default function ShortcutsModal({ isOpen, onClose }: ShortcutsModalProps)
                       <h4 className="text-[10px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-500 select-none">
                         {cat}
                       </h4>
-                      <div className="divide-y divide-slate-105 dark:divide-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50/20 dark:bg-slate-950/10">
+                      <div className="divide-y divide-slate-100 dark:divide-slate-800/60 border border-slate-200 dark:border-slate-800 rounded-xl overflow-hidden bg-slate-50/20 dark:bg-slate-950/10">
                         {catItems.map((item, idx) => {
                           const signature = item.keys.join("+");
                           // Find if overridden by custom plan in real-time
@@ -634,7 +634,7 @@ export default function ShortcutsModal({ isOpen, onClose }: ShortcutsModalProps)
                   disabled={conflictLevel === "danger" || isRecording}
                   className={`w-full py-2.5 rounded-xl text-xs font-bold transition-all mt-4 flex items-center justify-center gap-1.5 select-none ${
                     conflictLevel === "danger" || isRecording
-                      ? "bg-slate-100 dark:bg-slate-850 text-slate-401 cursor-not-allowed opacity-60"
+                      ? "bg-slate-100 dark:bg-slate-850 text-slate-400 cursor-not-allowed opacity-60"
                       : "bg-indigo-600 hover:bg-indigo-700 text-white shadow-md active:scale-98 cursor-pointer"
                   }`}
                 >
@@ -644,7 +644,7 @@ export default function ShortcutsModal({ isOpen, onClose }: ShortcutsModalProps)
               </div>
 
               {/* REAL-TIME DIAGNOSTIC SWEEP RIGHT CONTAINER */}
-              <div className="bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-855 rounded-xl p-4.5 flex flex-col justify-between">
+              <div className="bg-slate-50 dark:bg-slate-950 border border-slate-100 dark:border-slate-850 rounded-xl p-4.5 flex flex-col justify-between">
                 <div className="space-y-3">
                   <div className="flex items-center justify-between border-b border-slate-200 dark:border-slate-800 pb-2">
                     <h5 className="text-[10px] font-black text-slate-450 uppercase tracking-widest flex items-center gap-1">
@@ -748,7 +748,7 @@ export default function ShortcutsModal({ isOpen, onClose }: ShortcutsModalProps)
                               </span>
                             )}
                             {isOverridenBySystem && (
-                              <span className="text-[8px] font-bold px-1.5 py-0.2 bg-amber-50 dark:bg-amber-955/20 text-amber-503 text-amber-500 rounded border border-amber-100/30">
+                              <span className="text-[8px] font-bold px-1.5 py-0.2 bg-amber-50 dark:bg-amber-950/20 text-amber-500 rounded border border-amber-100/30">
                                 ⚠️ System Reserved
                               </span>
                             )}
@@ -784,7 +784,7 @@ export default function ShortcutsModal({ isOpen, onClose }: ShortcutsModalProps)
         )}
 
         {/* Footer info logging bar with diagnostic stats */}
-        <div className="p-4 border-t border-slate-100 dark:border-slate-850 bg-slate-50/50 dark:bg-slate-950/40 flex items-center justify-between text-[10px] font-semibold text-slate-450 dark:text-slate-500 transition-colors shrink-0 select-none">
+        <div className="p-4 border-t border-slate-100 dark:border-slate-850 bg-slate-50/50 dark:bg-slate-950/40 flex items-center justify-between text-[10px] font-semibold text-slate-400 dark:text-slate-500 transition-colors shrink-0 select-none">
           <div className="flex items-center gap-1.5">
             <span>Scan Metrics:</span>
             <span className="text-slate-800 dark:text-slate-300 font-bold">{appDefaults.length} Native Mappings</span>
@@ -799,3 +799,4 @@ export default function ShortcutsModal({ isOpen, onClose }: ShortcutsModalProps)
     </div>
   );
 }
+ 
