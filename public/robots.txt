@@ -1,4 +1,0 @@
-User-agent: *
-Allow: /
-
-Sitemap: https://toolkit-pro-chi.vercel.app/sitemap.xml
