@@ -4,7 +4,7 @@ import App from './App.tsx';
 import './index.css';
 
 // Declare custom properties on window object for TypeScript safety
-declare global {
+ declare global {
   interface Window {
     deferredInstallPrompt?: any;
   }
