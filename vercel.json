@@ -1,8 +1,11 @@
-
 {
   "rewrites": [
     {
-      "source": "/((?!sitemap\\.xml|manifest\\.json|sw\\.js|logo\\.jpg).*)" ,
+      "source": "/sitemap.xml",
+      "destination": "/sitemap.xml"
+    },
+    {
+      "source": "/(.*)",
       "destination": "/index.html"
     }
   ]
