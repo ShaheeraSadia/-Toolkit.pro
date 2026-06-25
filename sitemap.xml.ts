@@ -102,6 +102,3 @@ export function generateSitemapXml(req?: any): string {
 
   return xml;
 }
-
-
- 
