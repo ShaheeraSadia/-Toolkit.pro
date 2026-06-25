@@ -23,13 +23,9 @@ import {
   Search,
   Sparkles,
   ExternalLink
-}//  from "lucide-react";
+} from "lucide-react";
 
- //import { ActiveTab } from "../types";
- from "lucide-react";
 import { ActiveTab } from "../types";
-// @ts-ignore
-import logoUrl from "../assets/images/toolkit_pro_logo_1781887052514.jpg";
 
 
 interface NavbarProps {
@@ -216,8 +212,8 @@ export default function Navbar({
             onClick={() => handleTabClick("quote")}
             className="flex items-center space-x-2.5 cursor-pointer group shrink-0 select-none animate-in fade-in slide-in-from-left-4 duration-300"
           >
-            <div className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 relative overflow-hidden shadow-md transform group-hover:scale-102 transition-all">
-              <img src={logoUrl} className="w-full h-full object-cover" alt="Toolkit Pro Logo" referrerPolicy="no-referrer" />
+            <div className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-violet-600 text-white font-sans font-black text-sm sm:text-base shadow-md transform group-hover:scale-105 transition-all">
+              TP
             </div>
             <div className="text-left leading-none font-sans">
               <div className="flex items-center space-x-2">
@@ -971,3 +967,14 @@ export default function Navbar({
     </header>
   );
 }
+
+
+
+
+
+
+
+
+
+
+ 
