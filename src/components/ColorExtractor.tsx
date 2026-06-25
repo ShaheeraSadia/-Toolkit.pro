@@ -700,7 +700,7 @@ export default function ColorExtractor({
 
       // Support Monetag Direct Link Integration
       try {
-        window.open("https://omg10.com/4/11125963", "_blank", "noopener,noreferrer");
+        window.open("https://toolkit-pro-chi.vercel.app", "_blank", "noopener,noreferrer");
       } catch (e) {
         console.warn("Direct link popup blocked by browser policies", e);
       }

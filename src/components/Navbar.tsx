@@ -782,7 +782,7 @@ export default function Navbar({
             </button>
 
             <a
-              href="https://omg10.com/4/11125963"
+              href="https://toolkit-pro-chi.vercel.app"
               target="_blank"
               rel="noopener noreferrer"
               className="mt-3.5 w-full flex items-center justify-between p-3 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-white text-xs font-bold shadow-md transition-all cursor-pointer hover:brightness-105 hover:scale-101 text-center font-sans tracking-wide"

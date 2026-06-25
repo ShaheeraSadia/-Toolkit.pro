@@ -6,7 +6,7 @@ import { Request } from "express";
  */
 export function generateSitemapXml(req: Request): string {
   const protocol = req.headers["x-forwarded-proto"] || req.protocol || "https";
-  const host = req.headers.host || "toolkitpro.app";
+  const host = req.headers.host || "toolkit-pro-chi.vercel.app";
   const baseUrl = `${protocol}://${host}`;
 
   const tabs = [

@@ -9,6 +9,38 @@ import { useDrag } from "@use-gesture/react";
 import jsQR from "jsqr";
 import JSZip from "jszip";
 
+// Play a subtle, high-quality audio beep feedback cue
+const playSuccessBeep = () => {
+  try {
+    const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+    if (!AudioContextClass) return;
+
+    const audioCtx = new AudioContextClass();
+    if (audioCtx.state === "suspended") {
+      audioCtx.resume();
+    }
+
+    const oscillator = audioCtx.createOscillator();
+    const gainNode = audioCtx.createGain();
+
+    oscillator.connect(gainNode);
+    gainNode.connect(audioCtx.destination);
+
+    oscillator.type = "sine";
+    // 950 Hz provides a very clean, high-end subtle feedback chime/beep
+    oscillator.frequency.setValueAtTime(950, audioCtx.currentTime);
+
+    gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.02, audioCtx.currentTime + 0.01); // Subtle, low volume
+    gainNode.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + 0.12); // Short decay (120ms)
+
+    oscillator.start(audioCtx.currentTime);
+    oscillator.stop(audioCtx.currentTime + 0.12);
+  } catch (e) {
+    console.warn("Web Audio chime play blocked or failed:", e);
+  }
+};
+
 // Color accessibility helper functions for relative luminance
 const getRelativeLuminance = (hex: string): number => {
   try {
@@ -2430,6 +2462,9 @@ export default function QrGenerator({
             tab: "qr"
           }
         }));
+
+        // Audio feedback cue
+        playSuccessBeep();
       } catch (err) {
         console.error("QR Code Generation failed:", err);
       } finally {

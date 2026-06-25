@@ -1141,7 +1141,7 @@ export default function App() {
 
               <div className="pt-1.5">
                 <a 
-                  href="https://omg10.com/4/11125963" 
+                  href="https://toolkit-pro-chi.vercel.app" 
                   target="_blank" 
                   rel="noopener noreferrer" 
                   className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 transition-all cursor-pointer hover:underline select-none"
@@ -1354,7 +1354,7 @@ export default function App() {
             </button>
             <span className="text-slate-300 dark:text-slate-700 select-none">•</span>
             
-            <a href="https://omg10.com/4/11125963" target="_blank" rel="noopener noreferrer" className="text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 cursor-pointer font-bold flex items-center gap-1">
+            <a href="https://toolkit-pro-chi.vercel.app" target="_blank" rel="noopener noreferrer" className="text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 cursor-pointer font-bold flex items-center gap-1">
               <span>☕</span> Support Free Server
             </a>
             <span className="text-slate-300 dark:text-slate-700 select-none">•</span>

@@ -1,28 +1,11 @@
-// ==========================================
-// 1. OFFICIAL MONETAG AD NETWORK INTEGRATION (Must be at the top)
-// ==========================================
-self.options = {
-    "domain": "5gvci.com",
-    "zoneId": 11171568
-};
-self.lary = "";
-try {
-    importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw');
-} catch (e) {
-    console.error('[Service Worker] Monetag scripts failed to load:', e);
-}
-
-// ==========================================
-// 2. CORE APP CACHE CONFIGURATION
-// ==========================================
 const CACHE_NAME = 'toolkit-pro-cache-v2';
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/manifest.json',
- //'/logo.svg',
- // '/icon-192.png',
-  //'/icon-512.png',
+  '/logo.svg',
+  '/icon-192.png',
+  '/icon-512.png',
   '/apple-touch-icon.png'
 ];
 
@@ -59,18 +42,9 @@ self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
 
-  // Skip non-GET requests or browser extension requests
+  // Skip non-GET requests or browser extension/chrome-extension requests
   if (request.method !== 'GET' || !url.protocol.startsWith('http')) {
     return;
-  }
-
-  // CRITICAL OPTIMIZATION: Completely bypass caching/interception for Monetag & MultiTag traffic
-  if (
-    url.hostname.includes('5gvci.com') || 
-    url.hostname.includes('quge5.com') || 
-    url.hostname.includes('monetag')
-  ) {
-    return; 
   }
 
   // Strategy for root document, routes, and JSON files: Network-first
@@ -141,20 +115,16 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
- 
+// ==========================================
+// OFFICIAL MONETAG AD NETWORK INTEGRATION
+// ==========================================
+self.options = {
+    "domain": "5gvci.com",
+    "zoneId": 11171568
+};
+self.lary = "";
+try {
+  importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw');
+} catch (e) {
+  console.error('[Service Worker] Monetag scripts failed to load:', e);
+}
