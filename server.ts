@@ -106,6 +106,76 @@ RULES:
   }
 });
 
+// API route to suggest creative, thematic names for color palettes using Gemini API
+app.post("/api/palette/suggest-names", async (req, res) => {
+  try {
+    const activeApiKey = process.env.GEMINI_API_KEY;
+    if (!activeApiKey) {
+      return res.status(500).json({ 
+        error: "GEMINI_API_KEY is not configured in the host environment or Secrets panel." 
+      });
+    }
+
+    if (!ai) {
+      ai = new GoogleGenAI({
+        apiKey: activeApiKey,
+        httpOptions: {
+          headers: {
+            "User-Agent": "aistudio-build",
+          },
+        },
+      });
+    }
+
+    const { colors } = req.body;
+    if (!colors || !Array.isArray(colors) || colors.length === 0) {
+      return res.status(400).json({ error: "A non-empty colors array is required." });
+    }
+
+    const hexCodes = colors.map((c: any) => typeof c === "string" ? c : c.hex);
+
+    const systemInstruction = `You are a professional designer, branding strategist, and color theory expert.
+Your goal is to suggest 5 creative, thematic, and evocative names for a color palette consisting of the provided colors.
+
+RULES:
+1. Provide a COMPACT JSON response.
+2. Do not include markdown code block syntax (like \`\`\`json) or any preamble or explanation. ONLY return a single valid JSON object.
+3. The response must follow this EXACT structure:
+{
+  "names": [
+    { "name": string, "theme": string, "description": string }
+  ]
+}
+Each item in the array must have:
+- "name": A highly creative and polished theme name (e.g., 'Sunset Glow', 'Ocean Depths', 'Earthy Sage', 'Vintage Cyber'). Max 28 characters.
+- "theme": The overall style vibe/aesthetic (e.g., 'Nature & Sunset', 'Minimalist Tech', 'Cozy Retro', 'Cyberpunk Neon'). Max 25 characters.
+- "description": A short explanation of why the colors evoke this specific name and concept. Max 80 characters.
+
+4. Make the names feel human-crafted, premium, and unique. Avoid generic or overly simple labels.`;
+
+    const userPrompt = `Suggest 5 evocative designer names for a color palette containing these hex codes: ${hexCodes.join(", ")}.`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: userPrompt,
+      config: {
+        systemInstruction,
+        responseMimeType: "application/json",
+        temperature: 0.85,
+      },
+    });
+
+    const resText = response?.text?.trim() || "{}";
+    const parsedData = JSON.parse(resText);
+    return res.json(parsedData);
+  } catch (error: any) {
+    console.error("Gemini palette renaming error:", error);
+    return res.status(500).json({ 
+      error: error.message || "Palette naming suggestion failed due to a server-side error." 
+    });
+  }
+});
+
 // API route to shorten a URL utilizing high-availability failsafe providers (is.gd with tinyurl.com fallback)
 app.post("/api/url/shorten", async (req, res) => {
   try {
@@ -186,3 +256,9 @@ setupViteOrStatic().then(() => {
 });
 
 export default app;
+
+
+
+
+
+ 
