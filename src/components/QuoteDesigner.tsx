@@ -681,15 +681,15 @@ export default function QuoteDesigner({
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 font-sans">
       {/* Editor Controls Sidebar: 5 Cols */}
-      <div className="lg:col-span-5 bg-slate-50 rounded-2xl p-6 border border-slate-100 flex flex-col space-y-5 max-h-[85vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200">
+      <div className="lg:col-span-5 bg-slate-50 dark:bg-slate-900/30 rounded-2xl p-6 border border-slate-150/40 dark:border-slate-800/80 flex flex-col space-y-5 max-h-[85vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
         
         {/* Social Media Presets Panel */}
         <div className="space-y-3">
           <div>
-            <h3 className="text-sm font-bold text-indigo-950 uppercase tracking-wider flex items-center gap-1.5 mb-1">
+            <h3 className="text-sm font-bold text-indigo-950 dark:text-indigo-300 uppercase tracking-wider flex items-center gap-1.5 mb-1">
               <LayoutGrid className="w-4 h-4 text-indigo-500" /> Formatting Presets
             </h3>
-            <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
               Instant size, typography, and canvas configurations for social formats.
             </p>
           </div>
@@ -717,12 +717,12 @@ export default function QuoteDesigner({
                   }}
                   className={`group relative text-left p-2.5 rounded-xl border transition-all flex items-start gap-2.5 cursor-pointer ${
                     isActive
-                      ? "bg-indigo-50/50 border-indigo-500 ring-1 ring-indigo-500/30"
-                      : "bg-white hover:bg-slate-100/50 border-slate-200 hover:border-slate-350"
+                      ? "bg-indigo-50/50 dark:bg-indigo-950/20 border-indigo-500 ring-1 ring-indigo-500/30"
+                      : "bg-white dark:bg-slate-950 hover:bg-slate-100/50 dark:hover:bg-slate-900/50 border-slate-200 dark:border-slate-850 hover:border-slate-350 dark:hover:border-slate-700"
                   }`}
                 >
                   <div className={`p-1.5 rounded-lg shrink-0 transition-all ${
-                    isActive ? "bg-indigo-600 text-white" : "bg-slate-100 text-slate-500 group-hover:bg-slate-200"
+                    isActive ? "bg-indigo-600 text-white" : "bg-slate-100 dark:bg-slate-850 text-slate-500 dark:text-slate-400 group-hover:bg-slate-200 dark:group-hover:bg-slate-800"
                   }`}>
                     {preset.aspectRatio === "9:16" ? (
                       <Smartphone className="w-3.5 h-3.5" />
@@ -734,18 +734,18 @@ export default function QuoteDesigner({
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-1">
-                      <span className="text-[11.5px] font-bold text-slate-900 group-hover:text-indigo-950 truncate">
+                      <span className="text-[11.5px] font-bold text-slate-900 dark:text-slate-100 group-hover:text-indigo-950 dark:group-hover:text-indigo-300 truncate">
                         {preset.name}
                       </span>
                       <span className={`text-[8.5px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md ${
                         isActive
-                          ? "bg-indigo-100 text-indigo-750"
-                          : "bg-slate-100 text-slate-500"
+                          ? "bg-indigo-100 dark:bg-indigo-950/55 text-indigo-750 dark:text-indigo-300"
+                          : "bg-slate-100 dark:bg-slate-850 text-slate-500 dark:text-slate-400"
                       }`}>
                         {preset.badge}
                       </span>
                     </div>
-                    <p className="text-[10px] text-slate-500 mt-0.5 leading-tight">
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
                       {preset.description}
                     </p>
                   </div>
@@ -799,13 +799,13 @@ export default function QuoteDesigner({
           </div>
         </div>
 
-        <div className="h-px bg-slate-200/60" />
+        <div className="h-px bg-slate-200/60 dark:bg-slate-800/40" />
 
         <div>
-          <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider flex items-center gap-1.5 mb-1">
+          <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 uppercase tracking-wider flex items-center gap-1.5 mb-1">
             <Sparkles className="w-4 h-4 text-amber-500" /> Card Details
           </h3>
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-slate-500 dark:text-slate-400">
             Write your quote, set author details, and choose alignment.
           </p>
         </div>
@@ -814,12 +814,12 @@ export default function QuoteDesigner({
         <div className="space-y-4">
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="block text-xs font-medium text-slate-700">Quote Text</label>
+              <label className="block text-xs font-medium text-slate-755 dark:text-slate-300">Quote Text</label>
               <button
                 type="button"
                 onClick={generateRandomQuote}
                 disabled={isGeneratingQuote}
-                className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-lg transition-all cursor-pointer select-none disabled:opacity-50"
+                className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-700 hover:text-amber-805 dark:text-amber-400 dark:bg-amber-955/20 bg-amber-50 hover:bg-amber-100 border border-amber-200 dark:border-amber-900/60 px-2.5 py-1 rounded-lg transition-all cursor-pointer select-none disabled:opacity-50"
               >
                 <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0" />
                 <span>Get Inspired</span>
@@ -830,45 +830,45 @@ export default function QuoteDesigner({
               onChange={(e) => setConfig((prev) => ({ ...prev, text: e.target.value }))}
               rows={3}
               placeholder="Enter quote words..."
-              className="w-full text-sm px-3.5 py-2.5 rounded-xl border border-slate-200 bg-white shadow-inner focus:outline-none focus:border-slate-800 transition-colors resize-none"
+              className="w-full text-sm px-3.5 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 shadow-inner dark:shadow-slate-950/45 focus:outline-none focus:border-slate-850 dark:focus:border-slate-700 transition-colors resize-none"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1.5">Author</label>
+            <label className="block text-xs font-medium text-slate-755 dark:text-slate-300 mb-1.5">Author</label>
             <input
               type="text"
               value={config.author}
               onChange={(e) => setConfig((prev) => ({ ...prev, author: e.target.value }))}
               placeholder="e.g. Ralph Waldo Emerson"
-              className="w-full text-sm px-3.5 py-2 rounded-xl border border-slate-200 bg-white focus:outline-none focus:border-slate-800 transition-colors"
+              className="w-full text-sm px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-850 dark:focus:border-slate-700 transition-colors"
             />
           </div>
         </div>
 
         {/* Typography & Alignment Controls */}
-        <div className="space-y-4 pt-3 border-t border-slate-200">
-          <h4 className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
-            <Type className="w-3.5 h-3.5" /> Typography & Style
+        <div className="space-y-4 pt-3 border-t border-slate-200 dark:border-slate-800/80">
+          <h4 className="text-xs font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+            <Type className="w-3.5 h-3.5 animate-pulse text-indigo-500" /> Typography & Style
           </h4>
           
           <div className="grid grid-cols-2 gap-3.5">
             <div>
-              <label className="block text-[11px] font-medium text-slate-500 mb-1">Font Family</label>
+              <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Font Family</label>
               <select
                 value={config.fontFamily}
                 onChange={(e) => setConfig((prev) => ({ ...prev, fontFamily: e.target.value as any }))}
-                className="w-full text-xs px-2.5 py-2 rounded-lg border border-slate-200 bg-white focus:outline-none focus:border-slate-800"
+                className="w-full text-xs px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-800 dark:focus:border-slate-700"
               >
-                <option value="Playfair Display">Playfair Display</option>
-                <option value="Space Grotesk">Space Grotesk</option>
-                <option value="Inter">Inter (Sans)</option>
-                <option value="JetBrains Mono">JetBrains Mono</option>
+                <option value="Playfair Display" className="dark:bg-slate-950">Playfair Display</option>
+                <option value="Space Grotesk" className="dark:bg-slate-950">Space Grotesk</option>
+                <option value="Inter" className="dark:bg-slate-950">Inter (Sans)</option>
+                <option value="JetBrains Mono" className="dark:bg-slate-950">JetBrains Mono</option>
               </select>
             </div>
 
             <div>
-              <label className="block text-[11px] font-medium text-slate-500 mb-1">Font Color</label>
+              <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Font Color</label>
               <div className="flex items-center space-x-1.5">
                 <input
                   type="color"
@@ -880,7 +880,7 @@ export default function QuoteDesigner({
                   type="text"
                   value={config.fontColor}
                   onChange={(e) => setConfig(prev => ({ ...prev, fontColor: e.target.value }))}
-                  className="w-full text-center text-xs border border-slate-200 rounded px-1.5 py-1 uppercase"
+                  className="w-full text-center text-xs border border-slate-200 dark:border-slate-800 rounded px-1.5 py-1 uppercase bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100"
                 />
               </div>
             </div>
@@ -888,25 +888,25 @@ export default function QuoteDesigner({
 
           <div className="grid grid-cols-2 gap-3.5">
             <div>
-              <label className="block text-[11px] font-medium text-slate-500 mb-1">Font Size (px)</label>
+              <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Font Size (px)</label>
               <input
                 type="range"
                 min="16"
                 max="48"
                 value={config.fontSize}
                 onChange={(e) => setConfig((prev) => ({ ...prev, fontSize: parseInt(e.target.value) }))}
-                className="w-full accent-slate-800 cursor-pointer"
+                className="w-full accent-slate-800 dark:accent-amber-400 cursor-pointer"
               />
-              <span className="text-[10px] text-slate-400 block text-right mt-0.5">{config.fontSize}px</span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-500 block text-right mt-0.5">{config.fontSize}px</span>
             </div>
 
             <div>
-              <label className="block text-[11px] font-medium text-slate-500 mb-1">Alignment</label>
-              <div className="flex bg-slate-100 rounded-lg p-0.5 border border-slate-200/50">
+              <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Alignment</label>
+              <div className="flex bg-slate-100 dark:bg-slate-900 rounded-lg p-0.5 border border-slate-200/50 dark:border-slate-800/50">
                 <button
                   onClick={() => setConfig(prev => ({ ...prev, textAlign: "left" }))}
-                  className={`flex-1 flex justify-center py-1.5 rounded-md transition-all ${
-                    config.textAlign === "left" ? "bg-white shadow-sm text-slate-900" : "text-slate-400 hover:text-slate-600"
+                  className={`flex-1 flex justify-center py-1.5 rounded-md transition-all cursor-pointer ${
+                    config.textAlign === "left" ? "bg-white dark:bg-slate-950 shadow-sm text-slate-900 dark:text-slate-100" : "text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-350"
                   }`}
                   title="Align Left"
                 >
@@ -914,8 +914,8 @@ export default function QuoteDesigner({
                 </button>
                 <button
                   onClick={() => setConfig(prev => ({ ...prev, textAlign: "center" }))}
-                  className={`flex-1 flex justify-center py-1.5 rounded-md transition-all ${
-                    config.textAlign === "center" ? "bg-white shadow-sm text-slate-900" : "text-slate-400 hover:text-slate-600"
+                  className={`flex-1 flex justify-center py-1.5 rounded-md transition-all cursor-pointer ${
+                    config.textAlign === "center" ? "bg-white dark:bg-slate-950 shadow-sm text-slate-900 dark:text-slate-100" : "text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-355"
                   }`}
                   title="Align Center"
                 >
@@ -923,8 +923,8 @@ export default function QuoteDesigner({
                 </button>
                 <button
                   onClick={() => setConfig(prev => ({ ...prev, textAlign: "right" }))}
-                  className={`flex-1 flex justify-center py-1.5 rounded-md transition-all ${
-                    config.textAlign === "right" ? "bg-white shadow-sm text-slate-900" : "text-slate-400 hover:text-slate-600"
+                  className={`flex-1 flex justify-center py-1.5 rounded-md transition-all cursor-pointer ${
+                    config.textAlign === "right" ? "bg-white dark:bg-slate-950 shadow-sm text-slate-900 dark:text-slate-100" : "text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-355"
                   }`}
                   title="Align Right"
                 >
@@ -936,33 +936,33 @@ export default function QuoteDesigner({
         </div>
 
         {/* Background Nature Designer Row */}
-        <div className="space-y-4 pt-3 border-t border-slate-200">
-          <h4 className="text-xs font-semibold text-slate-800 flex items-center gap-1.5">
-            <ImageIcon className="w-3.5 h-3.5" /> Canvas Background
+        <div className="space-y-4 pt-3 border-t border-slate-200 dark:border-slate-800/80">
+          <h4 className="text-xs font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+            <ImageIcon className="w-3.5 h-3.5 text-indigo-500" /> Canvas Background
           </h4>
 
           {/* Selector Type Tabs */}
-          <div className="flex bg-slate-100 rounded-lg p-0.5 border border-slate-200/50 text-xs">
+          <div className="flex bg-slate-100 dark:bg-slate-900 rounded-lg p-0.5 border border-slate-200/50 dark:border-slate-800/50 text-xs">
             <button
               onClick={() => setConfig(p => ({ ...p, bgStyle: "gradient", bgValue: PRESET_GRADIENTS[0].value }))}
-              className={`flex-1 text-center py-1.5 rounded-md transition-all font-medium ${
-                config.bgStyle === "gradient" ? "bg-white shadow-sm text-slate-950" : "text-slate-500"
+              className={`flex-1 text-center py-1.5 rounded-md transition-all font-semibold cursor-pointer ${
+                config.bgStyle === "gradient" ? "bg-white dark:bg-slate-950 shadow-sm text-slate-950 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"
               }`}
             >
               Nature Gradients
             </button>
             <button
               onClick={() => setConfig(p => ({ ...p, bgStyle: "color", bgValue: "#2563eb" }))}
-              className={`flex-1 text-center py-1.5 rounded-md transition-all font-medium ${
-                config.bgStyle === "color" ? "bg-white shadow-sm text-slate-950" : "text-slate-500"
+              className={`flex-1 text-center py-1.5 rounded-md transition-all font-semibold cursor-pointer ${
+                config.bgStyle === "color" ? "bg-white dark:bg-slate-950 shadow-sm text-slate-950 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"
               }`}
             >
               Solid Color
             </button>
             <button
               onClick={() => setConfig(p => ({ ...p, bgStyle: "image" }))}
-              className={`flex-1 text-center py-1.5 rounded-md transition-all font-medium flex items-center justify-center gap-1 ${
-                config.bgStyle === "image" ? "bg-white shadow-sm text-slate-950" : "text-slate-500"
+              className={`flex-1 text-center py-1.5 rounded-md transition-all font-semibold flex items-center justify-center gap-1 cursor-pointer ${
+                config.bgStyle === "image" ? "bg-white dark:bg-slate-950 shadow-sm text-slate-950 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"
               }`}
             >
               Custom Photo
@@ -1021,16 +1021,16 @@ export default function QuoteDesigner({
           )}
 
           {config.bgStyle === "color" && (
-            <div className="flex items-center space-x-3 bg-white p-2.5 rounded-xl border border-slate-200">
+            <div className="flex items-center space-x-3 bg-white dark:bg-slate-950 p-2.5 rounded-xl border border-slate-200 dark:border-slate-850">
               <input
                 type="color"
                 value={config.bgValue}
                 onChange={(e) => setConfig(p => ({ ...p, bgValue: e.target.value }))}
-                className="w-10 h-10 rounded-lg cursor-pointer border-0"
+                className="w-10 h-10 rounded-lg cursor-pointer border-0 bg-transparent"
               />
               <div>
-                <p className="text-xs font-semibold text-slate-700 uppercase">{config.bgValue}</p>
-                <p className="text-[10px] text-slate-400">Apply a solid color background</p>
+                <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase">{config.bgValue}</p>
+                <p className="text-[10px] text-slate-400 dark:text-slate-500">Apply a solid color background</p>
               </div>
             </div>
           )}
@@ -1042,26 +1042,26 @@ export default function QuoteDesigner({
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
                 onClick={() => fileInputRef.current?.click()}
-                className={`relative border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all duration-300 select-none ${
+                className={`relative border-2 border-dashed rounded-2xl p-6 text-center cursor-pointer transition-all duration-305 select-none ${
                   isDragging
-                    ? "border-amber-500 bg-amber-50/50 shadow-md shadow-amber-500/10 scale-[1.01]"
-                    : "border-slate-200 hover:border-amber-400 hover:bg-slate-50/50 bg-white"
+                    ? "border-amber-500 bg-amber-50/50 dark:bg-amber-950/20 shadow-md shadow-amber-500/10 scale-[1.01]"
+                    : "border-slate-200 dark:border-slate-800 hover:border-amber-405 dark:hover:border-amber-400 hover:bg-slate-50/50 dark:hover:bg-slate-900/40 bg-white dark:bg-slate-950"
                 }`}
                 id="quote-image-drop-zone"
               >
                 <div className="flex flex-col items-center justify-center space-y-2">
-                  <div className={`p-2.5 rounded-full ${isDragging ? "bg-amber-100 text-amber-600 scale-110" : "bg-slate-100 text-slate-500"} transition-all duration-300`}>
+                  <div className={`p-2.5 rounded-full ${isDragging ? "bg-amber-100 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400 scale-110" : "bg-slate-100 dark:bg-slate-900 text-slate-500 dark:text-slate-400"} transition-all duration-300`}>
                     <ImageIcon className="w-5 h-5" />
                   </div>
                   <div>
                     {isDragging ? (
-                      <p className="text-xs font-bold text-amber-600 animate-pulse">Drop to apply photo!</p>
+                      <p className="text-xs font-bold text-amber-600 dark:text-amber-400 animate-pulse">Drop to apply photo!</p>
                     ) : bgImage ? (
-                      <p className="text-xs font-semibold text-slate-750">Drag & drop or Click to change photo</p>
+                      <p className="text-xs font-semibold text-slate-755 dark:text-slate-300">Drag & drop or Click to change photo</p>
                     ) : (
-                      <p className="text-xs font-semibold text-slate-750">Drag & Drop photo here, or Click to browse</p>
+                      <p className="text-xs font-semibold text-slate-755 dark:text-slate-300">Drag & Drop photo here, or Click to browse</p>
                     )}
-                    <p className="text-[10px] text-slate-400 mt-1">
+                    <p className="text-[10px] text-slate-450 dark:text-slate-500 mt-1">
                       PNG, JPEG, dynamic aspect scale center crop
                     </p>
                   </div>
@@ -1069,12 +1069,12 @@ export default function QuoteDesigner({
               </div>
 
               {bgImage && (
-                <div className="flex items-center justify-between bg-white p-2.5 rounded-xl border border-slate-200/80 shadow-3xs animate-fade-in">
+                <div className="flex items-center justify-between bg-white dark:bg-slate-950 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-850 shadow-3xs animate-fade-in">
                   <div className="flex items-center space-x-2.5">
-                    <img src={bgImage} alt="User bg" className="w-10 h-10 object-cover rounded-lg border border-slate-200" />
+                    <img src={bgImage} alt="User bg" className="w-10 h-10 object-cover rounded-lg border border-slate-205 dark:border-slate-800" />
                     <div>
-                      <p className="text-xs font-semibold text-slate-705">Active Photo</p>
-                      <p className="text-[10px] text-slate-400">Aspect-fit center overlay</p>
+                      <p className="text-xs font-semibold text-slate-705 dark:text-slate-200">Active Photo</p>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-550">Aspect-fit center overlay</p>
                     </div>
                   </div>
                   <button
@@ -1087,7 +1087,7 @@ export default function QuoteDesigner({
                         bgValue: PRESET_GRADIENTS[0].value,
                       }));
                     }}
-                    className="text-xs font-semibold text-rose-600 hover:text-rose-700 hover:underline transition-all border-0 bg-transparent font-sans cursor-pointer"
+                    className="text-xs font-semibold text-rose-600 hover:text-rose-750 hover:underline transition-all border-0 bg-transparent font-sans cursor-pointer"
                   >
                     Remove
                   </button>
@@ -1099,36 +1099,36 @@ export default function QuoteDesigner({
           {/* Contrast Overlay Slider for Photo / Vivid gradients */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-[11px] font-medium text-slate-500 mb-1">Contrast Banner Dark Overlay</label>
+              <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Contrast Banner Dark Overlay</label>
               <input
                 type="range"
                 min="0"
                 max="100"
                 value={config.overlayOpacity * 100}
                 onChange={(e) => setConfig(p => ({ ...p, overlayOpacity: parseInt(e.target.value) / 100 }))}
-                className="w-full accent-slate-800 cursor-pointer"
+                className="w-full accent-slate-800 dark:accent-amber-400 cursor-pointer"
               />
-              <span className="text-[10px] text-slate-400 block text-right">
+              <span className="text-[10px] text-slate-400 dark:text-slate-550 block text-right">
                 {Math.round(config.overlayOpacity * 100)}% Opacity
               </span>
             </div>
 
             <div>
-              <label className="block text-[11px] font-medium text-slate-500 mb-1">Card Border Padding</label>
+              <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Card Border Padding</label>
               <input
                 type="range"
                 min="20"
                 max="80"
                 value={config.padding}
                 onChange={(e) => setConfig(p => ({ ...p, padding: parseInt(e.target.value) }))}
-                className="w-full accent-slate-800 cursor-pointer"
+                className="w-full accent-slate-800 dark:accent-amber-400 cursor-pointer"
               />
-              <span className="text-[10px] text-slate-400 block text-right">{config.padding}px</span>
+              <span className="text-[10px] text-slate-400 dark:text-slate-550 block text-right">{config.padding}px</span>
             </div>
           </div>
 
           {/* Smooth Motion Controls Toggle Switch */}
-          <div className="pt-3.5 border-t border-slate-200">
+          <div className="pt-3.5 border-t border-slate-200 dark:border-slate-800/85">
             <div className="flex items-center justify-between bg-white/60 dark:bg-slate-900/40 p-3 rounded-xl border border-slate-200/50 dark:border-slate-850 text-left">
               <div>
                 <span className="block text-[11px] font-black uppercase text-slate-705 dark:text-slate-300 tracking-wider flex items-center gap-1">

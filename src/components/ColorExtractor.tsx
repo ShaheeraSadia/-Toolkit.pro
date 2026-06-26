@@ -3,7 +3,7 @@ import { motion } from "motion/react";
 import { User } from "firebase/auth";
 import { PaletteColor } from "../types";
 import { uploadFileToDrive, getOrCreateFolder } from "../lib/drive";
-import { Cloud, Download, Copy, Pipette, UploadCloud, Check, Sparkles, AlertCircle, Code, Sun, ArrowUpDown, Share2, Eye, CheckCircle2, Sliders, FileCode, FileJson, Search, X, History, RotateCcw } from "lucide-react";
+import { Cloud, Download, Copy, Pipette, UploadCloud, Check, Sparkles, AlertCircle, Code, Sun, ArrowUpDown, Share2, Eye, CheckCircle2, Sliders, FileCode, FileJson, Search, X, History, RotateCcw, Layers, Palette } from "lucide-react";
 
 interface SessionPalette {
   id: string;
@@ -74,6 +74,20 @@ const hexToRgb = (hex: string): string => {
   return `rgb(${r}, ${g}, ${b})`;
 };
 
+const hslToHex = (h: number, s: number, l: number): string => {
+  s /= 100;
+  l /= 100;
+  const k = (n: number) => (n + h / 30) % 12;
+  const a = s * Math.min(l, 1 - l);
+  const f = (n: number) =>
+    l - a * Math.max(-1, Math.min(k(n) - 3, 9 - k(n), 1));
+  const toHex = (x: number) => {
+    const hex = Math.round(x * 255).toString(16);
+    return hex.length === 1 ? "0" + hex : hex;
+  };
+  return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
+};
+
 export default function ColorExtractor({
   user,
   accessToken,
@@ -135,6 +149,27 @@ export default function ColorExtractor({
   const [paletteSearchQuery, setPaletteSearchQuery] = useState<string>("");
   const [customPaletteName, setCustomPaletteName] = useState<string>("");
   const [isSavingPaletteObject, setIsSavingPaletteObject] = useState<boolean>(false);
+
+  const [suggestedNames, setSuggestedNames] = useState<{ name: string; theme: string; description: string }[]>([]);
+  const [isSuggestingNames, setIsSuggestingNames] = useState<boolean>(false);
+  const [namingError, setNamingError] = useState<string | null>(null);
+
+  const [selectedGradientBaseHex, setSelectedGradientBaseHex] = useState<string | null>(null);
+  const [gradientAngle, setGradientAngle] = useState<string>("135deg");
+
+  useEffect(() => {
+    if (palette.length > 0) {
+      if (!selectedGradientBaseHex || !palette.some(p => p.hex === selectedGradientBaseHex)) {
+        setSelectedGradientBaseHex(palette[0].hex);
+      }
+    } else {
+      setSelectedGradientBaseHex(null);
+    }
+    // Reset suggested names on palette changes so they don't stay stale
+    setSuggestedNames([]);
+    setNamingError(null);
+    setCustomPaletteName("");
+  }, [palette]);
 
   const [sessionHistory, setSessionHistory] = useState<SessionPalette[]>(() => {
     if (typeof window !== "undefined") {
@@ -1027,6 +1062,92 @@ export default function ColorExtractor({
       s: Math.round(s * 100),
       l: Math.round(l * 100),
     };
+  };
+
+  const getGradientSuggestions = (baseHex: string) => {
+    const { h, s, l } = hexToHslLocal(baseHex);
+
+    return [
+      {
+        name: "Classical Complement",
+        type: "Direct Opposites (180°)",
+        desc: "High contrast pairing of exact opposites on the wheel.",
+        from: baseHex,
+        to: hslToHex((h + 180) % 360, s, l),
+      },
+      {
+        name: "Warm Split Glow",
+        type: "Split Complement (150°)",
+        desc: "A rich, organic shift adding warmth and visual interest.",
+        from: baseHex,
+        to: hslToHex((h + 150) % 360, Math.min(s + 5, 100), Math.min(l + 5, 90)),
+      },
+      {
+        name: "Cool Split Depth",
+        type: "Split Complement (210°)",
+        desc: "A tranquil oceanic gradient with cooler secondary undertones.",
+        from: baseHex,
+        to: hslToHex((h + 210) % 360, Math.max(s - 5, 20), Math.max(l - 5, 25)),
+      },
+      {
+        name: "Triadic Harmony",
+        type: "Triad Shift (120°)",
+        desc: "Energetic and well-balanced three-way color vibration.",
+        from: baseHex,
+        to: hslToHex((h + 120) % 360, s, Math.min(l + 8, 85)),
+      },
+      {
+        name: "Muted Mystic Night",
+        type: "Triad Shift (240°)",
+        desc: "Dusk-inspired atmospheric blend of saturated vs dark tones.",
+        from: baseHex,
+        to: hslToHex((h + 240) % 360, Math.max(s - 15, 15), Math.max(l - 12, 18)),
+      },
+      {
+        name: "Analogous Breeze",
+        type: "Analogous (30°)",
+        desc: "An incredibly smooth, low-contrast neighbor transition.",
+        from: baseHex,
+        to: hslToHex((h + 30) % 360, s, l),
+      },
+    ];
+  };
+
+  const handleSuggestPaletteNames = async () => {
+    if (palette.length === 0) return;
+    setIsSuggestingNames(true);
+    setNamingError(null);
+
+    try {
+      const response = await fetch("/api/palette/suggest-names", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ colors: palette }),
+      });
+
+      if (!response.ok) {
+        const errData = await response.json();
+        throw new Error(errData.error || `HTTP ${response.status} Error`);
+      }
+
+      const data = await response.json();
+      if (data && Array.isArray(data.names)) {
+        setSuggestedNames(data.names);
+        // Pre-fill with the first suggestion if custom name isn't already set
+        if (!customPaletteName) {
+          setCustomPaletteName(data.names[0].name);
+        }
+      } else {
+        throw new Error("Invalid response format received from Gemini.");
+      }
+    } catch (err: any) {
+      console.error("Failed to suggest names:", err);
+      setNamingError(err.message || "An unexpected error occurred while naming the palette.");
+    } finally {
+      setIsSuggestingNames(false);
+    }
   };
 
   const handleSortPalette = (mode: "hue" | "saturation" | "brightness" | "luminance") => {
@@ -2430,19 +2551,21 @@ export default function ColorExtractor({
                 <div className="h-32 bg-slate-200/40 border border-slate-200/30 rounded-xl animate-pulse" />
               </div>
             </div>
-          ) : imageUrl ? (
+          ) : (imageUrl || palette.length > 0) ? (
             <div className="flex-1 flex flex-col justify-between space-y-6">
               {/* Loaded Image Display for eye dropping */}
-              <div className="flex-1 flex flex-col items-center justify-center min-h-[160px] max-h-[220px] overflow-hidden rounded-xl border bg-black/5 relative relative-group">
-                <img
-                  ref={imageRef}
-                  src={imageUrl}
-                  alt="Source"
-                  onClick={handleImageClick}
-                  className="max-h-[220px] max-w-full object-contain cursor-crosshair hover:opacity-95 transition-opacity"
-                  title="Click to drophue custom color"
-                />
-              </div>
+              {imageUrl && (
+                <div className="flex-1 flex flex-col items-center justify-center min-h-[160px] max-h-[220px] overflow-hidden rounded-xl border bg-black/5 relative relative-group">
+                  <img
+                    ref={imageRef}
+                    src={imageUrl}
+                    alt="Source"
+                    onClick={handleImageClick}
+                    className="max-h-[220px] max-w-full object-contain cursor-crosshair hover:opacity-95 transition-opacity"
+                    title="Click to drophue custom color"
+                  />
+                </div>
+              )}
 
               {/* Extracted Swatches row */}
               <div>
@@ -2463,6 +2586,12 @@ export default function ColorExtractor({
                           <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest flex items-center gap-1.5 whitespace-nowrap">
                             <Pipette className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> Color Spec Swatches (Tap to copy hex)
                           </span>
+                          {customPaletteName && (
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-100/50 text-[10px] font-black text-emerald-700 animate-in fade-in duration-200">
+                              <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" />
+                              {customPaletteName}
+                            </span>
+                          )}
                           <div className="relative flex-1 max-w-sm">
                             <Search className="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" />
                             <input
@@ -2644,6 +2773,263 @@ export default function ColorExtractor({
                     </>
                   );
                 })()}
+              </div>
+
+              {/* Complementary Color Gradients Section */}
+              <div className="border-t border-slate-200/60 dark:border-slate-800/60 pt-6 mt-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-4 text-left">
+                  <div>
+                    <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                      <Layers className="w-3.5 h-3.5 text-emerald-500" />
+                      Complementary Gradients
+                    </span>
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 leading-normal font-sans">
+                      Tap any swatch below to select a base color and view custom dual-tone harmonic gradients.
+                    </p>
+                  </div>
+                  {/* Angle Controls */}
+                  <div className="flex items-center gap-1.5 select-none self-start sm:self-auto">
+                    <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide font-mono">Angle:</span>
+                    <div className="flex bg-slate-50 dark:bg-slate-950 p-0.5 rounded-lg border border-slate-200/50 dark:border-slate-800/50">
+                      {(["45deg", "90deg", "135deg", "180deg"] as const).map((angle) => (
+                        <button
+                          type="button"
+                          key={angle}
+                          onClick={() => setGradientAngle(angle)}
+                          className={`px-2 py-1 text-[9px] font-bold rounded-md transition-all cursor-pointer border-0 ${
+                            gradientAngle === angle
+                              ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-slate-100 shadow-2xs font-black"
+                              : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-350"
+                          }`}
+                        >
+                          {angle}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Base Color Select Swatches list */}
+                <div className="flex flex-wrap items-center gap-2 mb-5 bg-white/40 dark:bg-slate-950/20 p-3 rounded-xl border border-slate-200/50 dark:border-slate-800 text-left">
+                  <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide font-mono whitespace-nowrap">Base Swatch:</span>
+                  <div className="flex flex-wrap gap-2 items-center">
+                    {palette.map((color, idx) => {
+                      const isSelected = selectedGradientBaseHex === color.hex;
+                      return (
+                        <button
+                          type="button"
+                          key={idx}
+                          onClick={() => setSelectedGradientBaseHex(color.hex)}
+                          style={{ backgroundColor: color.hex }}
+                          className={`w-7 h-7 rounded-full border relative cursor-pointer transition-all hover:scale-110 active:scale-95 group shadow-2xs ${
+                            isSelected 
+                              ? "ring-2 ring-emerald-500 ring-offset-2 dark:ring-offset-slate-900 border-white" 
+                              : "border-black/10 hover:border-black/30"
+                          }`}
+                          title={`Select ${color.name} (${color.hex})`}
+                        >
+                          {isSelected && (
+                            <Check 
+                              style={{ color: color.contrastColor }} 
+                              className="w-3.5 h-3.5 absolute inset-0 m-auto animate-in zoom-in-50 duration-150" 
+                            />
+                          )}
+                          <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[9px] px-1.5 py-0.5 rounded opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-10 shadow-md">
+                            {color.name} ({color.hex})
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {selectedGradientBaseHex && (
+                    <div className="ml-auto text-[11px] font-semibold text-slate-500 dark:text-slate-400 flex items-center gap-1.5">
+                      Selected: 
+                      <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-900 font-mono text-xs text-slate-800 dark:text-slate-200 font-bold border border-slate-200/50 dark:border-slate-800">
+                        <span className="w-1.5 h-1.5 rounded-full inline-block" style={{ backgroundColor: selectedGradientBaseHex }} />
+                        {selectedGradientBaseHex.toUpperCase()}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Gradients Cards Grid */}
+                {selectedGradientBaseHex && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3.5">
+                    {getGradientSuggestions(selectedGradientBaseHex).map((grad, gIdx) => {
+                      const cssValue = `linear-gradient(${gradientAngle}, ${grad.from}, ${grad.to})`;
+                      return (
+                        <motion.div
+                          key={gIdx}
+                          whileHover={{ y: -3, scale: 1.01 }}
+                          transition={{ type: "spring", stiffness: 350, damping: 25 }}
+                          className="relative rounded-2xl border border-slate-200/60 dark:border-slate-800/80 overflow-hidden shadow-xs bg-white dark:bg-slate-950 flex flex-col h-[150px] text-left group"
+                        >
+                          {/* Gradient Display Stage */}
+                          <div 
+                            style={{ background: cssValue }} 
+                            className="flex-1 p-3.5 relative flex flex-col justify-between"
+                          >
+                            {/* Visual soft dark overlay for readability */}
+                            <div className="absolute inset-0 bg-black/15 pointer-events-none group-hover:bg-black/10 transition-colors duration-200" />
+
+                            {/* Top row: Name & visual badge */}
+                            <div className="flex justify-between items-start z-10">
+                              <div className="drop-shadow-[0_1px_3px_rgba(0,0,0,0.7)] text-white">
+                                <span className="text-xs font-extrabold tracking-tight block">
+                                  {grad.name}
+                                </span>
+                                <span className="text-[8.5px] font-bold opacity-90 uppercase tracking-widest mt-0.5 block">
+                                  {grad.type}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Center descriptor tooltip */}
+                            <div className="text-[9.5px] text-white/80 z-10 leading-snug drop-shadow-[0_1px_2px_rgba(0,0,0,0.65)] font-medium max-w-[90%] mt-1 italic">
+                              {grad.desc}
+                            </div>
+
+                            {/* Bottom row: Swatches & Quick Actions */}
+                            <div className="flex items-end justify-between z-10 w-full mt-auto">
+                              {/* Pill representation */}
+                              <div className="flex items-center gap-1.5 bg-black/45 backdrop-blur-xs px-2 py-1 rounded-lg border border-white/10 text-white font-mono text-[8.5px] font-extrabold select-none">
+                                <div className="flex items-center gap-1">
+                                  <div className="w-2 h-2 rounded-full border border-white/20" style={{ backgroundColor: grad.from }} />
+                                  <span>{grad.from.toUpperCase()}</span>
+                                </div>
+                                <span className="text-white/40">→</span>
+                                <div className="flex items-center gap-1">
+                                  <div className="w-2 h-2 rounded-full border border-white/20" style={{ backgroundColor: grad.to }} />
+                                  <span>{grad.to.toUpperCase()}</span>
+                                </div>
+                              </div>
+
+                              {/* Quick action triggers */}
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const cssCode = `background: ${cssValue};`;
+                                    navigator.clipboard.writeText(cssCode);
+                                    setCopiedToast({ message: "Copied CSS Gradient", value: cssCode, type: "HEX" });
+                                  }}
+                                  className="p-1 px-1.5 rounded-md bg-black/45 hover:bg-black/60 text-white/90 hover:text-white border border-white/10 active:scale-95 transition-all cursor-pointer flex items-center gap-0.5 text-[8.5px] font-black tracking-wider"
+                                  title="Copy CSS gradient statement"
+                                >
+                                  <Code className="w-3 h-3 shrink-0" />
+                                  <span>CSS</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const hexPair = `${grad.from}, ${grad.to}`;
+                                    navigator.clipboard.writeText(hexPair);
+                                    setCopiedToast({ message: "Copied Hex Color Pair", value: hexPair, type: "HEX" });
+                                  }}
+                                  className="p-1 px-1.5 rounded-md bg-black/45 hover:bg-black/60 text-white/90 hover:text-white border border-white/10 active:scale-95 transition-all cursor-pointer flex items-center gap-0.5 text-[8.5px] font-black tracking-wider"
+                                  title="Copy color hex code pair"
+                                >
+                                  <Copy className="w-3 h-3 shrink-0" />
+                                  <span>HEX</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {/* AI Creative Thematic Naming Suggestions Section */}
+              <div className="border-t border-slate-200/60 dark:border-slate-800/60 pt-6 mt-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-4 text-left">
+                  <div>
+                    <span className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-widest flex items-center gap-1.5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-500" />
+                      AI Creative Thematics (Gemini)
+                    </span>
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-0.5 leading-normal font-sans">
+                      Analyze the hue distribution to auto-generate artistic designer names and aesthetic concepts.
+                    </p>
+                  </div>
+                  
+                  <button
+                    type="button"
+                    onClick={handleSuggestPaletteNames}
+                    disabled={isSuggestingNames || palette.length === 0}
+                    className="self-start sm:self-auto px-3.5 py-1.5 bg-gradient-to-r from-amber-500 to-emerald-500 hover:from-amber-600 hover:to-emerald-600 text-white font-bold text-xs rounded-xl shadow-xs transition-all cursor-pointer disabled:opacity-50 inline-flex items-center gap-1.5"
+                  >
+                    {isSuggestingNames ? (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5 animate-spin" />
+                        <span>Naming Palette...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5" />
+                        <span>Suggest Thematic Names</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+
+                {namingError && (
+                  <div className="p-3 bg-red-50 dark:bg-red-950/20 text-red-600 dark:text-red-400 border border-red-200/50 dark:border-red-900 rounded-xl text-xs font-semibold mb-4 text-left">
+                    {namingError}
+                  </div>
+                )}
+
+                {/* Suggestions Grid */}
+                {suggestedNames.length > 0 && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 mb-4 text-left">
+                    {suggestedNames.map((item, idx) => {
+                      const isSelected = customPaletteName === item.name;
+                      return (
+                        <button
+                          type="button"
+                          key={idx}
+                          onClick={() => setCustomPaletteName(item.name)}
+                          className={`p-3.5 rounded-xl border text-left cursor-pointer transition-all hover:scale-[1.02] flex flex-col justify-between h-full group ${
+                            isSelected
+                              ? "bg-emerald-50/50 dark:bg-emerald-950/20 border-emerald-500 ring-1 ring-emerald-500 shadow-xs"
+                              : "bg-white dark:bg-slate-950 border-slate-200/60 dark:border-slate-850 hover:border-slate-300 dark:hover:border-slate-700"
+                          }`}
+                        >
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md ${
+                                isSelected 
+                                  ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300" 
+                                  : "bg-slate-100 text-slate-600 dark:bg-slate-900 dark:text-slate-400"
+                              }`}>
+                                {item.theme}
+                              </span>
+                              {isSelected && <Check className="w-3.5 h-3.5 text-emerald-500 shrink-0" />}
+                            </div>
+                            <h5 className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-emerald-600 transition-colors">
+                              {item.name}
+                            </h5>
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-normal font-sans line-clamp-3">
+                              {item.description}
+                            </p>
+                          </div>
+                          
+                          <div className="mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-900 w-full text-right">
+                            <span className={`text-[9px] font-bold tracking-wider uppercase ${
+                              isSelected ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400 group-hover:text-slate-600"
+                            }`}>
+                              {isSelected ? "Selected" : "Use Name"}
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
               {/* Theme JSON Variables Export Section */}

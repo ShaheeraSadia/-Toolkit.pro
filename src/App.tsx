@@ -267,12 +267,57 @@ export default function App() {
       const saved = sessionStorage.getItem("toolkit-session-activities");
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
       }
     } catch (e) {
       console.error(e);
     }
-    return [];
+
+    // Default pre-seeded activities so first-time users can instantly see and access all 4 major tools right from the dashboard
+    const now = new Date();
+    const formatTime = (offsetMs: number) => {
+      const d = new Date(now.getTime() - offsetMs);
+      return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+    };
+
+    return [
+      {
+        id: "init-palette",
+        type: "tool",
+        title: "Opened Color Extractor",
+        detail: "Switched operational context to Color Extractor workspace",
+        timestamp: formatTime(0),
+        icon: "Pipette",
+        tab: "palette"
+      },
+      {
+        id: "init-qr",
+        type: "tool",
+        title: "Opened QR Generator",
+        detail: "Switched operational context to QR Generator workspace",
+        timestamp: formatTime(60000),
+        icon: "QrCode",
+        tab: "qr"
+      },
+      {
+        id: "init-compress",
+        type: "tool",
+        title: "Opened Image Compressor",
+        detail: "Switched operational context to Image Compressor workspace",
+        timestamp: formatTime(120000),
+        icon: "FileImage",
+        tab: "compress"
+      },
+      {
+        id: "init-quote",
+        type: "tool",
+        title: "Opened Quote Designer",
+        detail: "Switched operational context to Quote Designer workspace",
+        timestamp: formatTime(180000),
+        icon: "Quote",
+        tab: "quote"
+      }
+    ];
   });
 
   const [toolUsage, setToolUsage] = useState<Record<ActiveTab, number>>(() => {
@@ -366,11 +411,18 @@ export default function App() {
     }
 
     setRecentActivities((prev) => {
-      // Avoid logging exact same activity consecutively within seconds
-      if (prev.length > 0 && prev[0].title === newActivity.title && prev[0].detail === newActivity.detail) {
-        return prev;
+      // Deduplicate activities to avoid spamming the session trail with repeating cards
+      let filtered = prev;
+      if (newActivity.tab) {
+        // For tab switches, remove any older records of the same tab switch to move it to top with new timestamp
+        filtered = prev.filter((act) => act.tab !== newActivity.tab);
+      } else {
+        // For other activities, avoid duplicating identical titles to prevent clutter
+        filtered = prev.filter((act) => act.title !== newActivity.title);
       }
-      const updated = [newActivity, ...prev].slice(0, 5);
+      
+      // Slice up to 6 unique activities to perfectly balance the 2-column layout (6 items = 3 full rows)
+      const updated = [newActivity, ...filtered].slice(0, 6);
       try {
         sessionStorage.setItem("toolkit-session-activities", JSON.stringify(updated));
       } catch (e) {

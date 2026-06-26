@@ -4091,31 +4091,65 @@ export default function QrGenerator({
                 )}
               </div>
 
-              <div className="flex justify-between items-center">
-                <label id="qr-ecc-label" htmlFor="qr-ecc-dropdown" className="text-[11px] font-bold text-slate-705 uppercase tracking-wider dark:text-slate-350 flex items-center gap-1.5">
-                  <CheckCircle2 className="w-4 h-4 text-indigo-550 shrink-0" /> Reed-Solomon Error Correction
-                </label>
-                <span className="text-[9.5px] font-mono font-bold text-indigo-550 bg-indigo-50/50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-md">
-                  Level {errorCorrectionLevel} Density
-                </span>
-              </div>
-              
-              <div className="relative">
-                <select
-                  id="qr-ecc-dropdown"
-                  value={errorCorrectionLevel}
-                  aria-labelledby="qr-ecc-label"
-                  onChange={(e) => {
-                    setErrorCorrectionLevel(e.target.value as "L" | "M" | "Q" | "H");
-                    setAutoOptimizeDensity(false);
-                  }}
-                  className="w-full text-xs pl-3.5 pr-8 py-2.5 border border-slate-250 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-950 focus:border-indigo-600 font-bold text-slate-800 dark:text-slate-200 cursor-pointer shadow-3xs hover:border-slate-350 dark:hover:border-slate-705 transition-colors"
-                >
-                  <option value="L">Level L (~7% Data Recovery - Lowest Density)</option>
-                  <option value="M">Level M (~15% Data Recovery - Standard Balance)</option>
-                  <option value="Q">Level Q (~25% Data Recovery - Heavy Reliability)</option>
-                  <option value="H">Level H (~30% Data Recovery - Maximum Density & Logo Ready)</option>
-                </select>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center">
+                  <label id="qr-ecc-label" htmlFor="qr-ecc-dropdown" className="text-[11px] font-bold text-slate-705 uppercase tracking-wider dark:text-slate-350 flex items-center gap-1.5">
+                    <CheckCircle2 className="w-4 h-4 text-indigo-550 shrink-0" /> Reed-Solomon Error Correction
+                  </label>
+                  <span className="text-[9.5px] font-mono font-bold text-indigo-550 bg-indigo-50/50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-md">
+                    Level {errorCorrectionLevel} Density
+                  </span>
+                </div>
+
+                {/* Quick-select segment buttons for instant choice */}
+                <div className="grid grid-cols-4 gap-1 bg-slate-100 dark:bg-slate-900/50 p-1 rounded-xl">
+                  {([
+                    { key: "L", label: "L - 7%", tooltip: "Lowest density, best for long text / links" },
+                    { key: "M", label: "M - 15%", tooltip: "Standard balance, default standard use" },
+                    { key: "Q", label: "Q - 25%", tooltip: "High reliability, tolerates partial damage" },
+                    { key: "H", label: "H - 30%", tooltip: "Highest recovery, recommended for logo overlays" }
+                  ] as const).map((lvl) => {
+                    const isSelected = errorCorrectionLevel === lvl.key;
+                    return (
+                      <button
+                        type="button"
+                        key={lvl.key}
+                        onClick={() => {
+                          setErrorCorrectionLevel(lvl.key);
+                          setAutoOptimizeDensity(false);
+                        }}
+                        className={`py-1.5 text-[10px] font-bold rounded-lg transition-all cursor-pointer border-0 flex flex-col items-center justify-center ${
+                          isSelected
+                            ? "bg-white text-slate-900 shadow-3xs dark:bg-slate-800 dark:text-white ring-1 ring-slate-200 dark:ring-slate-700"
+                            : "text-slate-550 hover:text-slate-705 dark:text-slate-400 dark:hover:text-slate-300"
+                        }`}
+                        title={lvl.tooltip}
+                      >
+                        <span className="text-xs font-black">{lvl.key}</span>
+                        <span className="text-[8px] opacity-75 font-normal">{lvl.key === "L" ? "~7%" : lvl.key === "M" ? "~15%" : lvl.key === "Q" ? "~25%" : "~30%"}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Descriptive dropdown select control */}
+                <div className="relative">
+                  <select
+                    id="qr-ecc-dropdown"
+                    value={errorCorrectionLevel}
+                    aria-labelledby="qr-ecc-label"
+                    onChange={(e) => {
+                      setErrorCorrectionLevel(e.target.value as "L" | "M" | "Q" | "H");
+                      setAutoOptimizeDensity(false);
+                    }}
+                    className="w-full text-xs pl-3.5 pr-8 py-2.5 border border-slate-250 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-950 focus:outline-none focus:ring-2 focus:ring-indigo-100 dark:focus:ring-indigo-950 focus:border-indigo-600 font-bold text-slate-800 dark:text-slate-200 cursor-pointer shadow-3xs hover:border-slate-350 dark:hover:border-slate-705 transition-colors"
+                  >
+                    <option value="L">Level L (~7% Data Recovery - Lowest Density & Maximum Sizing)</option>
+                    <option value="M">Level M (~15% Data Recovery - Standard Optimal Balance)</option>
+                    <option value="Q">Level Q (~25% Data Recovery - Enhanced Environmental Tolerance)</option>
+                    <option value="H">Level H (~30% Data Recovery - Maximum Protection & Ideal for Logos)</option>
+                  </select>
+                </div>
               </div>
 
               {/* Dynamic Information Display Card & Scannability Score */}

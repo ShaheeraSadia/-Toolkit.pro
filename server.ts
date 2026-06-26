@@ -256,9 +256,3 @@ setupViteOrStatic().then(() => {
 });
 
 export default app;
-
-
-
-
-
- 
