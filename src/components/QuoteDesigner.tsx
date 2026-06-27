@@ -3,7 +3,7 @@ import { User } from "firebase/auth";
 import { motion } from "motion/react";
 import { QuoteConfig, BgStyleType } from "../types";
 import { uploadFileToDrive } from "../lib/drive";
-import { Download, Cloud, Sparkles, Image as ImageIcon, Type, AlignLeft, AlignCenter, AlignRight, Check, Printer, Share2, Smartphone, LayoutGrid, Monitor, Upload, FileJson, Scissors } from "lucide-react";
+import { Download, Cloud, Sparkles, Image as ImageIcon, Type, AlignLeft, AlignCenter, AlignRight, Check, Printer, Share2, Smartphone, LayoutGrid, Monitor, Upload, FileJson, Scissors, ExternalLink, X } from "lucide-react";
 
 interface QuoteDesignerProps {
   user: User | null;
@@ -191,6 +191,7 @@ export default function QuoteDesigner({
 
   const [isSaving, setIsSaving] = useState(false);
   const [saveStatus, setSaveStatus] = useState<{ success?: boolean; msg?: string } | null>(null);
+  const [showPrintModal, setShowPrintModal] = useState<boolean>(false);
   const [downloadDpi, setDownloadDpi] = useState<number>(300); // Customizable export DPI
   const [previewZoom, setPreviewZoom] = useState<number>(1.0); // Dynamic inspection zoom level
   const [showBleed, setShowBleed] = useState<boolean>(false); // Visual print bleed boundary toggle
@@ -1535,7 +1536,14 @@ export default function QuoteDesigner({
           </button>
 
           <button
-            onClick={() => window.print()}
+            onClick={() => {
+              if (window.self !== window.top) {
+                setShowPrintModal(true);
+              } else {
+                window.focus();
+                window.print();
+              }
+            }}
             className="flex-1 min-w-[150px] inline-flex items-center justify-center px-4 py-3 border border-slate-200 hover:bg-slate-50/50 rounded-xl bg-white text-slate-700 text-sm font-semibold shadow-sm transition-all cursor-pointer"
             id="btn-print-quote"
           >
@@ -1566,6 +1574,66 @@ export default function QuoteDesigner({
           )}
         </div>
       </div>
+
+      {showPrintModal && (
+        <div className="fixed inset-0 z-[999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in font-sans">
+          <div className="relative w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden p-6 text-slate-800 dark:text-slate-100">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rounded-xl">
+                <Printer className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black tracking-tight text-slate-900 dark:text-white uppercase">Print Instructions</h3>
+                <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-bold">Sandbox Preview Workaround</p>
+              </div>
+            </div>
+            
+            <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-300 mb-5">
+              Modern browsers block printer dialogs when applications are loaded within sandboxed preview frames (like the AI Studio interface). To print your card successfully:
+            </p>
+
+            <div className="space-y-3 mb-6">
+              <div className="flex items-start gap-2.5 p-3 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-100 dark:border-slate-800/60 text-[11.5px] leading-relaxed text-slate-600 dark:text-slate-300">
+                <span className="flex items-center justify-center w-5 h-5 shrink-0 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 text-[10px] font-black rounded-full">1</span>
+                <span>Click <strong>Open in Direct Tab</strong> below to launch the application full-screen.</span>
+              </div>
+              <div className="flex items-start gap-2.5 p-3 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-100 dark:border-slate-800/60 text-[11.5px] leading-relaxed text-slate-600 dark:text-slate-300">
+                <span className="flex items-center justify-center w-5 h-5 shrink-0 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 text-[10px] font-black rounded-full">2</span>
+                <span>Click <strong>Print Card</strong> there, and your system print dialog will open instantly.</span>
+              </div>
+            </div>
+
+            <div className="flex gap-2.5">
+              <button
+                onClick={() => {
+                  setShowPrintModal(false);
+                  try { window.print(); } catch (e) { console.warn("Standard printing failed inside iframe:", e); }
+                }}
+                className="flex-1 py-2.5 border border-slate-200 dark:border-slate-850 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-950 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Try Printing Anyway
+              </button>
+              <a
+                href={window.location.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setShowPrintModal(false)}
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold text-center transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 border-0"
+              >
+                <span>Open in Direct Tab</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+
+            <button
+              onClick={() => setShowPrintModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors bg-transparent border-0 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

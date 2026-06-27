@@ -9,13 +9,13 @@ import {
 
 // 🛠 متبادل حل: خراب JSON فائل امپورٹ کرنے کے بجائے اصلی کنفگریشن کو یہیں ہارڈ کوڈ کر دیا
 const firebaseConfig = {
-  apiKey: "AIzaSyBTkKgI8fOig33bqUF91-rgoCtliDjxLHo",
-  authDomain: "default-gemini-project-6075a.firebaseapp.com",
-  projectId: "default-gemini-project-6075a",
-  storageBucket: "default-gemini-project-6075a.firebasestorage.app",
-  messagingSenderId: "902695205105",
-  appId: "1:902695205105:web:7e87a3e9123d9e8cb91150",
-  measurementId: "G-GM4LK86180"
+  apiKey: "AIzaSyDcJ1nBQ1HgVk7-Qz8wcoruskfZ8M2Jno8",
+  authDomain: "symmetric-ray-tg02f.firebaseapp.com",
+  projectId: "symmetric-ray-tg02f",
+  storageBucket: "symmetric-ray-tg02f.firebasestorage.app",
+  messagingSenderId: "974556276539",
+  appId: "1:974556276539:web:ab7a056f957218601c791e",
+  measurementId: ""
 };
 
 // Initialize Firebase

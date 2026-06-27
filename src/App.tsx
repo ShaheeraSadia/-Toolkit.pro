@@ -1455,6 +1455,7 @@ export default function App() {
 
             <button
               onClick={() => {
+                window.focus();
                 window.print();
                 logSessionActivity({
                   type: "tool",

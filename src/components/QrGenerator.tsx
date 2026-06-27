@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { User } from "firebase/auth";
 import QRCode from "qrcode";
 import { uploadFileToDrive } from "../lib/drive";
-import { Cloud, Download, QrCode, Settings, Palette, CheckCircle2, Image, X, Upload, History, Trash2, Printer, Share2, RefreshCw, AlertTriangle, Sparkles, Globe, Mail, Car, MapPin, Gauge, Key, Copy, Check, Layers, Type, Shapes, Camera, Grid, Crop, Scissors, Link, Zap } from "lucide-react";
+import { Cloud, Download, QrCode, Settings, Palette, CheckCircle2, Image, X, Upload, History, Trash2, Printer, Share2, RefreshCw, AlertTriangle, Sparkles, Globe, Mail, Car, MapPin, Gauge, Key, Copy, Check, Layers, Type, Shapes, Camera, Grid, Crop, Scissors, Link, Zap, ExternalLink } from "lucide-react";
 import { motion } from "motion/react";
 import { useDrag } from "@use-gesture/react";
 // @ts-ignore
@@ -658,6 +658,8 @@ export default function QrGenerator({
     return 100;
   });
   const [qrCodeDataUrl, setQrCodeDataUrl] = useState<string | null>(null);
+  const [qrCodeJpegDataUrl, setQrCodeJpegDataUrl] = useState<string | null>(null);
+  const [showPrintModal, setShowPrintModal] = useState<boolean>(false);
   const [isScanningLaserActive, setIsScanningLaserActive] = useState<boolean>(false);
 
   useEffect(() => {
@@ -2099,6 +2101,7 @@ export default function QrGenerator({
   const generateQr = async () => {
     if (!text.trim()) {
       setQrCodeDataUrl(null);
+      setQrCodeJpegDataUrl(null);
       return;
     }
 
@@ -2405,6 +2408,12 @@ export default function QrGenerator({
 
         const dataUrl = finalCanvas.toDataURL("image/png");
         setQrCodeDataUrl(dataUrl);
+        try {
+          const jpegDataUrl = finalCanvas.toDataURL("image/jpeg", 0.95);
+          setQrCodeJpegDataUrl(jpegDataUrl);
+        } catch (e) {
+          console.error("Failed to pre-generate JPEG data URL", e);
+        }
 
         // Automatically save to scanHistory (limit last 10 elements)
         if (text.trim()) {
@@ -2483,60 +2492,49 @@ export default function QrGenerator({
 
     const safeText = text.replace(/[^a-z0-9]/gi, "_").substring(0, 20).toLowerCase() || "qr";
 
-    if (downloadFormat === "jpeg") {
-      const img = new Image();
-      img.src = qrCodeDataUrl;
-      img.onload = () => {
-        const canvas = document.createElement("canvas");
-        canvas.width = img.width;
-        canvas.height = img.height;
-        const ctx = canvas.getContext("2d");
-        if (ctx) {
-          ctx.fillStyle = backgroundColor || "#ffffff";
-          ctx.fillRect(0, 0, canvas.width, canvas.height);
-          ctx.drawImage(img, 0, 0);
-          
-          try {
-            const jpegUrl = canvas.toDataURL("image/jpeg", 0.95);
-            const link = document.createElement("a");
-            const downloadName = `toolkit_pro_qr_${safeText}.jpg`;
-            link.download = downloadName;
-            link.href = jpegUrl;
-            link.click();
+    const downloadPng = () => {
+      const link = document.createElement("a");
+      const downloadName = `toolkit_pro_qr_${safeText}.png`;
+      link.download = downloadName;
+      link.href = qrCodeDataUrl;
+      link.click();
 
-            window.dispatchEvent(new CustomEvent("toolkit-add-activity", {
-              detail: {
-                type: "file",
-                title: "Downloaded QR Code (JPEG)",
-                detail: `Exported ${downloadName} locally`,
-                icon: "Download",
-                tab: "qr"
-              }
-            }));
-          } catch (e) {
-            console.error("Failed to generate JPEG stream:", e);
-          }
+      window.dispatchEvent(new CustomEvent("toolkit-add-activity", {
+        detail: {
+          type: "file",
+          title: "Downloaded QR Code (PNG)",
+          detail: `Exported ${downloadName} locally`,
+          icon: "Download",
+          tab: "qr"
         }
-      };
+      }));
+    };
+
+    if (downloadFormat === "jpeg") {
+      if (qrCodeJpegDataUrl) {
+        const link = document.createElement("a");
+        const downloadName = `toolkit_pro_qr_${safeText}.jpg`;
+        link.download = downloadName;
+        link.href = qrCodeJpegDataUrl;
+        link.click();
+
+        window.dispatchEvent(new CustomEvent("toolkit-add-activity", {
+          detail: {
+            type: "file",
+            title: "Downloaded QR Code (JPEG)",
+            detail: `Exported ${downloadName} locally`,
+            icon: "Download",
+            tab: "qr"
+          }
+        }));
+      } else {
+        downloadPng();
+      }
       return;
     }
 
     // Default target: PNG
-    const link = document.createElement("a");
-    const downloadName = `toolkit_pro_qr_${safeText}.png`;
-    link.download = downloadName;
-    link.href = qrCodeDataUrl;
-    link.click();
-
-    window.dispatchEvent(new CustomEvent("toolkit-add-activity", {
-      detail: {
-        type: "file",
-        title: "Downloaded QR Code (PNG)",
-        detail: `Exported ${downloadName} locally`,
-        icon: "Download",
-        tab: "qr"
-      }
-    }));
+    downloadPng();
   };
 
   const handleDownloadSvg = async () => {
@@ -5915,7 +5913,14 @@ export default function QrGenerator({
               <div className="flex items-center gap-2 w-full sm:w-auto">
                 <button
                   type="button"
-                  onClick={() => window.print()}
+                  onClick={() => {
+                    if (window.self !== window.top) {
+                      setShowPrintModal(true);
+                    } else {
+                      window.focus();
+                      window.print();
+                    }
+                  }}
                   className="flex-1 sm:flex-none inline-flex items-center justify-center gap-1.5 px-4.5 py-2 bg-indigo-600 hover:bg-indigo-750 text-white rounded-xl text-xs font-bold transition-all shadow-sm cursor-pointer border-0"
                 >
                   <Printer className="w-4 h-4" />
@@ -6362,6 +6367,66 @@ export default function QrGenerator({
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {showPrintModal && (
+        <div className="fixed inset-0 z-[9999] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs animate-fade-in font-sans">
+          <div className="relative w-full max-w-md bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-xl overflow-hidden p-6 text-slate-800 dark:text-slate-100">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400 rounded-xl">
+                <Printer className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black tracking-tight text-slate-900 dark:text-white uppercase">Print Sheet Instructions</h3>
+                <p className="text-[10.5px] text-slate-500 dark:text-slate-400 font-bold">Sandbox Preview Workaround</p>
+              </div>
+            </div>
+            
+            <p className="text-xs leading-relaxed text-slate-600 dark:text-slate-300 mb-5">
+              Modern browsers block printer layouts when applications are loaded within sandboxed preview frames (like the AI Studio interface). To print your high-fidelity A4 sheet successfully:
+            </p>
+
+            <div className="space-y-3 mb-6">
+              <div className="flex items-start gap-2.5 p-3 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-100 dark:border-slate-800/60 text-[11.5px] leading-relaxed text-slate-600 dark:text-slate-300">
+                <span className="flex items-center justify-center w-5 h-5 shrink-0 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 text-[10px] font-black rounded-full">1</span>
+                <span>Click <strong>Open in Direct Tab</strong> below to launch the application full-screen.</span>
+              </div>
+              <div className="flex items-start gap-2.5 p-3 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-100 dark:border-slate-800/60 text-[11.5px] leading-relaxed text-slate-600 dark:text-slate-300">
+                <span className="flex items-center justify-center w-5 h-5 shrink-0 bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-400 text-[10px] font-black rounded-full">2</span>
+                <span>Click <strong>Print Sheet</strong> inside the print studio there, and your physical print dialog will open instantly.</span>
+              </div>
+            </div>
+
+            <div className="flex gap-2.5">
+              <button
+                onClick={() => {
+                  setShowPrintModal(false);
+                  try { window.print(); } catch (e) { console.warn("Standard printing failed inside iframe:", e); }
+                }}
+                className="flex-1 py-2.5 border border-slate-200 dark:border-slate-850 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-950 rounded-xl text-xs font-bold transition-all cursor-pointer"
+              >
+                Try Printing Anyway
+              </button>
+              <a
+                href={window.location.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setShowPrintModal(false)}
+                className="flex-1 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold text-center transition-all cursor-pointer inline-flex items-center justify-center gap-1.5 border-0"
+              >
+                <span>Open in Direct Tab</span>
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+
+            <button
+              onClick={() => setShowPrintModal(false)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors bg-transparent border-0 cursor-pointer"
+            >
+              <X className="w-5 h-5" />
+            </button>
           </div>
         </div>
       )}

@@ -88,6 +88,62 @@ const hslToHex = (h: number, s: number, l: number): string => {
   return `#${toHex(f(0))}${toHex(f(8))}${toHex(f(4))}`;
 };
 
+const simulateColorBlindness = (hex: string, type: string): string => {
+  if (!hex || type === "normal") return hex;
+  const cleanHex = hex.startsWith("#") ? hex.slice(1) : hex;
+  let rHex = cleanHex.substring(0, 2);
+  let gHex = cleanHex.substring(2, 4);
+  let bHex = cleanHex.substring(4, 6);
+  if (cleanHex.length === 3) {
+    rHex = cleanHex.substring(0, 1) + cleanHex.substring(0, 1);
+    gHex = cleanHex.substring(1, 2) + cleanHex.substring(1, 2);
+    bHex = cleanHex.substring(2, 3) + cleanHex.substring(2, 3);
+  }
+  const r = parseInt(rHex || "0", 16);
+  const g = parseInt(gHex || "0", 16);
+  const b = parseInt(bHex || "0", 16);
+
+  let rSim = r;
+  let gSim = g;
+  let bSim = b;
+
+  if (type === "protanopia") {
+    // Protanopia matrix (Red-blind)
+    rSim = 0.56667 * r + 0.43333 * g + 0.0 * b;
+    gSim = 0.55833 * r + 0.44167 * g + 0.0 * b;
+    bSim = 0.0 * r + 0.24167 * g + 0.75833 * b;
+  } else if (type === "deuteranopia") {
+    // Deuteranopia matrix (Green-blind)
+    rSim = 0.625 * r + 0.375 * g + 0.0 * b;
+    gSim = 0.7 * r + 0.3 * g + 0.0 * b;
+    bSim = 0.0 * r + 0.3 * g + 0.7 * b;
+  } else if (type === "tritanopia") {
+    // Tritanopia matrix (Blue-blind)
+    rSim = 0.95 * r + 0.05 * g + 0.0 * b;
+    gSim = 0.0 * r + 0.43333 * g + 0.56667 * b;
+    bSim = 0.0 * r + 0.475 * g + 0.525 * b;
+  } else if (type === "achromatopsia") {
+    // Achromatopsia (Greyscale - standard luminance weights)
+    const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+    rSim = gray;
+    gSim = gray;
+    bSim = gray;
+  }
+
+  // Clamp values to [0, 255]
+  rSim = Math.max(0, Math.min(255, Math.round(rSim)));
+  gSim = Math.max(0, Math.min(255, Math.round(gSim)));
+  bSim = Math.max(0, Math.min(255, Math.round(bSim)));
+
+  // Convert back to hex
+  const toHex = (x: number) => {
+    const hexVal = x.toString(16);
+    return hexVal.length === 1 ? "0" + hexVal : hexVal;
+  };
+
+  return `#${toHex(rSim)}${toHex(gSim)}${toHex(bSim)}`.toUpperCase();
+};
+
 export default function ColorExtractor({
   user,
   accessToken,
@@ -146,6 +202,7 @@ export default function ColorExtractor({
   const [customBgInput, setCustomBgInput] = useState<string>("#ffffff");
   const [customTxInput, setCustomTxInput] = useState<string>("#0f172a");
   const [paletteSortMode, setPaletteSortMode] = useState<"hue" | "saturation" | "brightness" | "luminance">("hue");
+  const [colorBlindnessMode, setColorBlindnessMode] = useState<string>("normal");
   const [paletteSearchQuery, setPaletteSearchQuery] = useState<string>("");
   const [customPaletteName, setCustomPaletteName] = useState<string>("");
   const [isSavingPaletteObject, setIsSavingPaletteObject] = useState<boolean>(false);
@@ -742,6 +799,68 @@ export default function ColorExtractor({
     } catch (err) {
       console.error(err);
       alert("Failed to render palette image.");
+    }
+  };
+
+  const copyAllCSSVariables = async () => {
+    try {
+      const cleanName = fileName.replace(/\.[^/.]+$/, "") || "palette";
+      let cssContent = `/* Color Palette - ${cleanName} */\n`;
+      cssContent += `:root {\n`;
+      palette.forEach((color, idx) => {
+        const key = color.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") || `swatch-${idx + 1}`;
+        cssContent += `  --color-${key}: ${color.hex.toLowerCase()};\n`;
+      });
+      cssContent += `\n  /* Contrast Colors for accessibility or text matching */\n`;
+      palette.forEach((color, idx) => {
+        const key = color.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") || `swatch-${idx + 1}`;
+        cssContent += `  --color-${key}-contrast: ${color.contrastColor.toLowerCase()};\n`;
+      });
+      cssContent += `}\n`;
+
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(cssContent);
+      } else {
+        const textarea = document.createElement("textarea");
+        textarea.value = cssContent;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+      }
+
+      setCopiedToast({
+        message: "CSS Variables Copied",
+        value: `All ${palette.length} extracted colors copied to clipboard!`,
+        type: "HEX"
+      });
+    } catch (err) {
+      console.error("Clipboard copy failed:", err);
+      try {
+        const textarea = document.createElement("textarea");
+        let cssContent = `:root {\n`;
+        palette.forEach((color, idx) => {
+          const key = color.name.toLowerCase().replace(/[^a-z0-9]+/g, "-") || `swatch-${idx + 1}`;
+          cssContent += `  --color-${key}: ${color.hex.toLowerCase()};\n`;
+        });
+        cssContent += `}\n`;
+        textarea.value = cssContent;
+        textarea.style.position = "fixed";
+        textarea.style.opacity = "0";
+        document.body.appendChild(textarea);
+        textarea.select();
+        document.execCommand("copy");
+        document.body.removeChild(textarea);
+        setCopiedToast({
+          message: "CSS Variables Copied",
+          value: "Copied successfully as fallback!",
+          type: "HEX"
+        });
+      } catch (innerErr) {
+        console.error("Fallback copy also failed:", innerErr);
+      }
     }
   };
 
@@ -1761,7 +1880,7 @@ export default function ColorExtractor({
 
                 {/* Report Generation Row */}
                 <button
-                  onClick={() => {
+                  onClick={async () => {
                     let reportStr = `🎨 COLOR PALETTE WCAG ACCESSIBILITY CONTRAST REPORT\n`;
                     reportStr += `User Selected Background: ${(wcagBgColor || "#ffffff").toUpperCase()}\n`;
                     reportStr += `Generated on: ${new Date().toISOString().split('T')[0]}\n\n`;
@@ -1775,8 +1894,46 @@ export default function ColorExtractor({
                       reportStr += `  • Standard AAA: ${passAAA} (need >= 7.0)\n`;
                       reportStr += `  • Large Text AA: ${passAALrg} (need >= 3.0)\n\n`;
                     });
-                    navigator.clipboard.writeText(reportStr);
-                    alert("Formatted WCAG Contrast Report successfully copied to clipboard!");
+
+                    try {
+                      if (navigator.clipboard && navigator.clipboard.writeText) {
+                        await navigator.clipboard.writeText(reportStr);
+                      } else {
+                        const textarea = document.createElement("textarea");
+                        textarea.value = reportStr;
+                        textarea.style.position = "fixed";
+                        textarea.style.opacity = "0";
+                        document.body.appendChild(textarea);
+                        textarea.select();
+                        document.execCommand("copy");
+                        document.body.removeChild(textarea);
+                      }
+                      setCopiedToast({
+                        message: "Contrast Report Copied",
+                        value: "Formatted WCAG report successfully saved!",
+                        type: "HEX"
+                      });
+                    } catch (err) {
+                      console.error("Clipboard copy failed:", err);
+                      // Try fallback textarea inside catch just in case
+                      try {
+                        const textarea = document.createElement("textarea");
+                        textarea.value = reportStr;
+                        textarea.style.position = "fixed";
+                        textarea.style.opacity = "0";
+                        document.body.appendChild(textarea);
+                        textarea.select();
+                        document.execCommand("copy");
+                        document.body.removeChild(textarea);
+                        setCopiedToast({
+                          message: "Contrast Report Copied",
+                          value: "Formatted WCAG report successfully saved!",
+                          type: "HEX"
+                        });
+                      } catch (innerErr) {
+                        console.error("Fallback clipboard copy also failed:", innerErr);
+                      }
+                    }
                   }}
                   className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 border border-slate-200 rounded-xl transition-all cursor-pointer border-0 shadow-2xs"
                 >
@@ -2614,30 +2771,79 @@ export default function ColorExtractor({
                             )}
                           </div>
                         </div>
-                        <div className="flex items-center gap-1.5 self-start lg:self-auto select-none">
-                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide font-mono whitespace-nowrap">Sort Palette:</span>
-                          <select
-                            value={paletteSortMode}
-                            onChange={(e) => handleSortPalette(e.target.value as any)}
-                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100/70 border border-emerald-200/55 rounded-lg shadow-2xs transition-all cursor-pointer outline-none select-none appearance-none"
-                            title="Sort color swatches dynamically by Hue, Saturation, Brightness, or Luminance"
-                            id="select-palette-sort"
+                        <div className="flex flex-wrap items-center gap-2.5 self-start lg:self-auto select-none">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide font-mono whitespace-nowrap">Sort Palette:</span>
+                            <select
+                              value={paletteSortMode}
+                              onChange={(e) => handleSortPalette(e.target.value as any)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100/70 border border-emerald-200/55 rounded-lg shadow-2xs transition-all cursor-pointer outline-none select-none appearance-none"
+                              title="Sort color swatches dynamically by Hue, Saturation, Brightness, or Luminance"
+                              id="select-palette-sort"
+                            >
+                              <option value="hue">🌈 Hue (Spectrum)</option>
+                              <option value="saturation">🔥 Saturation (Intensity)</option>
+                              <option value="brightness">☀️ Brightness (Lightness)</option>
+                              <option value="luminance">👁️ Luminance (Contrast)</option>
+                            </select>
+                          </div>
+
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide font-mono whitespace-nowrap">Vision:</span>
+                            <select
+                              value={colorBlindnessMode}
+                              onChange={(e) => setColorBlindnessMode(e.target.value)}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-slate-800 bg-slate-50 hover:bg-slate-100 border border-slate-200/80 rounded-lg shadow-2xs transition-all cursor-pointer outline-none select-none appearance-none"
+                              title="Simulate common types of color blindness / color vision deficiencies (CVD)"
+                              id="select-color-blindness"
+                            >
+                              <option value="normal">👁️ Normal Vision</option>
+                              <option value="protanopia">🔴 Protanopia (Red-Blind)</option>
+                              <option value="deuteranopia">🟢 Deuteranopia (Green-Blind)</option>
+                              <option value="tritanopia">🔵 Tritanopia (Blue-Blind)</option>
+                              <option value="achromatopsia">⚫ Achromatopsia (Monochrome)</option>
+                            </select>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={copyAllCSSVariables}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100/75 border border-emerald-200/55 rounded-lg shadow-2xs transition-all cursor-pointer select-none"
+                            title="Copy all extracted colors as CSS :root variables in one click"
+                            id="btn-copy-all-css"
                           >
-                            <option value="hue">🌈 Hue (Spectrum)</option>
-                            <option value="saturation">🔥 Saturation (Intensity)</option>
-                            <option value="brightness">☀️ Brightness (Lightness)</option>
-                            <option value="luminance">👁️ Luminance (Contrast)</option>
-                          </select>
+                            <Copy className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+                            <span>Copy All CSS</span>
+                          </button>
                         </div>
                       </div>
                       
                       <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-6 gap-3.5 palette-swatches-grid extracted-palette-view">
                         {filteredPalette.length > 0 ? (
                           filteredPalette.map((color, idx) => {
+                            const simulatedColor = simulateColorBlindness(color.hex, colorBlindnessMode);
+                            
+                            // Determine dynamic contrast text color based on simulatedColor
+                            const cleanHex = simulatedColor.startsWith("#") ? simulatedColor.slice(1) : simulatedColor;
+                            let rHexSim = cleanHex.substring(0, 2);
+                            let gHexSim = cleanHex.substring(2, 4);
+                            let bHexSim = cleanHex.substring(4, 6);
+                            if (cleanHex.length === 3) {
+                              rHexSim = cleanHex.substring(0, 1) + cleanHex.substring(0, 1);
+                              gHexSim = cleanHex.substring(1, 2) + cleanHex.substring(1, 2);
+                              bHexSim = cleanHex.substring(2, 3) + cleanHex.substring(2, 3);
+                            }
+                            const rSimVal = parseInt(rHexSim || "0", 16);
+                            const gSimVal = parseInt(gHexSim || "0", 16);
+                            const bSimVal = parseInt(bHexSim || "0", 16);
+                            const yiqSim = (rSimVal * 299 + gSimVal * 587 + bSimVal * 114) / 1000;
+                            const dynamicContrastColor = yiqSim >= 128 ? "#090d16" : "#ffffff";
+
                             const rgbText = hexToRgb(color.hex);
-                            const isCopied = copiedHex === color.hex || (copiedToast && copiedToast.value === rgbText);
-                            const contrastWhite = getContrastRatio(color.hex, "#ffffff");
-                            const contrastBlack = getContrastRatio(color.hex, "#000000");
+                            const simRgbText = hexToRgb(simulatedColor);
+                            const isCopied = copiedHex === color.hex || (copiedToast && (copiedToast.value === rgbText || copiedToast.value === simulatedColor));
+                            const contrastWhite = getContrastRatio(simulatedColor, "#ffffff");
+                            const contrastBlack = getContrastRatio(simulatedColor, "#000000");
 
                             return (
                               <motion.div
@@ -2645,26 +2851,26 @@ export default function ColorExtractor({
                                 whileHover={{ scale: 1.04, y: -3 }}
                                 whileTap={{ scale: 0.98 }}
                                 transition={{ type: "spring", stiffness: 400, damping: 20 }}
-                                style={{ backgroundColor: color.hex }}
-                                className="min-h-[170px] rounded-2xl relative overflow-hidden flex flex-col justify-between p-2.5 text-left border border-black/10 group shadow-md"
+                                style={{ backgroundColor: simulatedColor }}
+                                className="min-h-[185px] rounded-2xl relative overflow-hidden flex flex-col justify-between p-2.5 text-left border border-black/10 group shadow-md"
                               >
                                 {/* Card top banner (Ordinal + Checkmark) */}
                                 <div className="flex justify-between items-center w-full select-none">
                                   <span 
-                                    style={{ color: color.contrastColor }} 
-                                    className="text-[9px] font-extrabold tracking-wider font-mono opacity-50"
+                                    style={{ color: dynamicContrastColor }} 
+                                    className="text-[9px] font-extrabold tracking-wider font-mono opacity-60"
                                   >
                                     C{idx + 1}
                                   </span>
                                   {isCopied && (
                                     <Check 
-                                      style={{ color: color.contrastColor }} 
+                                      style={{ color: dynamicContrastColor }} 
                                       className="w-3.5 h-3.5 select-none animate-in zoom-in duration-200" 
                                     />
                                   )}
                                 </div>
 
-                                {/* Accessibility Contrast Ratios against Black & White */}
+                                {/* Accessibility Contrast Ratios against Black & White (Simulated background) */}
                                 <div className="space-y-1 my-1.5 select-none font-mono">
                                   {/* Contrast with White Text */}
                                   <div 
@@ -2674,7 +2880,7 @@ export default function ColorExtractor({
                                       border: "1px solid rgba(255, 255, 255, 0.12)"
                                     }} 
                                     className="px-1.5 py-0.5 rounded-lg flex items-center justify-between text-[8.5px] font-bold"
-                                    title={`Contrast against White text background: ${contrastWhite.toFixed(1)}:1`}
+                                    title={`Simulated contrast against White text: ${contrastWhite.toFixed(1)}:1`}
                                   >
                                     <span className="flex items-center gap-1 leading-none">
                                       <span className="w-1.5 h-1.5 rounded-full bg-white block" />
@@ -2693,7 +2899,7 @@ export default function ColorExtractor({
                                       border: "1px solid rgba(15, 23, 42, 0.08)"
                                     }} 
                                     className="px-1.5 py-0.5 rounded-lg flex items-center justify-between text-[8.5px] font-bold"
-                                    title={`Contrast against Black text background: ${contrastBlack.toFixed(1)}:1`}
+                                    title={`Simulated contrast against Black text: ${contrastBlack.toFixed(1)}:1`}
                                   >
                                     <span className="flex items-center gap-1 leading-none">
                                       <span className="w-1.5 h-1.5 rounded-full bg-slate-900 block" />
@@ -2708,48 +2914,106 @@ export default function ColorExtractor({
                                 {/* Labels & Copy Actions */}
                                 <div className="space-y-1.5 font-sans">
                                   {/* Value Display */}
-                                  <span
-                                    style={{ color: color.contrastColor }}
-                                    className="text-[10px] uppercase font-bold tracking-tighter block leading-none select-all"
-                                    title={color.hex}
-                                  >
-                                    {color.hex}
-                                  </span>
+                                  <div className="space-y-0.5 leading-none">
+                                    <span
+                                      style={{ color: dynamicContrastColor }}
+                                      className="text-[10px] uppercase font-black tracking-tight block select-all font-mono"
+                                      title={`Original Color Hex: ${color.hex}`}
+                                    >
+                                      {color.hex}
+                                    </span>
+                                    {colorBlindnessMode !== "normal" && (
+                                      <div className="flex items-center justify-between mt-1 border-t pt-1" style={{ borderColor: `${dynamicContrastColor}20` }}>
+                                        <span
+                                          style={{ color: dynamicContrastColor, opacity: 0.85 }}
+                                          className="text-[9px] uppercase font-bold tracking-tight block select-all font-mono"
+                                          title={`Simulated Color Hex: ${simulatedColor}`}
+                                        >
+                                          {simulatedColor}
+                                        </span>
+                                        <span 
+                                          style={{ color: dynamicContrastColor, opacity: 0.6 }}
+                                          className="text-[7.5px] font-extrabold uppercase tracking-wide"
+                                        >
+                                          Simulated
+                                        </span>
+                                      </div>
+                                    )}
+                                  </div>
 
                                   {/* Quick copy buttons */}
                                   <div className="flex gap-1 w-full">
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleCopyValue(color.hex, "HEX");
-                                      }}
-                                      style={{ 
-                                        borderColor: `${color.contrastColor}25`,
-                                        color: color.contrastColor,
-                                        background: `${color.contrastColor}15`
-                                      }}
-                                      className="flex-1 py-0.5 rounded-lg text-[8.5px] font-black tracking-wider text-center border cursor-pointer hover:bg-white/10 active:scale-95 transition-all flex items-center justify-center gap-0.5 select-none"
-                                      title={`Copy HEX: ${color.hex}`}
-                                    >
-                                      HEX
-                                    </button>
-                                    <button
-                                      type="button"
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        handleCopyValue(rgbText, "RGB");
-                                      }}
-                                      style={{ 
-                                        borderColor: `${color.contrastColor}25`,
-                                        color: color.contrastColor,
-                                        background: `${color.contrastColor}15`
-                                      }}
-                                      className="flex-1 py-0.5 rounded-lg text-[8.5px] font-black tracking-wider text-center border cursor-pointer hover:bg-white/10 active:scale-95 transition-all flex items-center justify-center gap-0.5 select-none"
-                                      title={`Copy RGB: ${rgbText}`}
-                                    >
-                                      RGB
-                                    </button>
+                                    {colorBlindnessMode === "normal" ? (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleCopyValue(color.hex, "HEX");
+                                          }}
+                                          style={{ 
+                                            borderColor: `${dynamicContrastColor}25`,
+                                            color: dynamicContrastColor,
+                                            background: `${dynamicContrastColor}15`
+                                          }}
+                                          className="flex-1 py-0.5 rounded-lg text-[8px] font-black tracking-wider text-center border cursor-pointer hover:bg-white/10 active:scale-95 transition-all flex items-center justify-center gap-0.5 select-none"
+                                          title={`Copy HEX: ${color.hex}`}
+                                        >
+                                          HEX
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleCopyValue(rgbText, "RGB");
+                                          }}
+                                          style={{ 
+                                            borderColor: `${dynamicContrastColor}25`,
+                                            color: dynamicContrastColor,
+                                            background: `${dynamicContrastColor}15`
+                                          }}
+                                          className="flex-1 py-0.5 rounded-lg text-[8px] font-black tracking-wider text-center border cursor-pointer hover:bg-white/10 active:scale-95 transition-all flex items-center justify-center gap-0.5 select-none"
+                                          title={`Copy RGB: ${rgbText}`}
+                                        >
+                                          RGB
+                                        </button>
+                                      </>
+                                    ) : (
+                                      <>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleCopyValue(color.hex, "HEX");
+                                          }}
+                                          style={{ 
+                                            borderColor: `${dynamicContrastColor}25`,
+                                            color: dynamicContrastColor,
+                                            background: `${dynamicContrastColor}15`
+                                          }}
+                                          className="flex-1 py-0.5 rounded-lg text-[7.5px] font-black tracking-tighter text-center border cursor-pointer hover:bg-white/10 active:scale-95 transition-all flex items-center justify-center gap-0.5 select-none"
+                                          title={`Copy Original HEX: ${color.hex}`}
+                                        >
+                                          ORIGINAL
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            handleCopyValue(simulatedColor, "HEX");
+                                          }}
+                                          style={{ 
+                                            borderColor: `${dynamicContrastColor}25`,
+                                            color: dynamicContrastColor,
+                                            background: `${dynamicContrastColor}15`
+                                          }}
+                                          className="flex-1 py-0.5 rounded-lg text-[7.5px] font-black tracking-tighter text-center border cursor-pointer hover:bg-white/10 active:scale-95 transition-all flex items-center justify-center gap-0.5 select-none"
+                                          title={`Copy Simulated HEX: ${simulatedColor}`}
+                                        >
+                                          SIMULATED
+                                        </button>
+                                      </>
+                                    )}
                                   </div>
                                 </div>
                               </motion.div>

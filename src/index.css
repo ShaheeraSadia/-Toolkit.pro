@@ -221,6 +221,18 @@ body {
     display: block !important;
   }
 
+  /* Reset layout constraints of flex/grid wrappers to allow natural block page layouts */
+  .grid, .flex, div[class*="grid-cols-"], div[class*="col-span-"] {
+    display: block !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
   /* Center-align and format the main Active Tab Panel cleanly without shadows/borders */
   div[role="tabpanel"] {
     border: none !important;
@@ -243,6 +255,8 @@ body {
     border: 1px solid rgba(0, 0, 0, 0.1) !important;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.04) !important;
     page-break-inside: avoid !important;
+    transform: none !important; /* Reset zoom scale on printing */
+    padding: 40px !important; /* Ensure readable printing boundaries */
   }
 
   /* Add support to preserve text overlay details on Quote Card */
@@ -266,6 +280,7 @@ body {
     align-items: center !important;
     box-shadow: none !important;
     page-break-inside: avoid !important;
+    transform: none !important; /* Reset zoom scale on printing */
   }
 
   #qr-code-preview-card img, .print-ready-qr-card img {
