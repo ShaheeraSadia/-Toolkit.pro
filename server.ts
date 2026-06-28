@@ -233,6 +233,71 @@ The camera motion is: "${camera || "Slow Zoom"}".`;
   }
 });
 
+// API route to generate cinematic attributes, captions, and Unsplash search tags based on user prompt
+app.post("/api/video/generate-scene", async (req, res) => {
+  try {
+    const activeApiKey = process.env.GEMINI_API_KEY;
+    if (!activeApiKey) {
+      return res.status(500).json({ 
+        error: "GEMINI_API_KEY is not configured in the host environment or Secrets panel." 
+      });
+    }
+
+    if (!ai) {
+      ai = new GoogleGenAI({
+        apiKey: activeApiKey,
+        httpOptions: {
+          headers: {
+            "User-Agent": "aistudio-build",
+          },
+        },
+      });
+    }
+
+    const { prompt } = req.body;
+    if (!prompt) {
+      return res.status(400).json({ error: "A non-empty prompt is required to generate a scene." });
+    }
+
+    const systemInstruction = `You are an expert AI filmmaker, video director, and storyboard artist.
+Your goal is to parse a creative prompt into structured cinematic properties to generate a stunning custom scene.
+
+Return a compact JSON object. Do not include markdown code block syntax (like \`\`\`json) or any explanation. Only return a single valid JSON object.
+
+The response must follow this EXACT structure:
+{
+  "keywords": string,      // 2-3 precise comma-separated English search keywords for Unsplash matching the scenery described in the prompt (e.g. 'cyberpunk, neon, futuristic city' or 'autumn, forest, river').
+  "caption": string,       // A beautiful, highly descriptive cinematic caption/subtitle text for this slide. Max 45 characters.
+  "filter": string,        // Must be exactly one of: 'normal', 'noir', 'vintage', 'cinematic-warm', 'cyberpunk', 'vhs', 'retro'.
+  "style": string,         // Must be exactly one of: 'Minimalist', 'Bold', 'Dark', 'Cinematic', 'Realistic', 'Dreamy'.
+  "camera": string         // Must be exactly one of: 'Slow Zoom', 'Pan Left', 'Pan Right', 'Tilt Up', 'Tilt Down', 'Orbit'.
+}
+
+Ensure all parameters are perfectly aligned with the mood, colors, and action specified in the prompt.`;
+
+    const userPrompt = `Parse and generate cinematic parameters for this user scene prompt: "${prompt}"`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: userPrompt,
+      config: {
+        systemInstruction,
+        responseMimeType: "application/json",
+        temperature: 0.8,
+      },
+    });
+
+    const resText = response?.text?.trim() || "{}";
+    const parsedData = JSON.parse(resText);
+    return res.json(parsedData);
+  } catch (error: any) {
+    console.error("Gemini scene generation error:", error);
+    return res.status(500).json({ 
+      error: error.message || "Scene generation failed due to a server-side error." 
+    });
+  }
+});
+
 // API route to shorten a URL utilizing high-availability failsafe providers (is.gd with tinyurl.com fallback)
 app.post("/api/url/shorten", async (req, res) => {
   try {

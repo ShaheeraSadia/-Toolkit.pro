@@ -791,9 +791,9 @@ export default function ColorExtractor({
         }
       }));
 
-      // Support Monetag Direct Link Integration
+      // Support Monetag Direct Link Integration (Zone ID: 11170621)
       try {
-        window.open("https://toolkit-pro-chi.vercel.app", "_blank", "noopener,noreferrer");
+        window.open("https://omg10.com/4/11170621", "_blank", "noopener,noreferrer");
       } catch (e) {
         console.warn("Direct link popup blocked by browser policies", e);
       }

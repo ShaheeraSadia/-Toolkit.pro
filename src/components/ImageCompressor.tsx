@@ -2971,9 +2971,9 @@ export default function ImageCompressor({
       message: `Successfully downloaded "${compressedResult.fileName}" (1 file).`
     });
 
-    // Support Monetag Direct Link Integration
+    // Support Monetag Direct Link Integration (Zone ID: 11170621)
     try {
-      window.open("https://toolkit-pro-chi.vercel.app", "_blank", "noopener,noreferrer");
+      window.open("https://omg10.com/4/11170621", "_blank", "noopener,noreferrer");
     } catch (e) {
       console.warn("Direct link popup blocked by browser policies", e);
     }
@@ -3146,9 +3146,9 @@ export default function ImageCompressor({
         message: `Successfully packaged and downloaded ${compressedItems.length} compressed image(s) in a single ZIP archive.`
       });
 
-      // Support Monetag Direct Link Integration
+      // Support Monetag Direct Link Integration (Zone ID: 11170621)
       try {
-        window.open("https://toolkit-pro-chi.vercel.app", "_blank", "noopener,noreferrer");
+        window.open("https://omg10.com/4/11170621", "_blank", "noopener,noreferrer");
       } catch (e) {
         console.warn("Direct link popup blocked by browser policies", e);
       }
@@ -3182,9 +3182,9 @@ export default function ImageCompressor({
       message: `Initiated individual file downloads for all ${compressedItems.length} compressed image(s).`
     });
 
-    // Support Monetag Direct Link Integration
+    // Support Monetag Direct Link Integration (Zone ID: 11170621)
     try {
-      window.open("https://toolkit-pro-chi.vercel.app", "_blank", "noopener,noreferrer");
+      window.open("https://omg10.com/4/11170621", "_blank", "noopener,noreferrer");
     } catch (e) {
       console.warn("Direct link popup blocked by browser policies", e);
     }

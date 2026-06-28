@@ -30,7 +30,11 @@ import {
   Check,
   RefreshCw,
   Sliders,
-  Scissors
+  Scissors,
+  Clock,
+  Gauge,
+  GripVertical,
+  Move
 } from "lucide-react";
 
 interface ImageSlide {
@@ -51,6 +55,7 @@ interface ImageSlide {
   transitionEffect?: string;
   lightingType?: string;
   motionSpeed?: number; // motion speed / factor
+  sfx?: string;
 }
 
 interface ImageToVideoProps {
@@ -75,6 +80,8 @@ class RoyaltyFreeSynthManager {
   private fadeIn: boolean = false;
   private fadeOut: boolean = false;
   private totalDuration: number = 10;
+  private audioElement: HTMLAudioElement | null = null;
+  private audioNode: MediaElementAudioSourceNode | null = null;
 
   constructor() {}
 
@@ -95,12 +102,67 @@ class RoyaltyFreeSynthManager {
     }
   }
 
+  public playSingleSfx(sfxId: string, volume: number = 0.5) {
+    if (!this.ctx) {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioContextClass) {
+        this.ctx = new AudioContextClass();
+        this.gainNode = this.ctx.createGain();
+        this.gainNode.gain.setValueAtTime(volume, this.ctx.currentTime);
+        
+        this.analyser = this.ctx.createAnalyser();
+        this.analyser.fftSize = 64;
+        this.gainNode.connect(this.analyser);
+        this.analyser.connect(this.ctx.destination);
+      }
+    }
+    
+    if (!this.ctx || !this.gainNode) return;
+    
+    if (sfxId === "cinema-impact") {
+      this.playDrumKick(150, 1.8, volume * 0.9);
+      this.playSynthNote(55, 1.5, volume * 0.3, "sine", 0.1);
+      this.playNoisePerc(0.8, volume * 0.15, 0.05);
+    } else if (sfxId === "laser-sweep") {
+      this.playLaser(1800, 0.8, volume * 0.6);
+      this.playNoisePerc(0.4, volume * 0.05, 0.2);
+    } else if (sfxId === "bubble-pop") {
+      for (let i = 0; i < 5; i++) {
+        const delay = i * 0.15 + Math.random() * 0.1;
+        setTimeout(() => {
+          if (!this.ctx) return;
+          this.playBubble(350 + Math.random() * 200, 0.15, volume * 0.4);
+        }, delay * 1000);
+      }
+    } else if (sfxId === "celestial-chime") {
+      const freqs = [523.25, 659.25, 783.99, 987.77, 1046.50];
+      freqs.forEach((freq, idx) => {
+        const delay = idx * 0.08;
+        setTimeout(() => {
+          if (!this.ctx) return;
+          this.playSynthNote(freq * 1.5, 0.6, volume * 0.25, "sine", 0.01);
+        }, delay * 1000);
+      });
+    } else if (sfxId === "arcade-rise") {
+      for (let i = 0; i < 8; i++) {
+        const delay = i * 0.08;
+        const freq = 300 * Math.pow(1.15, i);
+        setTimeout(() => {
+          if (!this.ctx) return;
+          this.playSynthNote(freq, 0.1, volume * 0.3, "square", 0.01);
+        }, delay * 1000);
+      }
+    }
+  }
+
   public start(
     track: string,
     volume: number = 0.3,
     fadeIn: boolean = false,
     fadeOut: boolean = false,
-    totalDuration: number = 10
+    totalDuration: number = 10,
+    customAudioUrl?: string | null,
+    startTime: number = 0
   ) {
     if (track === "none") {
       this.stop();
@@ -138,7 +200,6 @@ class RoyaltyFreeSynthManager {
         this.gainNode.gain.linearRampToValueAtTime(0.0001, now + this.totalDuration);
       }
 
-      // Create AnalyserNode for audio visualization
       this.analyser = this.ctx.createAnalyser();
       this.analyser.fftSize = 64;
 
@@ -146,6 +207,27 @@ class RoyaltyFreeSynthManager {
       this.analyser.connect(this.ctx.destination);
 
       this.isPlaying = true;
+
+      // Handle custom audio source
+      if (track === "custom" && customAudioUrl) {
+        this.audioElement = new Audio(customAudioUrl);
+        this.audioElement.volume = volume;
+        this.audioElement.loop = true;
+        this.audioElement.crossOrigin = "anonymous";
+        this.audioNode = this.ctx.createMediaElementSource(this.audioElement);
+        this.audioNode.connect(this.gainNode);
+        
+        // Seek to correct start time
+        if (startTime > 0) {
+          // Listen to metadata loaded if needed, or set directly
+          this.audioElement.currentTime = startTime;
+        }
+
+        this.audioElement.play().catch(e => console.warn("Failed to play custom audio in Synth:", e));
+        return;
+      }
+
+      // Existing synthesizers
       this.beatCount = 0;
 
       if (track === "retro-lofi") {
@@ -164,6 +246,9 @@ class RoyaltyFreeSynthManager {
         this.bpm = 124;
       } else if (track === "cinema-epic") {
         this.bpm = 75;
+      } else {
+        // Unknown or custom play sfx
+        return;
       }
 
       const beatInterval = 60000 / this.bpm / 2; // Eighth notes
@@ -201,7 +286,15 @@ class RoyaltyFreeSynthManager {
       this.timer = null;
     }
     
-    // Stop all active scheduled sounds
+    if (this.audioElement) {
+      try {
+        this.audioElement.pause();
+        this.audioElement.src = "";
+      } catch (e) {}
+      this.audioElement = null;
+    }
+    this.audioNode = null;
+
     this.scheduledOscillators.forEach(({ osc, stopTime }) => {
       try {
         osc.stop();
@@ -210,11 +303,21 @@ class RoyaltyFreeSynthManager {
     this.scheduledOscillators = [];
 
     if (this.ctx) {
-      this.ctx.close();
+      try {
+        this.ctx.close();
+      } catch (e) {}
       this.ctx = null;
     }
     this.gainNode = null;
     this.analyser = null;
+  }
+
+  public seek(time: number) {
+    if (this.audioElement) {
+      try {
+        this.audioElement.currentTime = time % (this.audioElement.duration || this.totalDuration || 1);
+      } catch (e) {}
+    }
   }
 
   private playBeat() {
@@ -524,7 +627,8 @@ const SAMPLE_SLIDES: ImageSlide[] = [
     promptDuration: 3,
     cameraMovement: "Slow Zoom",
     subjectDescription: "gentle waves crashing on the shore",
-    style: "Cinematic"
+    style: "Cinematic",
+    sfx: "celestial-chime"
   },
   {
     id: "sample-2",
@@ -539,7 +643,8 @@ const SAMPLE_SLIDES: ImageSlide[] = [
     promptDuration: 4,
     cameraMovement: "Pan Left",
     subjectDescription: "mist floating through the trees",
-    style: "Dreamy"
+    style: "Dreamy",
+    sfx: "none"
   },
   {
     id: "sample-3",
@@ -554,7 +659,8 @@ const SAMPLE_SLIDES: ImageSlide[] = [
     promptDuration: 3,
     cameraMovement: "Slow Zoom",
     subjectDescription: "ripples on the crystal water",
-    style: "Realistic"
+    style: "Realistic",
+    sfx: "bubble-pop"
   },
   {
     id: "sample-4",
@@ -569,8 +675,25 @@ const SAMPLE_SLIDES: ImageSlide[] = [
     promptDuration: 5,
     cameraMovement: "Pan Right",
     subjectDescription: "sunbeams filtering through the autumn leaves",
-    style: "Cinematic"
+    style: "Cinematic",
+    sfx: "cinema-impact"
   }
+];
+
+interface SfxItem {
+  id: string;
+  name: string;
+  emoji: string;
+  desc: string;
+  type: "impact" | "sweep" | "chime" | "nature";
+}
+
+const SFX_LIBRARY: SfxItem[] = [
+  { id: "cinema-impact", name: "Deep Cinematic Impact", emoji: "💥", desc: "A heavy, sub-bass explosive transition impact for dramatic scenes.", type: "impact" },
+  { id: "laser-sweep", name: "Retro Laser Sweep", emoji: "⚡", desc: "A sweeping, high-frequency sci-fi laser effect.", type: "sweep" },
+  { id: "bubble-pop", name: "Ambient Bubble Pops", emoji: "🫧", desc: "Playful underwater bubble textures for nature/relaxing scenes.", type: "nature" },
+  { id: "celestial-chime", name: "Celestial Star Chimes", emoji: "✨", desc: "Bright major pentatonic chime sweeps.", type: "chime" },
+  { id: "arcade-rise", name: "8-Bit Arcade Rise", emoji: "👾", desc: "An escalating chiptune retro pitch-slide sweep.", type: "sweep" }
 ];
 
 interface SoundtrackItem {
@@ -611,6 +734,11 @@ export default function ImageToVideo({
   });
 
   const [soundtrack, setSoundtrack] = useState<string>("retro-lofi");
+  const [audioTrackMode, setAudioTrackMode] = useState<"synth" | "custom" | "sfx">("synth");
+  const [selectedSfxId, setSelectedSfxId] = useState<string>("cinema-impact");
+  const [customAudioUrl, setCustomAudioUrl] = useState<string | null>(null);
+  const [customAudioName, setCustomAudioName] = useState<string | null>(null);
+  const [customAudioDuration, setCustomAudioDuration] = useState<number | null>(null);
   const [previewingTrack, setPreviewingTrack] = useState<string | null>(null);
   const [audioVolume, setAudioVolume] = useState<number>(0.3);
   const [audioFadeIn, setAudioFadeIn] = useState<boolean>(true);
@@ -618,6 +746,7 @@ export default function ImageToVideo({
   const [transitionStyle, setTransitionStyle] = useState<"fade" | "slide-left" | "slide-right" | "zoom" | "flash" | "none">("fade");
   const [transitionDuration, setTransitionDuration] = useState<number>(0.6);
   const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16" | "1:1">("16:9");
+  const [videoPlaybackSpeed, setVideoPlaybackSpeed] = useState<number>(1.0);
   
   // Playback states
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -636,6 +765,18 @@ export default function ImageToVideo({
   // AI Prompt Builder states
   const [isEnhancingPrompt, setIsEnhancingPrompt] = useState<boolean>(false);
   const [copySuccess, setCopySuccess] = useState<boolean>(false);
+  const [userPromptText, setUserPromptText] = useState<string>("");
+  const [isGeneratingScene, setIsGeneratingScene] = useState<boolean>(false);
+
+  // Advanced Runway / Google Flow style states
+  const [draggedSlideIndex, setDraggedSlideIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [aiModelEngine, setAiModelEngine] = useState<"gemini-flash" | "gemini-pro" | "veo-core">("gemini-flash");
+  const [aiMotionIntensity, setAiMotionIntensity] = useState<number>(5);
+  const [aiCameraDirection, setAiCameraDirection] = useState<"auto" | "zoom-in" | "zoom-out" | "pan-left" | "pan-right" | "tilt-up" | "tilt-down" | "orbit">("auto");
+  const [aiStylePreset, setAiStylePreset] = useState<"auto" | "cinematic" | "cyberpunk" | "anime" | "vhs" | "realistic-3d" | "minimalist">("auto");
+  const [aiGenerationProgress, setAiGenerationProgress] = useState<number>(0);
+  const [aiGenerationLogs, setAiGenerationLogs] = useState<string[]>([]);
 
   // Final video rendering preview states
   const [exportedVideoUrl, setExportedVideoUrl] = useState<string | null>(null);
@@ -658,14 +799,67 @@ export default function ImageToVideo({
     }
   }, [slides]);
 
+  const currentTimeRef = useRef(currentTime);
+  useEffect(() => {
+    currentTimeRef.current = currentTime;
+  }, [currentTime]);
+
   // Audio mute & mix sync
   useEffect(() => {
     if (isPlaying && !isMuted) {
-      synthManagerRef.current.start(soundtrack, audioVolume, audioFadeIn, audioFadeOut, totalDuration);
+      if (audioTrackMode === "custom" && customAudioUrl) {
+        synthManagerRef.current.start("custom", audioVolume, false, false, totalDuration, customAudioUrl, currentTimeRef.current);
+      } else if (audioTrackMode === "sfx" && selectedSfxId) {
+        synthManagerRef.current.start("none");
+        synthManagerRef.current.playSingleSfx(selectedSfxId, audioVolume);
+      } else {
+        synthManagerRef.current.start(soundtrack, audioVolume, audioFadeIn, audioFadeOut, totalDuration);
+      }
     } else {
       synthManagerRef.current.stop();
     }
-  }, [isPlaying, soundtrack, isMuted, audioFadeIn, audioFadeOut, totalDuration]);
+  }, [isPlaying, soundtrack, audioTrackMode, selectedSfxId, customAudioUrl, isMuted, audioFadeIn, audioFadeOut, totalDuration]);
+
+  // Synchronize custom audio timeline scrubbing when paused
+  useEffect(() => {
+    if (!isPlaying && audioTrackMode === "custom") {
+      synthManagerRef.current.seek(currentTime);
+    }
+  }, [currentTime, isPlaying, audioTrackMode]);
+
+  // Synchronize slide entry transition SFX
+  const lastTriggeredSlideIndexRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (!isPlaying) {
+      lastTriggeredSlideIndexRef.current = null;
+      return;
+    }
+
+    // Determine current slide index
+    let cumulativeTime = 0;
+    let activeIndex = 0;
+    for (let i = 0; i < slides.length; i++) {
+      if (currentTime >= cumulativeTime && currentTime < cumulativeTime + slides[i].duration) {
+        activeIndex = i;
+        break;
+      }
+      cumulativeTime += slides[i].duration;
+    }
+
+    // Reset if we wrapped around or scrubbed back
+    if (activeIndex < (lastTriggeredSlideIndexRef.current ?? 0) || currentTime === 0) {
+      lastTriggeredSlideIndexRef.current = null;
+    }
+
+    if (activeIndex !== lastTriggeredSlideIndexRef.current) {
+      lastTriggeredSlideIndexRef.current = activeIndex;
+      const slide = slides[activeIndex];
+      if (slide && slide.sfx && slide.sfx !== "none" && !isMuted) {
+        synthManagerRef.current.playSingleSfx(slide.sfx, audioVolume);
+      }
+    }
+  }, [currentTime, isPlaying, slides, isMuted, audioVolume]);
 
   // Dynamic live volume adjustments during playback
   useEffect(() => {
@@ -719,7 +913,7 @@ export default function ImageToVideo({
       const stepMs = 50; // 20 frames per second preview
       const interval = setInterval(() => {
         setCurrentTime((prev) => {
-          let next = prev + stepMs / 1000;
+          let next = prev + (stepMs / 1000) * videoPlaybackSpeed;
           if (next >= totalDuration) {
             next = 0; // loop back to start
           }
@@ -729,7 +923,14 @@ export default function ImageToVideo({
       playbackIntervalRef.current = interval;
       
       if (!isMuted) {
-        synthManagerRef.current.start(soundtrack, audioVolume, audioFadeIn, audioFadeOut, totalDuration);
+        if (audioTrackMode === "custom" && customAudioUrl) {
+          synthManagerRef.current.start("custom", audioVolume, false, false, totalDuration, customAudioUrl, currentTime);
+        } else if (audioTrackMode === "sfx" && selectedSfxId) {
+          synthManagerRef.current.start("none");
+          synthManagerRef.current.playSingleSfx(selectedSfxId, audioVolume);
+        } else {
+          synthManagerRef.current.start(soundtrack, audioVolume, audioFadeIn, audioFadeOut, totalDuration);
+        }
       }
     }
   };
@@ -860,6 +1061,141 @@ export default function ImageToVideo({
     }
   };
 
+  const handleGenerateAIScene = async (autoExportAfter: boolean = false) => {
+    if (!userPromptText.trim()) {
+      setToastMessage({
+        text: "Please enter a creative prompt",
+        sub: "Explain what scene you want to generate (e.g., sunset beach, retro cyber car, etc.)",
+        success: false
+      });
+      return;
+    }
+
+    setIsGeneratingScene(true);
+    setAiGenerationProgress(10);
+    setAiGenerationLogs(["[0/5] Initializing Google Flow neural pipeline workspace..."]);
+
+    const appendLog = (msg: string, progress: number) => {
+      setAiGenerationProgress(progress);
+      setAiGenerationLogs((prev) => [...prev, msg]);
+    };
+
+    try {
+      await new Promise((r) => setTimeout(r, 600));
+      appendLog(`[1/5] Tokenizing prompt using ${aiModelEngine === "gemini-pro" ? "Gemini 1.5 Pro (Dual-Path)" : aiModelEngine === "veo-core" ? "Veo-Core v2.0" : "Gemini 1.5 Flash (Speed)"} parser...`, 25);
+      
+      await new Promise((r) => setTimeout(r, 800));
+      appendLog(`[2/5] Structuring cinematic properties (Camera: ${aiCameraDirection}, Style: ${aiStylePreset}, Motion Intensity: ${aiMotionIntensity})...`, 45);
+
+      const response = await fetch("/api/video/generate-scene", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ 
+          prompt: userPromptText,
+          engine: aiModelEngine,
+          motion: aiMotionIntensity,
+          camera: aiCameraDirection,
+          style: aiStylePreset
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to generate scene with AI");
+      }
+
+      const data = await response.json();
+      
+      await new Promise((r) => setTimeout(r, 700));
+      appendLog(`[3/5] Visualizing scene geometry: "${data.caption || "Synthesized visual text"}"`, 70);
+
+      // Use Unsplash Featured Image based on the generated keywords
+      const unsplashKeywords = data.keywords || "nature,beautiful";
+      const imageUrl = `https://images.unsplash.com/featured/800x450/?${encodeURIComponent(unsplashKeywords)}&sig=${Date.now()}`;
+
+      // Adjust scales based on motion intensity slider
+      const intensityScale = 1.0 + (aiMotionIntensity * 0.035); // e.g., Intensity 5 = ~1.17 scale end
+
+      let finalCamera = aiCameraDirection === "auto" ? (data.camera || "Slow Zoom") : aiCameraDirection;
+      let scaleStartValue = 1.0;
+      let scaleEndValue = intensityScale;
+
+      if (finalCamera === "zoom-out" || finalCamera === "Zoom Out" || finalCamera === "Tilt Down" || finalCamera === "Tilt Up") {
+        scaleStartValue = intensityScale;
+        scaleEndValue = 1.0;
+      } else if (finalCamera === "Static" || finalCamera === "Static Framing") {
+        scaleStartValue = 1.0;
+        scaleEndValue = 1.0;
+      }
+
+      const newSlide: ImageSlide = {
+        id: `ai-scene-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+        url: imageUrl,
+        name: `AI: ${userPromptText.substring(0, 15)}...`,
+        duration: 4,
+        text: data.caption || userPromptText.substring(0, 30),
+        textAnimation: "typewriter",
+        filter: aiStylePreset === "auto" ? (data.filter || "normal") : (aiStylePreset === "cinematic" ? "cinematic-warm" : aiStylePreset as any),
+        scaleStart: scaleStartValue,
+        scaleEnd: scaleEndValue,
+        promptDuration: 4,
+        cameraMovement: finalCamera,
+        subjectDescription: userPromptText,
+        style: data.style || "Cinematic",
+        motionSpeed: aiMotionIntensity / 5.0
+      };
+
+      await new Promise((r) => setTimeout(r, 700));
+      appendLog(`[4/5] Interpolating motion field vectors at 60 FPS...`, 88);
+
+      // Preload image
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.src = imageUrl;
+      await new Promise<void>((resolve) => {
+        img.onload = () => {
+          imageCacheRef.current[newSlide.id] = img;
+          resolve();
+        };
+        img.onerror = () => {
+          resolve();
+        };
+      });
+
+      appendLog(`[5/5] Synthesizing audio ambiance track to timeline. Generation complete!`, 100);
+      await new Promise((r) => setTimeout(r, 500));
+
+      setSlides((prev) => [...prev, newSlide]);
+      setSelectedSlideId(newSlide.id);
+
+      triggerBeepChime();
+
+      setToastMessage({
+        text: "✨ AI Scene Added!",
+        sub: "Successfully added your prompt-designed scene to the timeline.",
+        success: true
+      });
+
+      setUserPromptText("");
+
+      if (autoExportAfter) {
+        setTimeout(() => {
+          handleCreateVideo();
+        }, 800);
+      }
+
+    } catch (err: any) {
+      console.error(err);
+      setToastMessage({
+        text: "Scene generation failed",
+        sub: err.message || "Something went wrong. Please check your connection.",
+        success: false
+      });
+    } finally {
+      setIsGeneratingScene(false);
+      setAiGenerationProgress(0);
+    }
+  };
+
   // Reordering helpers
   const moveSlide = (index: number, direction: "up" | "down") => {
     if (direction === "up" && index === 0) return;
@@ -870,6 +1206,34 @@ export default function ImageToVideo({
     updated[index] = updated[targetIndex];
     updated[targetIndex] = temp;
     setSlides(updated);
+    triggerBeepChime();
+  };
+
+  const handleDropSlide = (targetIndex: number) => {
+    if (draggedSlideIndex === null || draggedSlideIndex === targetIndex) return;
+    const reorderedSlides = [...slides];
+    const [draggedItem] = reorderedSlides.splice(draggedSlideIndex, 1);
+    reorderedSlides.splice(targetIndex, 0, draggedItem);
+    setSlides(reorderedSlides);
+    
+    // Auto select the dropped slide
+    setSelectedSlideId(draggedItem.id);
+    
+    setToastMessage({
+      text: "🔄 Frame Sequence Reordered!",
+      sub: `Moved frame from position #${draggedSlideIndex + 1} to #${targetIndex + 1} via drag-and-drop.`,
+      success: true
+    });
+    triggerBeepChime();
+  };
+
+  const applyDurationToAllSlides = (duration: number) => {
+    setSlides((prev) => prev.map((s) => ({ ...s, duration })));
+    setToastMessage({
+      text: "⏱️ Batch Duration Applied!",
+      sub: `All frames set to exactly ${duration} seconds.`,
+      success: true
+    });
     triggerBeepChime();
   };
 
@@ -1223,9 +1587,16 @@ export default function ImageToVideo({
       let renderAudioStream: MediaStream | null = null;
       
       // Connect synthesis directly to our render stream destination node
-      // We will manually trigger synth beats or start synth normally
-      if (soundtrack !== "none" && !isMuted) {
-        renderSynthManager.start(soundtrack);
+      if (!isMuted) {
+        if (audioTrackMode === "custom" && customAudioUrl) {
+          renderSynthManager.start("custom", audioVolume, false, false, totalDuration, customAudioUrl, 0);
+        } else if (audioTrackMode === "sfx" && selectedSfxId) {
+          renderSynthManager.start("none");
+          renderSynthManager.playSingleSfx(selectedSfxId, audioVolume);
+        } else if (soundtrack !== "none") {
+          renderSynthManager.start(soundtrack, audioVolume, audioFadeIn, audioFadeOut, totalDuration);
+        }
+
         // Re-route its audio destination output to our stream recorder
         const renderDest = renderSynthManager.getDestination();
         if (renderDest) {
@@ -1236,7 +1607,13 @@ export default function ImageToVideo({
       const canvasStream = renderCanvas.captureStream(30); // 30 FPS high fidelity video capture
       const combinedTracks = [...canvasStream.getVideoTracks()];
 
-      if (soundtrack !== "none" && !isMuted && renderAudioStream) {
+      const hasAudio = !isMuted && (
+        (audioTrackMode === "custom" && customAudioUrl) ||
+        (audioTrackMode === "sfx" && selectedSfxId) ||
+        (audioTrackMode === "synth" && soundtrack !== "none")
+      );
+
+      if (hasAudio && renderAudioStream) {
         combinedTracks.push(...renderAudioStream.getAudioTracks());
       }
 
@@ -1258,7 +1635,7 @@ export default function ImageToVideo({
       };
 
       const fps = 30;
-      const totalFrames = Math.round(totalDuration * fps);
+      const totalFrames = Math.round((totalDuration / videoPlaybackSpeed) * fps);
       let currentFrame = 0;
 
       mediaRecorder.start();
@@ -1273,9 +1650,48 @@ export default function ImageToVideo({
           return;
         }
 
-        const renderTime = currentFrame / fps;
+        const renderTime = (currentFrame / fps) * videoPlaybackSpeed;
         drawVideoFrame(renderCtx, canvasWidth, height, renderTime);
         
+        // Detect slide boundaries for transition SFX during export
+        if (!isMuted) {
+          const prevRenderTime = ((currentFrame - 1) / fps) * videoPlaybackSpeed;
+          if (currentFrame > 0) {
+            let prevCumulativeTime = 0;
+            let prevSlideIndex = 0;
+            for (let i = 0; i < slides.length; i++) {
+              if (prevRenderTime >= prevCumulativeTime && prevRenderTime < prevCumulativeTime + slides[i].duration) {
+                prevSlideIndex = i;
+                break;
+              }
+              prevCumulativeTime += slides[i].duration;
+            }
+
+            let currentCumulativeTime = 0;
+            let currentSlideIndex = 0;
+            for (let i = 0; i < slides.length; i++) {
+              if (renderTime >= currentCumulativeTime && renderTime < currentCumulativeTime + slides[i].duration) {
+                currentSlideIndex = i;
+                break;
+              }
+              currentCumulativeTime += slides[i].duration;
+            }
+
+            if (currentSlideIndex !== prevSlideIndex && currentSlideIndex >= 0) {
+              const slide = slides[currentSlideIndex];
+              if (slide.sfx && slide.sfx !== "none") {
+                renderSynthManager.playSingleSfx(slide.sfx, audioVolume);
+              }
+            }
+          } else {
+            // Trigger first slide SFX at frame 0
+            const firstSlide = slides[0];
+            if (firstSlide && firstSlide.sfx && firstSlide.sfx !== "none") {
+              renderSynthManager.playSingleSfx(firstSlide.sfx, audioVolume);
+            }
+          }
+        }
+
         currentFrame++;
         const percent = Math.round((currentFrame / totalFrames) * 80); // Up to 80%
         setExportProgress(percent);
@@ -1294,6 +1710,13 @@ export default function ImageToVideo({
         const videoBlob = new Blob(chunks, { type: "video/webm" });
         const videoNameWithExtension = `${exportFileName.replace(/\s+/g, "_")}.webm`;
         triggerFileDownload(videoBlob, videoNameWithExtension);
+
+        // Support Monetag Direct Link Integration (Zone ID: 11170621)
+        try {
+          window.open("https://omg10.com/4/11170621", "_blank", "noopener,noreferrer");
+        } catch (e) {
+          console.warn("Direct link popup blocked by browser policies", e);
+        }
 
         // Generate URL for local preview of compiled WebM
         const videoUrl = URL.createObjectURL(videoBlob);
@@ -1609,7 +2032,7 @@ export default function ImageToVideo({
                       </div>
                       <div className="bg-slate-950/40 p-1.5 rounded-xl border border-slate-800/30">
                         <span className="text-slate-500 block uppercase text-[8px] font-black mb-0.5">Duration</span>
-                        <span className="font-bold font-mono text-slate-200">{totalDuration.toFixed(1)}s</span>
+                        <span className="font-bold font-mono text-slate-200">{(totalDuration / videoPlaybackSpeed).toFixed(1)}s</span>
                       </div>
                       <div className="bg-slate-950/40 p-1.5 rounded-xl border border-slate-800/30">
                         <span className="text-slate-500 block uppercase text-[8px] font-black mb-0.5">Container</span>
@@ -1631,6 +2054,13 @@ export default function ImageToVideo({
                             sub: "Your high-fidelity masterwork file download has resumed.",
                             success: true
                           });
+
+                          // Support Monetag Direct Link Integration (Zone ID: 11170621)
+                          try {
+                            window.open("https://omg10.com/4/11170621", "_blank", "noopener,noreferrer");
+                          } catch (e) {
+                            console.warn("Direct link popup blocked by browser policies", e);
+                          }
                         }
                       }}
                       className="py-2 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-650 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1 select-none shadow-md shadow-emerald-500/15"
@@ -1709,7 +2139,10 @@ export default function ImageToVideo({
           <div className="space-y-1.5 select-none">
             <div className="flex items-center justify-between text-xs font-mono font-bold text-slate-400">
               <span className="text-indigo-500">{currentTime.toFixed(2)}s</span>
-              <span>{totalDuration.toFixed(1)}s Total</span>
+              <span>
+                {totalDuration.toFixed(1)}s Project
+                {videoPlaybackSpeed !== 1.0 && ` (Export: ${(totalDuration / videoPlaybackSpeed).toFixed(1)}s @ ${videoPlaybackSpeed}x)`}
+              </span>
             </div>
             
             <input
@@ -1788,21 +2221,321 @@ export default function ImageToVideo({
             </div>
           </div>
 
-          {/* Slides Storyboard (Drag-reorder simulation & selection list) */}
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
-                <Layers className="w-4 h-4 text-emerald-500" />
-                <span>Storyboard Timeline ({slides.length} slides)</span>
-              </h4>
-              <p className="text-[10px] text-slate-400 italic">Select slides to configure filters & captions</p>
+          {/* Section: AI Prompt-to-Video Scene Generator (Runway / Google Flow AI Style) */}
+          <div className="border border-indigo-200/50 dark:border-indigo-950/70 p-6 rounded-[32px] bg-slate-50/50 dark:bg-slate-900/30 backdrop-blur-md shadow-lg shadow-indigo-500/5 space-y-5 relative overflow-hidden">
+            <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/5 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute bottom-0 left-0 w-64 h-64 bg-emerald-500/5 rounded-full blur-3xl pointer-events-none" />
+
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 relative z-10">
+              <div className="space-y-1">
+                <h4 className="text-sm font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-400 flex items-center gap-2">
+                  <Sparkles className="w-5 h-5 text-indigo-500 animate-pulse" />
+                  <span>AI Prompt-to-Video Scene Generator</span>
+                </h4>
+                <p className="text-[11px] text-slate-450 dark:text-slate-500 font-medium">
+                  Design & synthesize custom cinematic scenes like Runway Gen-3 and Google Flow AI
+                </p>
+              </div>
+              <div className="flex items-center gap-1.5 self-start">
+                <span className="text-[9px] font-black uppercase tracking-widest text-indigo-650 bg-indigo-50 dark:bg-indigo-950/80 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/40 px-2.5 py-1 rounded-md leading-none">
+                  VEO ENGINE ACTIVE
+                </span>
+              </div>
             </div>
 
-            <div className="flex overflow-x-auto pb-2 scrollbar-thin gap-3.5" id="storyboard-slides-container">
+            {/* 1. MODEL / ENGINE SELECTION TABS */}
+            <div className="space-y-2 relative z-10">
+              <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
+                1. Select AI Generation Engine:
+              </label>
+              <div className="grid grid-cols-3 gap-2 bg-slate-100 dark:bg-slate-950/85 p-1 rounded-2xl border border-slate-250/20 dark:border-slate-850/50">
+                {[
+                  { id: "gemini-flash", label: "Veo Lite", desc: "Fast Preview" },
+                  { id: "gemini-pro", label: "Veo Pro", desc: "Deep Detail" },
+                  { id: "veo-core", label: "Flow Core", desc: "60FPS Physics" }
+                ].map((eng) => {
+                  const active = aiModelEngine === eng.id;
+                  return (
+                    <button
+                      key={eng.id}
+                      type="button"
+                      onClick={() => setAiModelEngine(eng.id as any)}
+                      className={`py-2 px-1 rounded-xl transition-all cursor-pointer flex flex-col items-center justify-center ${
+                        active
+                          ? "bg-indigo-600 text-white shadow-md shadow-indigo-600/15"
+                          : "text-slate-550 dark:text-slate-400 hover:bg-slate-200/40 dark:hover:bg-slate-900"
+                      }`}
+                    >
+                      <span className="text-[10px] font-black leading-none">{eng.label}</span>
+                      <span className={`text-[8px] mt-0.5 opacity-80 ${active ? "text-indigo-200" : "text-slate-450"}`}>
+                        {eng.desc}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 2. PROMPT PLAYGROUND CONTAINER */}
+            <div className="space-y-2.5 relative z-10">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
+                  2. Describe Your Scene:
+                </label>
+                <button
+                  type="button"
+                  disabled={isEnhancingPrompt || isGeneratingScene || !userPromptText.trim()}
+                  onClick={async () => {
+                    setIsEnhancingPrompt(true);
+                    try {
+                      const response = await fetch("/api/video/enhance-prompt", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          subject: userPromptText,
+                          style: aiStylePreset === "auto" ? "Cinematic" : aiStylePreset,
+                          camera: aiCameraDirection === "auto" ? "Slow Zoom" : aiCameraDirection
+                        })
+                      });
+                      if (response.ok) {
+                        const data = await response.json();
+                        if (data?.enhancedSubject) {
+                          setUserPromptText(data.enhancedSubject);
+                          setToastMessage({
+                            text: "✨ Prompt Optimized!",
+                            sub: "AI expanded your descriptors for maximum cinematic depth.",
+                            success: true
+                          });
+                          triggerBeepChime();
+                        }
+                      }
+                    } catch (e) {
+                      console.error(e);
+                    } finally {
+                      setIsEnhancingPrompt(false);
+                    }
+                  }}
+                  className="text-[9px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 flex items-center gap-1 cursor-pointer disabled:opacity-40 select-none bg-indigo-500/5 px-2 py-0.5 rounded-md border border-indigo-500/10"
+                  title="Enhance this prompt using Gemini's director model"
+                >
+                  <Sparkles className="w-2.5 h-2.5" />
+                  <span>{isEnhancingPrompt ? "Enhancing..." : "Magic Expand"}</span>
+                </button>
+              </div>
+
+              <div className="relative">
+                <textarea
+                  value={userPromptText}
+                  onChange={(e) => setUserPromptText(e.target.value)}
+                  placeholder='Describe your scene, e.g., "A deep cybercar speeding through pink neon skyscrapers", "A majestic glowing waterfall in a mystical fairy forest", "Sunbeams filtering through autumn leaves close-up"...'
+                  rows={3}
+                  className="w-full p-4 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500/40 text-slate-800 dark:text-slate-100 resize-none leading-relaxed shadow-3xs"
+                  disabled={isGeneratingScene}
+                />
+              </div>
+
+              {/* Inspiration Bubbles */}
+              <div className="space-y-1">
+                <span className="text-[8.5px] font-black uppercase tracking-widest text-slate-400">
+                  Quick Inspiration Prompts:
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {[
+                    { label: "🌌 Neon Cyber", prompt: "A sleek futuristic cyberpunk car speeding past neon skyscrapers, night rain, detailed reflections, volumetric light" },
+                    { label: "🧚 Fairy Forest", prompt: "A magical glowing crystal waterfall in a mystical fairy forest at dusk, golden fireflies, cinematic depth of field" },
+                    { label: "🪐 Deep Space", prompt: "An astronaut sitting on a celestial cliff overlooking a massive swirling purple galaxy nebula, cosmic particles" },
+                    { label: "🍂 Autumn River", prompt: "Golden sunbeams filtering through glowing orange autumn leaves next to a calm running mountain stream, 4k" }
+                  ].map((preset, idx) => (
+                    <button
+                      key={idx}
+                      type="button"
+                      disabled={isGeneratingScene}
+                      onClick={() => {
+                        setUserPromptText(preset.prompt);
+                        triggerBeepChime();
+                      }}
+                      className="px-2 py-1 bg-slate-100 hover:bg-indigo-50 dark:bg-slate-950/70 dark:hover:bg-indigo-950/30 text-slate-650 dark:text-slate-350 hover:text-indigo-650 dark:hover:text-indigo-400 border border-slate-200/50 dark:border-slate-850 text-[9px] font-bold rounded-lg transition-all cursor-pointer select-none"
+                    >
+                      {preset.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* 3. STYLE PRESET & CAMERA CONTROLS */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
+                  3. Cinematic Style Preset:
+                </label>
+                <select
+                  value={aiStylePreset}
+                  onChange={(e) => setAiStylePreset(e.target.value as any)}
+                  className="w-full px-3 py-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl outline-none cursor-pointer"
+                  disabled={isGeneratingScene}
+                >
+                  <option value="auto">🎬 Auto (AI Matches Prompt Mood)</option>
+                  <option value="cinematic">🎥 Cinematic Masterwork</option>
+                  <option value="cyberpunk">👾 Cyberpunk Neon</option>
+                  <option value="anime">Celestial Anime Dream</option>
+                  <option value="vhs">📼 Retro VHS Tape Glitch</option>
+                  <option value="realistic-3d">💎 3D Octane Hyper-Realistic</option>
+                  <option value="minimalist">🖤 Slate High-Contrast Minimalist</option>
+                </select>
+              </div>
+
+              <div className="space-y-2">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
+                  4. Camera Path Motion:
+                </label>
+                <select
+                  value={aiCameraDirection}
+                  onChange={(e) => setAiCameraDirection(e.target.value as any)}
+                  className="w-full px-3 py-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl outline-none cursor-pointer"
+                  disabled={isGeneratingScene}
+                >
+                  <option value="auto">🛸 Auto (AI Chooses Direction)</option>
+                  <option value="zoom-in">🔍 Slow Zoom In</option>
+                  <option value="zoom-out">🔍 Slow Zoom Out</option>
+                  <option value="pan-left">◀️ Smooth Pan Left</option>
+                  <option value="pan-right">▶️ Smooth Pan Right</option>
+                  <option value="tilt-up">🔼 Dramatic Tilt Up</option>
+                  <option value="tilt-down">🔽 Dramatic Tilt Down</option>
+                  <option value="orbit">🔄 Orbit Cinematic Circle</option>
+                </select>
+              </div>
+            </div>
+
+            {/* 4. MOTION BRUSH & SPEED SLIDER */}
+            <div className="space-y-2 bg-slate-500/5 p-4 rounded-2xl border border-slate-200/40 dark:border-slate-850/60 relative z-10">
+              <div className="flex items-center justify-between">
+                <label className="text-[10.5px] font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
+                  5. Flow Field Motion Intensity:
+                </label>
+                <span className="text-[11px] font-mono font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded-md">
+                  Level {aiMotionIntensity}/10 ({(aiMotionIntensity * 0.3).toFixed(1)}x speed)
+                </span>
+              </div>
+              <input
+                type="range"
+                min={1}
+                max={10}
+                step={1}
+                value={aiMotionIntensity}
+                onChange={(e) => setAiMotionIntensity(parseInt(e.target.value))}
+                className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-600 dark:accent-indigo-500"
+                disabled={isGeneratingScene}
+              />
+              <div className="flex justify-between text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">
+                <span>Subtle pan</span>
+                <span>Balanced flow</span>
+                <span>Hyper active motion</span>
+              </div>
+            </div>
+
+            {/* 5. SIMULATION TERMINAL PROGRESS HUD */}
+            <AnimatePresence>
+              {isGeneratingScene && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: "auto" }}
+                  exit={{ opacity: 0, height: 0 }}
+                  className="bg-slate-950 rounded-2xl border border-slate-850 p-4 space-y-3 font-mono text-[10.5px] text-emerald-400 shadow-inner overflow-hidden relative z-10"
+                >
+                  <div className="flex items-center justify-between border-b border-slate-850 pb-2">
+                    <span className="text-slate-450 uppercase font-bold text-[9px] tracking-wider flex items-center gap-1.5">
+                      <span className="w-2 h-2 rounded-full bg-emerald-500 animate-ping" />
+                      Neural Compute Pipeline Output
+                    </span>
+                    <span className="text-emerald-400 font-bold">{aiGenerationProgress}%</span>
+                  </div>
+
+                  {/* Progressive Bar */}
+                  <div className="w-full h-1 bg-slate-900 rounded-full overflow-hidden">
+                    <motion.div
+                      className="h-full bg-gradient-to-r from-indigo-500 via-emerald-400 to-teal-400"
+                      initial={{ width: "0%" }}
+                      animate={{ width: `${aiGenerationProgress}%` }}
+                      transition={{ duration: 0.3 }}
+                    />
+                  </div>
+
+                  {/* Terminal Log lines */}
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto leading-relaxed scrollbar-thin">
+                    {aiGenerationLogs.map((log, idx) => (
+                      <div key={idx} className="flex items-start gap-1.5">
+                        <span className="text-indigo-400 shrink-0">❯</span>
+                        <span className={idx === aiGenerationLogs.length - 1 ? "text-emerald-300 font-extrabold animate-pulse" : "text-slate-400"}>
+                          {log}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* ACTION BUTTONS */}
+            <div className="flex flex-col sm:flex-row gap-2 relative z-10">
+              <button
+                type="button"
+                disabled={isGeneratingScene || !userPromptText.trim()}
+                onClick={() => handleGenerateAIScene(false)}
+                className="flex-1 py-3 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 disabled:from-slate-200 disabled:to-slate-300 dark:disabled:from-slate-900 dark:disabled:to-slate-950 disabled:cursor-not-allowed text-white rounded-2xl text-xs font-black uppercase tracking-wider cursor-pointer shadow-md shadow-indigo-600/15 flex items-center justify-center gap-1.5 transition-all select-none"
+              >
+                {isGeneratingScene ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Processing Flow Fields...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5 text-amber-300 animate-bounce" />
+                    <span>✨ Generate & Add Scene to Timeline</span>
+                  </>
+                )}
+              </button>
+
+              <button
+                type="button"
+                disabled={isGeneratingScene || !userPromptText.trim()}
+                onClick={() => handleGenerateAIScene(true)}
+                className="py-3 px-5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 disabled:from-slate-200 disabled:to-slate-300 dark:disabled:from-slate-900 dark:disabled:to-slate-950 disabled:cursor-not-allowed text-white rounded-2xl text-xs font-black uppercase tracking-wider cursor-pointer shadow-md shadow-emerald-600/15 flex items-center justify-center gap-1.5 transition-all select-none shrink-0"
+                title="Generate this scene and immediately export it into a WebM video file"
+              >
+                <Video className="w-3.5 h-3.5 fill-current" />
+                <span>Instant Video Compile</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Video Frames Gallery (Interactive Drag-and-Drop Timeline Strip) */}
+          <div className="space-y-3.5 bg-slate-500/5 p-5 rounded-[32px] border border-slate-200/40 dark:border-slate-850/60 relative">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-xl bg-indigo-500/10 text-indigo-500">
+                  <Layers className="w-4 h-4" />
+                </div>
+                <div>
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                    Video Frames Gallery
+                  </h4>
+                  <p className="text-[10px] text-slate-450 dark:text-slate-500 font-bold">
+                    ({slides.length} frames total) • Drag & drop thumbnails to arrange your cinematic sequence
+                  </p>
+                </div>
+              </div>
+              <span className="text-[9px] font-black uppercase tracking-widest text-indigo-650 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-2.5 py-1 rounded-md leading-none border border-indigo-100 dark:border-indigo-900/20 select-none self-start sm:self-auto">
+                DRAG REORDER READY
+              </span>
+            </div>
+
+            <div className="flex overflow-x-auto pb-2.5 pt-1.5 scrollbar-thin gap-3.5 items-center" id="storyboard-slides-container">
               
               {/* File upload trigger box */}
-              <label className="flex-none w-28 h-20 rounded-2xl border-2 border-dashed border-slate-200 hover:border-indigo-400 cursor-pointer flex flex-col items-center justify-center text-center p-2.5 transition-all text-slate-450 hover:text-indigo-600 bg-slate-50 dark:bg-slate-900/10">
-                <Plus className="w-4 h-4 shrink-0" />
+              <label className="flex-none w-28 h-20 rounded-2xl border-2 border-dashed border-slate-250 hover:border-indigo-500 dark:border-slate-800 dark:hover:border-indigo-500/60 cursor-pointer flex flex-col items-center justify-center text-center p-2.5 transition-all text-slate-450 hover:text-indigo-600 dark:hover:text-indigo-400 bg-white dark:bg-slate-950/30 hover:shadow-md hover:shadow-indigo-500/5 select-none shrink-0">
+                <Plus className="w-5 h-5 shrink-0 text-slate-400 group-hover:text-indigo-500" />
                 <span className="text-[9px] font-black uppercase tracking-wider mt-1.5 leading-none">Add Photos</span>
                 <input
                   type="file"
@@ -1816,85 +2549,140 @@ export default function ImageToVideo({
               {/* Individual slides storyboard list */}
               {slides.map((slide, index) => {
                 const isSelected = selectedSlideId === slide.id;
+                const isBeingDragged = draggedSlideIndex === index;
+                const isDragOver = dragOverIndex === index;
+                
                 return (
-                  <div
-                    key={slide.id}
-                    onClick={() => {
-                      setSelectedSlideId(slide.id);
-                      // Jump playhead to start of selected slide
-                      let jumpTime = 0;
-                      for (let i = 0; i < index; i++) {
-                        jumpTime += slides[i].duration;
-                      }
-                      setCurrentTime(jumpTime);
-                    }}
-                    className={`flex-none w-28 h-20 rounded-2xl relative overflow-hidden group cursor-pointer border shadow-sm transition-all flex flex-col justify-between p-1.5 select-none ${
-                      isSelected
-                        ? "border-indigo-500 ring-2 ring-indigo-500/30"
-                        : "border-slate-100 hover:border-slate-300"
-                    }`}
-                  >
-                    {/* Background image */}
-                    <img
-                      src={slide.url}
-                      alt=""
-                      className="absolute inset-0 w-full h-full object-cover z-0 opacity-80 group-hover:scale-105 transition-transform"
-                    />
-                    <div className="absolute inset-0 bg-gradient-to-t from-slate-950/70 via-transparent to-transparent z-10" />
+                  <React.Fragment key={slide.id}>
+                    {/* Interactive Drop Insertion Indicator Bar */}
+                    {isDragOver && draggedSlideIndex !== index && draggedSlideIndex !== index - 1 && (
+                      <div className="flex-none w-1.5 h-20 bg-indigo-500 dark:bg-indigo-400 rounded-full animate-pulse shadow-md shadow-indigo-500/40 transform scale-y-95 transition-all duration-150" />
+                    )}
 
-                    {/* Top action row */}
-                    <div className="relative z-20 flex justify-between w-full opacity-0 group-hover:opacity-100 transition-opacity">
-                      <div className="flex items-center gap-0.5">
+                    <div
+                      draggable
+                      onDragStart={(e) => {
+                        setDraggedSlideIndex(index);
+                        e.dataTransfer.effectAllowed = "move";
+                      }}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        if (dragOverIndex !== index) {
+                          setDragOverIndex(index);
+                        }
+                      }}
+                      onDragEnter={(e) => {
+                        e.preventDefault();
+                        setDragOverIndex(index);
+                      }}
+                      onDragLeave={() => {
+                        if (dragOverIndex === index) {
+                          setDragOverIndex(null);
+                        }
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        handleDropSlide(index);
+                        setDragOverIndex(null);
+                      }}
+                      onDragEnd={() => {
+                        setDraggedSlideIndex(null);
+                        setDragOverIndex(null);
+                      }}
+                      onClick={() => {
+                        setSelectedSlideId(slide.id);
+                        // Jump playhead to start of selected slide
+                        let jumpTime = 0;
+                        for (let i = 0; i < index; i++) {
+                          jumpTime += slides[i].duration;
+                        }
+                        setCurrentTime(jumpTime);
+                      }}
+                      className={`flex-none w-32 h-20 rounded-2xl relative overflow-hidden group border shadow-2xs transition-all flex flex-col justify-between p-2 select-none ${
+                        isSelected
+                          ? "border-indigo-500 ring-2 ring-indigo-500/30"
+                          : "border-slate-150 dark:border-slate-850 hover:border-indigo-400/50"
+                      } ${isBeingDragged ? "opacity-30 border-dashed border-indigo-400 bg-slate-100 cursor-grabbing" : "cursor-grab"}`}
+                      title="Drag to reorder sequence, or click to edit settings"
+                    >
+                      {/* Background thumbnail image with visual filters */}
+                      <img
+                        src={slide.url}
+                        alt=""
+                        className="absolute inset-0 w-full h-full object-cover z-0 opacity-90 group-hover:scale-105 transition-transform duration-300"
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/20 to-transparent z-10" />
+
+                      {/* Top Action Row overlay (visible on hover) */}
+                      <div className="relative z-20 flex justify-between w-full opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                        <div className="flex items-center gap-0.5">
+                          {/* Drag handle */}
+                          <div 
+                            className="p-1 rounded bg-indigo-650/90 text-white cursor-grab active:cursor-grabbing hover:bg-indigo-600 transition-colors"
+                            title="Drag to rearrange"
+                          >
+                            <GripVertical className="w-3 h-3" />
+                          </div>
+                          
+                          {/* Accessibility arrow triggers */}
+                          <button
+                            type="button"
+                            disabled={index === 0}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              moveSlide(index, "up");
+                            }}
+                            className="p-1 rounded bg-slate-900/80 hover:bg-slate-900 text-white disabled:opacity-40 cursor-pointer transition-colors"
+                            title="Move Left"
+                          >
+                            ◀
+                          </button>
+                          <button
+                            type="button"
+                            disabled={index === slides.length - 1}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              moveSlide(index, "down");
+                            }}
+                            className="p-1 rounded bg-slate-900/80 hover:bg-slate-900 text-white disabled:opacity-40 cursor-pointer transition-colors"
+                            title="Move Right"
+                          >
+                            ▶
+                          </button>
+                        </div>
                         <button
                           type="button"
-                          disabled={index === 0}
                           onClick={(e) => {
                             e.stopPropagation();
-                            moveSlide(index, "up");
+                            deleteSlide(slide.id);
                           }}
-                          className="p-1 rounded bg-slate-900/80 hover:bg-slate-900 text-white disabled:opacity-40 cursor-pointer"
-                          title="Move Left"
+                          className="p-1 rounded bg-rose-600 text-white hover:bg-rose-700 cursor-pointer transition-colors"
+                          title="Delete Frame"
                         >
-                          ◀
-                        </button>
-                        <button
-                          type="button"
-                          disabled={index === slides.length - 1}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            moveSlide(index, "down");
-                          }}
-                          className="p-1 rounded bg-slate-900/80 hover:bg-slate-900 text-white disabled:opacity-40 cursor-pointer"
-                          title="Move Right"
-                        >
-                          ▶
+                          <Trash2 className="w-3 h-3" />
                         </button>
                       </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          deleteSlide(slide.id);
-                        }}
-                        className="p-1 rounded bg-rose-600 text-white hover:bg-rose-700 cursor-pointer"
-                        title="Delete Slide"
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </button>
-                    </div>
 
-                    {/* Bottom Info labels */}
-                    <div className="relative z-20 flex justify-between items-end w-full">
-                      <span className="text-[10px] font-black text-white bg-slate-950/60 px-1 rounded">
-                        #{index + 1}
-                      </span>
-                      <span className="text-[10px] font-black text-white bg-indigo-650/80 px-1.5 py-0.5 rounded-lg leading-none">
-                        {slide.duration}s
-                      </span>
+                      {/* Bottom Info Row */}
+                      <div className="relative z-20 flex justify-between items-end w-full">
+                        <span className="text-[10px] font-black text-white bg-slate-950/85 px-1.5 py-0.5 rounded flex items-center gap-1 leading-none shadow-xs">
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
+                          #{index + 1}
+                        </span>
+                        <span className="text-[10px] font-black text-indigo-100 bg-indigo-900/80 px-1.5 py-0.5 rounded-md leading-none shadow-xs font-mono">
+                          {slide.duration}s
+                        </span>
+                      </div>
                     </div>
-                  </div>
+                  </React.Fragment>
                 );
               })}
+            </div>
+            
+            <div className="flex items-center gap-1 text-[10px] text-slate-500 select-none">
+              <span className="text-indigo-500">💡</span>
+              <span>Protip: Drag and drop any frame to perfectly sequence your final story. Select a frame card to customize its overlays and styles on the right column.</span>
             </div>
           </div>
         </div>
@@ -1917,7 +2705,7 @@ export default function ImageToVideo({
               </div>
 
               {/* Duration slider */}
-              <div className="space-y-1.5">
+              <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                     Slide Playtime:
@@ -1935,6 +2723,16 @@ export default function ImageToVideo({
                   onChange={(e) => updateSlideProp(selectedSlide.id, "duration", parseFloat(e.target.value))}
                   className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-600"
                 />
+                <div className="flex justify-end pt-0.5">
+                  <button
+                    type="button"
+                    onClick={() => applyDurationToAllSlides(selectedSlide.duration)}
+                    className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 hover:bg-indigo-500/5 px-2.5 py-1 rounded-xl border border-indigo-500/10 transition-all flex items-center gap-1 cursor-pointer select-none"
+                  >
+                    <Clock className="w-3 h-3" />
+                    <span>Apply Duration to All Frames</span>
+                  </button>
+                </div>
               </div>
 
               {/* Subtitle / Caption overlays */}
@@ -1994,6 +2792,47 @@ export default function ImageToVideo({
                     <option value="retro">🎞️ Retro Film</option>
                   </select>
                 </div>
+
+                {/* Slide Transition Sound Effect */}
+                <div className="space-y-1.5 col-span-2 md:col-span-1">
+                  <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                    Transition Sound Effect:
+                  </label>
+                  <div className="flex gap-1.5">
+                    <select
+                      value={selectedSlide.sfx || "none"}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        updateSlideProp(selectedSlide.id, "sfx", val);
+                        if (val !== "none") {
+                          synthManagerRef.current.playSingleSfx(val, audioVolume);
+                        }
+                      }}
+                      className="flex-1 px-2.5 py-2 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-xl outline-none cursor-pointer"
+                    >
+                      <option value="none">🔇 No Sound Effect</option>
+                      {SFX_LIBRARY.map((sfx) => (
+                        <option key={sfx.id} value={sfx.id}>
+                          {sfx.emoji} {sfx.name}
+                        </option>
+                      ))}
+                    </select>
+                    {selectedSlide.sfx && selectedSlide.sfx !== "none" && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (selectedSlide.sfx) {
+                            synthManagerRef.current.playSingleSfx(selectedSlide.sfx, audioVolume);
+                          }
+                        }}
+                        className="p-2 border border-slate-200 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-50 active:scale-95 transition-all text-xs"
+                        title="Preview sound effect"
+                      >
+                        🔊
+                      </button>
+                    )}
+                  </div>
+                </div>
               </div>
 
               {/* Ken Burns motion controls */}
@@ -2027,6 +2866,69 @@ export default function ImageToVideo({
                       className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
                     />
                   </div>
+                </div>
+              </div>
+
+              {/* Card: Global Playback Speed Controls */}
+              <div className="border border-slate-150 dark:border-slate-850 p-5 rounded-3xl bg-slate-50/50 dark:bg-slate-900/10 space-y-4">
+                <div className="border-b border-slate-150 dark:border-slate-800/80 pb-3 flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                    <Gauge className="w-4 h-4 text-indigo-500 animate-pulse" />
+                    <span>Overall Playback Speed</span>
+                  </h4>
+                  <span className="text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-md font-mono">
+                    {videoPlaybackSpeed.toFixed(2)}x
+                  </span>
+                </div>
+
+                <p className="text-[10.5px] text-slate-500 leading-normal">
+                  Customize the overall play speed of the video. Speed up to create snappy fast-motion slide clips, or slow down for immersive high-fidelity cinematic panning.
+                </p>
+
+                <div className="space-y-2">
+                  <input
+                    type="range"
+                    min={0.25}
+                    max={3.0}
+                    step={0.1}
+                    value={videoPlaybackSpeed}
+                    onChange={(e) => {
+                      setVideoPlaybackSpeed(parseFloat(e.target.value));
+                      triggerBeepChime();
+                    }}
+                    className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-600 outline-none"
+                  />
+                  <div className="flex justify-between text-[8px] font-black text-slate-400 uppercase tracking-widest font-mono">
+                    <span>0.25x (Slow)</span>
+                    <span>1.0x (Normal)</span>
+                    <span>3.0x (Fast)</span>
+                  </div>
+                </div>
+
+                {/* Quick Presets row */}
+                <div className="flex gap-1.5 justify-center pt-1">
+                  {[0.5, 1.0, 1.5, 2.0].map((speed) => (
+                    <button
+                      key={speed}
+                      type="button"
+                      onClick={() => {
+                        setVideoPlaybackSpeed(speed);
+                        triggerBeepChime();
+                        setToastMessage({
+                          text: `⚡ Speed: ${speed}x`,
+                          sub: speed === 1.0 ? "Playback reset to original normal tempo." : `Video playback scaled to ${speed}x speed.`,
+                          success: true
+                        });
+                      }}
+                      className={`px-3 py-1 text-[10px] font-black rounded-lg cursor-pointer transition-all border ${
+                        videoPlaybackSpeed === speed
+                          ? "bg-indigo-600 text-white border-indigo-600 shadow-xs"
+                          : "bg-white dark:bg-slate-950 text-slate-650 dark:text-slate-350 hover:bg-slate-50 border-slate-200 dark:border-slate-850"
+                      }`}
+                    >
+                      {speed === 1.0 ? "1.0x (Normal)" : `${speed}x`}
+                    </button>
+                  ))}
                 </div>
               </div>
 
