@@ -12,7 +12,8 @@ import {
   Activity, 
   Download, 
   Sparkles,
-  ChevronRight
+  ChevronRight,
+  Video
 } from "lucide-react";
 import { RecentActivity, ActiveTab } from "../types";
 
@@ -33,7 +34,8 @@ const iconMap: Record<RecentActivity["icon"], React.ComponentType<any>> = {
   ShieldCheck,
   Activity,
   Download,
-  Sparkles
+  Sparkles,
+  Video
 };
 
 const tabLabelMap: Record<ActiveTab, string> = {
@@ -41,6 +43,7 @@ const tabLabelMap: Record<ActiveTab, string> = {
   compress: "Image Compressor",
   qr: "QR Generator",
   palette: "Color Extractor",
+  video: "Video Creator",
   drive: "Drive Explorer",
   resources: "Guides & SEO",
   legal: "Compliance"

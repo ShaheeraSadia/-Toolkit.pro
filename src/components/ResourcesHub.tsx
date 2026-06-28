@@ -23,6 +23,8 @@ import {
   Sparkles
 } from "lucide-react";
 
+import { triggerFileDownload } from "../lib/download";
+
 const NODE_JS_SCRIPT_TEMPLATE = (siteRoot: string) => `/**
  * Toolkit Pro Suite - Client App Fetcher (NodeJS)
  * High-performance automated pipeline to fetch & serialize creator assets locally.
@@ -514,14 +516,7 @@ export default function ResourcesHub({
   const downloadXmlFile = () => {
     const xml = generateXmlString(siteRoot);
     const blob = new Blob([xml], { type: "application/xml;charset=utf-8;" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.setAttribute("download", "sitemap.xml");
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    URL.revokeObjectURL(url);
+    triggerFileDownload(blob, "sitemap.xml");
   };
 
   const handleCopyAll = () => {
@@ -1906,14 +1901,7 @@ print("✨ Local pipeline complete!")`;
           // Download Action Handler
           const handleDownloadFetcher = (fileName: string, content: string, mimeType: string) => {
             const blob = new Blob([content], { type: mimeType });
-            const url = URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = fileName;
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            URL.revokeObjectURL(url);
+            triggerFileDownload(blob, fileName);
           };
 
           // Clipboard Copy Action Handler

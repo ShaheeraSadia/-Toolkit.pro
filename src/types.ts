@@ -42,7 +42,7 @@ export interface CompressionResult {
   dataUrl: string;
 }
 
-export type ActiveTab = "quote" | "compress" | "qr" | "palette" | "drive" | "resources" | "legal";
+export type ActiveTab = "quote" | "compress" | "qr" | "palette" | "video" | "drive" | "resources" | "legal";
 
 export interface RecentActivity {
   id: string;
@@ -50,6 +50,6 @@ export interface RecentActivity {
   title: string;
   detail: string;
   timestamp: string;
-  icon: "Quote" | "FileImage" | "QrCode" | "Pipette" | "Cloud" | "BookOpen" | "ShieldCheck" | "Activity" | "Download" | "Sparkles";
+  icon: "Quote" | "FileImage" | "QrCode" | "Pipette" | "Cloud" | "BookOpen" | "ShieldCheck" | "Activity" | "Download" | "Sparkles" | "Video";
   tab?: ActiveTab;
 }

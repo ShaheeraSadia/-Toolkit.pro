@@ -3,6 +3,7 @@ import { motion } from "motion/react";
 import { User } from "firebase/auth";
 import { PaletteColor } from "../types";
 import { uploadFileToDrive, getOrCreateFolder } from "../lib/drive";
+import { triggerFileDownload } from "../lib/download";
 import { Cloud, Download, Copy, Pipette, UploadCloud, Check, Sparkles, AlertCircle, Code, Sun, ArrowUpDown, Share2, Eye, CheckCircle2, Sliders, FileCode, FileJson, Search, X, History, RotateCcw, Layers, Palette } from "lucide-react";
 
 interface SessionPalette {
@@ -884,12 +885,7 @@ export default function ColorExtractor({
 
       const blob = new Blob([cssContent], { type: "text/css;charset=utf-8;" });
       const downloadName = `toolkit_pro_palette_${slugName}.css`;
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.setAttribute("download", downloadName);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      triggerFileDownload(blob, downloadName);
 
       window.dispatchEvent(new CustomEvent("toolkit-add-activity", {
         detail: {
@@ -933,12 +929,7 @@ export default function ColorExtractor({
       const jsonString = JSON.stringify(themeObject, null, 2);
       const blob = new Blob([jsonString], { type: "application/json;charset=utf-8;" });
       const downloadName = `toolkit_pro_palette_${slugName}.json`;
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.setAttribute("download", downloadName);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      triggerFileDownload(blob, downloadName);
 
       window.dispatchEvent(new CustomEvent("toolkit-add-activity", {
         detail: {

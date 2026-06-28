@@ -13,6 +13,7 @@ import {
   FileImage, 
   QrCode, 
   Pipette, 
+  Video,
   ChevronDown,
   Sun,
   Moon,
@@ -133,6 +134,7 @@ export default function Navbar({
     compress: { label: "Image Compressor", icon: FileImage, color: "text-emerald-600 dark:text-emerald-400 bg-emerald-55/60 dark:bg-emerald-950/40 border border-emerald-100/50 dark:border-emerald-900/30", desc: "Ultra-fast size reduction" },
     qr: { label: "QR Code Generator", icon: QrCode, color: "text-amber-600 dark:text-amber-400 bg-amber-55/60 dark:bg-amber-950/40 border border-amber-100/50 dark:border-amber-900/30", desc: "Scan metrics with Reed-Solomon" },
     palette: { label: "Color Extractor", icon: Pipette, color: "text-pink-600 dark:text-pink-400 bg-pink-55/60 dark:bg-pink-955/40 border border-pink-100/50 dark:border-pink-900/30", desc: "Median Cut color analyzer" },
+    video: { label: "Video Creator", icon: Video, color: "text-purple-600 dark:text-purple-400 bg-purple-55/60 dark:bg-purple-955/40 border border-purple-100/50 dark:border-purple-900/30", desc: "Interactive timeline editor" },
     drive: { label: "Cloud Workspace", icon: Cloud, color: "text-sky-600 dark:text-sky-400 bg-sky-55/60 dark:bg-sky-955/40 border border-sky-100/50 dark:border-sky-900/30", desc: "Browse files via Google Drive" },
     resources: { label: "Guides & Articles Hub", icon: BookOpen, color: "text-teal-600 dark:text-teal-400 bg-teal-55/60 dark:bg-teal-955/40 border border-teal-100/50 dark:border-teal-900/30", desc: "SEO publications & manuals" },
     legal: { label: "Legal & Support Center", icon: ShieldCheck, color: "text-slate-600 dark:text-slate-400 bg-slate-55/60 dark:bg-slate-955/40 border border-slate-100/50 dark:border-slate-800/30", desc: "AdSense policies & direct support" }
@@ -145,7 +147,7 @@ export default function Navbar({
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
           return parsed.filter((t): t is ActiveTab => 
-            ["quote", "compress", "qr", "palette", "drive", "resources", "legal"].includes(t)
+            ["quote", "compress", "qr", "palette", "video", "drive", "resources", "legal"].includes(t)
           );
         }
       }
@@ -173,6 +175,7 @@ export default function Navbar({
     { id: "compress", label: "Image Compressor", icon: FileImage, desc: "Ultra-fast size reduction" },
     { id: "qr", label: "QR Code Generator", icon: QrCode, desc: "Scan metrics with Reed-Solomon" },
     { id: "palette", label: "Color Extractor", icon: Pipette, desc: "Median Cut color analyzer" },
+    { id: "video", label: "Video Creator", icon: Video, desc: "Interactive timeline editor" },
   ];
 
   const handleTabClick = (tabId: ActiveTab) => {
@@ -196,7 +199,7 @@ export default function Navbar({
     }
   };
 
-  const isToolActive = ["quote", "compress", "qr", "palette"].includes(activeTab);
+  const isToolActive = ["quote", "compress", "qr", "palette", "video"].includes(activeTab);
 
   return (
     <header className={`sticky top-0 z-50 select-none border-b transition-all duration-300 backdrop-blur-md ${

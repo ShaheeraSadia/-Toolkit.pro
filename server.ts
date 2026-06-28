@@ -176,6 +176,63 @@ Each item in the array must have:
   }
 });
 
+// API route to suggest highly cinematic and detailed expansions for AI video prompt subjects using Gemini API
+app.post("/api/video/enhance-prompt", async (req, res) => {
+  try {
+    const activeApiKey = process.env.GEMINI_API_KEY;
+    if (!activeApiKey) {
+      return res.status(500).json({ 
+        error: "GEMINI_API_KEY is not configured in the host environment or Secrets panel." 
+      });
+    }
+
+    if (!ai) {
+      ai = new GoogleGenAI({
+        apiKey: activeApiKey,
+        httpOptions: {
+          headers: {
+            "User-Agent": "aistudio-build",
+          },
+        },
+      });
+    }
+
+    const { subject, style, camera } = req.body;
+    if (!subject) {
+      return res.status(400).json({ error: "A non-empty subject description is required to enhance." });
+    }
+
+    const systemInstruction = `You are an expert AI video prompt designer and world-class cinematographer.
+Your goal is to take a simple user subject description, visual style, and camera movement, and expand the subject description into a highly detailed, evocative, and visually descriptive prompt segment (max 80 characters).
+
+RULES:
+1. Keep the output extremely concise, vivid, and cinematic. Do not exceed 80 characters.
+2. Focus strictly on describing the motion, details, light, and action of the subject itself.
+3. Return a clean, simple, unquoted text response. Do NOT include introductory text, conversational preambles, explanations, or quotes.`;
+
+    const userPrompt = `Enhance this subject description: "${subject}".
+The visual style is: "${style || "Cinematic"}".
+The camera motion is: "${camera || "Slow Zoom"}".`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: userPrompt,
+      config: {
+        systemInstruction,
+        temperature: 0.8,
+      },
+    });
+
+    const enhancedText = response?.text?.trim() || subject;
+    return res.json({ enhancedSubject: enhancedText });
+  } catch (error: any) {
+    console.error("Gemini prompt enhancement error:", error);
+    return res.status(500).json({ 
+      error: error.message || "Prompt enhancement failed due to a server-side error." 
+    });
+  }
+});
+
 // API route to shorten a URL utilizing high-availability failsafe providers (is.gd with tinyurl.com fallback)
 app.post("/api/url/shorten", async (req, res) => {
   try {

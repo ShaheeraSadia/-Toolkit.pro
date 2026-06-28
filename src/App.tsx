@@ -8,6 +8,7 @@ import QuoteDesigner from "./components/QuoteDesigner";
 import ImageCompressor from "./components/ImageCompressor";
 import QrGenerator from "./components/QrGenerator";
 import ColorExtractor from "./components/ColorExtractor";
+import ImageToVideo from "./components/ImageToVideo";
 import DriveExplorer from "./components/DriveExplorer";
 import ResourcesHub from "./components/ResourcesHub";
 import AdSenseCompliance from "./components/AdSenseCompliance";
@@ -27,6 +28,7 @@ import {
   FileImage,
   QrCode,
   Pipette,
+  Video,
   CloudLightning,
   AlertCircle,
   Cloud,
@@ -218,7 +220,7 @@ export default function App() {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get("tab") as ActiveTab;
-      if (tabParam && ["quote", "compress", "qr", "palette", "drive", "resources", "legal"].includes(tabParam)) {
+      if (tabParam && ["quote", "compress", "qr", "palette", "video", "drive", "resources", "legal"].includes(tabParam)) {
         return tabParam;
       }
     }
@@ -365,6 +367,7 @@ export default function App() {
       compress: "Compress",
       qr: "QR Gen",
       palette: "Palette",
+      video: "Video Creator",
       drive: "Drive",
       resources: "Guides",
       legal: "Legal"
@@ -375,12 +378,13 @@ export default function App() {
       compress: "rgba(168, 85, 247, 0.85)",  // Purple
       qr: "rgba(16, 185, 129, 0.85)",       // Emerald
       palette: "rgba(6, 182, 212, 0.85)",     // Cyan
+      video: "rgba(139, 92, 246, 0.85)",     // Violet
       drive: "rgba(59, 130, 246, 0.85)",     // Blue
       resources: "rgba(245, 158, 11, 0.85)",   // Amber
       legal: "rgba(244, 63, 94, 0.85)"       // Rose
     };
 
-    const tabs: ActiveTab[] = ["quote", "compress", "qr", "palette", "drive", "resources", "legal"];
+    const tabs: ActiveTab[] = ["quote", "compress", "qr", "palette", "video", "drive", "resources", "legal"];
     return tabs.map((tab) => ({
       tool: tab,
       label: labels[tab],
@@ -451,6 +455,7 @@ export default function App() {
       compress: "Image Compressor",
       qr: "QR Generator",
       palette: "Color Extractor",
+      video: "Video Creator",
       drive: "Drive Panel",
       resources: "Guides & SEO",
       legal: "Compliance"
@@ -461,6 +466,7 @@ export default function App() {
       compress: "FileImage",
       qr: "QrCode",
       palette: "Pipette",
+      video: "Video",
       drive: "Cloud",
       resources: "BookOpen",
       legal: "ShieldCheck"
@@ -487,7 +493,7 @@ export default function App() {
 
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get("tab") as ActiveTab;
-      if (tabParam && ["quote", "compress", "qr", "palette", "drive", "resources", "legal"].includes(tabParam)) {
+      if (tabParam && ["quote", "compress", "qr", "palette", "video", "drive", "resources", "legal"].includes(tabParam)) {
         setActiveTab(tabParam);
       } else if (!isSitemapPath) {
         setActiveTab("quote");
@@ -588,16 +594,17 @@ export default function App() {
         return;
       }
 
-      // 3. Alt + [1-6] Hotkeys Navigation
-      if (e.altKey && e.key >= "1" && e.key <= "6") {
+      // 3. Alt + [1-7] Hotkeys Navigation
+      if (e.altKey && e.key >= "1" && e.key <= "7") {
         e.preventDefault();
         const tabMap: Record<string, ActiveTab> = {
           "1": "quote",
           "2": "compress",
           "3": "qr",
           "4": "palette",
-          "5": "resources",
-          "6": "legal"
+          "5": "video",
+          "6": "resources",
+          "7": "legal"
         };
         const targetTab = tabMap[e.key];
         if (targetTab) {
@@ -608,6 +615,7 @@ export default function App() {
             compress: "Image Compressor",
             qr: "QR Generator",
             palette: "Color Extractor",
+            video: "Video Creator",
             drive: "Drive Explorer",
             resources: "Guides & SEO",
             legal: "Compliance"
@@ -961,7 +969,7 @@ export default function App() {
               : "bg-slate-100 border-slate-200/50"
           }`}
           onKeyDown={(e) => {
-            const tabsList = ["quote", "compress", "qr", "palette", "drive", "resources", "legal"] as const;
+            const tabsList = ["quote", "compress", "qr", "palette", "video", "drive", "resources", "legal"] as const;
             const currentIndex = tabsList.indexOf(activeTab);
             if (e.key === "ArrowRight") {
               e.preventDefault();
@@ -985,6 +993,7 @@ export default function App() {
             { id: "compress", label: "Image Compressor", icon: FileImage },
             { id: "qr", label: "QR Generator", icon: QrCode },
             { id: "palette", label: "Color Extractor", icon: Pipette },
+            { id: "video", label: "Video Creator", icon: Video },
             { id: "drive", label: "Drive Panel", icon: Cloud, badge: files.length > 0 ? files.length : undefined },
             { id: "resources", label: "Guides & SEO", icon: BookOpen },
             { id: "legal", label: "Compliance & Contact", icon: ShieldCheck },
@@ -1105,6 +1114,15 @@ export default function App() {
 
                   {activeTab === "palette" && (
                     <ColorExtractor
+                      user={user}
+                      accessToken={accessToken}
+                      onRefreshDrive={handleRefreshDrive}
+                      onLogin={handleLogin}
+                    />
+                  )}
+
+                  {activeTab === "video" && (
+                    <ImageToVideo
                       user={user}
                       accessToken={accessToken}
                       onRefreshDrive={handleRefreshDrive}
@@ -1476,6 +1494,7 @@ export default function App() {
                   activeTab === "compress" ? "Compression Proof" :
                   activeTab === "qr" ? "QR Code" : 
                   activeTab === "palette" ? "Palette" : 
+                  activeTab === "video" ? "Timeline Editor" :
                   activeTab === "drive" ? "Drive Panel" : 
                   activeTab === "resources" ? "Content Guides" : "Compliance View"
                 }

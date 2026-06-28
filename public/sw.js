@@ -37,7 +37,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
- // Main fetch interceptor using customized hybrid offline strategy
+// Main fetch interceptor using customized hybrid offline strategy
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
@@ -120,7 +120,7 @@ self.addEventListener('fetch', (event) => {
 // ==========================================
 self.options = {
     "domain": "5gvci.com",
-    "zoneId": 11171568
+    "zoneId": 11194591
 };
 self.lary = "";
 try {

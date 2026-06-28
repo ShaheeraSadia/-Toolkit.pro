@@ -3,6 +3,7 @@ import JSZip from "jszip";
 import { User } from "firebase/auth";
 import { CompressionResult } from "../types";
 import { uploadFileToDrive, downloadDriveFile, updateDriveFile } from "../lib/drive";
+import { triggerFileDownload } from "../lib/download";
 import { 
   Cloud, 
   CloudOff,
@@ -1651,12 +1652,7 @@ export default function ImageCompressor({
       const baseName = activeItem.name.substring(0, activeItem.name.lastIndexOf('.')) || activeItem.name;
       const downloadName = `${baseName}_side_by_side_comparison.png`;
       
-      const link = document.createElement("a");
-      link.download = downloadName;
-      link.href = dataUrl;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      triggerFileDownload(dataUrl, downloadName);
     } catch (err) {
       console.error("Failed to download comparison", err);
       alert("Failed to export comparison image. Please try again.");
@@ -2643,12 +2639,7 @@ export default function ImageCompressor({
       if (compressedFiles.length === 1) {
         const file = compressedFiles[0];
         const res = file.compressedResult!;
-        const link = document.createElement("a");
-        link.download = res.fileName;
-        link.href = res.dataUrl;
-        document.body.appendChild(link);
-        link.click();
-        document.body.removeChild(link);
+        triggerFileDownload(res.dataUrl, res.fileName);
       } else {
         const zip = new JSZip();
         compressedFiles.forEach(file => {
@@ -2662,12 +2653,7 @@ export default function ImageCompressor({
         });
         
         const zipBlob = await zip.generateAsync({ type: "blob" });
-        const dlLink = document.createElement("a");
-        dlLink.href = URL.createObjectURL(zipBlob);
-        dlLink.download = `session_download_${Date.now()}.zip`;
-        document.body.appendChild(dlLink);
-        dlLink.click();
-        document.body.removeChild(dlLink);
+        triggerFileDownload(zipBlob, `session_download_${Date.now()}.zip`);
       }
     } catch (err: any) {
       console.error("Historical download failed", err);
@@ -2774,10 +2760,7 @@ export default function ImageCompressor({
     
     if (autoSaveTarget === "local") {
       // Download locally
-      const link = document.createElement("a");
-      link.download = item.compressedResult.fileName;
-      link.href = item.compressedResult.dataUrl;
-      link.click();
+      triggerFileDownload(item.compressedResult.dataUrl, item.compressedResult.fileName);
       
       setAutoSaveToast({
         isOpen: true,
@@ -2845,12 +2828,7 @@ export default function ImageCompressor({
         });
 
         const zipBlob = await zip.generateAsync({ type: "blob" });
-        const dlLink = document.createElement("a");
-        dlLink.href = URL.createObjectURL(zipBlob);
-        dlLink.download = `toolkitpro_autosave_${Date.now()}.zip`;
-        document.body.appendChild(dlLink);
-        dlLink.click();
-        document.body.removeChild(dlLink);
+        triggerFileDownload(zipBlob, `toolkitpro_autosave_${Date.now()}.zip`);
         
         setAutoSaveToast({
           isOpen: true,
@@ -2861,10 +2839,7 @@ export default function ImageCompressor({
         compressedList.forEach((item, index) => {
           setTimeout(() => {
             if (!item.compressedResult) return;
-            const link = document.createElement("a");
-            link.download = item.compressedResult.fileName;
-            link.href = item.compressedResult.dataUrl;
-            link.click();
+            triggerFileDownload(item.compressedResult.dataUrl, item.compressedResult.fileName);
           }, index * 200);
         });
         setAutoSaveToast({
@@ -2987,10 +2962,7 @@ export default function ImageCompressor({
   // Individual handles
   const handleDownload = () => {
     if (!compressedResult) return;
-    const link = document.createElement("a");
-    link.download = compressedResult.fileName;
-    link.href = compressedResult.dataUrl;
-    link.click();
+    triggerFileDownload(compressedResult.dataUrl, compressedResult.fileName);
 
     // Trigger confirmation toast
     setAutoSaveToast({
@@ -3165,12 +3137,7 @@ export default function ImageCompressor({
       });
 
       const zipBlob = await zip.generateAsync({ type: "blob" });
-      const dlLink = document.createElement("a");
-      dlLink.href = URL.createObjectURL(zipBlob);
-      dlLink.download = `toolkitpro_compressed_${Date.now()}.zip`;
-      document.body.appendChild(dlLink);
-      dlLink.click();
-      document.body.removeChild(dlLink);
+      triggerFileDownload(zipBlob, `toolkitpro_compressed_${Date.now()}.zip`);
 
       // Trigger confirmation toast
       setAutoSaveToast({
@@ -3204,10 +3171,7 @@ export default function ImageCompressor({
     compressedItems.forEach((item, index) => {
       setTimeout(() => {
         if (!item.compressedResult) return;
-        const link = document.createElement("a");
-        link.download = item.compressedResult.fileName;
-        link.href = item.compressedResult.dataUrl;
-        link.click();
+        triggerFileDownload(item.compressedResult.dataUrl, item.compressedResult.fileName);
       }, index * 200);
     });
 
@@ -6679,33 +6643,52 @@ export default function ImageCompressor({
         </div>
       )}
 
-      {/* Auto-Save Configuration Dialog Modal */}
-      {isAutoSaveDialogOpen && (
-        <div className="fixed inset-0 z-[110] bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white dark:bg-slate-950 border border-slate-200/60 dark:border-slate-800/80 rounded-3xl p-5 sm:p-6 shadow-2xl max-w-md w-full animate-scale-up relative">
-            <button 
+      {/* Auto-Save Configuration In-Page Right Side Panel Drawer */}
+      <AnimatePresence>
+        {isAutoSaveDialogOpen && (
+          <div className="fixed inset-0 z-[110] flex justify-end overflow-hidden">
+            {/* Subtle backdrop */}
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="absolute inset-0 bg-slate-950/40 backdrop-blur-xs cursor-pointer"
               onClick={() => setIsAutoSaveDialogOpen(false)}
-              className="absolute top-4 right-4 text-slate-400 hover:text-slate-650 dark:hover:text-white transition-colors rounded-lg p-1.5 hover:bg-slate-50 dark:hover:bg-slate-900"
-              aria-label="Close Auto-Save Dialog"
+            />
+            {/* Sliding Panel */}
+            <motion.div 
+              initial={{ x: "100%" }}
+              animate={{ x: 0 }}
+              exit={{ x: "100%" }}
+              transition={{ type: "spring", damping: 25, stiffness: 220 }}
+              className="relative w-full max-w-md h-full bg-white dark:bg-slate-950 border-l border-slate-200 dark:border-slate-800 shadow-2xl flex flex-col z-10"
             >
-              <X className="w-4 h-4" />
-            </button>
+              {/* Inner Content Container - Scrollable */}
+              <div className="h-full flex flex-col p-6 overflow-hidden relative">
+                <button 
+                  onClick={() => setIsAutoSaveDialogOpen(false)}
+                  className="absolute top-4 right-4 text-slate-400 hover:text-slate-655 dark:hover:text-white transition-colors rounded-lg p-1.5 hover:bg-slate-50 dark:hover:bg-slate-900 cursor-pointer z-20"
+                  aria-label="Close Auto-Save Dialog"
+                >
+                  <X className="w-4 h-4" />
+                </button>
 
-            <div className="flex items-center gap-2.5 mb-4 text-left">
-              <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
-                <SlidersHorizontal className="w-4 h-4" />
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
-                  Auto-Save Preferences
-                </h3>
-                <p className="text-[10px] text-slate-405 dark:text-slate-500 mt-0.5">
-                  Streamline workspace productivity by saving optimized assets instantly
-                </p>
-              </div>
-            </div>
+                <div className="flex items-center gap-2.5 mb-5 text-left shrink-0">
+                  <div className="w-8 h-8 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+                    <SlidersHorizontal className="w-4 h-4" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider">
+                      Auto-Save Preferences
+                    </h3>
+                    <p className="text-[10px] text-slate-405 dark:text-slate-500 mt-0.5">
+                      Streamline workspace productivity by saving optimized assets instantly
+                    </p>
+                  </div>
+                </div>
 
-            <div className="space-y-4 pb-1">
+                <div className="space-y-4 pb-4 overflow-y-auto flex-1 pr-1 scrollbar-thin scrollbar-thumb-slate-250 dark:scrollbar-thumb-slate-800">
               {/* Toggle Enable State Switch */}
               <div 
                 className={`p-3.5 rounded-2xl border transition-all cursor-pointer text-left ${
@@ -6922,8 +6905,9 @@ export default function ImageCompressor({
                   </div>
                 </div>
               </div>
+            </div>
 
-              {/* Status Indicator Warning */}
+            {/* Status Indicator Warning */}
               {isAutoSaveEnabled && autoSaveTarget === "drive" && (!user || !accessToken) && (
                 <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-2xl flex flex-col gap-1.5 text-left">
                   <div className="flex items-center gap-1.5 text-amber-600 dark:text-amber-400">
@@ -6936,23 +6920,24 @@ export default function ImageCompressor({
                 </div>
               )}
 
-              {/* Guidelines helper text */}
-              <p className="text-[9.5px] text-slate-450 dark:text-slate-500 text-center leading-relaxed font-sans">
-                * Note: Batch processes automatically package files in highly optimized ZIP archives to avoid annoying concurrent tab prompt downloads.
-              </p>
+                {/* Guidelines helper text */}
+                <p className="text-[9.5px] text-slate-450 dark:text-slate-500 text-center leading-relaxed font-sans mt-2 shrink-0">
+                  * Note: Batch processes automatically package files in highly optimized ZIP archives to avoid annoying concurrent tab prompt downloads.
+                </p>
 
-              {/* Close Button Row */}
-              <button
-                type="button"
-                onClick={() => setIsAutoSaveDialogOpen(false)}
-                className="w-full mt-2 py-2 text-center bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold uppercase tracking-widest text-[10px] rounded-xl cursor-pointer transition-colors shadow-sm"
-              >
-                Accept and Close Settings
-              </button>
-            </div>
+                {/* Close Button Row */}
+                <button
+                  type="button"
+                  onClick={() => setIsAutoSaveDialogOpen(false)}
+                  className="w-full mt-3 py-2.5 text-center bg-indigo-600 hover:bg-indigo-500 text-white font-extrabold uppercase tracking-widest text-[10px] rounded-xl cursor-pointer transition-all shadow-sm shrink-0"
+                >
+                  Accept and Close Settings
+                </button>
+              </div>
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
 
       {/* EXIF Info Dialog Modal */}
       {isExifModalOpen && (
@@ -7399,12 +7384,7 @@ export default function ImageCompressor({
                                         <>
                                           <button
                                             onClick={() => {
-                                              const link = document.createElement("a");
-                                              link.download = item.compressedResult!.fileName;
-                                              link.href = item.compressedResult!.dataUrl;
-                                              document.body.appendChild(link);
-                                              link.click();
-                                              document.body.removeChild(link);
+                                              triggerFileDownload(item.compressedResult!.dataUrl, item.compressedResult!.fileName);
                                             }}
                                             className="p-1 px-2.5 rounded bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 dark:bg-slate-900 dark:hover:bg-indigo-950/40 dark:hover:text-indigo-400 text-slate-600 dark:text-slate-450 text-[10px] uppercase font-extrabold tracking-wide cursor-pointer transition-all flex items-center gap-1 shrink-0"
                                             title="Download this single file"

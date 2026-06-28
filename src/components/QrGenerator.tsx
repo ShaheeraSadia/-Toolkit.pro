@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { User } from "firebase/auth";
 import QRCode from "qrcode";
 import { uploadFileToDrive } from "../lib/drive";
+import { triggerFileDownload } from "../lib/download";
 import { Cloud, Download, QrCode, Settings, Palette, CheckCircle2, Image, X, Upload, History, Trash2, Printer, Share2, RefreshCw, AlertTriangle, Sparkles, Globe, Mail, Car, MapPin, Gauge, Key, Copy, Check, Layers, Type, Shapes, Camera, Grid, Crop, Scissors, Link, Zap, ExternalLink } from "lucide-react";
 import { motion } from "motion/react";
 import { useDrag } from "@use-gesture/react";
@@ -2003,12 +2004,7 @@ export default function QrGenerator({
 
       const content = await zip.generateAsync({ type: "blob" });
       
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(content);
-      link.download = `qr_batch_archive_${Date.now()}.zip`;
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      triggerFileDownload(content, `qr_batch_archive_${Date.now()}.zip`);
 
       setBatchGenerationProgress(prev => ({
         ...prev,
@@ -2606,14 +2602,9 @@ export default function QrGenerator({
 
       // Download the SVG
       const blob = new Blob([svgString], { type: "image/svg+xml;charset=utf-8" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
       const safeText = text.replace(/[^a-z0-9]/gi, "_").substring(0, 20).toLowerCase() || "qr";
       const downloadName = `toolkit_pro_qr_${safeText}.svg`;
-      link.download = downloadName;
-      link.href = url;
-      link.click();
-      URL.revokeObjectURL(url);
+      triggerFileDownload(blob, downloadName);
 
       window.dispatchEvent(new CustomEvent("toolkit-add-activity", {
         detail: {
@@ -2968,14 +2959,7 @@ export default function QrGenerator({
     
     try {
       const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-      const url = URL.createObjectURL(blob);
-      const link = document.createElement("a");
-      link.setAttribute("href", url);
-      link.setAttribute("download", filename);
-      link.style.visibility = "hidden";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      triggerFileDownload(blob, filename);
     } catch (err) {
       console.error("Failed to export history as CSV", err);
     }

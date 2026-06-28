@@ -3,6 +3,7 @@ import { User } from "firebase/auth";
 import { motion } from "motion/react";
 import { QuoteConfig, BgStyleType } from "../types";
 import { uploadFileToDrive } from "../lib/drive";
+import { triggerFileDownload } from "../lib/download";
 import { Download, Cloud, Sparkles, Image as ImageIcon, Type, AlignLeft, AlignCenter, AlignRight, Check, Printer, Share2, Smartphone, LayoutGrid, Monitor, Upload, FileJson, Scissors, ExternalLink, X } from "lucide-react";
 
 interface QuoteDesignerProps {
@@ -211,16 +212,8 @@ export default function QuoteDesigner({
       
       const fileString = JSON.stringify(exportData, null, 2);
       const blob = new Blob([fileString], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      
-      const a = document.createElement("a");
       const cleanAuthor = (config.author || "quote").replace(/[^a-z0-9]/gi, "_").toLowerCase();
-      a.href = url;
-      a.download = `quote_design_${cleanAuthor || "layout"}.json`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      triggerFileDownload(blob, `quote_design_${cleanAuthor || "layout"}.json`);
 
       setSaveStatus({
         success: true,
@@ -556,12 +549,9 @@ export default function QuoteDesigner({
   const handleDownload = async () => {
     try {
       const dataUrl = await getCanvasDataUrl();
-      const link = document.createElement("a");
       const cleanAuthor = config.author.replace(/[^a-z0-9]/gi, "_").toLowerCase() || "quote";
       const filename = `toolkit_pro_quote_${cleanAuthor}.png`;
-      link.download = filename;
-      link.href = dataUrl;
-      link.click();
+      triggerFileDownload(dataUrl, filename);
 
       window.dispatchEvent(new CustomEvent("toolkit-add-activity", {
         detail: {
