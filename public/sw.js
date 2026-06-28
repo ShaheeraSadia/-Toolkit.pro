@@ -37,7 +37,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Main fetch interceptor using customized hybrid offline strategy
+ // Main fetch interceptor using customized hybrid offline strategy
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   const url = new URL(request.url);
