@@ -34,7 +34,9 @@ import {
   Clock,
   Gauge,
   GripVertical,
-  Move
+  Move,
+  BookOpen,
+  Lightbulb
 } from "lucide-react";
 
 interface ImageSlide {
@@ -613,6 +615,15 @@ class RoyaltyFreeSynthManager {
   }
 }
 
+const STYLE_TAGS: Record<string, string> = {
+  "Cinematic 🎬": "cinematic masterpiece, dramatic lighting, hyperdetailed 8k, volumetric atmosphere",
+  "Anime 🌸": "gorgeous studio ghibli anime style, vibrant hand-drawn, cozy lighting, beautiful aesthetics",
+  "Oil Painting 🎨": "textured oil painting brushstrokes, classical fine art canvas, rich moody impasto technique",
+  "Sketch ✏️": "highly detailed graphite pencil sketch, fine paper texture, clean hand-drawn monochrome",
+  "3D Render 🪐": "hyperrealistic octane 3D render, raytraced ambient occlusion, unreal engine 5 fidelity",
+  "Retro VHS 📹": "retro 1980s vhs camcorder look, vintage analog noise, nostalgic warm neon chromatic glow"
+};
+
 const SAMPLE_SLIDES: ImageSlide[] = [
   {
     id: "sample-1",
@@ -748,6 +759,11 @@ export default function ImageToVideo({
   const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16" | "1:1">("16:9");
   const [videoPlaybackSpeed, setVideoPlaybackSpeed] = useState<number>(1.0);
   
+  // Cinematic visual & subtitle effects states
+  const [subtitleStyle, setSubtitleStyle] = useState<"netflix" | "neon" | "karaoke" | "minimal" | "classical">("netflix");
+  const [cinematicLetterbox, setCinematicLetterbox] = useState<boolean>(false);
+  const [vignetteOverlay, setVignetteOverlay] = useState<boolean>(false);
+  
   // Playback states
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
   const [currentTime, setCurrentTime] = useState<number>(0);
@@ -759,14 +775,26 @@ export default function ImageToVideo({
   const [isExporting, setIsExporting] = useState<boolean>(false);
   const [exportProgress, setExportProgress] = useState<number>(0);
   const [exportStatus, setExportStatus] = useState<string>("");
+  const [exportCurrentStage, setExportCurrentStage] = useState<string>("");
+  const [exportEstTimeRemaining, setExportEstTimeRemaining] = useState<string>("Calculating...");
+  const [exportElapsedTime, setExportElapsedTime] = useState<string>("0.0s");
   const [saveToDriveAfterExport, setSaveToDriveAfterExport] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; sub: string; success: boolean } | null>(null);
   
+  // CapCut Pro Timeline states
+  const [timelineZoom, setTimelineZoom] = useState<number>(45); // px per second
+  const [isBeatSyncEnabled, setIsBeatSyncEnabled] = useState<boolean>(false);
+  const [editingSlideCaptionId, setEditingSlideCaptionId] = useState<string | null>(null);
+  const [sfxVolume, setSfxVolume] = useState<number>(0.5);
+  
   // AI Prompt Builder states
   const [isEnhancingPrompt, setIsEnhancingPrompt] = useState<boolean>(false);
+  const [promptTemplateStyle, setPromptTemplateStyle] = useState<"detailed" | "minimal" | "sora_luma">("detailed");
   const [copySuccess, setCopySuccess] = useState<boolean>(false);
   const [userPromptText, setUserPromptText] = useState<string>("");
   const [isGeneratingScene, setIsGeneratingScene] = useState<boolean>(false);
+  const [showPromptGuide, setShowPromptGuide] = useState<boolean>(false);
+  const [handbookTab, setHandbookTab] = useState<"basics" | "consistency" | "references" | "power-prompt" | "post-edit" | "models">("basics");
 
   // Advanced Runway / Google Flow style states
   const [draggedSlideIndex, setDraggedSlideIndex] = useState<number | null>(null);
@@ -777,11 +805,16 @@ export default function ImageToVideo({
   const [aiStylePreset, setAiStylePreset] = useState<"auto" | "cinematic" | "cyberpunk" | "anime" | "vhs" | "realistic-3d" | "minimalist">("auto");
   const [aiGenerationProgress, setAiGenerationProgress] = useState<number>(0);
   const [aiGenerationLogs, setAiGenerationLogs] = useState<string[]>([]);
+  const [aiCurrentStage, setAiCurrentStage] = useState<string>("");
+  const [aiEstTimeRemaining, setAiEstTimeRemaining] = useState<string>("Calculating...");
+  const [aiElapsedTime, setAiElapsedTime] = useState<string>("0.0s");
 
   // Final video rendering preview states
   const [exportedVideoUrl, setExportedVideoUrl] = useState<string | null>(null);
   const [exportedVideoBlob, setExportedVideoBlob] = useState<Blob | null>(null);
   const [showFinalOutput, setShowFinalOutput] = useState<boolean>(false);
+  const [isSavingToDrive, setIsSavingToDrive] = useState<boolean>(false);
+  const [isWaitingForLogin, setIsWaitingForLogin] = useState<boolean>(false);
 
   // HTML canvas & Audio management refs
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -798,6 +831,93 @@ export default function ImageToVideo({
       setSelectedSlideId(slides[0].id);
     }
   }, [slides]);
+
+  const uploadVideoToDrive = async () => {
+    if (!exportedVideoBlob || !accessToken) return;
+
+    setIsSavingToDrive(true);
+    setToastMessage({
+      text: "Saving to Google Drive",
+      sub: "Converting and uploading video to your Drive account...",
+      success: true,
+    });
+
+    const videoNameWithExtension = `${exportFileName.replace(/\s+/g, "_")}.webm`;
+
+    try {
+      const fileReader = new FileReader();
+      fileReader.readAsDataURL(exportedVideoBlob);
+      fileReader.onloadend = async () => {
+        try {
+          const base64DataUrl = fileReader.result as string;
+          await uploadFileToDrive(
+            accessToken,
+            videoNameWithExtension,
+            "video/webm",
+            base64DataUrl
+          );
+          
+          onRefreshDrive();
+          setIsSavingToDrive(false);
+          setToastMessage({
+            text: "Saved to Google Drive!",
+            sub: `Successfully saved ${videoNameWithExtension} to your ToolkitPro folder on Google Drive.`,
+            success: true
+          });
+        } catch (err) {
+          console.error(err);
+          setIsSavingToDrive(false);
+          setToastMessage({
+            text: "Failed to Save to Drive",
+            sub: err instanceof Error ? err.message : String(err),
+            success: false
+          });
+        }
+      };
+    } catch (e) {
+      console.error(e);
+      setIsSavingToDrive(false);
+      setToastMessage({
+        text: "Conversion Error",
+        sub: "Failed to convert video file for upload.",
+        success: false
+      });
+    }
+  };
+
+  const handleSaveToDrive = async () => {
+    if (!exportedVideoBlob) return;
+    
+    if (!accessToken) {
+      setIsWaitingForLogin(true);
+      setToastMessage({
+        text: "Connecting Google Drive",
+        sub: "Please authorize the application using the sign-in popup.",
+        success: true,
+      });
+      try {
+        await onLogin();
+      } catch (err) {
+        console.error("Login failed:", err);
+        setIsWaitingForLogin(false);
+        setToastMessage({
+          text: "Connection Failed",
+          sub: "Failed to connect to your Google Drive account.",
+          success: false,
+        });
+      }
+      return;
+    }
+
+    await uploadVideoToDrive();
+  };
+
+  useEffect(() => {
+    if (accessToken && isWaitingForLogin && exportedVideoBlob) {
+      setIsWaitingForLogin(false);
+      uploadVideoToDrive();
+    }
+  }, [accessToken, isWaitingForLogin, exportedVideoBlob]);
 
   const currentTimeRef = useRef(currentTime);
   useEffect(() => {
@@ -1017,6 +1137,95 @@ export default function ImageToVideo({
     );
   };
 
+  const renderPromptValidationInfo = (text: string, isDarkThemeOnly: boolean = false) => {
+    const len = (text || "").trim().length;
+    let statusText = "Empty";
+    let statusColor = isDarkThemeOnly ? "text-slate-500" : "text-slate-400 dark:text-slate-500";
+    let barBg = "bg-slate-200 dark:bg-slate-800";
+    let barColor = "bg-slate-300 dark:bg-slate-600";
+    let percentage = 0;
+    let ratingEmoji = "⚪";
+
+    if (len > 0) {
+      if (len < 15) {
+        statusText = "Too Simple (minimum 15 characters recommended)";
+        statusColor = "text-rose-500 dark:text-rose-400";
+        barColor = "bg-rose-500";
+        percentage = Math.min((len / 15) * 100, 100);
+        ratingEmoji = "⚠️";
+      } else if (len < 40) {
+        statusText = "Good Complexity (great default results)";
+        statusColor = "text-amber-500 dark:text-amber-400";
+        barColor = "bg-amber-500";
+        percentage = Math.min((len / 40) * 100, 100);
+        ratingEmoji = "👍";
+      } else {
+        statusText = "Rich Cinematic Details (excellent results!)";
+        statusColor = "text-emerald-500 dark:text-emerald-400";
+        barColor = "bg-emerald-500";
+        percentage = 100;
+        ratingEmoji = "✨";
+      }
+    }
+
+    if (isDarkThemeOnly) {
+      barBg = "bg-slate-950";
+      if (len === 0) {
+        statusColor = "text-slate-600";
+        barColor = "bg-slate-800";
+      }
+    }
+
+    return (
+      <div className="flex flex-col gap-1 mt-1 font-sans select-none">
+        <div className="flex items-center justify-between text-[9px] font-black tracking-wider uppercase">
+          <span className={`${statusColor} flex items-center gap-1 truncate max-w-[280px]`}>
+            <span>{ratingEmoji}</span>
+            <span className="truncate">{statusText}</span>
+          </span>
+          <span className={`${isDarkThemeOnly ? "text-slate-500" : "text-slate-400 dark:text-slate-500"} font-mono text-[9px] shrink-0`}>
+            {len} chars
+          </span>
+        </div>
+        <div className={`w-full h-1 ${barBg} rounded-full overflow-hidden`}>
+          <div 
+            className={`h-full ${barColor} rounded-full transition-all duration-300`} 
+            style={{ width: `${percentage}%` }}
+          />
+        </div>
+      </div>
+    );
+  };
+
+  const handleAppendStyle = (styleKeywords: string) => {
+    let currentText = userPromptText.trim();
+    
+    // Check if any of our known style keywords are currently in the prompt, and replace them
+    let styleFoundAndReplaced = false;
+    for (const [key, value] of Object.entries(STYLE_TAGS)) {
+      if (currentText.includes(value)) {
+        currentText = currentText.replace(value, styleKeywords).trim();
+        styleFoundAndReplaced = true;
+        break;
+      }
+    }
+    
+    if (!styleFoundAndReplaced) {
+      if (currentText) {
+        if (currentText.endsWith(",")) {
+          currentText = `${currentText} ${styleKeywords}`;
+        } else {
+          currentText = `${currentText}, ${styleKeywords}`;
+        }
+      } else {
+        currentText = styleKeywords;
+      }
+    }
+    
+    setUserPromptText(currentText);
+    triggerBeepChime();
+  };
+
   const handleEnhanceSubject = async (slideId: string, currentSubject: string, style: string, camera: string) => {
     if (!currentSubject.trim()) {
       setToastMessage({
@@ -1061,6 +1270,132 @@ export default function ImageToVideo({
     }
   };
 
+  const handleAppendModifier = (tag: string) => {
+    const current = userPromptText.trim();
+    const tagClean = tag.replace(/[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD00-\uDFFF]/g, "").trim();
+    
+    let newVal = "";
+    if (current) {
+      const endsWithPunct = current.endsWith(",") || current.endsWith(".");
+      newVal = `${current}${endsWithPunct ? "" : ","} ${tagClean}`;
+    } else {
+      newVal = tagClean;
+    }
+    setUserPromptText(newVal);
+    triggerBeepChime();
+  };
+
+  const handleRandomizePrompt = () => {
+    const subjects = [
+      "A sleek silver cybercar speeding through",
+      "A majestic glowing quartz crystal dragon perched atop",
+      "An ancient moss-covered stone archway opening to",
+      "Golden fireflies swirling around a sleeping red fox in",
+      "Gentle ocean waves of glowing blue bioluminescence breaking against",
+      "A solitary retro astronaut looking out at",
+      "Warm evening light filtering through massive vintage cathedral glass onto",
+      "A mysterious floating obsidian pyramid reflecting"
+    ];
+    const environments = [
+      "a rainy cyberpunk metropolis with towering pink neon skyscrapers",
+      "a misty mountain canyon shrouded in purple morning fog at sunset",
+      "a dense ancient fantasy forest illuminated by giant mushrooms",
+      "a surreal desert field of floating glass spheres under a crimson sun",
+      "a cozy rustic wooden cabin library filled with old books and warm candlelight",
+      "a futuristic greenhouse garden floating in outer space with earth in the background"
+    ];
+    const actions = [
+      "with shattered glass shards swirling dynamically around and casting sharp reflections",
+      "as steam rises slowly, capturing volumetric golden sun god rays",
+      "creating delicate water ripples and tiny sparkling chromatic halos",
+      "with cherry blossom leaves falling gently in slow-motion, dancing on wind currents"
+    ];
+    const qualityTags = [
+      "high-contrast cinematic photography, hyper-detailed 4k, octane render",
+      "unreal engine 5 volumetric atmosphere, raytraced reflections, masterwork",
+      "retro analog VHS texture with nostalgic chromatic aberration and cinematic noise",
+      "gorgeous hand-painted anime watercolor style, Ghibli aesthetic, pristine color grading"
+    ];
+
+    const randomSub = subjects[Math.floor(Math.random() * subjects.length)];
+    const randomEnv = environments[Math.floor(Math.random() * environments.length)];
+    const randomAct = actions[Math.floor(Math.random() * actions.length)];
+    const randomQual = qualityTags[Math.floor(Math.random() * qualityTags.length)];
+
+    const finalPrompt = `${randomSub} ${randomEnv}, ${randomAct}. ${randomQual}`;
+    setUserPromptText(finalPrompt);
+
+    const presetStyles: ("auto" | "cinematic" | "cyberpunk" | "anime" | "vhs" | "realistic-3d" | "minimalist")[] = 
+      ["cinematic", "cyberpunk", "anime", "vhs", "realistic-3d"];
+    const presetCameras: ("auto" | "zoom-in" | "zoom-out" | "pan-left" | "pan-right" | "tilt-up" | "tilt-down" | "orbit")[] = 
+      ["zoom-in", "zoom-out", "pan-left", "pan-right", "tilt-up", "tilt-down", "orbit"];
+    
+    setAiStylePreset(presetStyles[Math.floor(Math.random() * presetStyles.length)]);
+    setAiCameraDirection(presetCameras[Math.floor(Math.random() * presetCameras.length)]);
+    setAiMotionIntensity(Math.floor(Math.random() * 6) + 4);
+
+    setToastMessage({
+      text: "🎲 Surprise Scene Synthesized!",
+      sub: "A highly creative cinematic storyboard concept has been generated.",
+      success: true
+    });
+    triggerBeepChime();
+  };
+
+  const getGeneratedPrompt = (slide: ImageSlide, templateStyle: "detailed" | "minimal" | "sora_luma" = "detailed") => {
+    const styleVal = slide.style || "Cinematic";
+    const cameraVal = slide.cameraMovement || "Slow Zoom";
+    const durationVal = slide.promptDuration ?? 3;
+    const transitionVal = slide.transitionEffect || "Fade";
+    const lightingVal = slide.lightingType || "Golden Hour";
+    const speedVal = (slide.motionSpeed ?? 1.0).toFixed(1);
+    const aspectText = aspectRatio === "9:16" 
+      ? "vertical 9:16 aspect ratio (TikTok/Shorts)" 
+      : aspectRatio === "1:1" 
+        ? "square 1:1 aspect ratio (Instagram)" 
+        : "cinematic 16:9 widescreen aspect ratio";
+
+    const subjectText = slide.subjectDescription?.trim();
+
+    // Duration-based camera movement instructions
+    let durationCameraInstruction = "";
+    if (durationVal === 2) {
+      durationCameraInstruction = "Since this is a snappy 2-second clip, apply a dynamic, high-energy camera trajectory with fast shutter/motion sweep to capture quick action without lingering.";
+    } else if (durationVal === 4) {
+      durationCameraInstruction = "Since this is a standard 4-second clip, maintain cinematic pacing with a steady kinetic tracking motion, ensuring smooth visual flow and balanced progression.";
+    } else if (durationVal === 8) {
+      durationCameraInstruction = "Since this is an extended 8-second clip, utilize a grand, slow, and sweeping camera movement (such as a majestic drone panoramic flyover or deep continuous panning) to allow complex physical motion, atmospheric drift, and fine details to evolve beautifully over the long take.";
+    } else {
+      durationCameraInstruction = `The motion should be optimized for a steady ${durationVal}-second visual duration, maintaining high fidelity and balanced frame coherence.`;
+    }
+
+    if (templateStyle === "minimal") {
+      let prompt = `Video from image. Style: ${styleVal}. Camera: ${cameraVal}. Speed: ${speedVal}x.`;
+      if (subjectText) prompt += ` Subject: ${subjectText}.`;
+      prompt += ` Duration: ${durationVal}s. ${durationCameraInstruction} Lighting: ${lightingVal}. Optimized for ${aspectText}.`;
+      return prompt;
+    }
+
+    if (templateStyle === "sora_luma") {
+      let prompt = `High-fidelity cinematic video generation optimized for Luma and Sora. Style preset: ${styleVal}. `;
+      if (subjectText) {
+        prompt += `The scene features ${subjectText}, behaving with realistic physics and natural animation. `;
+      } else {
+        prompt += `The scene animates with continuous professional movement. `;
+      }
+      prompt += `Camera setup: ${cameraVal} executed smoothly at ${speedVal}x playback speed. ${durationCameraInstruction} Atmospheric lighting: ${lightingVal}. Optimized for ${aspectText} with flawless detail retention.`;
+      return prompt;
+    }
+
+    // Default: detailed
+    let prompt = `Generate a high-quality video based on the provided input image. Apply a ${styleVal} visual aesthetic with premium color grading. `;
+    if (subjectText) {
+      prompt += `The primary motion and focus of the video should be ${subjectText}, with realistic physical movement and seamless animations. `;
+    }
+    prompt += `Implement professional ${cameraVal} camera movement at a speed factor of ${speedVal}x. The video segment spans a ${durationVal} second duration, incorporating a smooth ${transitionVal} transition effect. ${durationCameraInstruction} Ensure the atmospheric lighting is configured to ${lightingVal} to match the visual mood. The final output is fully optimized for ${aspectText} display.`;
+    return prompt;
+  };
+
   const handleGenerateAIScene = async (autoExportAfter: boolean = false) => {
     if (!userPromptText.trim()) {
       setToastMessage({
@@ -1071,6 +1406,16 @@ export default function ImageToVideo({
       return;
     }
 
+    const aiStartTimeInstant = Date.now();
+    setAiElapsedTime("0.0s");
+    setAiEstTimeRemaining("Calculating...");
+    setAiCurrentStage("Initializing Stage");
+
+    const timerInterval = setInterval(() => {
+      const elapsed = (Date.now() - aiStartTimeInstant) / 1000;
+      setAiElapsedTime(`${elapsed.toFixed(1)}s`);
+    }, 100);
+
     setIsGeneratingScene(true);
     setAiGenerationProgress(10);
     setAiGenerationLogs(["[0/5] Initializing Google Flow neural pipeline workspace..."]);
@@ -1078,6 +1423,31 @@ export default function ImageToVideo({
     const appendLog = (msg: string, progress: number) => {
       setAiGenerationProgress(progress);
       setAiGenerationLogs((prev) => [...prev, msg]);
+
+      let stage = "Analyzing prompt";
+      if (progress <= 15) {
+        stage = "Analyzing prompt";
+      } else if (progress <= 35) {
+        stage = "Tokenizing prompt";
+      } else if (progress <= 55) {
+        stage = "Structuring cinematic properties";
+      } else if (progress <= 80) {
+        stage = "Applying motion";
+      } else if (progress <= 92) {
+        stage = "Interpolating vectors";
+      } else {
+        stage = "Finalizing encode";
+      }
+      setAiCurrentStage(stage);
+
+      const elapsed = (Date.now() - aiStartTimeInstant) / 1000;
+      if (progress > 0 && progress < 100) {
+        const totalEst = elapsed / (progress / 100);
+        const remaining = Math.max(0.5, totalEst - elapsed);
+        setAiEstTimeRemaining(`${remaining.toFixed(1)}s`);
+      } else {
+        setAiEstTimeRemaining("0.0s");
+      }
     };
 
     try {
@@ -1191,6 +1561,7 @@ export default function ImageToVideo({
         success: false
       });
     } finally {
+      clearInterval(timerInterval);
       setIsGeneratingScene(false);
       setAiGenerationProgress(0);
     }
@@ -1226,6 +1597,26 @@ export default function ImageToVideo({
     });
     triggerBeepChime();
   };
+
+  // CapCut Beat-Sync Aligner Engine
+  const alignSlidesToBeats = useCallback((trackId: string) => {
+    const track = SOUNDTRACK_LIBRARY.find((t) => t.id === trackId);
+    if (!track || track.bpm === 0) return;
+    
+    const beatDuration = 60 / track.bpm;
+    // For standard pacing, make slide duration match 4 beats (e.g. 120bpm -> 2.0s, 85bpm -> 2.82s)
+    const beatsPerSlide = track.bpm < 80 ? 2 : 4;
+    const targetDuration = parseFloat((beatDuration * beatsPerSlide).toFixed(2));
+    
+    setSlides((prev) => prev.map((s) => ({ ...s, duration: targetDuration })));
+  }, []);
+
+  // Automatically sync beats when enabled or soundtrack switches
+  useEffect(() => {
+    if (isBeatSyncEnabled) {
+      alignSlidesToBeats(soundtrack);
+    }
+  }, [isBeatSyncEnabled, soundtrack, alignSlidesToBeats]);
 
   const applyDurationToAllSlides = (duration: number) => {
     setSlides((prev) => prev.map((s) => ({ ...s, duration })));
@@ -1339,6 +1730,34 @@ export default function ImageToVideo({
       // Ken Burns dynamic Pan & Zoom
       const currentScale = targetSlide.scaleStart + (targetSlide.scaleEnd - targetSlide.scaleStart) * localProgress;
       
+      // Calculate active physical camera movement offsets
+      let camX = 0;
+      let camY = 0;
+      let camRot = 0;
+      const motionVal = targetSlide.cameraMovement || "Slow Zoom";
+      const motionSpeedFactor = targetSlide.motionSpeed !== undefined ? targetSlide.motionSpeed : 1.0;
+      const baseCamOffset = 22 * motionSpeedFactor * localProgress; // drift up to 22 pixels
+
+      if (motionVal === "Pan Left") {
+        camX = baseCamOffset; // Drift horizontally
+      } else if (motionVal === "Pan Right") {
+        camX = -baseCamOffset;
+      } else if (motionVal.toLowerCase().includes("tilt-up") || motionVal === "Tilt Up" || motionVal === "Pan Up" || motionVal === "Tilt Up") {
+        camY = baseCamOffset;
+      } else if (motionVal.toLowerCase().includes("tilt-down") || motionVal === "Tilt Down" || motionVal === "Pan Down" || motionVal === "Tilt Down") {
+        camY = -baseCamOffset;
+      } else if (motionVal.toLowerCase().includes("drone") || motionVal.toLowerCase().includes("forward")) {
+        // forward movement with tilt drift
+        camY = -baseCamOffset * 0.45;
+      } else if (motionVal.toLowerCase().includes("surreal") || motionVal.toLowerCase().includes("3d") || motionVal.toLowerCase().includes("orbit")) {
+        // Orbital orbital rotation drift
+        camRot = (0.015 * (localProgress - 0.5)) * motionSpeedFactor;
+      } else if (motionVal.toLowerCase().includes("shake") || motionVal.toLowerCase().includes("dynamic")) {
+        // Action camera shaking vibration
+        camX = Math.sin(localProgress * 55) * 2.2 * motionSpeedFactor;
+        camY = Math.cos(localProgress * 55) * 1.8 * motionSpeedFactor;
+      }
+
       // Clear bounds inside aspect-ratio letterboxing
       ctx.fillStyle = "#020617";
       ctx.fillRect(0, 0, width, height);
@@ -1359,8 +1778,11 @@ export default function ImageToVideo({
       const drawX = (width - renderWidth) / 2 + slideX;
       const drawY = (height - renderHeight) / 2 + slideY;
 
-      // Transform with scale centered in canvas
-      ctx.translate(width / 2 + slideX, height / 2 + slideY);
+      // Transform with scale centered in canvas (applying camera simulation offsets)
+      ctx.translate(width / 2 + slideX + camX, height / 2 + slideY + camY);
+      if (camRot !== 0) {
+        ctx.rotate(camRot);
+      }
       ctx.scale(currentScale, currentScale);
       
       ctx.drawImage(
@@ -1438,14 +1860,19 @@ export default function ImageToVideo({
       drawSlideWithTransformAndFilter(slide, slideProgress, 1.0);
     }
 
-    // DRAW OVERLAY CAPTIONS / SUBTITLE TEXT with selected animation
+    // DRAW OVERLAY CAPTIONS / SUBTITLE TEXT with selected animation and theme style
     if (slide.text.trim()) {
       ctx.save();
 
-      // Configure font based on aspect ratio sizing
+      // Configure font based on aspect ratio sizing & subtitleStyle selection
       const textRatioScale = width / 800;
       const fontSize = Math.round(28 * textRatioScale);
-      ctx.font = `bold ${fontSize}px "Space Grotesk", sans-serif`;
+      
+      if (subtitleStyle === "classical") {
+        ctx.font = `italic 500 ${Math.round(26 * textRatioScale)}px "Playfair Display", "Georgia", serif`;
+      } else {
+        ctx.font = `bold ${fontSize}px "Space Grotesk", sans-serif`;
+      }
       ctx.textAlign = "center";
       ctx.textBaseline = "bottom";
 
@@ -1489,35 +1916,133 @@ export default function ImageToVideo({
       const rectX = (width - rectWidth) / 2;
       const rectY = height - rectHeight - Math.round(45 * textRatioScale) + offsetY;
 
-      // Draw stylized backdrop pill (accessibility friendly)
-      ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
-      ctx.beginPath();
-      // Rounded corner pill
-      const radius = 12;
-      ctx.roundRect(rectX, rectY, rectWidth, rectHeight, radius);
-      ctx.fill();
+      // Draw Subtitle Styles (netflix, neon, karaoke, minimal, classical)
+      if (subtitleStyle === "netflix") {
+        // Draw stylized backdrop pill (accessibility friendly)
+        ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
+        ctx.beginPath();
+        const radius = 12;
+        ctx.roundRect(rectX, rectY, rectWidth, rectHeight, radius);
+        ctx.fill();
 
-      // Double styled border
-      ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
-      ctx.lineWidth = 1;
-      ctx.stroke();
+        // Double styled border
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.12)";
+        ctx.lineWidth = 1;
+        ctx.stroke();
 
-      // Render actual Caption Text
-      ctx.fillStyle = "#ffffff";
-      ctx.shadowColor = "rgba(0,0,0,0.4)";
-      ctx.shadowBlur = 4;
-      ctx.shadowOffsetX = 1;
-      ctx.shadowOffsetY = 1;
+        ctx.fillStyle = "#ffffff";
+        ctx.shadowColor = "rgba(0,0,0,0.4)";
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 1;
 
-      // Draw scaling text
-      if (textScale !== 1.0) {
-        ctx.translate(width / 2, rectY + rectHeight / 2);
-        ctx.scale(textScale, textScale);
-        ctx.fillText(textToShow, 0, rectHeight / 2 - paddingY / 2);
-      } else {
-        ctx.fillText(textToShow, width / 2, rectY + rectHeight - paddingY - 2);
+        if (textScale !== 1.0) {
+          ctx.translate(width / 2, rectY + rectHeight / 2);
+          ctx.scale(textScale, textScale);
+          ctx.fillText(textToShow, 0, rectHeight / 2 - paddingY / 2);
+        } else {
+          ctx.fillText(textToShow, width / 2, rectY + rectHeight - paddingY - 2);
+        }
+      } 
+      else if (subtitleStyle === "neon") {
+        // Neon Glow Style (No backing pill)
+        ctx.fillStyle = "#ffffff";
+        ctx.shadowColor = "#6366f1"; // Neon indigo highlight glow
+        ctx.shadowBlur = 12 * textRatioScale;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+
+        if (textScale !== 1.0) {
+          ctx.translate(width / 2, rectY + rectHeight / 2);
+          ctx.scale(textScale, textScale);
+          ctx.fillText(textToShow, 0, rectHeight / 2 - paddingY / 2);
+        } else {
+          ctx.fillText(textToShow, width / 2, rectY + rectHeight - paddingY - 2);
+        }
+      } 
+      else if (subtitleStyle === "karaoke") {
+        // Karaoke Style (Bright yellow text with solid black outline contour)
+        ctx.shadowColor = "transparent";
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+
+        // Render outline stroke
+        ctx.strokeStyle = "#000000";
+        ctx.lineWidth = Math.round(5 * textRatioScale);
+        ctx.lineJoin = "round";
+
+        if (textScale !== 1.0) {
+          ctx.save();
+          ctx.translate(width / 2, rectY + rectHeight / 2);
+          ctx.scale(textScale, textScale);
+          ctx.strokeText(textToShow, 0, rectHeight / 2 - paddingY / 2);
+          ctx.fillStyle = "#facc15"; // Yellow
+          ctx.fillText(textToShow, 0, rectHeight / 2 - paddingY / 2);
+          ctx.restore();
+        } else {
+          ctx.strokeText(textToShow, width / 2, rectY + rectHeight - paddingY - 2);
+          ctx.fillStyle = "#facc15"; // Yellow
+          ctx.fillText(textToShow, width / 2, rectY + rectHeight - paddingY - 2);
+        }
+      } 
+      else if (subtitleStyle === "minimal") {
+        // Soft Elegant Drop Shadow
+        ctx.fillStyle = "#ffffff";
+        ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
+        ctx.shadowBlur = 6;
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 2;
+
+        if (textScale !== 1.0) {
+          ctx.translate(width / 2, rectY + rectHeight / 2);
+          ctx.scale(textScale, textScale);
+          ctx.fillText(textToShow, 0, rectHeight / 2 - paddingY / 2);
+        } else {
+          ctx.fillText(textToShow, width / 2, rectY + rectHeight - paddingY - 2);
+        }
+      } 
+      else if (subtitleStyle === "classical") {
+        // TIMELITE INDIE Film Style (Porcelain white serif with very soft dark reflection)
+        ctx.fillStyle = "#f8fafc";
+        ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 1;
+
+        if (textScale !== 1.0) {
+          ctx.translate(width / 2, rectY + rectHeight / 2);
+          ctx.scale(textScale, textScale);
+          ctx.fillText(textToShow, 0, rectHeight / 2 - paddingY / 2);
+        } else {
+          ctx.fillText(textToShow, width / 2, rectY + rectHeight - paddingY - 2);
+        }
       }
 
+      ctx.restore();
+    }
+
+    // Soft Cinematic Vignette Overlay shadow
+    if (vignetteOverlay) {
+      ctx.save();
+      const vignetteGrad = ctx.createRadialGradient(
+        width / 2, height / 2, Math.min(width, height) * 0.45,
+        width / 2, height / 2, Math.max(width, height) * 0.75
+      );
+      vignetteGrad.addColorStop(0, "rgba(0, 0, 0, 0)");
+      vignetteGrad.addColorStop(1, "rgba(0, 0, 0, 0.45)");
+      ctx.fillStyle = vignetteGrad;
+      ctx.fillRect(0, 0, width, height);
+      ctx.restore();
+    }
+
+    // Cinematic Letterbox black widescreen borders (2.39:1 Cinema Bars)
+    if (cinematicLetterbox && aspectRatio === "16:9") {
+      ctx.save();
+      ctx.fillStyle = "#000000";
+      const barHeight = Math.round(height * 0.12);
+      ctx.fillRect(0, 0, width, barHeight);
+      ctx.fillRect(0, height - barHeight, width, barHeight);
       ctx.restore();
     }
 
@@ -1529,7 +2054,7 @@ export default function ImageToVideo({
     ctx.textAlign = "right";
     ctx.fillText("ToolkitPro CapCut Studio", width - 15, 25);
     ctx.restore();
-  }, [slides, transitionStyle, transitionDuration]);
+  }, [slides, transitionStyle, transitionDuration, subtitleStyle, cinematicLetterbox, vignetteOverlay, aspectRatio]);
 
   // Hook rendering logic to active timeline time changes
   useEffect(() => {
@@ -1550,7 +2075,7 @@ export default function ImageToVideo({
     canvas.height = height;
 
     drawVideoFrame(ctx, canvasWidth, height, currentTime);
-  }, [currentTime, aspectRatio, slides, transitionStyle, transitionDuration, drawVideoFrame]);
+  }, [currentTime, aspectRatio, slides, transitionStyle, transitionDuration, drawVideoFrame, subtitleStyle, cinematicLetterbox, vignetteOverlay]);
 
   // Canvas MediaRecorder video render engine
   const handleCreateVideo = async () => {
@@ -1564,6 +2089,9 @@ export default function ImageToVideo({
     setIsExporting(true);
     setExportProgress(0);
     setExportStatus("Initializing audio tracks and pre-rendering visuals...");
+    setExportCurrentStage("Analyzing frame");
+    setExportElapsedTime("0.0s");
+    setExportEstTimeRemaining("Calculating...");
 
     // Stop active music playbacks
     synthManagerRef.current.stop();
@@ -1637,18 +2165,45 @@ export default function ImageToVideo({
       const fps = 30;
       const totalFrames = Math.round((totalDuration / videoPlaybackSpeed) * fps);
       let currentFrame = 0;
+      const exportStartTimeInstant = Date.now();
 
       mediaRecorder.start();
 
       const renderNextFrame = () => {
         if (currentFrame >= totalFrames) {
           setExportProgress(90);
+          setExportCurrentStage("Finalizing encode");
           setExportStatus("Assembling raw multimedia files...");
+          setExportEstTimeRemaining("0.5s");
           setTimeout(() => {
             mediaRecorder.stop();
           }, 400);
           return;
         }
+
+        // Calculate progress metrics
+        const elapsedMs = Date.now() - exportStartTimeInstant;
+        setExportElapsedTime(`${(elapsedMs / 1000).toFixed(1)}s`);
+
+        if (currentFrame > 5) {
+          const avgTimePerFrame = elapsedMs / currentFrame;
+          const remainingFrames = totalFrames - currentFrame;
+          const remainingMs = remainingFrames * avgTimePerFrame;
+          const totalRemainingSecs = Math.max(1, Math.ceil((remainingMs + 400) / 1000));
+          setExportEstTimeRemaining(`${totalRemainingSecs}s`);
+        } else {
+          setExportEstTimeRemaining("Calculating...");
+        }
+
+        let stage = "Analyzing frame";
+        if (currentFrame < totalFrames * 0.3) {
+          stage = `Analyzing frame ${currentFrame} of ${totalFrames}`;
+        } else if (currentFrame < totalFrames * 0.75) {
+          stage = `Applying motion dynamics & transition overlays`;
+        } else {
+          stage = `Finalizing encode (multiplexing track streams)`;
+        }
+        setExportCurrentStage(stage);
 
         const renderTime = (currentFrame / fps) * videoPlaybackSpeed;
         drawVideoFrame(renderCtx, canvasWidth, height, renderTime);
@@ -1704,7 +2259,9 @@ export default function ImageToVideo({
       requestAnimationFrame(renderNextFrame);
 
       mediaRecorder.onstop = async () => {
+        setExportCurrentStage("Finalizing encode");
         setExportStatus("Exporting video track blob...");
+        setExportEstTimeRemaining("0.1s");
         renderSynthManager.stop();
 
         const videoBlob = new Blob(chunks, { type: "video/webm" });
@@ -1725,11 +2282,14 @@ export default function ImageToVideo({
         setShowFinalOutput(true);
 
         setExportProgress(100);
+        setExportCurrentStage("Finished");
+        setExportEstTimeRemaining("0s");
         setIsExporting(false);
 
         // Google Drive sync option
         if (saveToDriveAfterExport && accessToken) {
           setExportProgress(95);
+          setExportCurrentStage("Uploading to Cloud Storage");
           setExportStatus("Uploading generated WebM to Google Drive storage...");
           try {
             // Convert video blob to dataUrl
@@ -1746,6 +2306,8 @@ export default function ImageToVideo({
                 );
                 
                 onRefreshDrive();
+                setExportCurrentStage("Finished");
+                setExportProgress(100);
                 setToastMessage({
                   text: "Export & Sync Completed!",
                   sub: `Generated video successfully downloaded and backed up to Google Drive as ${videoNameWithExtension}`,
@@ -1753,6 +2315,8 @@ export default function ImageToVideo({
                 });
               } catch (err) {
                 console.error(err);
+                setExportCurrentStage("Finished");
+                setExportProgress(100);
                 setToastMessage({
                   text: "Video Downloaded Offline Only",
                   sub: `Completed video download but Google Drive sync failed: ${err instanceof Error ? err.message : String(err)}`,
@@ -1898,7 +2462,7 @@ export default function ImageToVideo({
                   </div>
 
                   {/* Rendering Details */}
-                  <div className="space-y-1">
+                  <div className="space-y-2">
                     <h3 className="text-xs font-black uppercase tracking-widest text-indigo-400 flex items-center justify-center gap-1.5">
                       <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-spin" style={{ animationDuration: '3s' }} />
                       <span>Compiling Master Video...</span>
@@ -1906,6 +2470,23 @@ export default function ImageToVideo({
                     <p className="text-base font-black text-slate-100 font-mono tracking-tight">
                       {exportProgress}% Complete
                     </p>
+
+                    {/* Live Timing & Stage Metrics Row */}
+                    <div className="grid grid-cols-3 gap-2 max-w-sm mx-auto pt-2 pb-1 text-left font-mono">
+                      <div className="bg-slate-900/60 border border-slate-800/40 p-2 rounded-xl text-center">
+                        <span className="block text-[7.5px] uppercase text-slate-500 font-black tracking-wider mb-0.5">Elapsed</span>
+                        <span className="text-[11px] font-black text-slate-200">{exportElapsedTime}</span>
+                      </div>
+                      <div className="bg-slate-900/60 border border-slate-800/40 p-2 rounded-xl text-center">
+                        <span className="block text-[7.5px] uppercase text-slate-500 font-black tracking-wider mb-0.5">Est. Remaining</span>
+                        <span className="text-[11px] font-black text-indigo-400 animate-pulse">{exportEstTimeRemaining}</span>
+                      </div>
+                      <div className="bg-slate-900/60 border border-slate-800/40 p-2 rounded-xl text-center">
+                        <span className="block text-[7.5px] uppercase text-slate-500 font-black tracking-wider mb-0.5">Stage</span>
+                        <span className="text-[9px] font-extrabold text-emerald-400 truncate block leading-tight" title={exportCurrentStage}>{exportCurrentStage || "Analyzing"}</span>
+                      </div>
+                    </div>
+
                     <p className="text-[10.5px] text-slate-400 leading-normal italic px-4">
                       {exportStatus}
                     </p>
@@ -1944,16 +2525,25 @@ export default function ImageToVideo({
                     </div>
 
                     {/* Show selected slide AI prompter config */}
-                    {slides.find(s => s.id === selectedSlideId) && (
-                      <div className="pt-2 border-t border-slate-800/40 space-y-1">
-                        <span className="text-slate-500 block uppercase text-[8px] font-black tracking-wider leading-none">
-                          Current Focus Subject:
-                        </span>
-                        <p className="bg-slate-950/60 text-[10px] text-slate-300 italic p-1.5 rounded-lg border border-slate-800/50 leading-relaxed truncate">
-                          "{slides.find(s => s.id === selectedSlideId)?.subjectDescription || "gentle waves crashing on the shore"}"
-                        </p>
-                      </div>
-                    )}
+                    {(() => {
+                      const activeSlide = slides.find(s => s.id === selectedSlideId);
+                      if (!activeSlide) return null;
+                      return (
+                        <div className="pt-2 border-t border-slate-800/40 space-y-1">
+                          <span className="text-slate-505 block uppercase text-[8px] font-black tracking-wider leading-none">
+                            Edit Slide Prompt (Click & Paste):
+                          </span>
+                          <textarea
+                            value={activeSlide.subjectDescription ?? ""}
+                            onChange={(e) => updateSlideProp(activeSlide.id, "subjectDescription", e.target.value)}
+                            placeholder="Type or paste custom prompt..."
+                            rows={2}
+                            className="w-full bg-slate-950/80 text-[10.5px] font-medium text-slate-200 p-2 rounded-xl border border-slate-800 hover:border-slate-700 focus:border-indigo-550 focus:ring-1 focus:ring-indigo-500/30 leading-normal outline-none resize-none transition-all placeholder:text-slate-650"
+                          />
+                          {renderPromptValidationInfo(activeSlide.subjectDescription ?? "", true)}
+                        </div>
+                      );
+                    })()}
                   </div>
 
                   {/* Progressive loading tracks */}
@@ -2042,32 +2632,51 @@ export default function ImageToVideo({
                   </div>
 
                   {/* Actions buttons */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        if (exportedVideoBlob) {
-                          const videoNameWithExtension = `${exportFileName.replace(/\s+/g, "_")}.webm`;
-                          triggerFileDownload(exportedVideoBlob, videoNameWithExtension);
-                          setToastMessage({
-                            text: "📥 Downloading Video!",
-                            sub: "Your high-fidelity masterwork file download has resumed.",
-                            success: true
-                          });
+                  <div className="space-y-2">
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (exportedVideoBlob) {
+                            const videoNameWithExtension = `${exportFileName.replace(/\s+/g, "_")}.webm`;
+                            triggerFileDownload(exportedVideoBlob, videoNameWithExtension);
+                            setToastMessage({
+                              text: "📥 Downloading Video!",
+                              sub: "Your high-fidelity masterwork file download has resumed.",
+                              success: true
+                            });
 
-                          // Support Monetag Direct Link Integration (Zone ID: 11170621)
-                          try {
-                            window.open("https://omg10.com/4/11170621", "_blank", "noopener,noreferrer");
-                          } catch (e) {
-                            console.warn("Direct link popup blocked by browser policies", e);
+                            // Support Monetag Direct Link Integration (Zone ID: 11170621)
+                            try {
+                              window.open("https://omg10.com/4/11170621", "_blank", "noopener,noreferrer");
+                            } catch (e) {
+                              console.warn("Direct link popup blocked by browser policies", e);
+                            }
                           }
-                        }
-                      }}
-                      className="py-2 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-650 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1 select-none shadow-md shadow-emerald-500/15"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Download File</span>
-                    </button>
+                        }}
+                        className="py-2 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-650 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1 select-none shadow-md shadow-emerald-500/15"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        <span>Download File</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isSavingToDrive}
+                        onClick={handleSaveToDrive}
+                        className={`py-2 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1 select-none shadow-md ${
+                          isSavingToDrive
+                            ? "bg-indigo-850 opacity-70 cursor-not-allowed"
+                            : "bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-650 shadow-indigo-500/15"
+                        }`}
+                      >
+                        {isSavingToDrive ? (
+                          <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        ) : (
+                          <Cloud className="w-3.5 h-3.5" />
+                        )}
+                        <span>{isSavingToDrive ? "Saving..." : "Save to Drive"}</span>
+                      </button>
+                    </div>
                     <button
                       type="button"
                       onClick={() => {
@@ -2080,7 +2689,7 @@ export default function ImageToVideo({
                           success: true
                         });
                       }}
-                      className="py-2 bg-slate-900 hover:bg-slate-850 border border-slate-850 text-slate-300 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1 select-none"
+                      className="w-full py-2 bg-slate-900 hover:bg-slate-850 border border-slate-850 text-slate-300 hover:text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1 select-none"
                     >
                       <RotateCcw className="w-3.5 h-3.5" />
                       <span>Re-Edit Video</span>
@@ -2276,51 +2885,744 @@ export default function ImageToVideo({
               </div>
             </div>
 
+            {/* Collapsible Prompting Handbook & Pro Tips */}
+            <div className="relative z-10 bg-slate-100/50 dark:bg-slate-950/20 rounded-2xl border border-slate-200/60 dark:border-slate-850 p-4 transition-all">
+              <button
+                type="button"
+                onClick={() => {
+                  setShowPromptGuide(prev => !prev);
+                  triggerBeepChime();
+                }}
+                className="w-full flex items-center justify-between text-left cursor-pointer focus:outline-none"
+              >
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded-xl bg-amber-500/10 text-amber-500 dark:text-amber-400 mt-0.5 shrink-0">
+                    <BookOpen className="w-4 h-4 animate-pulse" />
+                  </div>
+                  <div>
+                    <h5 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                      🎬 Cinematic Prompting Handbook
+                      <span className="text-[8px] font-black tracking-widest text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded uppercase">
+                        AI ACADEMY
+                      </span>
+                    </h5>
+                    <p className="text-[10px] text-slate-450 dark:text-slate-500 font-bold mt-0.5 leading-snug">
+                      Master camera movement, video physics, and scene structure keys for perfect cinematic outputs
+                    </p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-1.5 bg-slate-200/60 dark:bg-slate-900/60 hover:bg-slate-200 dark:hover:bg-slate-800/85 px-3 py-1.5 rounded-xl text-[9px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 transition-colors shrink-0">
+                  <span>{showPromptGuide ? "Collapse Guide 🔼" : "Open Handbook 🔽"}</span>
+                </div>
+              </button>
+
+              <AnimatePresence>
+                {showPromptGuide && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    transition={{ duration: 0.25 }}
+                    className="overflow-hidden space-y-4 pt-4 mt-4 border-t border-slate-200 dark:border-slate-850"
+                  >
+                    {/* Handbook Sub-tabs */}
+                    <div className="flex flex-wrap gap-1 border-b border-slate-200 dark:border-slate-800 pb-2">
+                      {[
+                        { id: "basics", label: "🎯 Basics & Camera" },
+                        { id: "consistency", label: "🎭 Consistency Keys" },
+                        { id: "references", label: "📁 Character Refs" },
+                        { id: "power-prompt", label: "⚡ Power Prompts" },
+                        { id: "post-edit", label: "🎬 Post-Gen & Editors" },
+                        { id: "models", label: "🤖 Models & Specs" }
+                      ].map((tab) => {
+                        const active = handbookTab === tab.id;
+                        return (
+                          <button
+                            key={tab.id}
+                            type="button"
+                            onClick={() => {
+                              setHandbookTab(tab.id as any);
+                              triggerBeepChime();
+                            }}
+                            className={`px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                              active
+                                ? "bg-indigo-600 text-white shadow-xs"
+                                : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-350 hover:bg-slate-100 dark:hover:bg-slate-900"
+                            }`}
+                          >
+                            {tab.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* TAB CONTENT: BASICS & CAMERA */}
+                    {handbookTab === "basics" && (
+                      <div className="space-y-4">
+                        {/* Core Principles Section */}
+                        <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-150 dark:border-slate-850/80 space-y-2.5">
+                          <div className="flex items-center gap-1.5">
+                            <Lightbulb className="w-4 h-4 text-amber-500 shrink-0" />
+                            <h6 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                              Core Principles for Strong Video Prompts
+                            </h6>
+                          </div>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed font-bold">
+                            Video prompts need to be more descriptive than image prompts because the AI must understand motion, timing, camera movement, and consistency.
+                          </p>
+                          
+                          <div className="space-y-1 pt-1.5">
+                            <span className="block text-[8.5px] font-black uppercase tracking-wider text-indigo-500">
+                              Best Structure (Recommended Order):
+                            </span>
+                            <ol className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[9px] font-extrabold text-slate-700 dark:text-slate-300">
+                              <li className="bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-100 dark:border-slate-850/60 shadow-3xs flex items-center gap-1.5">
+                                <span className="w-4 h-4 rounded-full bg-indigo-500/10 text-indigo-500 flex items-center justify-center text-[8px] font-black shrink-0">1</span>
+                                Subject + Action
+                              </li>
+                              <li className="bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-100 dark:border-slate-850/60 shadow-3xs flex items-center gap-1.5">
+                                <span className="w-4 h-4 rounded-full bg-indigo-500/10 text-indigo-500 flex items-center justify-center text-[8px] font-black shrink-0">2</span>
+                                Environment
+                              </li>
+                              <li className="bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-100 dark:border-slate-850/60 shadow-3xs flex items-center gap-1.5">
+                                <span className="w-4 h-4 rounded-full bg-indigo-500/10 text-indigo-500 flex items-center justify-center text-[8px] font-black shrink-0">3</span>
+                                Lighting & Mood
+                              </li>
+                              <li className="bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-100 dark:border-slate-850/60 shadow-3xs flex items-center gap-1.5">
+                                <span className="w-4 h-4 rounded-full bg-indigo-500/10 text-indigo-500 flex items-center justify-center text-[8px] font-black shrink-0">4</span>
+                                Camera Path
+                              </li>
+                              <li className="bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-100 dark:border-slate-850/60 shadow-3xs flex items-center gap-1.5">
+                                <span className="w-4 h-4 rounded-full bg-indigo-500/10 text-indigo-500 flex items-center justify-center text-[8px] font-black shrink-0">5</span>
+                                Technical Quality
+                              </li>
+                              <li className="bg-white dark:bg-slate-900 p-2 rounded-lg border border-slate-100 dark:border-slate-850/60 shadow-3xs flex items-center gap-1.5">
+                                <span className="w-4 h-4 rounded-full bg-indigo-500/10 text-indigo-500 flex items-center justify-center text-[8px] font-black shrink-0">6</span>
+                                Pro Modifiers
+                              </li>
+                            </ol>
+                          </div>
+                        </div>
+
+                        {/* Pro Tips Section */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Tips 1 & 2 */}
+                          <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-150 dark:border-slate-850/80 space-y-3">
+                            <h6 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-100 flex items-center gap-1">
+                              ⚡ Interface Pro Tips
+                            </h6>
+                            
+                            <div className="space-y-2.5">
+                              <div>
+                                <span className="block text-[9px] font-extrabold uppercase text-indigo-500 mb-0.5">
+                                  1. Start with a Clear Scene Description
+                                </span>
+                                <p className="text-[9px] text-slate-500 dark:text-slate-400 leading-snug">
+                                  Be highly specific about motion: <span className="italic font-semibold text-slate-650 dark:text-slate-350">“slowly flying through”</span>, <span className="italic font-semibold text-slate-650 dark:text-slate-350">“camera tracking a running character”</span>, <span className="italic font-semibold text-slate-650 dark:text-slate-350">“gentle pan across”</span>, or <span className="italic font-semibold text-slate-650 dark:text-slate-350">“dramatic zoom in”</span>.
+                                </p>
+                              </div>
+
+                              <div className="border-t border-slate-200/50 dark:border-slate-850/50 pt-2">
+                                <span className="block text-[9px] font-extrabold uppercase text-indigo-500 mb-1">
+                                  2. Use the Pro Booster Modifiers Wisely
+                                </span>
+                                <div className="space-y-1.5 text-[8.5px] leading-relaxed text-slate-500 dark:text-slate-450">
+                                  <div>
+                                    <strong className="text-slate-700 dark:text-slate-300 block">🎬 Cinematography & Cameras:</strong>
+                                    Add <code className="text-indigo-600 dark:text-indigo-400 font-bold">+Drone flyover sweep</code>, <code className="text-indigo-600 dark:text-indigo-400 font-bold">+Slow-motion fluid</code>, <code className="text-indigo-600 dark:text-indigo-400 font-bold">+Handheld dramatic shake</code>, <code className="text-indigo-600 dark:text-indigo-400 font-bold">+Intimate Close-up</code>, or <code className="text-indigo-600 dark:text-indigo-400 font-bold">+Shallow Depth of Field</code>.
+                                  </div>
+                                  <div className="pt-1">
+                                    <strong className="text-slate-700 dark:text-slate-300 block">💡 Lighting & Atmosphere:</strong>
+                                    Add <code className="text-indigo-600 dark:text-indigo-400 font-bold">+Volumetric Fog</code>, <code className="text-indigo-600 dark:text-indigo-400 font-bold">+Golden Hour Sunbeams</code>, <code className="text-indigo-600 dark:text-indigo-400 font-bold">+Moody Cyberpunk Neon</code>, or <code className="text-indigo-600 dark:text-indigo-400 font-bold">+Ethereal Moonlight</code>.
+                                  </div>
+                                  <div className="pt-1">
+                                    <strong className="text-slate-700 dark:text-slate-300 block">✨ Art Style:</strong>
+                                    Add <code className="text-indigo-600 dark:text-indigo-400 font-bold">+Unreal Engine 5 Render</code> or <code className="text-indigo-600 dark:text-indigo-400 font-bold">+Detailed 8K Resolution</code>.
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Tip 3 - Camera Path Instructions with Interactive Spawning */}
+                          <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-150 dark:border-slate-850/80 space-y-3 flex flex-col justify-between">
+                            <div className="space-y-2">
+                              <h6 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-100 flex items-center gap-1">
+                                🎥 Interactive Camera Path Motion
+                              </h6>
+                              <p className="text-[9px] text-slate-500 dark:text-slate-400 leading-snug">
+                                Explicit camera instructions are crucial for video. Describe the motion explicitly or <span className="font-bold text-indigo-500">click any preset below</span> to append it to your active prompt textarea instantly!
+                              </p>
+                            </div>
+
+                            <div className="space-y-1.5 pt-1">
+                              <span className="block text-[8.5px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                                💡 Tap to Append Camera Instruction:
+                              </span>
+                              <div className="grid grid-cols-1 gap-1.5">
+                                {[
+                                  "Smooth tracking shot following the subject from behind",
+                                  "Slow orbiting shot around the central character",
+                                  "Dramatic crane shot rising upward",
+                                  "Fast forward dolly zoom through the street"
+                                ].map((camText) => (
+                                  <button
+                                    key={camText}
+                                    type="button"
+                                    onClick={() => {
+                                      handleAppendModifier(camText);
+                                      triggerBeepChime();
+                                    }}
+                                    className="w-full text-left p-2 rounded-lg bg-white dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 border border-slate-150 dark:border-slate-850 text-[9px] font-bold cursor-pointer transition-all hover:-translate-y-0.5 active:translate-y-0 shadow-3xs flex items-center justify-between"
+                                    title="Append to your prompt text"
+                                  >
+                                    <span>“{camText}”</span>
+                                    <span className="text-[10px] text-indigo-500 shrink-0">＋</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* TAB CONTENT: ADVANCED CONSISTENCY KEYS */}
+                    {handbookTab === "consistency" && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Key consistency descriptors */}
+                        <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-150 dark:border-slate-850/80 space-y-3">
+                          <h6 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                            🌟 Advanced Consistency Descriptors
+                          </h6>
+                          <p className="text-[10px] text-slate-550 dark:text-slate-400 leading-snug">
+                            Append these proven prompts at the end of your main scene description to enforce facial, lighting, and camera persistence.
+                          </p>
+
+                          <div className="space-y-1.5 pt-1">
+                            {[
+                              "Highly consistent character design across all frames",
+                              "Stable facial features, coherent anatomy, no morphing",
+                              "Consistent lighting and color grading throughout the shot",
+                              "Smooth motion, temporal coherence, minimal artifacts",
+                              "Cinematic continuity, seamless camera movement"
+                            ].map((phrase) => (
+                              <button
+                                key={phrase}
+                                type="button"
+                                onClick={() => {
+                                  handleAppendModifier(phrase);
+                                }}
+                                className="w-full text-left p-2 rounded-lg bg-white dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 border border-slate-150 dark:border-slate-850 text-[9px] font-bold cursor-pointer transition-all flex items-center justify-between shadow-3xs"
+                                title="Click to append to your active prompt"
+                              >
+                                <span>“{phrase}”</span>
+                                <span className="text-[10px] text-indigo-500 shrink-0">＋</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Motion formulas & Best Practices */}
+                        <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-150 dark:border-slate-850/80 space-y-4">
+                          <div className="space-y-2">
+                            <h6 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                              🎥 Motion-Specific Consistency
+                            </h6>
+                            <div className="space-y-1.5">
+                              {[
+                                "Slow and smooth camera movement",
+                                "Fluid consistent motion",
+                                "Natural physics and realistic movement"
+                              ].map((phrase) => (
+                                <button
+                                  key={phrase}
+                                  type="button"
+                                  onClick={() => {
+                                    handleAppendModifier(phrase);
+                                  }}
+                                  className="w-full text-left p-2 rounded-lg bg-white dark:bg-slate-900 hover:bg-amber-50 dark:hover:bg-amber-950/20 text-slate-700 dark:text-slate-300 hover:text-amber-600 dark:hover:text-amber-400 border border-slate-150 dark:border-slate-850 text-[9px] font-bold cursor-pointer transition-all flex items-center justify-between shadow-3xs"
+                                  title="Click to append motion controller"
+                                >
+                                  <span>“{phrase}”</span>
+                                  <span className="text-[10px] text-amber-500 shrink-0">＋</span>
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          <div className="border-t border-slate-200/50 dark:border-slate-850/50 pt-3 space-y-2">
+                            <span className="block text-[9px] font-black uppercase tracking-wider text-indigo-500">
+                              💡 Interface Best Practices
+                            </span>
+                            <ul className="text-[9px] text-slate-500 dark:text-slate-400 space-y-1 font-bold leading-relaxed list-disc list-inside">
+                              <li>Use modifiers like <span className="text-indigo-600 dark:text-indigo-400">+Detailed 8K Resolution</span> and <span className="text-indigo-600 dark:text-indigo-400">+Unreal Engine 5 Render</span>.</li>
+                              <li>Avoid chaotic descriptors on long clips.</li>
+                              <li>Stick to slow tracking, orbit, or dolly shots.</li>
+                              <li>Start with shorter clips first (2s - 4s) to establish consistency.</li>
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* TAB CONTENT: CHARACTER REFERENCE IMAGES */}
+                    {handbookTab === "references" && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Preparation & Numbers */}
+                        <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-150 dark:border-slate-850/80 space-y-3">
+                          <h6 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                            📁 Character Reference Image Best Practices
+                          </h6>
+                          <p className="text-[10px] text-slate-550 dark:text-slate-400 leading-snug">
+                            Prepare your source portrait files carefully to feed the IP-Adapter and minimize face/outfit drift.
+                          </p>
+
+                          <div className="space-y-2 pt-1 font-bold text-[9px] text-slate-500 dark:text-slate-400">
+                            <div>
+                              <strong className="text-slate-700 dark:text-slate-300 block uppercase text-[8px] tracking-wider mb-0.5">Image Preparation:</strong>
+                              <ul className="list-disc list-inside space-y-0.5 leading-snug">
+                                <li>Use clear, front-facing or 3/4 view portraits</li>
+                                <li>High resolution (1024x1024 pixels minimum)</li>
+                                <li>Uniform lighting with no heavy shadows</li>
+                                <li>Show exact outfit & hair styled as required</li>
+                              </ul>
+                            </div>
+                            <div className="pt-2">
+                              <strong className="text-slate-700 dark:text-slate-300 block uppercase text-[8px] tracking-wider mb-0.5">Reference Count:</strong>
+                              <p className="leading-snug">
+                                <span className="text-indigo-500">1 Strong Portrait</span> is a good start, but <span className="text-emerald-500">2-4 mixed-angle + full-body shots</span> yield maximum structural fidelity.
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Reference prompt techniques */}
+                        <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-150 dark:border-slate-850/80 space-y-3">
+                          <h6 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                            💡 Tap to Append Reference Guidance
+                          </h6>
+                          <p className="text-[10px] text-slate-550 dark:text-slate-400 leading-snug">
+                            Add these anchor expressions to guide the neural model back to the provided source canvas.
+                          </p>
+
+                          <div className="space-y-1.5 pt-1">
+                            {[
+                              "Exact same character as reference image",
+                              "Faithful to reference character, identical face and clothing",
+                              "Strong character consistency with provided reference",
+                              "Preserve facial features, hairstyle, and outfit from reference"
+                            ].map((phrase) => (
+                              <button
+                                key={phrase}
+                                type="button"
+                                onClick={() => {
+                                  handleAppendModifier(phrase);
+                                }}
+                                className="w-full text-left p-2 rounded-lg bg-white dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 border border-slate-150 dark:border-slate-850 text-[9px] font-bold cursor-pointer transition-all flex items-center justify-between shadow-3xs"
+                                title="Click to append character reference anchor"
+                              >
+                                <span>“{phrase}”</span>
+                                <span className="text-[10px] text-indigo-500 shrink-0">＋</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* TAB CONTENT: POWER PROMPTS */}
+                    {handbookTab === "power-prompt" && (
+                      <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-150 dark:border-slate-850/80 space-y-4">
+                        <div className="space-y-1.5">
+                          <h6 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                            ⚡ Interactive Power Prompt Template Builder
+                          </h6>
+                          <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed font-bold">
+                            Combine precise character features, environmental depth, custom tracking, and robust consistency modifiers into a unified high-resolution prompt formula.
+                          </p>
+                        </div>
+
+                        <div className="p-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-150 dark:border-slate-800 text-[9px] font-mono text-slate-500 dark:text-slate-400 leading-relaxed select-all">
+                          <strong className="text-indigo-500 dark:text-indigo-400">[Scene Description]</strong>, <span className="text-slate-700 dark:text-slate-350">[environment]</span>, <span className="text-slate-700 dark:text-slate-350">[lighting]</span>, <span className="text-slate-700 dark:text-slate-350">[action]</span>, Camera: <span className="text-indigo-500">[path]</span>, Style: cinematic, highly detailed, consistent character appearance across all frames, stable facial features, coherent anatomy, temporal consistency, smooth fluid motion, unreal engine 5 render, 8K resolution
+                        </div>
+
+                        <div className="space-y-2 pt-1">
+                          <span className="block text-[8.5px] font-black uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                            🚀 Load A High-Consistency Power Prompt Preset:
+                          </span>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            {[
+                              {
+                                title: "Cyberpunk Hacker",
+                                prompt: "A confident female cyberpunk hacker with short neon-blue hair and cybernetic arm, walking through a rainy neon alley at night, reflections on wet pavement, +Moody Cyberpunk Neon, +Volumetric Fog, slow tracking shot following her from the side, shallow depth of field, anamorphic lens, cinematic lighting, exact same character as reference image, identical facial features and outfit, high consistency, smooth motion, Unreal Engine 5 Render, detailed 8K"
+                              },
+                              {
+                                title: "Steampunk Aviator",
+                                prompt: "A veteran steampunk pilot in a brown leather jacket and brass aviator goggles, inspecting the control panel of an airship cabin, warm amber brass lighting, steam venting from brass pipes, slow gentle orbit around the pilot, highly detailed, consistent character appearance across all frames, stable facial features, coherent anatomy, temporal consistency, smooth fluid motion, unreal engine 5 render, 8K resolution"
+                              },
+                              {
+                                title: "Astronaut Explorer",
+                                prompt: "An astronaut in a pristine white spacesuit, walking on the surface of Mars, red dusty terrain with distant canyons, brilliant stars visible in the pitch black space sky, dramatic crane shot rising upward slowly, cinematic style, highly detailed, consistent suit details, stable coherent anatomy, temporal consistency, smooth motion, Unreal Engine 5 Render, 8K resolution"
+                              }
+                            ].map((preset) => (
+                              <button
+                                key={preset.title}
+                                type="button"
+                                onClick={() => {
+                                  setUserPromptText(preset.prompt);
+                                  triggerBeepChime();
+                                  setToastMessage({
+                                    text: `Loaded ${preset.title}!`,
+                                    sub: "Loaded a fully optimized consistency prompt into your sandbox.",
+                                    success: true
+                                  });
+                                }}
+                                className="p-3 text-left bg-white dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-950/25 border border-slate-200 dark:border-slate-850 rounded-xl cursor-pointer transition-all hover:-translate-y-0.5"
+                              >
+                                <span className="block text-[9.5px] font-black text-slate-800 dark:text-slate-200 mb-1">
+                                  {preset.title}
+                                </span>
+                                <p className="text-[8px] text-slate-450 dark:text-slate-500 line-clamp-3 leading-snug">
+                                  {preset.prompt}
+                                </p>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* TAB CONTENT: POST-GENERATION EDITING & EDITORS */}
+                    {handbookTab === "post-edit" && (
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Column 1: Post-Generation Prompt Adjustments */}
+                        <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-150 dark:border-slate-850/80 space-y-3">
+                          <h6 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                            ⚡ AI Post-Generation Prompt Modifiers
+                          </h6>
+                          <p className="text-[10px] text-slate-550 dark:text-slate-400 leading-snug">
+                            After your video is generated, stands out right now for post-generation editing—you can change lighting, add/remove objects, restyle scenes, or adjust camera angles using text prompts.
+                          </p>
+                          
+                          <div className="space-y-1.5 pt-1">
+                            <span className="block text-[8.5px] font-black uppercase tracking-wider text-indigo-500">
+                              💡 Tap to Append Post-Gen Modifiers:
+                            </span>
+                            {[
+                              { label: "Change Lighting", phrase: "adjust lighting to dramatic warm sunset backlighting with golden hour rays" },
+                              { label: "Add Objects", phrase: "add gentle floating volumetric embers and sparks drifting across the foreground" },
+                              { label: "Restyle Scene", phrase: "restyle the entire scene with an aesthetic cinematic film grain and higher color contrast" },
+                              { label: "Adjust Camera Angle", phrase: "slow dynamic dolly zoom tracking in 1.5x with a slight handheld cinematic shake" }
+                            ].map((item) => (
+                              <button
+                                key={item.label}
+                                type="button"
+                                onClick={() => {
+                                  handleAppendModifier(item.phrase);
+                                  triggerBeepChime();
+                                }}
+                                className="w-full text-left p-2 rounded-lg bg-white dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 text-slate-700 dark:text-slate-300 hover:text-indigo-600 dark:hover:text-indigo-400 border border-slate-150 dark:border-slate-850 text-[9px] font-bold cursor-pointer transition-all flex items-center justify-between shadow-3xs"
+                                title={`Click to append: "${item.phrase}"`}
+                              >
+                                <div className="flex flex-col items-start">
+                                  <span className="text-[8px] font-black text-indigo-500 uppercase tracking-wide mb-0.5">{item.label}</span>
+                                  <span className="line-clamp-1">“{item.phrase}”</span>
+                                </div>
+                                <span className="text-[10px] text-indigo-500 shrink-0 ml-1">＋</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        {/* Column 2: Traditional Editors with Strong AI Features */}
+                        <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-150 dark:border-slate-850/80 space-y-3.5">
+                          <h6 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                            🎬 Traditional Editors with Strong AI Features
+                          </h6>
+                          <p className="text-[10px] text-slate-550 dark:text-slate-400 leading-snug">
+                            The best creator workflows use top-tier traditional video editors to refine, polish, and final-grade AI generated clips.
+                          </p>
+
+                          <div className="space-y-2.5 pt-1">
+                            {[
+                              {
+                                name: "DaVinci Resolve",
+                                highlight: "Best Color Grading & Audio AI",
+                                desc: "The free version is excellent. Features top-tier color grading + AI tools like Magic Mask, voice isolation, and auto-editing. Still a top choice for finishing AI-generated clips.",
+                                colorClass: "border-purple-200 dark:border-purple-900 bg-purple-50/40 dark:bg-purple-950/10 text-purple-700 dark:text-purple-400"
+                              },
+                              {
+                                name: "Adobe Premiere Pro",
+                                highlight: "Professional AI Timeline",
+                                desc: "Features a highly professional timeline with AI Auto Reframe, automatic scene edit detection, and transcripts-driven text-based editing.",
+                                colorClass: "border-blue-200 dark:border-blue-900 bg-blue-50/40 dark:bg-blue-950/10 text-blue-700 dark:text-blue-400"
+                              },
+                              {
+                                name: "Descript",
+                                highlight: "Revolutionary Transcript Editing",
+                                desc: "Edit your video simply by editing the text transcript. Perfect for talking-head, voiceovers, and podcast-style AI media curation.",
+                                colorClass: "border-emerald-200 dark:border-emerald-900 bg-emerald-50/40 dark:bg-emerald-950/10 text-emerald-700 dark:text-emerald-400",
+                                features: [
+                                  "Voice Cloning: Fix mispronounced words or change lines seamlessly with ultra-natural speech cloning",
+                                  "Studio Sound: One-click noise removal and professional voice enhancement",
+                                  "Eye Contact: Automatic gaze adjustment for talking-head videos",
+                                  "Animated Captions: Auto-generate eye-catching, styled, dynamic captions",
+                                  "Find & Replace: Globally repair or delete filler words and speech errors instantly",
+                                  "AI Summaries & Chapters: Automatic video chaptering and action items generation"
+                                ]
+                              },
+                              {
+                                name: "CapCut & Web Editors",
+                                highlight: "Quick Browser Captions",
+                                desc: "Browser-based, lightning-fast smart auto-captions, beautiful pre-made subtitles, and highly simplified timeline tools for social clips.",
+                                colorClass: "border-amber-200 dark:border-amber-900 bg-amber-50/40 dark:bg-amber-950/10 text-amber-700 dark:text-amber-400"
+                              }
+                            ].map((editor) => (
+                              <div
+                                key={editor.name}
+                                className={`p-2.5 rounded-lg border ${editor.colorClass} space-y-1.5`}
+                              >
+                                <div className="flex items-center justify-between flex-wrap gap-1">
+                                  <span className="text-[10px] font-extrabold uppercase tracking-wide">{editor.name}</span>
+                                  <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-white/70 dark:bg-slate-900/65 shadow-3xs">{editor.highlight}</span>
+                                </div>
+                                <p className="text-[8.5px] text-slate-500 dark:text-slate-400 leading-normal font-bold">
+                                  {editor.desc}
+                                </p>
+                                {editor.features && (
+                                  <div className="pt-1.5 border-t border-emerald-100/40 dark:border-emerald-900/40 space-y-1">
+                                    <span className="block text-[8px] font-black uppercase tracking-wider text-emerald-600 dark:text-emerald-400">⚡ Powerful AI Features (2026):</span>
+                                    <ul className="text-[8px] text-slate-500 dark:text-slate-400 space-y-0.5 list-disc list-inside font-bold leading-tight">
+                                      {editor.features.map((feature, fIdx) => (
+                                        <li key={fIdx}>{feature}</li>
+                                      ))}
+                                    </ul>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* TAB CONTENT: SUPPORTED MODELS & PARAMETERS (2026) */}
+                    {handbookTab === "models" && (
+                      <div className="space-y-4">
+                        {/* Summary of Constraints */}
+                        <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-150 dark:border-slate-850/80 space-y-2.5">
+                          <div className="flex items-center gap-1.5">
+                            <Sparkles className="w-4 h-4 text-indigo-500 shrink-0" />
+                            <h6 className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-100">
+                              2026 AI Video Model Specs & Performance Guidelines
+                            </h6>
+                          </div>
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[9px] font-bold text-slate-500 dark:text-slate-400 leading-relaxed">
+                            <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-850/60 shadow-3xs">
+                              <span className="block text-[8px] font-black text-indigo-500 uppercase tracking-wide mb-1">⏱️ Optimal Clip Duration</span>
+                              Most neural models work best at <span className="text-slate-800 dark:text-slate-200 font-extrabold">5–10 second clips</span> for highest coherence, physics alignment, and style consistency.
+                            </div>
+                            <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-850/60 shadow-3xs">
+                              <span className="block text-[8px] font-black text-indigo-500 uppercase tracking-wide mb-1">📐 Aspect Ratios</span>
+                              Utilize <span className="text-slate-800 dark:text-slate-200 font-extrabold">16:9</span> for cinematic sweeps, <span className="text-slate-800 dark:text-slate-200 font-extrabold">9:16</span> for vertical/social timelines, or <span className="text-slate-800 dark:text-slate-200 font-extrabold">1:1</span> for immersive square grids.
+                            </div>
+                            <div className="p-2.5 bg-white dark:bg-slate-900 rounded-lg border border-slate-100 dark:border-slate-850/60 shadow-3xs">
+                              <span className="block text-[8px] font-black text-indigo-500 uppercase tracking-wide mb-1">⚡ Motion Strength</span>
+                              Keep intensity at <span className="text-slate-800 dark:text-slate-200 font-extrabold">0.5–0.75</span> for natural, realistic motion. Raise it higher for dramatic transitions or fast-action.
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Grid of Models */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                          {/* Runway ML Gen-4 & Google Veo */}
+                          <div className="space-y-4">
+                            {/* Runway ML Gen-4 */}
+                            <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-150 dark:border-slate-850/80 space-y-2.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-black uppercase text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                                  🔮 Runway ML Gen-4
+                                </span>
+                                <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-indigo-100 dark:bg-indigo-950/50 text-indigo-600 dark:text-indigo-400">Cinematic Master</span>
+                              </div>
+                              <p className="text-[9px] text-slate-500 dark:text-slate-400 font-bold leading-relaxed">
+                                <strong className="text-slate-700 dark:text-slate-300">Best for:</strong> Cinematic quality, heavy creative direction, in-video editing (Aleph system).
+                              </p>
+                              <ul className="text-[8.5px] text-slate-500 dark:text-slate-400 space-y-1 list-disc list-inside font-semibold leading-relaxed">
+                                <li><strong className="text-slate-700 dark:text-slate-300">Max Duration:</strong> 10–20 seconds (extendable continuously)</li>
+                                <li><strong className="text-slate-700 dark:text-slate-300">Core Strengths:</strong> Class-leading camera controllers, style consistency, and precise motion brush</li>
+                                <li><strong className="text-slate-700 dark:text-slate-300">Recommended:</strong> High motion strength, 16:9 widescreen or 9:16 vertical</li>
+                              </ul>
+                              <div className="pt-1.5 flex gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleAppendModifier("Runway Gen-4 style, ultra-cinematic, precise camera control, style coherent, motion brush optimized");
+                                    triggerBeepChime();
+                                  }}
+                                  className="w-full text-center py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-[8px] font-black uppercase tracking-wider cursor-pointer shadow-3xs"
+                                >
+                                  Load Runway Booster ＋
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Google Veo / Flow */}
+                            <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-150 dark:border-slate-850/80 space-y-2.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-black uppercase text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                                  🪐 Google Veo / Flow AI
+                                </span>
+                                <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400">High Realism</span>
+                              </div>
+                              <p className="text-[9px] text-slate-500 dark:text-slate-400 font-bold leading-relaxed">
+                                <strong className="text-slate-700 dark:text-slate-300">Best for:</strong> Photorealistic high-fidelity human motion, physical world accuracy, complex environments.
+                              </p>
+                              <ul className="text-[8.5px] text-slate-500 dark:text-slate-400 space-y-1 list-disc list-inside font-semibold leading-relaxed">
+                                <li><strong className="text-slate-700 dark:text-slate-300">Core Strengths:</strong> Advanced prompt adherence, physically coherent fluids and particle dynamics</li>
+                                <li><strong className="text-slate-700 dark:text-slate-300">Prompt Tip:</strong> Often performs best with highly detailed, natural language cinematic essays</li>
+                              </ul>
+                              <div className="pt-1.5 flex gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleAppendModifier("photorealistic cinematic realism, Google Veo high-fidelity style, perfect prompt adherence, physical coherence");
+                                    triggerBeepChime();
+                                  }}
+                                  className="w-full text-center py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[8px] font-black uppercase tracking-wider cursor-pointer shadow-3xs"
+                                >
+                                  Load Veo / Flow Booster ＋
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Kling AI & Luma Dream Machine */}
+                          <div className="space-y-4">
+                            {/* Kling AI */}
+                            <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-150 dark:border-slate-850/80 space-y-2.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-black uppercase text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                                  🐼 Kling AI
+                                </span>
+                                <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-amber-100 dark:bg-amber-950/50 text-amber-600 dark:text-amber-400">Physics & Human</span>
+                              </div>
+                              <p className="text-[9px] text-slate-500 dark:text-slate-400 font-bold leading-relaxed">
+                                <strong className="text-slate-700 dark:text-slate-300">Best for:</strong> Realistic human motion, anatomical correctness, physics, and prompt accuracy.
+                              </p>
+                              <ul className="text-[8.5px] text-slate-500 dark:text-slate-400 space-y-1 list-disc list-inside font-semibold leading-relaxed">
+                                <li><strong className="text-slate-700 dark:text-slate-300">Max Duration:</strong> 5–15 seconds (Turbo mode optimized for rapid output)</li>
+                                <li><strong className="text-slate-700 dark:text-slate-300">Core Strengths:</strong> Natural limb movement, lifelike lighting, high motion ranges</li>
+                                <li><strong className="text-slate-700 dark:text-slate-300">Recommended:</strong> Lower motion strength for pristine, artifact-free realism</li>
+                              </ul>
+                              <div className="pt-1.5 flex gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleAppendModifier("Kling AI style, realistic human motion, physically correct simulation, lifelike lighting, temporal coherent");
+                                    triggerBeepChime();
+                                  }}
+                                  className="w-full text-center py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white text-[8px] font-black uppercase tracking-wider cursor-pointer shadow-3xs"
+                                >
+                                  Load Kling Booster ＋
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Luma Dream Machine */}
+                            <div className="bg-slate-50 dark:bg-slate-950 p-4 rounded-xl border border-slate-150 dark:border-slate-850/80 space-y-2.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[11px] font-black uppercase text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                                  🎨 Luma Dream Machine
+                                </span>
+                                <span className="text-[8px] font-black px-1.5 py-0.5 rounded-md bg-purple-100 dark:bg-purple-950/50 text-purple-600 dark:text-purple-400">Artistic & Surreal</span>
+                              </div>
+                              <p className="text-[9px] text-slate-500 dark:text-slate-400 font-bold leading-relaxed">
+                                <strong className="text-slate-700 dark:text-slate-300">Best for:</strong> Dreamy, surreal, or highly artistic visuals, and initial Image-to-Video generation.
+                              </p>
+                              <ul className="text-[8.5px] text-slate-500 dark:text-slate-400 space-y-1 list-disc list-inside font-semibold leading-relaxed">
+                                <li><strong className="text-slate-700 dark:text-slate-300">Max Duration:</strong> 5–10 seconds</li>
+                                <li><strong className="text-slate-700 dark:text-slate-300">Core Strengths:</strong> Exceptional style transfers, highly expressive lighting, multi-image references</li>
+                              </ul>
+                              <div className="pt-1.5 flex gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    handleAppendModifier("Luma Dream Machine style, surreal dreamy aesthetic, rich artistic atmosphere, high-fidelity light transfer");
+                                    triggerBeepChime();
+                                  }}
+                                  className="w-full text-center py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-[8px] font-black uppercase tracking-wider cursor-pointer shadow-3xs"
+                                >
+                                  Load Luma Booster ＋
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
             {/* 2. PROMPT PLAYGROUND CONTAINER */}
-            <div className="space-y-2.5 relative z-10">
-              <div className="flex items-center justify-between">
+            <div className="space-y-3 relative z-10">
+              <div className="flex items-center justify-between flex-wrap gap-2">
                 <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
                   2. Describe Your Scene:
                 </label>
-                <button
-                  type="button"
-                  disabled={isEnhancingPrompt || isGeneratingScene || !userPromptText.trim()}
-                  onClick={async () => {
-                    setIsEnhancingPrompt(true);
-                    try {
-                      const response = await fetch("/api/video/enhance-prompt", {
-                        method: "POST",
-                        headers: { "Content-Type": "application/json" },
-                        body: JSON.stringify({
-                          subject: userPromptText,
-                          style: aiStylePreset === "auto" ? "Cinematic" : aiStylePreset,
-                          camera: aiCameraDirection === "auto" ? "Slow Zoom" : aiCameraDirection
-                        })
-                      });
-                      if (response.ok) {
-                        const data = await response.json();
-                        if (data?.enhancedSubject) {
-                          setUserPromptText(data.enhancedSubject);
-                          setToastMessage({
-                            text: "✨ Prompt Optimized!",
-                            sub: "AI expanded your descriptors for maximum cinematic depth.",
-                            success: true
-                          });
-                          triggerBeepChime();
+                <div className="flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    disabled={isGeneratingScene}
+                    onClick={handleRandomizePrompt}
+                    className="text-[9px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400 hover:text-amber-600 dark:hover:text-amber-300 flex items-center gap-1 cursor-pointer select-none bg-amber-500/5 dark:bg-amber-500/10 px-2.5 py-1 rounded-md border border-amber-500/15 transition-all hover:scale-105 active:scale-95"
+                    title="Synthesize a completely surprise custom high-fidelity scene storyboard"
+                  >
+                    <span>🎲 Surprise Me!</span>
+                  </button>
+                  <button
+                    type="button"
+                    disabled={isEnhancingPrompt || isGeneratingScene || !userPromptText.trim()}
+                    onClick={async () => {
+                      setIsEnhancingPrompt(true);
+                      try {
+                        const response = await fetch("/api/video/enhance-prompt", {
+                          method: "POST",
+                          headers: { "Content-Type": "application/json" },
+                          body: JSON.stringify({
+                            subject: userPromptText,
+                            style: aiStylePreset === "auto" ? "Cinematic" : aiStylePreset,
+                            camera: aiCameraDirection === "auto" ? "Slow Zoom" : aiCameraDirection
+                          })
+                        });
+                        if (response.ok) {
+                          const data = await response.json();
+                          if (data?.enhancedSubject) {
+                            setUserPromptText(data.enhancedSubject);
+                            setToastMessage({
+                              text: "✨ Prompt Optimized!",
+                              sub: "AI expanded your descriptors for maximum cinematic depth.",
+                              success: true
+                            });
+                            triggerBeepChime();
+                          }
                         }
+                      } catch (e) {
+                        console.error(e);
+                      } finally {
+                        setIsEnhancingPrompt(false);
                       }
-                    } catch (e) {
-                      console.error(e);
-                    } finally {
-                      setIsEnhancingPrompt(false);
-                    }
-                  }}
-                  className="text-[9px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 flex items-center gap-1 cursor-pointer disabled:opacity-40 select-none bg-indigo-500/5 px-2 py-0.5 rounded-md border border-indigo-500/10"
-                  title="Enhance this prompt using Gemini's director model"
-                >
-                  <Sparkles className="w-2.5 h-2.5" />
-                  <span>{isEnhancingPrompt ? "Enhancing..." : "Magic Expand"}</span>
-                </button>
+                    }}
+                    className="text-[9px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 flex items-center gap-1 cursor-pointer disabled:opacity-40 select-none bg-indigo-500/5 px-2.5 py-1 rounded-md border border-indigo-500/10 transition-all hover:scale-105 active:scale-95"
+                    title="Enhance this prompt using Gemini's director model"
+                  >
+                    <Sparkles className="w-2.5 h-2.5" />
+                    <span>{isEnhancingPrompt ? "Enhancing..." : "Magic Expand"}</span>
+                  </button>
+                </div>
               </div>
 
               <div className="relative">
@@ -2332,6 +3634,34 @@ export default function ImageToVideo({
                   className="w-full p-4 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500/40 text-slate-800 dark:text-slate-100 resize-none leading-relaxed shadow-3xs"
                   disabled={isGeneratingScene}
                 />
+                {renderPromptValidationInfo(userPromptText)}
+              </div>
+
+              {/* Suggested Styles Selector */}
+              <div className="space-y-1">
+                <span className="text-[8.5px] font-black uppercase tracking-widest text-slate-400">
+                  ⚡ Suggested Styles (Auto-Appends High-Quality Keywords):
+                </span>
+                <div className="flex flex-wrap gap-1.5">
+                  {Object.entries(STYLE_TAGS).map(([styleName, styleKeywords]) => {
+                    const isSelected = userPromptText.includes(styleKeywords);
+                    return (
+                      <button
+                        key={styleName}
+                        type="button"
+                        disabled={isGeneratingScene}
+                        onClick={() => handleAppendStyle(styleKeywords)}
+                        className={`px-2.5 py-1 text-[9px] font-bold rounded-lg border transition-all cursor-pointer select-none active:scale-95 ${
+                          isSelected
+                            ? "bg-indigo-600 border-indigo-600 text-white shadow-xs dark:bg-indigo-500 dark:border-indigo-500"
+                            : "bg-slate-50 dark:bg-slate-950/40 border-slate-200 dark:border-slate-850 text-slate-700 dark:text-slate-300 hover:border-slate-350 dark:hover:border-slate-700 hover:bg-slate-100/50"
+                        }`}
+                      >
+                        {styleName}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Inspiration Bubbles */}
@@ -2359,6 +3689,64 @@ export default function ImageToVideo({
                       {preset.label}
                     </button>
                   ))}
+                </div>
+              </div>
+
+              {/* Categorized Creative Booster Keywords */}
+              <div className="space-y-1.5 bg-slate-500/5 p-3 rounded-xl border border-slate-200/40 dark:border-slate-850/60">
+                <span className="text-[8.5px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                  <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" />
+                  <span>Pro Booster Modifiers (Click to Add):</span>
+                </span>
+                <div className="space-y-2">
+                  <div>
+                    <span className="text-[7.5px] font-extrabold uppercase text-slate-400 tracking-wider block mb-1">🎬 Cinematography & Cameras</span>
+                    <div className="flex flex-wrap gap-1">
+                      {["Anamorphic Lens", "Shallow Depth of Field", "Slow-motion fluid", "Drone flyover sweep", "Intimate Close-up", "Handheld dramatic shake"].map(mod => (
+                        <button
+                          key={mod}
+                          type="button"
+                          disabled={isGeneratingScene}
+                          onClick={() => handleAppendModifier(mod)}
+                          className="px-1.5 py-0.5 bg-white dark:bg-slate-950 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-slate-650 dark:text-slate-350 border border-slate-200/60 dark:border-slate-850 text-[8px] font-bold rounded cursor-pointer transition-all hover:scale-105"
+                        >
+                          +{mod}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[7.5px] font-extrabold uppercase text-slate-400 tracking-wider block mb-1">💡 Lighting & Atmosphere</span>
+                    <div className="flex flex-wrap gap-1">
+                      {["Volumetric Fog", "Warm God Rays", "Moody Cyberpunk Neon", "Ethereal Moonlight", "Bioluminescent Glow", "Golden Hour Sunbeams"].map(mod => (
+                        <button
+                          key={mod}
+                          type="button"
+                          disabled={isGeneratingScene}
+                          onClick={() => handleAppendModifier(mod)}
+                          className="px-1.5 py-0.5 bg-white dark:bg-slate-950 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-slate-650 dark:text-slate-350 border border-slate-200/60 dark:border-slate-850 text-[8px] font-bold rounded cursor-pointer transition-all hover:scale-105"
+                        >
+                          +{mod}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[7.5px] font-extrabold uppercase text-slate-400 tracking-wider block mb-1">✨ Art Style & Resolution</span>
+                    <div className="flex flex-wrap gap-1">
+                      {["Unreal Engine 5 Render", "Classic Retro VHS Tape", "Detailed 8K Resolution", "Studio Ghibli Aesthetic", "Intricate Pencil Sketch", "Rich Impasto Oil Paint"].map(mod => (
+                        <button
+                          key={mod}
+                          type="button"
+                          disabled={isGeneratingScene}
+                          onClick={() => handleAppendModifier(mod)}
+                          className="px-1.5 py-0.5 bg-white dark:bg-slate-950 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-slate-650 dark:text-slate-350 border border-slate-200/60 dark:border-slate-850 text-[8px] font-bold rounded cursor-pointer transition-all hover:scale-105"
+                        >
+                          +{mod}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -2407,6 +3795,75 @@ export default function ImageToVideo({
               </div>
             </div>
 
+            {/* Live Camera Trajectory Monitor */}
+            <div className="relative overflow-hidden bg-slate-950 rounded-2xl border border-slate-900/80 p-3.5 h-24 flex items-center justify-between gap-4 z-10 select-none">
+              {/* Left side info */}
+              <div className="space-y-1">
+                <span className="text-[8px] font-black tracking-widest text-indigo-400 uppercase block">
+                  🎥 Live Trajectory Monitor
+                </span>
+                <span className="text-[11px] font-extrabold text-slate-200 block capitalize">
+                  {aiCameraDirection === "auto" ? "Dynamic Cinematic Mix" : aiCameraDirection.replace("-", " ")}
+                </span>
+                <p className="text-[9px] text-slate-450 max-w-[210px] leading-tight">
+                  {aiCameraDirection === "zoom-in" && "Continuous dolly-in motion scaling depth and focal intensity."}
+                  {aiCameraDirection === "zoom-out" && "Smooth dolly-out wide lens sweep exposing ambient details."}
+                  {aiCameraDirection === "pan-left" && "Horizontal camera slide tracking from right to left."}
+                  {aiCameraDirection === "pan-right" && "Horizontal camera slide tracking from left to right."}
+                  {aiCameraDirection === "tilt-up" && "Vertical camera ascent tilting towards the horizon."}
+                  {aiCameraDirection === "tilt-down" && "Vertical camera descent tilting down towards the subject."}
+                  {aiCameraDirection === "orbit" && "360-degree rotational orbit tracking the central focal plane."}
+                  {aiCameraDirection === "auto" && "Adaptive neural camera logic selecting optimal paths per scene."}
+                </p>
+              </div>
+
+              {/* Right side animated visualizer box */}
+              <div className="relative w-36 h-full bg-slate-900/60 rounded-xl border border-slate-850/60 overflow-hidden flex items-center justify-center shrink-0">
+                 {/* 3D grid lines */}
+                 <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:10px_10px] opacity-25" />
+                 
+                 {/* Center subject target */}
+                 <div className="w-3 h-3 rounded-full bg-indigo-500/20 border border-indigo-400/40 flex items-center justify-center animate-pulse">
+                   <div className="w-1 h-1 rounded-full bg-indigo-400" />
+                 </div>
+
+                 {/* Trajectory Camera Icon */}
+                 <motion.div
+                   className="absolute text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)] flex flex-col items-center justify-center"
+                   animate={
+                     aiCameraDirection === "zoom-in" ? {
+                       scale: [0.6, 1.4, 0.6],
+                     } : aiCameraDirection === "zoom-out" ? {
+                       scale: [1.4, 0.6, 1.4],
+                     } : aiCameraDirection === "pan-left" ? {
+                       x: [40, -40, 40],
+                     } : aiCameraDirection === "pan-right" ? {
+                       x: [-40, 40, -40],
+                     } : aiCameraDirection === "tilt-up" ? {
+                       y: [20, -20, 20],
+                     } : aiCameraDirection === "tilt-down" ? {
+                       y: [-20, 20, -20],
+                     } : aiCameraDirection === "orbit" ? {
+                       x: [0, 30, 0, -30, 0],
+                       y: [-15, 0, 15, 0, -15],
+                       rotate: [0, 90, 180, 270, 360],
+                     } : {
+                       y: [-4, 4, -4],
+                       x: [-2, 2, -2],
+                     }
+                   }
+                   transition={{
+                     duration: 3,
+                     repeat: Infinity,
+                     ease: "easeInOut"
+                   }}
+                 >
+                   <Video className="w-3.5 h-3.5" />
+                   <span className="text-[6px] font-black uppercase tracking-widest mt-0.5 scale-75 leading-none opacity-80">CAM</span>
+                 </motion.div>
+              </div>
+            </div>
+
             {/* 4. MOTION BRUSH & SPEED SLIDER */}
             <div className="space-y-2 bg-slate-500/5 p-4 rounded-2xl border border-slate-200/40 dark:border-slate-850/60 relative z-10">
               <div className="flex items-center justify-between">
@@ -2449,6 +3906,22 @@ export default function ImageToVideo({
                       Neural Compute Pipeline Output
                     </span>
                     <span className="text-emerald-400 font-bold">{aiGenerationProgress}%</span>
+                  </div>
+
+                  {/* Telemetry Row */}
+                  <div className="grid grid-cols-3 gap-2 py-1 text-left">
+                    <div className="bg-slate-900 border border-slate-850 p-1.5 rounded-lg text-center">
+                      <span className="block text-[7px] uppercase text-slate-500 font-black tracking-wider mb-0.5">Elapsed</span>
+                      <span className="text-[10px] font-black text-slate-300">{aiElapsedTime}</span>
+                    </div>
+                    <div className="bg-slate-900 border border-slate-850 p-1.5 rounded-lg text-center">
+                      <span className="block text-[7px] uppercase text-slate-500 font-black tracking-wider mb-0.5">Est. Remaining</span>
+                      <span className="text-[10px] font-black text-indigo-400 animate-pulse">{aiEstTimeRemaining}</span>
+                    </div>
+                    <div className="bg-slate-900 border border-slate-850 p-1.5 rounded-lg text-center">
+                      <span className="block text-[7px] uppercase text-slate-500 font-black tracking-wider mb-0.5">Active Stage</span>
+                      <span className="text-[8px] font-extrabold text-emerald-400 truncate block leading-tight" title={aiCurrentStage}>{aiCurrentStage || "Initializing"}</span>
+                    </div>
                   </div>
 
                   {/* Progressive Bar */}
@@ -2510,187 +3983,598 @@ export default function ImageToVideo({
             </div>
           </div>
 
-          {/* Video Frames Gallery (Interactive Drag-and-Drop Timeline Strip) */}
-          <div className="space-y-3.5 bg-slate-500/5 p-5 rounded-[32px] border border-slate-200/40 dark:border-slate-850/60 relative">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+          {/* CapCut Pro Multi-Track Timeline Studio */}
+          <div className="space-y-4 bg-slate-900/95 border border-slate-800 p-5 rounded-[28px] relative text-left">
+            
+            {/* Timeline Toolbar Controls */}
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-800">
               <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-xl bg-indigo-500/10 text-indigo-500">
-                  <Layers className="w-4 h-4" />
+                <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400">
+                  <Scissors className="w-4 h-4" />
                 </div>
                 <div>
-                  <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
-                    Video Frames Gallery
+                  <h4 className="text-xs font-extrabold uppercase tracking-wider text-slate-100 flex items-center gap-1.5">
+                    CapCut Multi-Track Timeline
+                    <span className="text-[8px] bg-indigo-500/20 text-indigo-300 px-1.5 py-0.5 rounded font-black tracking-widest animate-pulse uppercase">
+                      PRO EDITOR
+                    </span>
                   </h4>
-                  <p className="text-[10px] text-slate-450 dark:text-slate-500 font-bold">
-                    ({slides.length} frames total) • Drag & drop thumbnails to arrange your cinematic sequence
+                  <p className="text-[10px] text-slate-400 font-medium">
+                    {slides.length} Tracks • Scrub, sync, and style frames interactively
                   </p>
                 </div>
               </div>
-              <span className="text-[9px] font-black uppercase tracking-widest text-indigo-650 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/50 px-2.5 py-1 rounded-md leading-none border border-indigo-100 dark:border-indigo-900/20 select-none self-start sm:self-auto">
-                DRAG REORDER READY
+
+              {/* Advanced CapCut Toolbar Utilities */}
+              <div className="flex flex-wrap items-center gap-3">
+                {/* Timeline zoom slider */}
+                <div className="flex items-center gap-1.5 bg-slate-950/40 px-2.5 py-1.5 rounded-xl border border-slate-850">
+                  <span className="text-[9px] font-black uppercase text-slate-450 tracking-wider">Zoom:</span>
+                  <input
+                    type="range"
+                    min="20"
+                    max="100"
+                    step="5"
+                    value={timelineZoom}
+                    onChange={(e) => setTimelineZoom(parseInt(e.target.value))}
+                    className="w-16 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                    title="Zoom in/out of timeline tracks"
+                  />
+                  <span className="text-[9px] font-bold text-slate-350 font-mono">{timelineZoom}px/s</span>
+                </div>
+
+                {/* Auto Beat-Sync Engine Toggle */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    const nextVal = !isBeatSyncEnabled;
+                    setIsBeatSyncEnabled(nextVal);
+                    if (nextVal) {
+                      alignSlidesToBeats(soundtrack);
+                    }
+                  }}
+                  className={`px-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all flex items-center gap-1.5 select-none cursor-pointer ${
+                    isBeatSyncEnabled
+                      ? "bg-amber-500/10 border-amber-500/40 text-amber-300 shadow-md shadow-amber-500/5 animate-pulse"
+                      : "bg-slate-950/30 border-slate-800 text-slate-400 hover:text-slate-300 hover:border-slate-700"
+                  }`}
+                  title="Snap all clip durations perfectly to the active music track beats grid"
+                >
+                  <Sparkles className={`w-3 h-3 ${isBeatSyncEnabled ? "text-amber-300" : "text-slate-500"}`} />
+                  <span>⚡ Auto Beat-Sync</span>
+                </button>
+
+                {/* Quick Add Photo Multi-uploader */}
+                <label className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer flex items-center gap-1 transition-all select-none border border-indigo-500/30">
+                  <Plus className="w-3.5 h-3.5" />
+                  <span>Add Photos</span>
+                  <input
+                    type="file"
+                    multiple
+                    accept="image/*"
+                    onChange={handleImageUpload}
+                    className="hidden"
+                  />
+                </label>
+              </div>
+            </div>
+
+            {/* Scrollable Tracks container */}
+            <div className="relative border border-slate-850 rounded-2xl bg-slate-950/50 p-4 overflow-x-auto scrollbar-thin scrollbar-track-slate-950 scrollbar-thumb-slate-800" id="capcut-scroll-tracks">
+              
+              {/* Inner container sized exactly to timeline width */}
+              <div 
+                className="relative pb-2" 
+                style={{ width: `${Math.max(300, totalDuration * timelineZoom + 40)}px` }}
+              >
+                
+                {/* 1. TIMELINE RULER / TICK MARKERS */}
+                <div className="relative h-6 border-b border-slate-900/80 mb-3 select-none">
+                  {Array.from({ length: Math.ceil(totalDuration || 1) + 1 }).map((_, i) => (
+                    <div 
+                      key={i} 
+                      onClick={() => setCurrentTime(i)}
+                      className="absolute text-[9px] font-bold font-mono text-slate-500 cursor-pointer hover:text-slate-350 flex flex-col items-center select-none"
+                      style={{ left: `${i * timelineZoom}px`, transform: 'translateX(-50%)' }}
+                    >
+                      <span>{i}s</span>
+                      <div className="w-[1.5px] h-1.5 bg-slate-700 mt-0.5 rounded-full" />
+                    </div>
+                  ))}
+
+                  {/* Scrubby interactive click bar */}
+                  <div 
+                    className="absolute inset-0 bg-transparent cursor-ew-resize"
+                    onClick={(e) => {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const clickX = e.clientX - rect.left;
+                      const clickTime = clickX / timelineZoom;
+                      setCurrentTime(Math.min(totalDuration, Math.max(0, parseFloat(clickTime.toFixed(2)))));
+                    }}
+                  />
+                </div>
+
+                {/* VISUAL PLAYHEAD NEEDLE (Vertical Line through all tracks) */}
+                <div 
+                  className="absolute top-0 bottom-0 w-[2px] bg-rose-500 z-30 pointer-events-none transition-all duration-75 shadow-lg shadow-rose-500/30"
+                  style={{ left: `${currentTime * timelineZoom}px` }}
+                >
+                  <div className="absolute top-4 -translate-x-1/2 w-3.5 h-3.5 bg-rose-500 rounded-full border-2 border-white flex items-center justify-center text-[7px] text-white font-mono select-none font-bold">
+                    ▼
+                  </div>
+                </div>
+
+                {/* 2. VIDEO TRACK CONTAINER */}
+                <div className="space-y-1 relative z-10 mb-4 text-left">
+                  <span className="block text-[9px] font-black uppercase text-slate-500 tracking-wider flex items-center gap-1 mb-1">
+                    🎥 Video Track (Clips)
+                  </span>
+                  
+                  <div className="flex items-center gap-0 bg-slate-900/60 p-2.5 rounded-xl border border-slate-850 overflow-visible relative min-h-[75px]">
+                    {slides.map((slide, index) => {
+                      const isSelected = selectedSlideId === slide.id;
+                      const isBeingDragged = draggedSlideIndex === index;
+                      const isDragOver = dragOverIndex === index;
+                      const widthPx = slide.duration * timelineZoom;
+
+                      return (
+                        <React.Fragment key={slide.id}>
+                          {/* Insertion Drag-Over Spacer */}
+                          {isDragOver && draggedSlideIndex !== index && draggedSlideIndex !== index - 1 && (
+                            <div className="w-2.5 bg-indigo-500 h-[64px] rounded animate-pulse shrink-0 mx-0.5" />
+                          )}
+
+                          <div
+                            draggable
+                            onDragStart={(e) => {
+                              setDraggedSlideIndex(index);
+                              e.dataTransfer.effectAllowed = "move";
+                            }}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              if (dragOverIndex !== index) setDragOverIndex(index);
+                            }}
+                            onDragEnter={(e) => {
+                              e.preventDefault();
+                              setDragOverIndex(index);
+                            }}
+                            onDragLeave={() => {
+                              if (dragOverIndex === index) setDragOverIndex(null);
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              handleDropSlide(index);
+                              setDragOverIndex(null);
+                            }}
+                            onDragEnd={() => {
+                              setDraggedSlideIndex(null);
+                              setDragOverIndex(null);
+                            }}
+                            onClick={() => {
+                              setSelectedSlideId(slide.id);
+                              // Jump playhead to start of selected slide
+                              let jumpTime = 0;
+                              for (let i = 0; i < index; i++) {
+                                jumpTime += slides[i].duration;
+                              }
+                              setCurrentTime(jumpTime);
+                            }}
+                            className={`h-[64px] rounded-xl relative overflow-hidden group border transition-all cursor-grab flex flex-col justify-between p-1.5 select-none shrink-0 ${
+                              isSelected
+                                ? "border-indigo-400 ring-2 ring-indigo-500/40 bg-slate-850"
+                                : "border-slate-800 hover:border-slate-700 bg-slate-900"
+                            } ${isBeingDragged ? "opacity-30 border-dashed border-indigo-400 bg-slate-950" : ""}`}
+                            style={{ width: `${widthPx}px` }}
+                            title={`${slide.name} (${slide.duration}s)`}
+                          >
+                            {/* Slide Thumbnail Background with Filter effect */}
+                            <img
+                              src={slide.url}
+                              alt=""
+                              className="absolute inset-0 w-full h-full object-cover z-0 opacity-40 group-hover:opacity-55 transition-opacity"
+                              referrerPolicy="no-referrer"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-transparent to-transparent z-10 pointer-events-none" />
+
+                            {/* Block Content Info Overlays */}
+                            <div className="relative z-20 flex items-center justify-between gap-1 w-full pointer-events-none">
+                              <span className="text-[9px] font-black text-slate-100 bg-slate-950/80 px-1.5 py-0.5 rounded leading-none">
+                                #{index + 1}
+                              </span>
+                              
+                              <span className="text-[9px] font-mono font-bold text-slate-300 bg-slate-950/70 px-1 py-0.5 rounded-md leading-none">
+                                {slide.duration}s
+                              </span>
+                            </div>
+
+                            {/* Interactive direct Duration Modifiers */}
+                            <div className="relative z-20 flex justify-center items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  updateSlideProp(slide.id, "duration", Math.max(0.5, slide.duration - 0.5));
+                                }}
+                                className="w-5 h-5 bg-slate-950/90 text-white rounded hover:bg-slate-900 flex items-center justify-center text-xs font-black cursor-pointer shadow"
+                                title="Shorter playtime (-0.5s)"
+                              >
+                                -
+                              </button>
+                              
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  updateSlideProp(slide.id, "duration", Math.min(10, slide.duration + 0.5));
+                                }}
+                                className="w-5 h-5 bg-slate-950/90 text-white rounded hover:bg-slate-900 flex items-center justify-center text-xs font-black cursor-pointer shadow"
+                                title="Longer playtime (+0.5s)"
+                              >
+                                +
+                              </button>
+                            </div>
+
+                            {/* Inline trash option */}
+                            <div className="relative z-20 flex justify-between items-center w-full">
+                              <span className="text-[8px] font-bold text-slate-400 capitalize truncate max-w-[70%]">
+                                {slide.filter !== "normal" ? `🎭 ${slide.filter}` : ""}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  deleteSlide(slide.id);
+                                }}
+                                className="opacity-0 group-hover:opacity-100 w-4 h-4 bg-rose-600 hover:bg-rose-700 text-white rounded flex items-center justify-center cursor-pointer transition-all"
+                                title="Delete Clip"
+                              >
+                                <Trash2 className="w-2.5 h-2.5" />
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Interactive Transition trigger badge between slides */}
+                          {index < slides.length - 1 && (
+                            <div className="flex-none w-5 flex items-center justify-center z-20 relative">
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  // Highlight slide's transition style options or switch
+                                  setSelectedSlideId(slide.id);
+                                  const selectEl = document.getElementById("transition-style-dropdown");
+                                  if (selectEl) {
+                                    selectEl.focus();
+                                    selectEl.classList.add("ring-4", "ring-indigo-500/40");
+                                    setTimeout(() => selectEl.classList.remove("ring-4", "ring-indigo-500/40"), 1500);
+                                  }
+                                }}
+                                className="w-4 h-4 rounded-full bg-amber-500 text-slate-950 hover:scale-125 hover:bg-amber-400 cursor-pointer flex items-center justify-center text-[8px] font-black transition-transform select-none shadow shadow-amber-500/20"
+                                title={`Transition: ${transitionStyle} (${transitionDuration}s) - Click to configure`}
+                              >
+                                ⚡
+                              </button>
+                            </div>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 3. SUBTITLE / TEXT TRACK CONTAINER */}
+                <div className="space-y-1 relative z-10 mb-4 text-left">
+                  <span className="block text-[9px] font-black uppercase text-slate-500 tracking-wider flex items-center gap-1 mb-1">
+                    💬 Text Track (Subtitles)
+                  </span>
+
+                  <div className="flex items-center gap-0 bg-slate-900/60 p-2 rounded-xl border border-slate-850 min-h-[50px] overflow-visible">
+                    {slides.map((slide, index) => {
+                      const widthPx = slide.duration * timelineZoom;
+                      const hasText = slide.text.trim().length > 0;
+
+                      return (
+                        <div 
+                          key={`text-${slide.id}`}
+                          className="h-[36px] flex items-center px-0.5 shrink-0 overflow-visible relative"
+                          style={{ width: `${widthPx + (index < slides.length - 1 ? 20 : 0)}px` }}
+                        >
+                          <div 
+                            style={{ width: `${widthPx}px` }} 
+                            className="shrink-0 h-full"
+                          >
+                            {hasText ? (
+                              <div
+                                onClick={() => setEditingSlideCaptionId(slide.id)}
+                                className="h-full rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-300 text-[10px] font-extrabold flex items-center gap-1.5 px-2.5 truncate hover:bg-amber-500/20 hover:border-amber-500/65 transition-all cursor-pointer shadow-sm shadow-amber-500/5 select-none"
+                                title="Double-click or Tap to edit subtitle text instantly"
+                              >
+                                <Type className="w-3 h-3 text-amber-400 shrink-0" />
+                                <span className="truncate italic">"{slide.text}"</span>
+                              </div>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => setEditingSlideCaptionId(slide.id)}
+                                className="w-full h-full rounded-lg border border-dashed border-slate-800 hover:border-slate-700 hover:bg-slate-850/40 text-slate-600 hover:text-slate-400 text-[9px] font-bold flex items-center justify-center gap-1 transition-colors cursor-pointer select-none"
+                              >
+                                <Plus className="w-2.5 h-2.5" />
+                                <span>Add Text</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 4. AUDIO / SOUNDTRACK TRACK CONTAINER */}
+                <div className="space-y-1 relative z-10 mb-2 text-left">
+                  <span className="block text-[9px] font-black uppercase text-slate-500 tracking-wider flex items-center gap-1 mb-1">
+                    🎵 Audio Track (Soundtrack & Beats)
+                  </span>
+
+                  <div className="bg-slate-900/60 p-2.5 rounded-xl border border-slate-850 flex items-center overflow-hidden min-h-[46px] relative">
+                    {/* Animated soundwaves when playing */}
+                    <div className="flex-1 flex items-center gap-3">
+                      <div className="flex items-center gap-1.5 shrink-0 bg-slate-950/60 px-2.5 py-1 rounded-lg border border-slate-800/80">
+                        <Music className="w-3 h-3 text-emerald-400" />
+                        <span className="text-[10px] font-black text-slate-200">
+                          {audioTrackMode === "synth" 
+                            ? SOUNDTRACK_LIBRARY.find(t => t.id === soundtrack)?.name || "Silent"
+                            : audioTrackMode === "custom" 
+                              ? customAudioName || "Custom Soundtrack Upload" 
+                              : "Active SFX Shot"}
+                        </span>
+                        
+                        {/* Pulse indicator */}
+                        {audioTrackMode === "synth" && soundtrack !== "none" && (
+                          <span className="text-[9px] font-mono text-emerald-400 font-bold ml-1">
+                            {SOUNDTRACK_LIBRARY.find(t => t.id === soundtrack)?.bpm} BPM
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Procedural Equalizer wave graphic */}
+                      <div className="flex items-center gap-0.5 h-6 opacity-85 select-none shrink-0 pl-1">
+                        {Array.from({ length: 24 }).map((_, idx) => {
+                          // Random animation delay to generate organic looking waveform
+                          const delay = (idx % 4) * 0.15;
+                          const animDuration = 0.5 + (idx % 3) * 0.25;
+                          return (
+                            <div 
+                              key={idx}
+                              className="w-[2px] bg-emerald-500 rounded-full transition-all"
+                              style={{ 
+                                height: isPlaying ? '100%' : '20%',
+                                animation: isPlaying ? `capcut-equalizer ${animDuration}s ease-in-out ${delay}s infinite alternate` : 'none',
+                                animationPlayState: isPlaying ? 'running' : 'paused',
+                                minHeight: '3px'
+                              }}
+                            />
+                          );
+                        })}
+                      </div>
+
+                      {/* Beat marks overlay on top of timeline track */}
+                      {audioTrackMode === "synth" && soundtrack !== "none" && (
+                        <div className="absolute inset-0 pointer-events-none flex items-center overflow-hidden">
+                          {(() => {
+                            const track = SOUNDTRACK_LIBRARY.find(t => t.id === soundtrack);
+                            if (!track || track.bpm === 0) return null;
+                            const beatGap = 60 / track.bpm;
+                            const totalBeats = Math.floor(totalDuration / beatGap);
+                            return Array.from({ length: totalBeats }).map((_, i) => (
+                              <div 
+                                key={i} 
+                                className="absolute w-1.5 h-1.5 rounded-full bg-amber-400/50 animate-ping"
+                                style={{ 
+                                  left: `${i * beatGap * timelineZoom}px`,
+                                  opacity: isPlaying && Math.floor(currentTime / beatGap) === i ? 1.0 : 0.35
+                                }}
+                              />
+                            ));
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+            </div>
+
+            {/* Live SFX Soundboard Launcher Trigger Row */}
+            <div className="pt-2">
+              <div className="flex items-center justify-between mb-2">
+                <span className="block text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1">
+                  🔊 Instant CapCut Sound Effects (SFX Launchpad)
+                </span>
+                <span className="text-[9px] font-bold text-slate-500">
+                  Tap to play & overlay live audio impact shots
+                </span>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  { id: "cinema-impact", label: "🎬 Cinematic Impact", color: "hover:bg-rose-500/10 hover:text-rose-400 border-rose-950 hover:border-rose-800" },
+                  { id: "laser-sweep", label: "⚡ Laser Sweep", color: "hover:bg-cyan-500/10 hover:text-cyan-400 border-cyan-950 hover:border-cyan-800" },
+                  { id: "bubble-pop", label: "🫧 Bubble Pop", color: "hover:bg-sky-500/10 hover:text-sky-400 border-sky-950 hover:border-sky-800" },
+                  { id: "celestial-chime", label: "🔔 Celestial Chime", color: "hover:bg-amber-500/10 hover:text-amber-400 border-amber-950 hover:border-amber-800" },
+                  { id: "arcade-rise", label: "👾 Retro Arcade Rise", color: "hover:bg-purple-500/10 hover:text-purple-400 border-purple-950 hover:border-purple-800" },
+                ].map((sfx) => (
+                  <button
+                    key={sfx.id}
+                    type="button"
+                    onClick={() => {
+                      synthManagerRef.current.playSingleSfx(sfx.id, sfxVolume);
+                      // Optionally overlay to selected slide
+                      if (selectedSlide) {
+                        updateSlideProp(selectedSlide.id, "sfx", sfx.id);
+                        setToastMessage({
+                          text: "🔊 Sound Effect Overlaid!",
+                          sub: `Assigned '${sfx.label}' to active frame #${slides.findIndex(s => s.id === selectedSlide.id) + 1}.`,
+                          success: true
+                        });
+                      }
+                    }}
+                    className={`px-3 py-1.5 rounded-xl border bg-slate-950/50 text-[10px] font-extrabold text-slate-300 transition-all cursor-pointer flex items-center gap-1.5 leading-none ${sfx.color}`}
+                  >
+                    <span>{sfx.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Protip bar */}
+            <div className="flex items-center gap-1.5 text-[9.5px] text-slate-450 select-none bg-slate-950/20 p-2.5 rounded-xl border border-slate-850">
+              <span className="text-amber-400">💡 CapCut ProTip:</span>
+              <span>
+                To resequence clips, drag and drop widescreen frames. Tap ⚡ to style transitions, click any subtitle bubble to configure beautiful overlays, and turn on **Auto Beat-Sync** for musical timing!
               </span>
             </div>
+          </div>
 
-            <div className="flex overflow-x-auto pb-2.5 pt-1.5 scrollbar-thin gap-3.5 items-center" id="storyboard-slides-container">
-              
-              {/* File upload trigger box */}
-              <label className="flex-none w-28 h-20 rounded-2xl border-2 border-dashed border-slate-250 hover:border-indigo-500 dark:border-slate-800 dark:hover:border-indigo-500/60 cursor-pointer flex flex-col items-center justify-center text-center p-2.5 transition-all text-slate-450 hover:text-indigo-600 dark:hover:text-indigo-400 bg-white dark:bg-slate-950/30 hover:shadow-md hover:shadow-indigo-500/5 select-none shrink-0">
-                <Plus className="w-5 h-5 shrink-0 text-slate-400 group-hover:text-indigo-500" />
-                <span className="text-[9px] font-black uppercase tracking-wider mt-1.5 leading-none">Add Photos</span>
-                <input
-                  type="file"
-                  multiple
-                  accept="image/*"
-                  onChange={handleImageUpload}
-                  className="hidden"
-                />
-              </label>
+          {/* Inline Sleek Caption Overlay Editor Dialog */}
+          <AnimatePresence>
+            {editingSlideCaptionId && (() => {
+              const editingSlide = slides.find(s => s.id === editingSlideCaptionId);
+              if (!editingSlide) return null;
+              const idx = slides.findIndex(s => s.id === editingSlideCaptionId);
 
-              {/* Individual slides storyboard list */}
-              {slides.map((slide, index) => {
-                const isSelected = selectedSlideId === slide.id;
-                const isBeingDragged = draggedSlideIndex === index;
-                const isDragOver = dragOverIndex === index;
-                
-                return (
-                  <React.Fragment key={slide.id}>
-                    {/* Interactive Drop Insertion Indicator Bar */}
-                    {isDragOver && draggedSlideIndex !== index && draggedSlideIndex !== index - 1 && (
-                      <div className="flex-none w-1.5 h-20 bg-indigo-500 dark:bg-indigo-400 rounded-full animate-pulse shadow-md shadow-indigo-500/40 transform scale-y-95 transition-all duration-150" />
-                    )}
+              return (
+                <div className="fixed inset-0 bg-slate-950/80 z-50 flex items-center justify-center p-4 backdrop-blur-xs select-none">
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                    className="bg-slate-900 border border-slate-800 rounded-3xl p-6 w-full max-w-md text-left space-y-4 shadow-2xl relative"
+                  >
+                    {/* Header */}
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                      <div>
+                        <span className="text-[10px] font-black uppercase text-amber-400 tracking-wider">
+                          CapCut Text Designer
+                        </span>
+                        <h4 className="text-xs font-black text-slate-100 uppercase tracking-wide mt-0.5">
+                          Configure Subtitles for Frame #{idx + 1}
+                        </h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEditingSlideCaptionId(null)}
+                        className="text-slate-400 hover:text-slate-200 text-xs font-bold cursor-pointer"
+                      >
+                        ✕
+                      </button>
+                    </div>
 
-                    <div
-                      draggable
-                      onDragStart={(e) => {
-                        setDraggedSlideIndex(index);
-                        e.dataTransfer.effectAllowed = "move";
-                      }}
-                      onDragOver={(e) => {
-                        e.preventDefault();
-                        if (dragOverIndex !== index) {
-                          setDragOverIndex(index);
-                        }
-                      }}
-                      onDragEnter={(e) => {
-                        e.preventDefault();
-                        setDragOverIndex(index);
-                      }}
-                      onDragLeave={() => {
-                        if (dragOverIndex === index) {
-                          setDragOverIndex(null);
-                        }
-                      }}
-                      onDrop={(e) => {
-                        e.preventDefault();
-                        handleDropSlide(index);
-                        setDragOverIndex(null);
-                      }}
-                      onDragEnd={() => {
-                        setDraggedSlideIndex(null);
-                        setDragOverIndex(null);
-                      }}
-                      onClick={() => {
-                        setSelectedSlideId(slide.id);
-                        // Jump playhead to start of selected slide
-                        let jumpTime = 0;
-                        for (let i = 0; i < index; i++) {
-                          jumpTime += slides[i].duration;
-                        }
-                        setCurrentTime(jumpTime);
-                      }}
-                      className={`flex-none w-32 h-20 rounded-2xl relative overflow-hidden group border shadow-2xs transition-all flex flex-col justify-between p-2 select-none ${
-                        isSelected
-                          ? "border-indigo-500 ring-2 ring-indigo-500/30"
-                          : "border-slate-150 dark:border-slate-850 hover:border-indigo-400/50"
-                      } ${isBeingDragged ? "opacity-30 border-dashed border-indigo-400 bg-slate-100 cursor-grabbing" : "cursor-grab"}`}
-                      title="Drag to reorder sequence, or click to edit settings"
-                    >
-                      {/* Background thumbnail image with visual filters */}
-                      <img
-                        src={slide.url}
-                        alt=""
-                        className="absolute inset-0 w-full h-full object-cover z-0 opacity-90 group-hover:scale-105 transition-transform duration-300"
-                        referrerPolicy="no-referrer"
+                    {/* Subtitle Input Textbox */}
+                    <div className="space-y-1.5">
+                      <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                        Caption / Subtitle Text Overlay:
+                      </label>
+                      <textarea
+                        value={editingSlide.text}
+                        onChange={(e) => updateSlideProp(editingSlide.id, "text", e.target.value)}
+                        placeholder="Type your caption overlays here..."
+                        rows={2}
+                        className="w-full text-xs p-3 rounded-xl border border-slate-800 bg-slate-950 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 font-medium leading-relaxed"
                       />
-                      <div className="absolute inset-0 bg-gradient-to-t from-slate-950/85 via-slate-950/20 to-transparent z-10" />
+                    </div>
 
-                      {/* Top Action Row overlay (visible on hover) */}
-                      <div className="relative z-20 flex justify-between w-full opacity-0 group-hover:opacity-100 transition-opacity duration-200">
-                        <div className="flex items-center gap-0.5">
-                          {/* Drag handle */}
-                          <div 
-                            className="p-1 rounded bg-indigo-650/90 text-white cursor-grab active:cursor-grabbing hover:bg-indigo-600 transition-colors"
-                            title="Drag to rearrange"
-                          >
-                            <GripVertical className="w-3 h-3" />
-                          </div>
-                          
-                          {/* Accessibility arrow triggers */}
-                          <button
-                            type="button"
-                            disabled={index === 0}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              moveSlide(index, "up");
-                            }}
-                            className="p-1 rounded bg-slate-900/80 hover:bg-slate-900 text-white disabled:opacity-40 cursor-pointer transition-colors"
-                            title="Move Left"
-                          >
-                            ◀
-                          </button>
-                          <button
-                            type="button"
-                            disabled={index === slides.length - 1}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              moveSlide(index, "down");
-                            }}
-                            className="p-1 rounded bg-slate-900/80 hover:bg-slate-900 text-white disabled:opacity-40 cursor-pointer transition-colors"
-                            title="Move Right"
-                          >
-                            ▶
-                          </button>
-                        </div>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            deleteSlide(slide.id);
-                          }}
-                          className="p-1 rounded bg-rose-600 text-white hover:bg-rose-700 cursor-pointer transition-colors"
-                          title="Delete Frame"
+                    {/* Subtitle Animations Dropdown */}
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                          Entrance Animation:
+                        </label>
+                        <select
+                          value={editingSlide.textAnimation}
+                          onChange={(e) => updateSlideProp(editingSlide.id, "textAnimation", e.target.value)}
+                          className="w-full text-xs px-2.5 py-2.5 rounded-xl border border-slate-800 bg-slate-950 text-slate-100 focus:outline-none focus:border-indigo-500 font-bold"
                         >
-                          <Trash2 className="w-3 h-3" />
-                        </button>
+                          <option value="typewriter">⌨️ Typewriter</option>
+                          <option value="fade">🎬 Smooth Fade</option>
+                          <option value="pop">💥 Pop Zoom In</option>
+                          <option value="slide-up">⬆️ Kinetic Slide Up</option>
+                          <option value="none">🚫 Static overlay</option>
+                        </select>
                       </div>
 
-                      {/* Bottom Info Row */}
-                      <div className="relative z-20 flex justify-between items-end w-full">
-                        <span className="text-[10px] font-black text-white bg-slate-950/85 px-1.5 py-0.5 rounded flex items-center gap-1 leading-none shadow-xs">
-                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
-                          #{index + 1}
-                        </span>
-                        <span className="text-[10px] font-black text-indigo-100 bg-indigo-900/80 px-1.5 py-0.5 rounded-md leading-none shadow-xs font-mono">
-                          {slide.duration}s
-                        </span>
+                      {/* Slide Filters Selector */}
+                      <div className="space-y-1.5">
+                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                          Color Filter Preset:
+                        </label>
+                        <select
+                          value={editingSlide.filter}
+                          onChange={(e) => updateSlideProp(editingSlide.id, "filter", e.target.value)}
+                          className="w-full text-xs px-2.5 py-2.5 rounded-xl border border-slate-800 bg-slate-950 text-slate-100 focus:outline-none focus:border-indigo-500 font-bold"
+                        >
+                          <option value="normal">🌿 Normal (Original)</option>
+                          <option value="noir">🖤 Noir B&W (Grayscale)</option>
+                          <option value="vintage">🕰️ Vintage Sepia</option>
+                          <option value="cinematic-warm">🎬 Cinematic Warm</option>
+                          <option value="cyberpunk">👾 Cyberpunk Neon</option>
+                          <option value="vhs">📹 VHS Retro Tape</option>
+                          <option value="retro">🌅 Nostalgic Glow</option>
+                        </select>
                       </div>
                     </div>
-                  </React.Fragment>
-                );
-              })}
-            </div>
-            
-            <div className="flex items-center gap-1 text-[10px] text-slate-500 select-none">
-              <span className="text-indigo-500">💡</span>
-              <span>Protip: Drag and drop any frame to perfectly sequence your final story. Select a frame card to customize its overlays and styles on the right column.</span>
-            </div>
-          </div>
+
+                    {/* Motion Pan Speed slider */}
+                    <div className="space-y-1.5">
+                      <div className="flex justify-between">
+                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                          Ken-Burns Zoom Factor:
+                        </label>
+                        <span className="text-[10px] font-mono font-bold text-indigo-400">
+                          {(editingSlide.scaleEnd ?? 1.15).toFixed(2)}x
+                        </span>
+                      </div>
+                      <input
+                        type="range"
+                        min="1.0"
+                        max="1.5"
+                        step="0.05"
+                        value={editingSlide.scaleEnd ?? 1.15}
+                        onChange={(e) => updateSlideProp(editingSlide.id, "scaleEnd", parseFloat(e.target.value))}
+                        className="w-full accent-indigo-500 cursor-pointer h-1 bg-slate-950 rounded-lg"
+                      />
+                    </div>
+
+                    {/* Save action button */}
+                    <div className="pt-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setEditingSlideCaptionId(null);
+                          triggerBeepChime();
+                          setToastMessage({
+                            text: "✨ Subtitle Styles Saved!",
+                            sub: `Updated caption styles successfully for frame #${idx + 1}.`,
+                            success: true
+                          });
+                        }}
+                        className="w-full py-2.5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 text-white font-extrabold uppercase tracking-wider text-[11px] rounded-xl flex items-center justify-center gap-1 transition-all cursor-pointer shadow"
+                      >
+                        <Check className="w-4 h-4" />
+                        <span>Apply & Close Studio Designer</span>
+                      </button>
+                    </div>
+                  </motion.div>
+                </div>
+              );
+            })()}
+          </AnimatePresence>
+
         </div>
 
-        {/* Right column: Slide Options & Studio Presets Config */}
-        <div className="lg:col-span-5 space-y-6">
-          
-          {/* Section: Slide Settings */}
+      {/* Right column: Slide Options & Studio Presets Config */}
+      <div className="lg:col-span-5 space-y-6">
+        
+        {/* Section: Slide Settings */}
           {selectedSlide ? (
             <div className="space-y-6">
               <div className="border border-slate-150 dark:border-slate-850 p-5 rounded-3xl bg-slate-50/50 dark:bg-slate-900/10 space-y-4">
@@ -3111,16 +4995,34 @@ export default function ImageToVideo({
                   <label className="text-[10.5px] font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
                     3. Video Duration:
                   </label>
-                  <select
-                    value={selectedSlide.promptDuration ?? 3}
-                    onChange={(e) => updateSlideProp(selectedSlide.id, "promptDuration", parseInt(e.target.value))}
-                    className="w-full px-2.5 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl outline-none cursor-pointer"
-                  >
-                    <option value={2}>⏱️ 2 Seconds</option>
-                    <option value={3}>⏱️ 3 Seconds</option>
-                    <option value={4}>⏱️ 4 Seconds</option>
-                    <option value={5}>⏱️ 5 Seconds</option>
-                  </select>
+                  <div className="grid grid-cols-3 gap-1 bg-slate-100/80 dark:bg-slate-900 p-1 rounded-xl border border-slate-200/60 dark:border-slate-850">
+                    {[2, 4, 8].map((d) => {
+                      const isActive = (selectedSlide.promptDuration ?? 3) === d;
+                      return (
+                        <button
+                          key={d}
+                          type="button"
+                          onClick={() => {
+                            updateSlideProp(selectedSlide.id, "promptDuration", d);
+                            triggerBeepChime();
+                          }}
+                          className={`py-1.5 px-1.5 rounded-lg text-[10.5px] font-black tracking-tight transition-all cursor-pointer select-none text-center ${
+                            isActive
+                              ? "bg-indigo-600 text-white shadow-xs"
+                              : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-800/30"
+                          }`}
+                        >
+                          {d}s
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <span className="block text-[8px] font-bold text-slate-450 dark:text-slate-500 uppercase tracking-wide leading-tight">
+                    {(selectedSlide.promptDuration ?? 3) === 2 && "⚡ Fast & Snappy sweep motion"}
+                    {(selectedSlide.promptDuration ?? 3) === 4 && "🎬 Steady kinetic pacing glide"}
+                    {(selectedSlide.promptDuration ?? 3) === 8 && "🏔️ Majestic long-take pan"}
+                    {![2, 4, 8].includes(selectedSlide.promptDuration ?? 3) && "⏱️ Custom duration setting"}
+                  </span>
                 </div>
 
                 <div className="space-y-1.5">
@@ -3181,17 +5083,22 @@ export default function ImageToVideo({
               </div>
 
               {/* 5. FOCUS SUBJECT INPUT */}
-              <div className="space-y-1.5">
-                <label className="text-[10.5px] font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
-                  7. Focus Subject & Magic Enhance:
-                </label>
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10.5px] font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
+                    7. Focus Subject & Magic Enhance:
+                  </label>
+                  <span className="text-[8px] font-black text-indigo-500 uppercase tracking-widest bg-indigo-500/10 px-1.5 py-0.5 rounded">
+                    PRO ENGINE
+                  </span>
+                </div>
                 <div className="flex gap-2">
-                  <input
-                    type="text"
+                  <textarea
                     value={selectedSlide.subjectDescription ?? ""}
                     onChange={(e) => updateSlideProp(selectedSlide.id, "subjectDescription", e.target.value)}
-                    placeholder='Describe main focus, e.g. "flowing water", "waving hand"...'
-                    className="flex-1 min-w-0 px-3.5 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/40 text-slate-800 dark:text-slate-100"
+                    placeholder='Describe main focus, e.g. "flowing water", "waving hand", "highly detailed cinematic cybercar speeding past neon lights"...'
+                    rows={2}
+                    className="flex-1 min-w-0 px-3.5 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/40 text-slate-800 dark:text-slate-100 resize-none leading-relaxed"
                   />
                   <button
                     type="button"
@@ -3211,6 +5118,43 @@ export default function ImageToVideo({
                     )}
                     <span>Magic Enhance</span>
                   </button>
+                </div>
+                {renderPromptValidationInfo(selectedSlide.subjectDescription ?? "", false)}
+
+                {/* Quick Add Visual Modifiers & Enhancers */}
+                <div className="space-y-1">
+                  <span className="text-[9px] font-bold text-slate-450 uppercase tracking-widest block">
+                    ⚡ Quick Modifier Boosters (Click to Add):
+                  </span>
+                  <div className="flex flex-wrap gap-1.5 pt-0.5">
+                    {[
+                      "🎬 4K Resolution",
+                      "💎 Ultra-Detailed",
+                      "🌪️ Fluid Motion",
+                      "🕹️ Unreal Engine 5",
+                      "✨ Volumetric Glow",
+                      "🎥 Raytraced Reflections",
+                      "🌸 Slow Motion Drift",
+                      "⚡ 60FPS Smooth"
+                    ].map((tag) => (
+                      <button
+                        key={tag}
+                        type="button"
+                        onClick={() => {
+                          const current = selectedSlide.subjectDescription || "";
+                          const tagClean = tag.replace(/[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD00-\uDFFF]/g, "").trim();
+                          const newVal = current.trim()
+                            ? `${current.trim().endsWith(",") || current.trim().endsWith(".") ? current.trim() : current.trim() + ","} ${tagClean}`
+                            : tagClean;
+                          updateSlideProp(selectedSlide.id, "subjectDescription", newVal);
+                          triggerBeepChime();
+                        }}
+                        className="px-2 py-0.5 text-[9px] font-black bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-850 border border-slate-200/50 dark:border-slate-800 rounded-lg text-slate-600 dark:text-slate-350 transition-all select-none cursor-pointer hover:scale-105 active:scale-95"
+                      >
+                        {tag}
+                      </button>
+                    ))}
+                  </div>
                 </div>
               </div>
 
@@ -3246,6 +5190,40 @@ export default function ImageToVideo({
                 </div>
               </div>
 
+              {/* 7. PROMPT ENGINE TEMPLATE STYLE */}
+              <div className="space-y-1.5">
+                <label className="text-[10.5px] font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
+                  9. Prompt Optimization Engine:
+                </label>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { id: "detailed", label: "Detailed", desc: "Heavy Adjectives" },
+                    { id: "minimal", label: "Minimal", desc: "Short Keywords" },
+                    { id: "sora_luma", label: "Sora & Luma", desc: "AI Optimized" }
+                  ].map((item) => {
+                    const isSel = promptTemplateStyle === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        type="button"
+                        onClick={() => {
+                          setPromptTemplateStyle(item.id as any);
+                          triggerBeepChime();
+                        }}
+                        className={`py-1.5 px-2 rounded-xl border text-left transition-all cursor-pointer select-none flex flex-col gap-0.5 leading-tight ${
+                          isSel
+                            ? "bg-indigo-650 border-indigo-650 text-white shadow-sm"
+                            : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-850 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900"
+                        }`}
+                      >
+                        <span className="text-[10px] font-black">{item.label}</span>
+                        <span className={`text-[8px] font-medium leading-none ${isSel ? "text-indigo-200" : "text-slate-400"}`}>{item.desc}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* LIVE OUTPUT BOX WITH USER'S TEMPLATE */}
               <div className="space-y-1.5 pt-2">
                 <div className="flex justify-between items-center">
@@ -3259,18 +5237,14 @@ export default function ImageToVideo({
                 <div className="relative">
                   <textarea
                     readOnly
-                    value={`Generate a high-quality video based on the provided input image. Apply a ${selectedSlide.style || "Cinematic"} visual aesthetic. Implement ${selectedSlide.cameraMovement || "Slow Zoom"} camera movement. The video should have a ${selectedSlide.promptDuration ?? 3} second duration, with ${selectedSlide.transitionEffect || "Fade"} between frames. Ensure the lighting is ${selectedSlide.lightingType || "Golden Hour"} and the final output is optimized for ${
-                      aspectRatio === "9:16" ? "vertical 9:16 aspect ratio (TikTok/Shorts)" : aspectRatio === "1:1" ? "square 1:1 aspect ratio (Instagram)" : "cinematic 16:9 widescreen aspect ratio"
-                    }.`}
+                    value={getGeneratedPrompt(selectedSlide, promptTemplateStyle)}
                     rows={5}
-                    className="w-full p-3 pb-12 text-[11px] font-mono bg-slate-100/50 dark:bg-slate-950/80 border border-slate-200/60 dark:border-slate-850 text-slate-600 dark:text-slate-300 rounded-2xl resize-none focus:outline-none focus:ring-0 leading-relaxed"
+                    className="w-full p-3 pb-12 text-[11px] font-mono bg-slate-100/50 dark:bg-slate-950/80 border border-slate-200/60 dark:border-slate-850 text-slate-600 dark:text-slate-300 rounded-2xl resize-none focus:outline-none focus:ring-0 leading-relaxed shadow-inner"
                   />
                   <button
                     type="button"
                     onClick={() => {
-                      const finalPrompt = `Generate a high-quality video based on the provided input image. Apply a ${selectedSlide.style || "Cinematic"} visual aesthetic. Implement ${selectedSlide.cameraMovement || "Slow Zoom"} camera movement. The video should have a ${selectedSlide.promptDuration ?? 3} second duration, with ${selectedSlide.transitionEffect || "Fade"} between frames. Ensure the lighting is ${selectedSlide.lightingType || "Golden Hour"} and the final output is optimized for ${
-                        aspectRatio === "9:16" ? "vertical 9:16 aspect ratio (TikTok/Shorts)" : aspectRatio === "1:1" ? "square 1:1 aspect ratio (Instagram)" : "cinematic 16:9 widescreen aspect ratio"
-                      }.`;
+                      const finalPrompt = getGeneratedPrompt(selectedSlide, promptTemplateStyle);
                       navigator.clipboard.writeText(finalPrompt);
                       setCopySuccess(true);
                       setToastMessage({
@@ -3281,7 +5255,7 @@ export default function ImageToVideo({
                       triggerBeepChime();
                       setTimeout(() => setCopySuccess(false), 2000);
                     }}
-                    className="absolute right-2.5 bottom-2.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer shadow-md shadow-indigo-500/20 flex items-center gap-1.5 transition-all active:scale-95 select-none"
+                    className="absolute right-2.5 bottom-2.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer shadow-md shadow-indigo-500/20 flex items-center gap-1.5 transition-all active:scale-95 select-none animate-fade-in"
                   >
                     {copySuccess ? (
                       <>
@@ -3552,6 +5526,111 @@ export default function ImageToVideo({
               </div>
             </div>
 
+          </div>
+
+          {/* Section: Cinematic Effects & Subtitle Studio */}
+          <div className="border border-slate-150 dark:border-slate-850 p-5 rounded-3xl bg-slate-50/50 dark:bg-slate-900/10 space-y-4">
+            <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-2 border-b border-slate-150 dark:border-slate-800/80 pb-3">
+              <Layers className="w-4 h-4 text-indigo-500" />
+              <span>Cinematic VFX & Captioning</span>
+            </h4>
+
+            {/* Subtitle style selection */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  Subtitle Aesthetic Theme:
+                </label>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { id: "netflix", label: "Netflix Classic", desc: "Dark capsule backdrop" },
+                  { id: "neon", label: "Neon Glow", desc: "Vibrant glowing outline" },
+                  { id: "karaoke", label: "Golden Lyrics", desc: "Bold outline contour" },
+                  { id: "minimal", label: "Pure Minimal", desc: "Crisp drop-shadow white" },
+                  { id: "classical", label: "Indie Classical", desc: "Georgia serif italic" }
+                ].map((style) => {
+                  const isSelected = subtitleStyle === style.id;
+                  return (
+                    <button
+                      key={style.id}
+                      type="button"
+                      onClick={() => {
+                        setSubtitleStyle(style.id as any);
+                        triggerBeepChime();
+                      }}
+                      className={`p-2 rounded-xl border text-left transition-all cursor-pointer select-none flex flex-col gap-0.5 ${
+                        isSelected
+                          ? "bg-indigo-650 border-indigo-650 text-white shadow-sm"
+                          : "bg-white dark:bg-slate-950 border-slate-150 hover:border-slate-300"
+                      } ${style.id === "classical" ? "col-span-2" : ""}`}
+                    >
+                      <span className="text-[10.5px] font-black">{style.label}</span>
+                      <span className={`text-[8px] font-medium leading-none ${isSelected ? "text-indigo-200" : "text-slate-400"}`}>{style.desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Overlays toggle switches */}
+            <div className="space-y-2.5 pt-1">
+              <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
+                Visual Post-Processing:
+              </label>
+              <div className="grid grid-cols-1 gap-2.5">
+                {/* Widescreen Letterbox */}
+                <label className={`flex items-start gap-2.5 p-2.5 rounded-xl border transition-all cursor-pointer select-none ${
+                  cinematicLetterbox 
+                    ? "bg-slate-100/50 border-slate-300 dark:bg-slate-900/40 dark:border-slate-800"
+                    : "border-slate-150 dark:border-slate-850 hover:bg-slate-50/50 dark:hover:bg-slate-900/30"
+                } ${aspectRatio !== "16:9" ? "opacity-50 cursor-not-allowed" : ""}`}>
+                  <input
+                    type="checkbox"
+                    disabled={aspectRatio !== "16:9"}
+                    checked={cinematicLetterbox && aspectRatio === "16:9"}
+                    onChange={(e) => {
+                      setCinematicLetterbox(e.target.checked);
+                      triggerBeepChime();
+                    }}
+                    className="mt-0.5 rounded border-slate-300 dark:border-slate-800 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5 cursor-pointer disabled:cursor-not-allowed"
+                  />
+                  <div className="flex flex-col text-left">
+                    <span className="text-[11px] font-black text-slate-700 dark:text-slate-200">
+                      Cinematic Letterbox (2.39:1 Bars)
+                    </span>
+                    <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">
+                      Adds authentic movie widescreen cropping (16:9 aspect ratio only)
+                    </span>
+                  </div>
+                </label>
+
+                {/* Vignette border shading */}
+                <label className={`flex items-start gap-2.5 p-2.5 rounded-xl border transition-all cursor-pointer select-none ${
+                  vignetteOverlay 
+                    ? "bg-slate-100/50 border-slate-300 dark:bg-slate-900/40 dark:border-slate-800"
+                    : "border-slate-150 dark:border-slate-850 hover:bg-slate-50/50 dark:hover:bg-slate-900/30"
+                }`}>
+                  <input
+                    type="checkbox"
+                    checked={vignetteOverlay}
+                    onChange={(e) => {
+                      setVignetteOverlay(e.target.checked);
+                      triggerBeepChime();
+                    }}
+                    className="mt-0.5 rounded border-slate-300 dark:border-slate-800 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5 cursor-pointer"
+                  />
+                  <div className="flex flex-col text-left">
+                    <span className="text-[11px] font-black text-slate-700 dark:text-slate-200">
+                      Ambient Vignette Shade
+                    </span>
+                    <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">
+                      Fades corners to soft dark shadows for center subject focus
+                    </span>
+                  </div>
+                </label>
+              </div>
+            </div>
           </div>
 
           {/* Section: Export Video Creator Output Settings */}

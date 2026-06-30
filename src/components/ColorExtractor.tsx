@@ -2843,7 +2843,9 @@ export default function ColorExtractor({
                                 whileTap={{ scale: 0.98 }}
                                 transition={{ type: "spring", stiffness: 400, damping: 20 }}
                                 style={{ backgroundColor: simulatedColor }}
-                                className="min-h-[185px] rounded-2xl relative overflow-hidden flex flex-col justify-between p-2.5 text-left border border-black/10 group shadow-md"
+                                className="min-h-[185px] rounded-2xl relative overflow-hidden flex flex-col justify-between p-2.5 text-left border border-black/10 group shadow-md cursor-pointer select-none"
+                                onClick={() => handleCopyValue(color.hex, "HEX")}
+                                title="Click anywhere to copy HEX code"
                               >
                                 {/* Card top banner (Ordinal + Checkmark) */}
                                 <div className="flex justify-between items-center w-full select-none">

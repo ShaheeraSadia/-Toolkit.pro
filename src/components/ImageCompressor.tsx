@@ -349,6 +349,22 @@ export default function ImageCompressor({
   }>>>({});
   const [isGlobalDragging, setIsGlobalDragging] = useState<boolean>(false);
   const [isBatchCompressing, setIsBatchCompressing] = useState<boolean>(false);
+  const [batchProgress, setBatchProgress] = useState<{
+    isActive: boolean;
+    currentIndex: number;
+    totalFiles: number;
+    currentFileName: string;
+    stage: string;
+    percent: number;
+  }>({
+    isActive: false,
+    currentIndex: 0,
+    totalFiles: 0,
+    currentFileName: "",
+    stage: "",
+    percent: 0,
+  });
+  const isBatchCancelledRef = useRef<boolean>(false);
   const [isBatchSaving, setIsBatchSaving] = useState<boolean>(false);
   const [isZipping, setIsZipping] = useState<boolean>(false);
 
@@ -1716,7 +1732,7 @@ export default function ImageCompressor({
       }));
 
       if (isQuickCompressEnabled) {
-        // Immediately compress in the background before adding to the queue!
+        // Immediately compress sequentially in the background before adding to the queue!
         const itemsWithCompState = newItems.map(item => ({ ...item, isCompressing: true }));
         setQueue(prev => {
           const updated = [...prev, ...itemsWithCompState];
@@ -1726,43 +1742,93 @@ export default function ImageCompressor({
           return updated;
         });
 
-        // Perform compression
-        Promise.all(
-          itemsWithCompState.map(item => compressSingleItem(item, item.quality))
-        ).then((compressedItems) => {
-          setQueue(prev => {
-            const updated = prev.map(q => {
-              const comp = compressedItems.find(c => c.id === q.id);
-              const resultItem = comp ? comp : q;
-              // Trigger Auto-Save if enabled
-              if (isAutoSaveEnabled && resultItem.compressedResult) {
-                triggerAutoSave(resultItem);
-              }
-              return resultItem;
-            });
-            saveBatchSession(updated);
-            return updated;
-          });
+        setIsBatchCompressing(true);
+        isBatchCancelledRef.current = false;
 
-          // Upload to Google Drive if isSaveToDriveOnCompress is enabled
-          if (isSaveToDriveOnCompress) {
-            if (user && accessToken) {
-              compressedItems.forEach((item) => {
-                if (item.compressedResult) {
-                  autoSaveSingleToDriveDirect(item);
-                }
-              });
-            } else {
+        setBatchProgress({
+          isActive: true,
+          currentIndex: 0,
+          totalFiles: itemsWithCompState.length,
+          currentFileName: itemsWithCompState[0].name,
+          stage: "Initializing dropped files...",
+          percent: 0
+        });
+
+        (async () => {
+          const compressedResults: QueueItem[] = [];
+          for (let i = 0; i < itemsWithCompState.length; i++) {
+            if (isBatchCancelledRef.current) {
+              break;
+            }
+
+            const item = itemsWithCompState[i];
+            setBatchProgress(prev => ({
+              ...prev,
+              currentIndex: i,
+              currentFileName: item.name,
+              stage: "Decoding & Resizing...",
+              percent: Math.round((i / itemsWithCompState.length) * 100)
+            }));
+
+            await new Promise(r => setTimeout(r, 100));
+
+            setBatchProgress(prev => ({
+              ...prev,
+              stage: "Compressing with active filters & quality...",
+            }));
+
+            const compressed = await compressSingleItem(item, item.quality);
+            compressedResults.push(compressed);
+
+            // Update queue state incrementally
+            setQueue(prev => prev.map(q => q.id === item.id ? compressed : q));
+
+            setBatchProgress(prev => ({
+              ...prev,
+              stage: "Applying auto-saves & metadata headers...",
+              percent: Math.round(((i + 1) / itemsWithCompState.length) * 100)
+            }));
+
+            // Trigger Auto-Save if enabled
+            if (isAutoSaveEnabled && compressed.compressedResult) {
+              triggerAutoSave(compressed);
+            }
+
+            // Google Drive direct save
+            if (isSaveToDriveOnCompress && compressed.compressedResult) {
+              if (user && accessToken) {
+                autoSaveSingleToDriveDirect(compressed);
+              }
+            }
+
+            await new Promise(r => setTimeout(r, 80));
+          }
+
+          setIsBatchCompressing(false);
+          setBatchProgress(prev => ({
+            ...prev,
+            isActive: false,
+          }));
+
+          if (!isBatchCancelledRef.current) {
+            // Save batch session
+            setQueue(prev => {
+              saveBatchSession(prev);
+              return prev;
+            });
+
+            if (isSaveToDriveOnCompress && (!user || !accessToken)) {
               setAutoSaveToast({
                 isOpen: true,
                 message: "Staged files compressed but cannot upload because you are not logged in to Google Drive.",
                 isError: true
               });
             }
+          } else {
+            // Clean up in-progress flags
+            setQueue(prev => prev.map(q => q.isCompressing ? { ...q, isCompressing: false } : q));
           }
-        }).catch(err => {
-          console.error("Batch auto compress failed:", err);
-        });
+        })();
       } else {
         // Standard preview step
         setQueue(prev => {
@@ -2701,56 +2767,113 @@ export default function ImageCompressor({
     }));
   };
 
-  // Batch compress entire workspace queue
+  // Batch compress entire workspace queue sequentially
   const handleCompressAll = async () => {
     if (queue.length === 0) return;
     setIsBatchCompressing(true);
-    setQueue(prev => prev.map(item => ({ ...item, isCompressing: true })));
+    isBatchCancelledRef.current = false;
 
-    const compressedQueue = await Promise.all(
-      queue.map(item => compressSingleItem(item, item.quality))
-    );
+    // Initialize batch progress state
+    setBatchProgress({
+      isActive: true,
+      currentIndex: 0,
+      totalFiles: queue.length,
+      currentFileName: queue[0].name,
+      stage: "Initializing...",
+      percent: 0
+    });
 
-    setQueue(compressedQueue);
-    setIsBatchCompressing(false);
-    saveBatchSession(compressedQueue);
+    const updatedQueue = [...queue];
 
-    // Trigger Auto-Save if enabled
-    if (isAutoSaveEnabled) {
-      triggerBatchAutoSave(compressedQueue);
+    for (let i = 0; i < queue.length; i++) {
+      if (isBatchCancelledRef.current) {
+        break;
+      }
+
+      const item = queue[i];
+      setBatchProgress(prev => ({
+        ...prev,
+        currentIndex: i,
+        currentFileName: item.name,
+        stage: "Decoding & Resizing...",
+        percent: Math.round((i / queue.length) * 100)
+      }));
+
+      // Mark this item as active compressing in queue
+      setQueue(prev => prev.map(q => q.id === item.id ? { ...q, isCompressing: true } : q));
+      
+      // Artificial short delay for visual flow
+      await new Promise(r => setTimeout(r, 120));
+
+      setBatchProgress(prev => ({
+        ...prev,
+        stage: "Compressing with active filters & quality...",
+      }));
+
+      const compressed = await compressSingleItem(item, item.quality);
+      
+      updatedQueue[i] = compressed;
+
+      // Update actual queue state incrementally so the user sees progress in real time!
+      setQueue(prev => prev.map(q => q.id === item.id ? compressed : q));
+
+      setBatchProgress(prev => ({
+        ...prev,
+        stage: "Applying auto-saves & metadata headers...",
+        percent: Math.round(((i + 1) / queue.length) * 100)
+      }));
+
+      // Trigger Auto-Save if enabled
+      if (isAutoSaveEnabled && compressed.compressedResult) {
+        triggerAutoSave(compressed);
+      }
+
+      // Automatically trigger Google Drive upload for every compressed image created
+      if (isSaveToDriveOnCompress && compressed.compressedResult) {
+        if (user && accessToken) {
+          autoSaveSingleToDriveDirect(compressed);
+        }
+      }
+
+      await new Promise(r => setTimeout(r, 80));
     }
 
-    // Automatically trigger Google Drive upload for every compressed image created
-    if (isSaveToDriveOnCompress) {
-      if (user && accessToken) {
-        compressedQueue.forEach((item) => {
-          if (item.compressedResult) {
-            autoSaveSingleToDriveDirect(item);
-          }
-        });
-      } else {
+    setIsBatchCompressing(false);
+    setBatchProgress(prev => ({
+      ...prev,
+      isActive: false,
+    }));
+
+    if (!isBatchCancelledRef.current) {
+      saveBatchSession(updatedQueue);
+
+      // Trigger Auto-Save / drive error notifications if needed
+      if (isSaveToDriveOnCompress && (!user || !accessToken)) {
         setAutoSaveToast({
           isOpen: true,
           message: "Could not upload batched files because you are not logged in to Google Drive.",
           isError: true
         });
       }
-    }
 
-    window.dispatchEvent(new CustomEvent("toolkit-add-activity", {
-      detail: {
-        type: "file",
-        title: "Compressed Batch Queue",
-        detail: `Batch-compressed all ${queue.length} images in your workspace queue`,
-        icon: "FileImage",
-        tab: "compress"
+      window.dispatchEvent(new CustomEvent("toolkit-add-activity", {
+        detail: {
+          type: "file",
+          title: "Compressed Batch Queue",
+          detail: `Batch-compressed all ${queue.length} images sequentially in your workspace queue`,
+          icon: "FileImage",
+          tab: "compress"
+        }
+      }));
+
+      // Trigger batch summary modal if multiple files were processed
+      if (updatedQueue.length > 1) {
+        setBatchSummaryItems(updatedQueue);
+        setIsBatchSummaryOpen(true);
       }
-    }));
-
-    // Trigger batch summary modal if multiple files were processed
-    if (compressedQueue.length > 1) {
-      setBatchSummaryItems(compressedQueue);
-      setIsBatchSummaryOpen(true);
+    } else {
+      // Clean up in-progress compression flags for uncompressed files
+      setQueue(prev => prev.map(q => q.isCompressing ? { ...q, isCompressing: false } : q));
     }
   };
 
@@ -3364,6 +3487,110 @@ export default function ImageCompressor({
       className="relative grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-12 gap-5 sm:gap-6 font-sans"
       id="compressor-workspace-root"
     >
+      {/* Sequential Batch Processing Progress Overlay */}
+      {batchProgress.isActive && (
+        <div 
+          className="absolute inset-0 bg-slate-900/60 dark:bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-4 sm:p-6 z-[60] rounded-2xl select-none"
+          id="sequential-batch-progress-overlay"
+        >
+          <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl p-5 sm:p-6 flex flex-col space-y-4 animate-in fade-in zoom-in-95 duration-205 text-left">
+            
+            {/* Header */}
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-indigo-50 dark:bg-indigo-950/50 flex items-center justify-center text-indigo-600 dark:text-indigo-400 shrink-0">
+                <Sparkles className="w-5 h-5 text-indigo-500 animate-[pulse_1.5s_infinite]" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Sequential Compression Pipeline
+                </h4>
+                <p className="text-xs font-black text-slate-800 dark:text-slate-100 truncate mt-0.5">
+                  Optimizing {batchProgress.currentIndex + 1} of {batchProgress.totalFiles}
+                </p>
+              </div>
+            </div>
+
+            {/* Current File Metadata */}
+            <div className="p-3.5 bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-850/60 flex flex-col gap-1.5">
+              <div className="flex justify-between items-center text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wide">
+                <span>Active File</span>
+                <span className="font-mono text-[9px] text-indigo-550 dark:text-indigo-400 bg-indigo-500/10 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded">
+                  {batchProgress.currentIndex + 1} / {batchProgress.totalFiles}
+                </span>
+              </div>
+              <p className="text-xs font-semibold text-slate-805 dark:text-slate-200 truncate font-mono">
+                {batchProgress.currentFileName}
+              </p>
+              <div className="text-[10px] text-slate-450 dark:text-slate-500 flex items-center gap-1.5 mt-0.5">
+                <RefreshCw className="w-3 h-3 text-indigo-500 animate-spin shrink-0" />
+                <span className="font-medium animate-pulse text-indigo-600 dark:text-indigo-400">{batchProgress.stage}</span>
+              </div>
+            </div>
+
+            {/* Progress Bar Container */}
+            <div className="space-y-1.5">
+              <div className="flex justify-between items-center text-[10px] font-bold">
+                <span className="text-slate-505 dark:text-slate-450">Total Completion</span>
+                <span className="text-indigo-600 dark:text-indigo-400 font-mono text-xs">{batchProgress.percent}%</span>
+              </div>
+              <div className="w-full h-2.5 bg-slate-100 dark:bg-slate-950 rounded-full overflow-hidden border border-slate-200/50 dark:border-slate-850/40">
+                <div 
+                  className="h-full bg-gradient-to-r from-emerald-500 via-indigo-500 to-purple-500 rounded-full transition-all duration-300 shadow-sm"
+                  style={{ width: `${batchProgress.percent}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Miniature list of recent and upcoming items in this batch */}
+            <div className="space-y-1 bg-slate-50/50 dark:bg-slate-950/20 p-2.5 rounded-2xl max-h-36 overflow-y-auto border border-slate-100 dark:border-slate-850/40">
+              <span className="text-[9px] font-black uppercase text-slate-400 dark:text-slate-550 tracking-wider block pb-1 border-b border-slate-100 dark:border-slate-850/40 mb-1">
+                Batch Sequence List:
+              </span>
+              {queue.map((item, index) => {
+                const isCompleted = index < batchProgress.currentIndex;
+                const isCurrent = index === batchProgress.currentIndex;
+                return (
+                  <div key={item.id} className="flex items-center justify-between text-[10px] font-mono py-1 border-b border-slate-100/50 dark:border-slate-900/20 last:border-0">
+                    <span className={`truncate max-w-[200px] ${isCompleted ? "text-slate-400 dark:text-slate-600 line-through" : isCurrent ? "text-indigo-600 dark:text-indigo-400 font-bold" : "text-slate-400"}`}>
+                      {item.name}
+                    </span>
+                    <div className="flex items-center gap-1">
+                      {isCompleted ? (
+                        <span className="text-emerald-500 font-bold flex items-center gap-0.5">
+                          <Check className="w-3 h-3" /> Done
+                        </span>
+                      ) : isCurrent ? (
+                        <span className="text-indigo-600 dark:text-indigo-400 font-black flex items-center gap-1 animate-pulse">
+                          <RefreshCw className="w-3 h-3 animate-spin" /> Active
+                        </span>
+                      ) : (
+                        <span className="text-slate-350 dark:text-slate-700">Pending</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Cancellation Option */}
+            <div className="pt-2">
+              <button
+                type="button"
+                onClick={() => {
+                  isBatchCancelledRef.current = true;
+                  setBatchProgress(prev => ({
+                    ...prev,
+                    stage: "Cancelling remaining files..."
+                  }));
+                }}
+                className="w-full py-2.5 rounded-xl border border-rose-200 hover:border-rose-300 hover:bg-rose-50 dark:border-rose-900/30 dark:hover:bg-rose-950/30 text-rose-600 dark:text-rose-400 font-bold text-xs transition-colors cursor-pointer text-center"
+              >
+                Cancel & Keep Compressed Files
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {/* Draft Restoration Banner */}
       {draftRestoreAvailable && (
         <div className="col-span-1 lg:col-span-2 xl:col-span-12 bg-gradient-to-r from-violet-500/10 via-indigo-500/10 to-emerald-500/10 dark:from-violet-950/20 dark:via-indigo-950/20 dark:to-emerald-950/20 border border-violet-100 dark:border-indigo-950 rounded-2xl p-4 flex flex-col sm:flex-row items-center justify-between gap-4 select-none">
@@ -4709,6 +4936,40 @@ export default function ImageCompressor({
                     🎯 Optimal Spot (80%)
                   </span>
                   <span>Maximum Fidelity</span>
+                </div>
+              </div>
+
+              {/* Quick-Select Quality Presets */}
+              <div className="space-y-1.5 pt-1">
+                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                  Quick Quality Presets:
+                </span>
+                <div className="grid grid-cols-3 gap-1.5">
+                  {[
+                    { id: "thumbnail", name: "🖼️ Thumbnail", val: 0.35, desc: "Ultra size reduction for avatars (35%)" },
+                    { id: "web", name: "🌐 Web-Ready", val: 0.80, desc: "Perfect standard balance (80%)" },
+                    { id: "print", name: "🖨️ High Print", val: 0.95, desc: "Max fidelity details (95%)" },
+                  ].map((preset) => {
+                    const isActive = Math.abs(quality - preset.val) < 0.02;
+                    return (
+                      <button
+                        key={preset.id}
+                        type="button"
+                        title={preset.desc}
+                        onClick={() => {
+                          saveToUndoActiveItem();
+                          handleQualityChange(preset.val);
+                        }}
+                        className={`py-1.5 px-2 rounded-xl text-[10px] font-bold border transition-all cursor-pointer text-center select-none active:scale-95 ${
+                          isActive
+                            ? "bg-indigo-600 border-indigo-600 text-white shadow-xs shadow-indigo-500/10 dark:bg-indigo-500 dark:border-indigo-500"
+                            : "bg-slate-50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:border-slate-350 dark:hover:border-slate-700"
+                        }`}
+                      >
+                        {preset.name}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

@@ -20,7 +20,8 @@ import {
   Settings,
   Smartphone,
   Monitor,
-  Sparkles
+  Sparkles,
+  Video
 } from "lucide-react";
 
 import { triggerFileDownload } from "../lib/download";
@@ -285,7 +286,8 @@ export default function ResourcesHub({
       "workspace-workflow-optimization": "creative workspace productivity, cloud drive integration, google drive backup workflow, web design pipelines",
       "ux-color-psychology": "ux color psychology, conversion rate optimization, cro design, visual trust signals, button contrast compliance",
       "exif-image-metadata": "exif database extraction, prune image metadata, mobile web site optimization, gps photo tag deletion, core web vitals LCP",
-      "core-web-vitals-vitals": "core web vitals metrics, cumulative layout shift index, visual stability design, responsive image frames, speed score"
+      "core-web-vitals-vitals": "core web vitals metrics, cumulative layout shift index, visual stability design, responsive image frames, speed score",
+      "ai-video-editing-workflows": "ai video editing, post-generation video editing, davinci resolve ai tools, adobe premiere pro, descript text editing, capcut auto subtitles"
     };
 
     const activeKeywords = selectedArticleId ? (keywordsMap[selectedArticleId] || defaultKeywords) : defaultKeywords;
@@ -488,6 +490,7 @@ export default function ResourcesHub({
     { url: "?tab=resources&amp;article=ux-color-psychology", alias: "Guide: UX Color Psychology & CRO", priority: "0.6", changefreq: "monthly", description: "Subconscious user response triggers and conversion ratios." },
     { url: "?tab=resources&amp;article=exif-image-metadata", alias: "Guide: EXIF Metadata Performance", priority: "0.6", changefreq: "monthly", description: "How stripping hidden photo headers improves mobile site speeds." },
     { url: "?tab=resources&amp;article=core-web-vitals-vitals", alias: "Guide: Core Web Vitals & CLS", priority: "0.6", changefreq: "monthly", description: "Technical audits on eliminating dynamic layout shifts." },
+    { url: "?tab=resources&amp;article=ai-video-editing-workflows", alias: "Guide: AI Video Workflows", priority: "0.6", changefreq: "monthly", description: "Deep dive on post-generation and traditional editors." },
     { url: "?tab=legal&amp;sub=privacy", alias: "Legal: Privacy Protection Policy", priority: "0.5", changefreq: "yearly", description: "AdSense cookies declarations and safety rules." },
     { url: "?tab=legal&amp;sub=terms", alias: "Legal: Terms & Conditions", priority: "0.5", changefreq: "yearly", description: "Permitted usage parameters and liability disclaimers." },
     { url: "?tab=legal&amp;sub=about", alias: "About: Creator Profile", priority: "0.5", changefreq: "yearly", description: "Development background of Shaheera Sadia." },
@@ -782,6 +785,26 @@ export default function ResourcesHub({
         "Validate your JSON-LD payloads using Google's official Rich Results Test tool to guarantee perfect compilation prior to deployment.",
         "Dynamically insert custom tool ratings and user feedback values into the WebApplication schema to generate star ratings in the active SERP timeline."
       ]
+    },
+    {
+      id: "ai-video-editing-workflows",
+      title: "Mastering Post-Generation and Traditional AI Video Editors",
+      excerpt: "An expert blueprint on adjusting lighting, adding objects, and leveraging DaVinci Resolve, Premiere, Descript, and CapCut for professional finishing of AI-generated clips.",
+      category: "Technology",
+      readTime: "5 min read",
+      icon: Video,
+      content: [
+        "The era of pure text-to-video generation is rapidly transitioning into a sophisticated post-production pipeline. While initial neural models establish motion and characters, true creators build and refine their scenes dynamically in post-production.",
+        "A standout advancement in modern generative models is text-guided post-generation editing. Rather than re-generating an entire sequence from scratch, creators can target specific clips to alter lighting setups, add or remove objects, completely restyle artistic scenes, or adjust camera path coordinates using clear natural language prompts.",
+        "However, raw AI-generated clips rarely represent a final finished product. Integrating traditional editing suites with specialized machine learning models yields the most cohesive cinematic outcome. Editors like DaVinci Resolve lead the industry in deep color grading, utilizing custom AI tools like Magic Mask, automated voice isolation, and smart auto-editing assistants.",
+        "Similarly, tools like Adobe Premiere Pro offer highly professional timelines with Auto Reframe, automatic scene edit detection, and transcripts-driven text-based editing. For talking-head and podcast content, Descript completely revolutionizes editing by letting creators edit video simply by modifying the written transcription. For quick browser-based captions and social video compilation, CapCut provides lightning-fast subtitling and simple layouts.",
+        "Descript's powerhouse features represent the cutting edge of AI-assisted media workflows. In 2026, its voice cloning engines sound fully natural, enabling creators to correct mispronounced words or completely rewrite lines without returning to the microphone. Combined with studio-quality, one-click background noise removal and vocal enhancement, pristine audio is accessible instantly. Furthermore, eye contact adjustment fixes gaze direction, redirecting eyes towards the camera for talking-head formats. Together with beautiful auto-generated animated subtitles, global find-and-replace for filler words, and automated AI chapter/action-item detection, editing is faster and cleaner than ever."
+      ],
+      tips: [
+        "Incorporate text-guided post-generation editing to refine lighting and camera paths without full clip re-generations.",
+        "Leverage the free edition of DaVinci Resolve for heavy color grading and noise isolation tasks.",
+        "Use Descript's transcript editor to trim audio speech blocks, automatically clone and fix mistalked words, correct eye-gaze tracking, and auto-detect chapters."
+      ]
     }
   ];
 
@@ -915,6 +938,17 @@ export default function ResourcesHub({
           {
             q: "How do I fully eliminate sudden webpage shifts?",
             a: "Web developers can neutralize shifts by always specifying clear aspect-ratio parameters or styling strict width and height elements on visual cards ahead of full asset download."
+          }
+        ];
+      case "ai-video-editing-workflows":
+        return [
+          {
+            q: "What is post-generation editing in AI video?",
+            a: "Post-generation editing allows creators to modify lighting, add or remove objects, restyle scenes, or adjust camera paths using text prompts after the video is generated, without re-rendering the entire sequence."
+          },
+          {
+            q: "Which traditional video editor offers the best AI tools?",
+            a: "DaVinci Resolve is highly recommended for its color grading and AI tools like Magic Mask and voice isolation. Adobe Premiere Pro offers Auto Reframe and text-based editing, while Descript is revolutionary for editing video via transcripts."
           }
         ];
       default:

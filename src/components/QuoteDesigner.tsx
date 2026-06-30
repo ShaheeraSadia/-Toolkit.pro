@@ -1,10 +1,11 @@
 import React, { useState, useRef, useEffect } from "react";
 import { User } from "firebase/auth";
 import { motion } from "motion/react";
+import { jsPDF } from "jspdf";
 import { QuoteConfig, BgStyleType } from "../types";
 import { uploadFileToDrive } from "../lib/drive";
 import { triggerFileDownload } from "../lib/download";
-import { Download, Cloud, Sparkles, Image as ImageIcon, Type, AlignLeft, AlignCenter, AlignRight, Check, Printer, Share2, Smartphone, LayoutGrid, Monitor, Upload, FileJson, Scissors, ExternalLink, X } from "lucide-react";
+import { Download, Cloud, Sparkles, Image as ImageIcon, Type, AlignLeft, AlignCenter, AlignRight, Check, Printer, Share2, Smartphone, LayoutGrid, Monitor, Upload, FileJson, Scissors, ExternalLink, X, Bold, Italic, FileText, Shield } from "lucide-react";
 
 interface QuoteDesignerProps {
   user: User | null;
@@ -157,6 +158,8 @@ export default function QuoteDesigner({
       overlayBlur: 0,
       padding: 40,
       aspectRatio: "1:1",
+      isBold: false,
+      isItalic: true,
     };
   });
 
@@ -182,6 +185,57 @@ export default function QuoteDesigner({
       }
     }
   }, [bgImage]);
+
+  const [pdfWatermarkEnabled, setPdfWatermarkEnabled] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("toolkit_pro_pdf_watermark_enabled") === "true";
+    }
+    return false;
+  });
+  const [pdfWatermarkText, setPdfWatermarkText] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("toolkit_pro_pdf_watermark_text") || "Toolkit Pro";
+    }
+    return "Toolkit Pro";
+  });
+  const [pdfWatermarkColor, setPdfWatermarkColor] = useState<string>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("toolkit_pro_pdf_watermark_color") || "#cccccc";
+    }
+    return "#cccccc";
+  });
+  const [pdfWatermarkOpacity, setPdfWatermarkOpacity] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("toolkit_pro_pdf_watermark_opacity");
+      return stored ? parseFloat(stored) : 0.2;
+    }
+    return 0.2;
+  });
+  const [pdfWatermarkAngle, setPdfWatermarkAngle] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("toolkit_pro_pdf_watermark_angle");
+      return stored ? parseInt(stored) : 30;
+    }
+    return 30;
+  });
+  const [pdfWatermarkFontSize, setPdfWatermarkFontSize] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("toolkit_pro_pdf_watermark_fontsize");
+      return stored ? parseInt(stored) : 24;
+    }
+    return 24;
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("toolkit_pro_pdf_watermark_enabled", pdfWatermarkEnabled ? "true" : "false");
+      localStorage.setItem("toolkit_pro_pdf_watermark_text", pdfWatermarkText);
+      localStorage.setItem("toolkit_pro_pdf_watermark_color", pdfWatermarkColor);
+      localStorage.setItem("toolkit_pro_pdf_watermark_opacity", pdfWatermarkOpacity.toString());
+      localStorage.setItem("toolkit_pro_pdf_watermark_angle", pdfWatermarkAngle.toString());
+      localStorage.setItem("toolkit_pro_pdf_watermark_fontsize", pdfWatermarkFontSize.toString());
+    }
+  }, [pdfWatermarkEnabled, pdfWatermarkText, pdfWatermarkColor, pdfWatermarkOpacity, pdfWatermarkAngle, pdfWatermarkFontSize]);
 
   const [motionEnabled, setMotionEnabled] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
@@ -465,7 +519,9 @@ export default function QuoteDesigner({
 
         // Wrap text
         const maxTextWidth = baseWidth - config.padding * 3;
-        ctx.font = `italic 500 ${config.fontSize * 1.5}px "${config.fontFamily}", Georgia, serif`;
+        const canvasFontStyle = config.isItalic !== undefined ? (config.isItalic ? "italic" : "normal") : (config.fontStyle || "italic");
+        const canvasFontWeight = config.isBold ? "bold" : "500";
+        ctx.font = `${canvasFontStyle} ${canvasFontWeight} ${config.fontSize * 1.5}px "${config.fontFamily}", Georgia, serif`;
         const words = config.text.split(" ");
         let line = "";
         const lines: string[] = [];
@@ -565,6 +621,97 @@ export default function QuoteDesigner({
     } catch (err) {
       console.error(err);
       setSaveStatus({ success: false, msg: "Failed to render card for download." });
+    }
+  };
+
+  const handleDownloadPDF = async () => {
+    setIsSaving(true);
+    setSaveStatus(null);
+    try {
+      const dataUrl = await getCanvasDataUrl();
+      const cleanAuthor = config.author.replace(/[^a-z0-9]/gi, "_").toLowerCase() || "quote";
+      const filename = `toolkit_pro_quote_${cleanAuthor}.pdf`;
+
+      let pdfWidthInches = 8;
+      let pdfHeightInches = 8;
+      if (config.aspectRatio === "9:16") {
+        pdfWidthInches = 4.5;
+        pdfHeightInches = 8;
+      } else if (config.aspectRatio === "3:1") {
+        pdfWidthInches = 9;
+        pdfHeightInches = 3;
+      }
+
+      const orientation = pdfWidthInches > pdfHeightInches ? "landscape" : "portrait";
+      const doc = new jsPDF({
+        orientation: orientation,
+        unit: "in",
+        format: [pdfWidthInches, pdfHeightInches],
+        compress: true
+      });
+
+      doc.addImage(dataUrl, "PNG", 0, 0, pdfWidthInches, pdfHeightInches, undefined, "FAST");
+
+      if (pdfWatermarkEnabled && pdfWatermarkText) {
+        try {
+          if (typeof (doc as any).saveGraphicsState === "function") {
+            (doc as any).saveGraphicsState();
+          }
+          if (typeof (doc as any).GState === "function") {
+            const gState = new (doc as any).GState({ opacity: pdfWatermarkOpacity });
+            (doc as any).setGState(gState);
+          }
+        } catch (e) {
+          console.warn("PDF GState opacity not supported, using fallback rendering:", e);
+        }
+
+        // Convert hex color to rgb
+        let r = 128, g = 128, b = 128;
+        if (/^#[0-9A-F]{6}$/i.test(pdfWatermarkColor)) {
+          r = parseInt(pdfWatermarkColor.slice(1, 3), 16);
+          g = parseInt(pdfWatermarkColor.slice(3, 5), 16);
+          b = parseInt(pdfWatermarkColor.slice(5, 7), 16);
+        }
+        
+        doc.setTextColor(r, g, b);
+        doc.setFont("Helvetica", "bold");
+        doc.setFontSize(pdfWatermarkFontSize);
+
+        // Center position of document page
+        const cx = pdfWidthInches / 2;
+        const cy = pdfHeightInches / 2;
+
+        doc.text(pdfWatermarkText, cx, cy, {
+          align: "center",
+          angle: pdfWatermarkAngle,
+          baseline: "middle"
+        });
+
+        try {
+          if (typeof (doc as any).restoreGraphicsState === "function") {
+            (doc as any).restoreGraphicsState();
+          }
+        } catch (e) {}
+      }
+
+      doc.save(filename);
+
+      setSaveStatus({ success: true, msg: "Successfully generated print-ready PDF!" });
+
+      window.dispatchEvent(new CustomEvent("toolkit-add-activity", {
+        detail: {
+          type: "file",
+          title: "Created PDF Quote",
+          detail: `Downloaded high-res print PDF styled for "${config.author || "Anonymous"}"`,
+          icon: "FileText",
+          tab: "quote"
+        }
+      }));
+    } catch (err: any) {
+      console.error(err);
+      setSaveStatus({ success: false, msg: err.message || "Failed to render card for PDF download." });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -1151,6 +1298,140 @@ export default function QuoteDesigner({
               </button>
             </div>
           </div>
+
+          {/* Custom PDF Export Watermark Config */}
+          <div className="pt-3.5 border-t border-slate-200 dark:border-slate-800/85">
+            <div className="bg-white/60 dark:bg-slate-900/40 p-3.5 rounded-xl border border-slate-200/50 dark:border-slate-850 text-left space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <span className="block text-[11px] font-black uppercase text-slate-750 dark:text-slate-300 tracking-wider flex items-center gap-1.5">
+                    <Shield className="w-3.5 h-3.5 text-indigo-500" />
+                    🔒 PDF Export Watermark
+                  </span>
+                  <p className="text-[9.5px] text-slate-400 dark:text-slate-500 mt-0.5 leading-snug">
+                    Apply a custom semi-transparent text copyright layer to your PDF downloads.
+                  </p>
+                </div>
+                <button
+                  id="pdf-watermark-toggle"
+                  type="button"
+                  onClick={() => setPdfWatermarkEnabled(prev => !prev)}
+                  className={`relative inline-flex h-5.5 w-10 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                    pdfWatermarkEnabled ? "bg-indigo-600 dark:bg-indigo-500" : "bg-slate-200 dark:bg-slate-800"
+                  }`}
+                >
+                  <span
+                    className={`pointer-events-none inline-block h-4.5 w-4.5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${
+                      pdfWatermarkEnabled ? "translate-x-4.5" : "translate-x-0"
+                    }`}
+                  />
+                </button>
+              </div>
+
+              {pdfWatermarkEnabled && (
+                <div className="space-y-3 pt-2.5 border-t border-slate-100 dark:border-slate-800/60 transition-all duration-200">
+                  {/* Watermark text */}
+                  <div>
+                    <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-450 dark:text-slate-400 mb-1">
+                      Watermark Text
+                    </label>
+                    <input
+                      type="text"
+                      value={pdfWatermarkText}
+                      onChange={(e) => setPdfWatermarkText(e.target.value)}
+                      placeholder="e.g. DRAFT, CONFIDENTIAL, Your Name"
+                      className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-450"
+                    />
+                  </div>
+
+                  {/* Font Size & Angle sliders */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-455 dark:text-slate-400 mb-1">
+                        Font Size ({pdfWatermarkFontSize}px)
+                      </label>
+                      <input
+                        type="range"
+                        min="12"
+                        max="64"
+                        value={pdfWatermarkFontSize}
+                        onChange={(e) => setPdfWatermarkFontSize(parseInt(e.target.value))}
+                        className="w-full accent-indigo-600 cursor-pointer h-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-455 dark:text-slate-400 mb-1">
+                        Angle ({pdfWatermarkAngle}°)
+                      </label>
+                      <input
+                        type="range"
+                        min="-90"
+                        max="90"
+                        value={pdfWatermarkAngle}
+                        onChange={(e) => setPdfWatermarkAngle(parseInt(e.target.value))}
+                        className="w-full accent-indigo-600 cursor-pointer h-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Opacity slider & Color selection */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-455 dark:text-slate-400 mb-1">
+                        Opacity ({Math.round(pdfWatermarkOpacity * 100)}%)
+                      </label>
+                      <input
+                        type="range"
+                        min="5"
+                        max="60"
+                        step="5"
+                        value={pdfWatermarkOpacity * 100}
+                        onChange={(e) => setPdfWatermarkOpacity(parseFloat(e.target.value) / 100)}
+                        className="w-full accent-indigo-600 cursor-pointer h-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-455 dark:text-slate-400 mb-1">
+                        Color Style
+                      </label>
+                      <div className="flex items-center gap-1.5">
+                        <input
+                          type="color"
+                          value={pdfWatermarkColor}
+                          onChange={(e) => setPdfWatermarkColor(e.target.value)}
+                          className="w-6 h-6 p-0 bg-transparent border-0 rounded cursor-pointer shrink-0"
+                          title="Choose custom hex color"
+                        />
+                        <div className="flex gap-1">
+                          {[
+                            { value: "#cccccc", label: "Gray" },
+                            { value: "#000000", label: "Black" },
+                            { value: "#ffffff", label: "White" },
+                            { value: "#b45309", label: "Amber" },
+                          ].map(preset => (
+                            <button
+                              key={preset.value}
+                              type="button"
+                              onClick={() => setPdfWatermarkColor(preset.value)}
+                              className={`px-1.5 py-0.5 rounded text-[8.5px] font-extrabold border transition-all cursor-pointer ${
+                                pdfWatermarkColor === preset.value
+                                  ? "bg-indigo-50 border-indigo-200 text-indigo-600 dark:bg-indigo-950/40 dark:border-indigo-800/80 dark:text-indigo-400"
+                                  : "bg-white border-slate-200 text-slate-500 dark:bg-slate-950 dark:border-slate-850 hover:bg-slate-50 dark:hover:bg-slate-900"
+                              }`}
+                            >
+                              {preset.label}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -1238,6 +1519,116 @@ export default function QuoteDesigner({
                   Reset
                 </button>
               )}
+            </div>
+          </div>
+
+          {/* Real-time Typography & Text Control Panel */}
+          <div className="flex flex-col gap-3 bg-white dark:bg-slate-950 p-3 rounded-xl border border-slate-200/40 dark:border-slate-800/60 shadow-3xs mb-3.5 shrink-0 text-left">
+            <div className="flex flex-wrap items-center justify-between gap-3 select-none">
+              <div className="flex flex-wrap items-center gap-4 w-full sm:w-auto">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black text-slate-455 dark:text-slate-400 uppercase tracking-widest block">
+                    Font Style:
+                  </span>
+                  <div className="flex bg-slate-100 dark:bg-slate-900 rounded-lg p-0.5 border border-slate-200/50 dark:border-slate-800/50">
+                    {(["normal", "italic", "oblique"] as const).map((style) => (
+                      <button
+                        key={style}
+                        type="button"
+                        onClick={() => setConfig((prev) => {
+                          const isIt = style === "italic";
+                          return {
+                            ...prev,
+                            fontStyle: style,
+                            isItalic: isIt
+                          };
+                        })}
+                        className={`px-2.5 py-1 text-[10px] font-bold rounded-md capitalize transition-all cursor-pointer select-none active:scale-95 ${
+                          (config.fontStyle || "italic") === style
+                            ? "bg-white dark:bg-slate-950 shadow-sm text-slate-900 dark:text-slate-100 border border-slate-200/20"
+                            : "text-slate-455 hover:text-slate-650 dark:text-slate-500 dark:hover:text-slate-350"
+                        }`}
+                      >
+                        {style}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Bold & Italic Toggles */}
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] font-black text-slate-455 dark:text-slate-400 uppercase tracking-widest block">
+                    Format:
+                  </span>
+                  <div className="flex bg-slate-100 dark:bg-slate-900 rounded-lg p-1.5 border border-slate-200/50 dark:border-slate-800/50 gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => setConfig((prev) => ({ ...prev, isBold: !prev.isBold }))}
+                      className={`p-1.5 rounded-md transition-all cursor-pointer select-none active:scale-95 flex items-center justify-center ${
+                        config.isBold
+                          ? "bg-white dark:bg-slate-950 shadow-sm text-indigo-600 dark:text-indigo-400 border border-slate-200/20"
+                          : "text-slate-455 hover:text-slate-650 dark:text-slate-500 dark:hover:text-slate-350"
+                      }`}
+                      title="Bold Text"
+                    >
+                      <Bold className="w-3.5 h-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfig((prev) => {
+                        const nextItalic = prev.isItalic !== undefined ? !prev.isItalic : false; // default is true for Eliot quote
+                        return {
+                          ...prev,
+                          isItalic: nextItalic,
+                          fontStyle: nextItalic ? "italic" : "normal"
+                        };
+                      })}
+                      className={`p-1.5 rounded-md transition-all cursor-pointer select-none active:scale-95 flex items-center justify-center ${
+                        (config.isItalic !== undefined ? config.isItalic : true)
+                          ? "bg-white dark:bg-slate-950 shadow-sm text-indigo-600 dark:text-indigo-400 border border-slate-200/20"
+                          : "text-slate-455 hover:text-slate-650 dark:text-slate-500 dark:hover:text-slate-350"
+                      }`}
+                      title="Italic Text"
+                    >
+                      <Italic className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 flex-1 min-w-[180px]">
+                  <span className="text-[10px] font-black text-slate-455 dark:text-slate-400 uppercase tracking-widest block shrink-0">
+                    Font Size ({config.fontSize}px):
+                  </span>
+                  <input
+                    type="range"
+                    min="12"
+                    max="64"
+                    value={config.fontSize}
+                    onChange={(e) => setConfig((prev) => ({ ...prev, fontSize: parseInt(e.target.value) }))}
+                    className="flex-1 accent-indigo-600 cursor-pointer h-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5">
+                <span className="text-[9px] font-mono text-slate-455 dark:text-slate-500 bg-slate-50 dark:bg-slate-900 px-2 py-0.5 rounded border border-slate-200/40 dark:border-slate-800/60">
+                  ✏️ Live Preview Editor
+                </span>
+              </div>
+            </div>
+
+            {/* Direct text editor input for instant typography check */}
+            <div className="flex items-center gap-2.5 border-t border-slate-100 dark:border-slate-900 pt-2.5">
+              <span className="text-[10px] font-black text-slate-455 dark:text-slate-400 uppercase tracking-widest block shrink-0 select-none">
+                Edit Text:
+              </span>
+              <input
+                type="text"
+                value={config.text}
+                onChange={(e) => setConfig((prev) => ({ ...prev, text: e.target.value }))}
+                placeholder="Type dynamic quote text here to preview in real-time..."
+                className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-indigo-500 dark:focus:border-indigo-400"
+              />
             </div>
           </div>
 
@@ -1350,9 +1741,10 @@ export default function QuoteDesigner({
                         color: config.fontColor,
                         textAlign: config.textAlign,
                         lineHeight: "1.5",
-                        fontStyle: "italic",
+                        fontStyle: config.isItalic !== undefined ? (config.isItalic ? "italic" : "normal") : (config.fontStyle || "italic"),
+                        fontWeight: config.isBold ? "bold" : "500",
                       }}
-                      className="font-medium tracking-wide break-words"
+                      className="tracking-wide break-words"
                     >
                       "{config.text || "Click left column to draft quote..."}"
                     </motion.p>
@@ -1364,9 +1756,10 @@ export default function QuoteDesigner({
                         color: config.fontColor,
                         textAlign: config.textAlign,
                         lineHeight: "1.5",
-                        fontStyle: "italic",
+                        fontStyle: config.isItalic !== undefined ? (config.isItalic ? "italic" : "normal") : (config.fontStyle || "italic"),
+                        fontWeight: config.isBold ? "bold" : "500",
                       }}
-                      className="font-medium tracking-wide break-words"
+                      className="tracking-wide break-words"
                     >
                       "{config.text || "Click left column to draft quote..."}"
                     </p>
@@ -1513,6 +1906,16 @@ export default function QuoteDesigner({
           >
             <Download className="w-4 h-4 mr-2 text-slate-400" />
             Download PNG
+          </button>
+
+          <button
+            onClick={handleDownloadPDF}
+            className="flex-1 min-w-[150px] inline-flex items-center justify-center px-4 py-3 border border-slate-200 hover:bg-slate-50 rounded-xl bg-white text-slate-800 text-sm font-semibold shadow-sm transition-all cursor-pointer"
+            id="btn-download-quote-pdf"
+            title="Download high-resolution print-ready PDF"
+          >
+            <FileText className="w-4 h-4 mr-2 text-indigo-500" />
+            Download PDF
           </button>
 
           <button
