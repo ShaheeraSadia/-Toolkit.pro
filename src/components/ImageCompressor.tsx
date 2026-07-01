@@ -1206,6 +1206,7 @@ export default function ImageCompressor({
   const [sliderPosition, setSliderPosition] = useState<number>(50);
   const [isDraggingSlider, setIsDraggingSlider] = useState<boolean>(false);
   const [showOriginalInAB, setShowOriginalInAB] = useState<boolean>(false);
+  const [activeImageAspect, setActiveImageAspect] = useState<number | null>(null);
 
   // EXIF Info Modal States
   const [isExifModalOpen, setIsExifModalOpen] = useState<boolean>(false);
@@ -1374,6 +1375,21 @@ export default function ImageCompressor({
       setImgFilter("none");
     }
   }, [activeItem, selectedId, queue]);
+
+  // Load and calculate the natural aspect ratio of the active image
+  useEffect(() => {
+    if (!activeItem) {
+      setActiveImageAspect(null);
+      return;
+    }
+    const img = new Image();
+    img.onload = () => {
+      if (img.naturalWidth && img.naturalHeight) {
+        setActiveImageAspect(img.naturalWidth / img.naturalHeight);
+      }
+    };
+    img.src = activeItem.originalUrl;
+  }, [activeItem?.id, activeItem?.originalUrl]);
 
   const loadImage = (url: string): Promise<HTMLImageElement> => {
     return new Promise((resolve, reject) => {
@@ -5771,7 +5787,8 @@ export default function ImageCompressor({
                           ref={inlineSliderContainerRef}
                           onMouseDown={onSliderMouseDown}
                           onTouchStart={onSliderTouchStart}
-                          className="relative aspect-video w-full rounded-2xl bg-black/5 dark:bg-black/40 border border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden cursor-ew-resize group shadow-inner"
+                          className="relative w-full rounded-2xl bg-black/5 dark:bg-black/40 border border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden cursor-ew-resize group shadow-inner max-h-[320px] sm:max-h-[420px]"
+                          style={{ aspectRatio: activeImageAspect || "16/9" }}
                           title="Drag the slider handle to compare before and after"
                           id="inline-compare-slider-container"
                         >
@@ -5780,7 +5797,7 @@ export default function ImageCompressor({
                             src={compressedResult.dataUrl} 
                             alt="Optimized inline element"
                             style={{ transform: `rotate(${activeItem?.rotation || 0}deg)` }}
-                            className="absolute inset-0 w-full h-full object-contain pointer-events-none transition-transform duration-150"
+                            className="absolute inset-0 w-full h-full object-cover pointer-events-none transition-transform duration-150"
                             referrerPolicy="no-referrer"
                           />
                           
@@ -5788,7 +5805,7 @@ export default function ImageCompressor({
                           <img 
                             src={originalUrl || undefined} 
                             alt="Original inline element"
-                            className="absolute inset-0 w-full h-full object-contain pointer-events-none transition-transform duration-150"
+                            className="absolute inset-0 w-full h-full object-cover pointer-events-none transition-transform duration-150"
                             style={{ 
                               clipPath: `inset(0 ${100 - sliderPosition}% 0 0)`,
                               transform: `rotate(${activeItem?.rotation || 0}deg)`,
@@ -6509,7 +6526,8 @@ export default function ImageCompressor({
                 ref={sliderContainerRef}
                 onMouseDown={onSliderMouseDown}
                 onTouchStart={onSliderTouchStart}
-                className="relative w-full max-w-4xl aspect-[16/10] sm:aspect-video rounded-2xl border border-slate-800 bg-black/40 overflow-hidden select-none cursor-ew-resize max-h-[70vh]"
+                className="relative w-full max-w-4xl rounded-2xl border border-slate-800 bg-black/40 overflow-hidden select-none cursor-ew-resize max-h-[70vh]"
+                style={{ aspectRatio: activeImageAspect || "16/9" }}
                 id="preview-contrast-slider-container"
               >
                 {/* Optimized image as background */}
@@ -6517,7 +6535,7 @@ export default function ImageCompressor({
                   src={compressedResult.dataUrl} 
                   alt="Optimized side element"
                   style={{ transform: `rotate(${activeItem?.rotation || 0}deg)` }}
-                  className="absolute inset-0 w-full h-full object-contain pointer-events-none transition-transform"
+                  className="absolute inset-0 w-full h-full object-cover pointer-events-none transition-transform"
                   referrerPolicy="no-referrer"
                 />
                 
@@ -6525,7 +6543,7 @@ export default function ImageCompressor({
                 <img 
                   src={originalUrl || undefined} 
                   alt="Original side element"
-                  className="absolute inset-0 w-full h-full object-contain pointer-events-none transition-transform"
+                  className="absolute inset-0 w-full h-full object-cover pointer-events-none transition-transform"
                   style={{ 
                     clipPath: `inset(0 ${100 - sliderPosition}% 0 0)`,
                     transform: `rotate(${activeItem?.rotation || 0}deg)`,
@@ -6548,10 +6566,10 @@ export default function ImageCompressor({
                 </div>
 
                 {/* Overlay Badge Labels */}
-                <span className="absolute left-4 top-4 text-[9px] font-black uppercase text-white bg-slate-900/90 border border-slate-800 px-2 py-0.5 rounded shadow z-10">
+                <span className="absolute left-4 top-4 text-[9px] font-black uppercase text-white bg-slate-900/90 border border-slate-800 px-2 py-0.5 rounded shadow z-10 pointer-events-none">
                   Original
                 </span>
-                <span className="absolute right-4 top-4 text-[9px] font-black uppercase text-emerald-400 bg-slate-900/90 border border-slate-800 px-2 py-0.5 rounded shadow z-10">
+                <span className="absolute right-4 top-4 text-[9px] font-black uppercase text-emerald-400 bg-slate-900/90 border border-slate-800 px-2 py-0.5 rounded shadow z-10 pointer-events-none">
                   Optimized
                 </span>
               </div>

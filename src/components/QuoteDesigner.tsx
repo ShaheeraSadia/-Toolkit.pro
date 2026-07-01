@@ -2,10 +2,27 @@ import React, { useState, useRef, useEffect } from "react";
 import { User } from "firebase/auth";
 import { motion } from "motion/react";
 import { jsPDF } from "jspdf";
+import JSZip from "jszip";
 import { QuoteConfig, BgStyleType } from "../types";
 import { uploadFileToDrive } from "../lib/drive";
 import { triggerFileDownload } from "../lib/download";
-import { Download, Cloud, Sparkles, Image as ImageIcon, Type, AlignLeft, AlignCenter, AlignRight, Check, Printer, Share2, Smartphone, LayoutGrid, Monitor, Upload, FileJson, Scissors, ExternalLink, X, Bold, Italic, FileText, Shield } from "lucide-react";
+import { Download, Cloud, Sparkles, Image as ImageIcon, Type, AlignLeft, AlignCenter, AlignRight, Check, Printer, Share2, Smartphone, LayoutGrid, Monitor, Upload, FileJson, Scissors, ExternalLink, X, Bold, Italic, FileText, Shield, Move, MousePointer, FolderArchive, Trash2, Plus } from "lucide-react";
+
+interface SavedVariant {
+  id: string;
+  timestamp: string;
+  config: QuoteConfig;
+  bgImage: string | null;
+  typographyOffsetPageY: number;
+  pdfWatermarkX: number;
+  pdfWatermarkY: number;
+  pdfWatermarkEnabled: boolean;
+  pdfWatermarkText: string;
+  pdfWatermarkColor: string;
+  pdfWatermarkOpacity: number;
+  pdfWatermarkAngle: number;
+  pdfWatermarkFontSize: number;
+}
 
 interface QuoteDesignerProps {
   user: User | null;
@@ -250,7 +267,99 @@ export default function QuoteDesigner({
   const [downloadDpi, setDownloadDpi] = useState<number>(300); // Customizable export DPI
   const [previewZoom, setPreviewZoom] = useState<number>(1.0); // Dynamic inspection zoom level
   const [showBleed, setShowBleed] = useState<boolean>(false); // Visual print bleed boundary toggle
+  const [snapToGrid, setSnapToGrid] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("toolkit_pro_quote_snap_to_grid") === "true";
+    }
+    return false;
+  });
+  const [gridSize, setGridSize] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("toolkit_pro_quote_grid_size");
+      return stored ? parseInt(stored) : 25;
+    }
+    return 25;
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("toolkit_pro_quote_snap_to_grid", snapToGrid ? "true" : "false");
+      localStorage.setItem("toolkit_pro_quote_grid_size", gridSize.toString());
+    }
+  }, [snapToGrid, gridSize]);
+
+  // Precision canvas panning states
+  const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [activeTool, setActiveTool] = useState<"edit" | "pan">("edit");
+  const [isPanning, setIsPanning] = useState<boolean>(false);
+  const [panStart, setPanStart] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  // Direct canvas element dragging states
+  const [isDraggingWatermark, setIsDraggingWatermark] = useState<boolean>(false);
+  const [isDraggingTypography, setIsDraggingTypography] = useState<boolean>(false);
+  const [dragStart, setDragStart] = useState<{ x: number; y: number; originalX: number; originalY: number }>({
+    x: 0,
+    y: 0,
+    originalX: 0,
+    originalY: 0,
+  });
+
+  // Watermark precision positioning coordinate states
+  const [pdfWatermarkX, setPdfWatermarkX] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("toolkit_pro_pdf_watermark_x");
+      return stored ? parseInt(stored) : 50;
+    }
+    return 50;
+  });
+  const [pdfWatermarkY, setPdfWatermarkY] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("toolkit_pro_pdf_watermark_y");
+      return stored ? parseInt(stored) : 50;
+    }
+    return 50;
+  });
+
+  // Typography precision vertical position offset state (allows shifted layout alignments)
+  const [typographyOffsetPageY, setTypographyOffsetPageY] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("toolkit_pro_typography_offset_y");
+      return stored ? parseInt(stored) : 0;
+    }
+    return 0;
+  });
+
+  // Sync typography positioning and watermark coordinates with localStorage
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("toolkit_pro_pdf_watermark_x", pdfWatermarkX.toString());
+      localStorage.setItem("toolkit_pro_pdf_watermark_y", pdfWatermarkY.toString());
+      localStorage.setItem("toolkit_pro_typography_offset_y", typographyOffsetPageY.toString());
+    }
+  }, [pdfWatermarkX, pdfWatermarkY, typographyOffsetPageY]);
+
+  // Saved Quote Session Variants state
+  const [savedVariants, setSavedVariants] = useState<SavedVariant[]>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("toolkit_pro_quote_saved_variants");
+      try {
+        return stored ? JSON.parse(stored) : [];
+      } catch (e) {
+        console.error("Failed to parse saved variants", e);
+        return [];
+      }
+    }
+    return [];
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("toolkit_pro_quote_saved_variants", JSON.stringify(savedVariants));
+    }
+  }, [savedVariants]);
+
   const previewRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const jsonFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -542,8 +651,8 @@ export default function QuoteDesigner({
         const textLineHeight = config.fontSize * 2.2;
         const totalTextHeight = lines.length * textLineHeight;
         
-        // Calculate start Y to center block vertically
-        let startY = baseHeight / 2 - totalTextHeight / 2;
+        // Calculate start Y to center block vertically, adjusted by precise typography offset
+        let startY = (baseHeight / 2 - totalTextHeight / 2) + typographyOffsetPageY;
 
         // Draw multiple lines of quote text
         lines.forEach((lineText, index) => {
@@ -556,6 +665,29 @@ export default function QuoteDesigner({
           ctx.fillStyle = config.fontColor === "#ffffff" ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.65)";
           const authorY = startY + (lines.length * textLineHeight) + 40;
           ctx.fillText(`— ${config.author}`, x, authorY);
+        }
+
+        // Draw Watermark if enabled and text exists
+        if (pdfWatermarkEnabled && pdfWatermarkText) {
+          ctx.save();
+          let r = 204, g = 204, b = 204;
+          if (/^#[0-9A-F]{6}$/i.test(pdfWatermarkColor)) {
+            r = parseInt(pdfWatermarkColor.slice(1, 3), 16);
+            g = parseInt(pdfWatermarkColor.slice(3, 5), 16);
+            b = parseInt(pdfWatermarkColor.slice(5, 7), 16);
+          }
+          ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${pdfWatermarkOpacity})`;
+          ctx.font = `bold ${pdfWatermarkFontSize * 1.5}px sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          
+          const wX = baseWidth * (pdfWatermarkX / 100);
+          const wY = baseHeight * (pdfWatermarkY / 100);
+          
+          ctx.translate(wX, wY);
+          ctx.rotate((pdfWatermarkAngle * Math.PI) / 180);
+          ctx.fillText(pdfWatermarkText, 0, 0);
+          ctx.restore();
         }
 
         resolve(canvas.toDataURL("image/png"));
@@ -624,6 +756,265 @@ export default function QuoteDesigner({
     }
   };
 
+  const renderVariantToDataUrl = (variant: SavedVariant, forcedDpi?: number): Promise<string> => {
+    const dpi = forcedDpi || downloadDpi;
+    const targetSize = Math.round(8 * dpi);
+    return new Promise((resolve, reject) => {
+      let baseWidth = 800;
+      let baseHeight = 800;
+      if (variant.config.aspectRatio === "9:16") {
+        baseWidth = 450;
+        baseHeight = 800;
+      } else if (variant.config.aspectRatio === "3:1") {
+        baseWidth = 900;
+        baseHeight = 300;
+      }
+
+      const maxSide = Math.max(baseWidth, baseHeight);
+      const targetWidth = Math.round((baseWidth / maxSide) * targetSize);
+      const targetHeight = Math.round((baseHeight / maxSide) * targetSize);
+
+      const canvas = document.createElement("canvas");
+      canvas.width = targetWidth;
+      canvas.height = targetHeight;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) {
+        reject("Could not get canvas context");
+        return;
+      }
+
+      const scale = targetWidth / baseWidth;
+      ctx.scale(scale, scale);
+
+      const drawTextAndResolve = () => {
+        if (variant.config.overlayOpacity > 0) {
+          ctx.fillStyle = `rgba(0, 0, 0, ${variant.config.overlayOpacity})`;
+          ctx.fillRect(0, 0, baseWidth, baseHeight);
+        }
+
+        ctx.fillStyle = variant.config.fontColor;
+        ctx.textBaseline = "middle";
+        ctx.textAlign = variant.config.textAlign;
+
+        let x = baseWidth / 2;
+        if (variant.config.textAlign === "left") x = variant.config.padding * 1.5;
+        if (variant.config.textAlign === "right") x = baseWidth - variant.config.padding * 1.5;
+
+        const maxTextWidth = baseWidth - variant.config.padding * 3;
+        const canvasFontStyle = variant.config.isItalic !== undefined ? (variant.config.isItalic ? "italic" : "normal") : (variant.config.fontStyle || "italic");
+        const canvasFontWeight = variant.config.isBold ? "bold" : "500";
+        ctx.font = `${canvasFontStyle} ${canvasFontWeight} ${variant.config.fontSize * 1.5}px "${variant.config.fontFamily}", Georgia, serif`;
+
+        const words = variant.config.text.split(" ");
+        let line = "";
+        const lines: string[] = [];
+
+        for (let n = 0; n < words.length; n++) {
+          const testLine = line + words[n] + " ";
+          const metrics = ctx.measureText(testLine);
+          if (metrics.width > maxTextWidth && n > 0) {
+            lines.push(line.trim());
+            line = words[n] + " ";
+          } else {
+            line = testLine;
+          }
+        }
+        lines.push(line.trim());
+
+        const textLineHeight = variant.config.fontSize * 2.2;
+        const totalTextHeight = lines.length * textLineHeight;
+        const startY = (baseHeight / 2 - totalTextHeight / 2) + variant.typographyOffsetPageY;
+
+        lines.forEach((lineText, index) => {
+          ctx.fillText(lineText, x, startY + index * textLineHeight);
+        });
+
+        if (variant.config.author) {
+          ctx.font = `600 ${variant.config.fontSize * 0.9}px "${variant.config.fontFamily}", sans-serif`;
+          ctx.fillStyle = variant.config.fontColor === "#ffffff" ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.65)";
+          const authorY = startY + (lines.length * textLineHeight) + 40;
+          ctx.fillText(`— ${variant.config.author}`, x, authorY);
+        }
+
+        if (variant.pdfWatermarkEnabled && variant.pdfWatermarkText) {
+          ctx.save();
+          let r = 204, g = 204, b = 204;
+          if (/^#[0-9A-F]{6}$/i.test(variant.pdfWatermarkColor)) {
+            r = parseInt(variant.pdfWatermarkColor.slice(1, 3), 16);
+            g = parseInt(variant.pdfWatermarkColor.slice(3, 5), 16);
+            b = parseInt(variant.pdfWatermarkColor.slice(5, 7), 16);
+          }
+          ctx.fillStyle = `rgba(${r}, ${g}, ${b}, ${variant.pdfWatermarkOpacity})`;
+          ctx.font = `bold ${variant.pdfWatermarkFontSize * 1.5}px sans-serif`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+
+          const wX = baseWidth * (variant.pdfWatermarkX / 100);
+          const wY = baseHeight * (variant.pdfWatermarkY / 100);
+
+          ctx.translate(wX, wY);
+          ctx.rotate((variant.pdfWatermarkAngle * Math.PI) / 180);
+          ctx.fillText(variant.pdfWatermarkText, 0, 0);
+          ctx.restore();
+        }
+
+        resolve(canvas.toDataURL("image/png"));
+      };
+
+      if (variant.config.bgStyle === "image" && variant.bgImage) {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.onload = () => {
+          const scale = Math.max(baseWidth / img.width, baseHeight / img.height);
+          const w = img.width * scale;
+          const h = img.height * scale;
+          const imgX = (baseWidth - w) / 2;
+          const imgY = (baseHeight - h) / 2;
+          ctx.drawImage(img, imgX, imgY, w, h);
+          drawTextAndResolve();
+        };
+        img.onerror = () => {
+          ctx.fillStyle = "#1e293b";
+          ctx.fillRect(0, 0, baseWidth, baseHeight);
+          drawTextAndResolve();
+        };
+        img.src = variant.bgImage;
+      } else if (variant.config.bgStyle === "gradient") {
+        const activePreset = PRESET_GRADIENTS.find(p => p.value === variant.config.bgValue) || PRESET_GRADIENTS[0];
+        const colors = activePreset.colors || ["#f97316", "#a855f7"];
+        const grad = ctx.createLinearGradient(0, 0, baseWidth, baseHeight);
+        grad.addColorStop(0, colors[0]);
+        grad.addColorStop(1, colors[1]);
+        ctx.fillStyle = grad;
+        ctx.fillRect(0, 0, baseWidth, baseHeight);
+        drawTextAndResolve();
+      } else {
+        ctx.fillStyle = variant.config.bgValue;
+        ctx.fillRect(0, 0, baseWidth, baseHeight);
+        drawTextAndResolve();
+      }
+    });
+  };
+
+  const handleSaveCurrentVariant = () => {
+    const newVariant: SavedVariant = {
+      id: "variant_" + Date.now(),
+      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }),
+      config: JSON.parse(JSON.stringify(config)),
+      bgImage: bgImage,
+      typographyOffsetPageY: typographyOffsetPageY,
+      pdfWatermarkX: pdfWatermarkX,
+      pdfWatermarkY: pdfWatermarkY,
+      pdfWatermarkEnabled: pdfWatermarkEnabled,
+      pdfWatermarkText: pdfWatermarkText,
+      pdfWatermarkColor: pdfWatermarkColor,
+      pdfWatermarkOpacity: pdfWatermarkOpacity,
+      pdfWatermarkAngle: pdfWatermarkAngle,
+      pdfWatermarkFontSize: pdfWatermarkFontSize,
+    };
+    setSavedVariants(prev => [...prev, newVariant]);
+    setSaveStatus({
+      success: true,
+      msg: "Saved design snapshot to session variants list!"
+    });
+    
+    window.dispatchEvent(new CustomEvent("toolkit-add-activity", {
+      detail: {
+        type: "bookmark",
+        title: "Saved Quote Variant",
+        detail: `Saved layout snapshot for "${config.author || "Anonymous"}"`,
+        icon: "Plus",
+        tab: "quote"
+      }
+    }));
+  };
+
+  const handleLoadVariant = (variant: SavedVariant) => {
+    setConfig(JSON.parse(JSON.stringify(variant.config)));
+    setBgImage(variant.bgImage);
+    setTypographyOffsetPageY(variant.typographyOffsetPageY);
+    setPdfWatermarkX(variant.pdfWatermarkX);
+    setPdfWatermarkY(variant.pdfWatermarkY);
+    setPdfWatermarkEnabled(variant.pdfWatermarkEnabled);
+    setPdfWatermarkText(variant.pdfWatermarkText);
+    setPdfWatermarkColor(variant.pdfWatermarkColor);
+    setPdfWatermarkOpacity(variant.pdfWatermarkOpacity);
+    setPdfWatermarkAngle(variant.pdfWatermarkAngle);
+    setPdfWatermarkFontSize(variant.pdfWatermarkFontSize);
+
+    setSaveStatus({
+      success: true,
+      msg: "Loaded variant design rules onto workspace!"
+    });
+  };
+
+  const handleDeleteVariant = (id: string, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    setSavedVariants(prev => prev.filter(v => v.id !== id));
+    setSaveStatus({
+      success: true,
+      msg: "Deleted snapshot from session list."
+    });
+  };
+
+  const handleDownloadSingleVariant = async (variant: SavedVariant, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    try {
+      const dataUrl = await renderVariantToDataUrl(variant);
+      const cleanAuthor = (variant.config.author || "quote").replace(/[^a-z0-9]/gi, "_").toLowerCase();
+      const filename = `toolkit_pro_quote_${cleanAuthor}_variant.png`;
+      triggerFileDownload(dataUrl, filename);
+    } catch (err: any) {
+      console.error(err);
+      setSaveStatus({ success: false, msg: "Failed to render card variant: " + (err.message || String(err)) });
+    }
+  };
+
+  const handleBatchExportZip = async () => {
+    if (savedVariants.length === 0) {
+      alert("No saved variants to export! Please save some configurations first.");
+      return;
+    }
+    
+    setIsSaving(true);
+    setSaveStatus({ success: true, msg: "Compressing and generating ZIP archive..." });
+    
+    try {
+      const zip = new JSZip();
+      
+      for (let i = 0; i < savedVariants.length; i++) {
+        const variant = savedVariants[i];
+        const dataUrl = await renderVariantToDataUrl(variant);
+        const base64Data = dataUrl.replace(/^data:image\/(png|jpg);base64,/, "");
+        
+        const cleanAuthor = (variant.config.author || "quote").replace(/[^a-z0-9]/gi, "_").toLowerCase();
+        const filename = `variant_${i + 1}_${cleanAuthor}_${variant.config.aspectRatio.replace(":", "x")}.png`;
+        zip.file(filename, base64Data, { base64: true });
+      }
+      
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+      triggerFileDownload(zipBlob, `quote_variants_${timestamp}.zip`);
+      
+      setSaveStatus({ success: true, msg: `Successfully exported ${savedVariants.length} variants in a single ZIP!` });
+
+      window.dispatchEvent(new CustomEvent("toolkit-add-activity", {
+        detail: {
+          type: "file",
+          title: "Batch Exported ZIP",
+          detail: `Exported ${savedVariants.length} customized quote variants in a single ZIP file`,
+          icon: "FolderArchive",
+          tab: "quote"
+        }
+      }));
+    } catch (err: any) {
+      console.error("Batch ZIP export failed:", err);
+      setSaveStatus({ success: false, msg: "Failed to generate ZIP archive: " + (err.message || String(err)) });
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const handleDownloadPDF = async () => {
     setIsSaving(true);
     setSaveStatus(null);
@@ -677,9 +1068,9 @@ export default function QuoteDesigner({
         doc.setFont("Helvetica", "bold");
         doc.setFontSize(pdfWatermarkFontSize);
 
-        // Center position of document page
-        const cx = pdfWidthInches / 2;
-        const cy = pdfHeightInches / 2;
+        // Position of document page based on user coordinate settings
+        const cx = pdfWidthInches * (pdfWatermarkX / 100);
+        const cy = pdfHeightInches * (pdfWatermarkY / 100);
 
         doc.text(pdfWatermarkText, cx, cy, {
           align: "center",
@@ -803,6 +1194,154 @@ export default function QuoteDesigner({
         });
       }
     }
+  };
+
+  const handleViewportMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (activeTool === "pan") {
+      setIsPanning(true);
+      setPanStart({ x: e.clientX - panOffset.x, y: e.clientY - panOffset.y });
+    }
+  };
+
+  const handleViewportMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (isPanning && activeTool === "pan") {
+      setPanOffset({
+        x: e.clientX - panStart.x,
+        y: e.clientY - panStart.y,
+      });
+    } else if (isDraggingWatermark && activeTool === "edit") {
+      const deltaX = e.clientX - dragStart.x;
+      const deltaY = e.clientY - dragStart.y;
+      
+      const rect = previewRef.current?.getBoundingClientRect();
+      if (rect) {
+        // Adjust coordinate changes based on current inspector zoom scale
+        const changePercentX = (deltaX / rect.width) * 100;
+        const changePercentY = (deltaY / rect.height) * 100;
+        
+        let targetX = dragStart.originalX + changePercentX;
+        let targetY = dragStart.originalY + changePercentY;
+        
+        if (snapToGrid) {
+          // Snap watermark coordinates to nearest 5% increment
+          const snapStep = 5;
+          let snapX = Math.round(targetX / snapStep) * snapStep;
+          let snapY = Math.round(targetY / snapStep) * snapStep;
+          
+          if (Math.abs(targetX - 50) < 4) snapX = 50;
+          if (Math.abs(targetY - 50) < 4) snapY = 50;
+          
+          targetX = snapX;
+          targetY = snapY;
+        }
+        
+        setPdfWatermarkX(Math.min(100, Math.max(0, Math.round(targetX))));
+        setPdfWatermarkY(Math.min(100, Math.max(0, Math.round(targetY))));
+      }
+    } else if (isDraggingTypography && activeTool === "edit") {
+      const deltaY = e.clientY - dragStart.y;
+      // Adjust offset according to active zoom scale
+      const actualDeltaY = deltaY / previewZoom;
+      const targetY = dragStart.originalY + actualDeltaY;
+      let finalY = targetY;
+      
+      if (snapToGrid) {
+        // Snap typography vertical offset to the nearest gridSize
+        const snapValue = Math.round(targetY / gridSize) * gridSize;
+        // If close to center (0), snap exactly to 0
+        if (Math.abs(targetY) < Math.max(10, gridSize / 2)) {
+          finalY = 0;
+        } else {
+          finalY = snapValue;
+        }
+      }
+      
+      setTypographyOffsetPageY(Math.min(250, Math.max(-250, Math.round(finalY))));
+    }
+  };
+
+  const handleViewportMouseUp = () => {
+    setIsPanning(false);
+    setIsDraggingWatermark(false);
+    setIsDraggingTypography(false);
+  };
+
+  const handleViewportTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (activeTool === "pan" && e.touches.length === 1) {
+      setIsPanning(true);
+      const touch = e.touches[0];
+      setPanStart({ x: touch.clientX - panOffset.x, y: touch.clientY - panOffset.y });
+    }
+  };
+
+  const handleViewportTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (isPanning && activeTool === "pan" && e.touches.length === 1) {
+      const touch = e.touches[0];
+      setPanOffset({
+        x: touch.clientX - panStart.x,
+        y: touch.clientY - panStart.y,
+      });
+    } else if (isDraggingWatermark && activeTool === "edit" && e.touches.length === 1) {
+      const touch = e.touches[0];
+      const deltaX = touch.clientX - dragStart.x;
+      const deltaY = touch.clientY - dragStart.y;
+      
+      const rect = previewRef.current?.getBoundingClientRect();
+      if (rect) {
+        const changePercentX = (deltaX / rect.width) * 100;
+        const changePercentY = (deltaY / rect.height) * 100;
+        
+        let targetX = dragStart.originalX + changePercentX;
+        let targetY = dragStart.originalY + changePercentY;
+        
+        if (snapToGrid) {
+          // Snap watermark coordinates to nearest 5% increment
+          const snapStep = 5;
+          let snapX = Math.round(targetX / snapStep) * snapStep;
+          let snapY = Math.round(targetY / snapStep) * snapStep;
+          
+          if (Math.abs(targetX - 50) < 4) snapX = 50;
+          if (Math.abs(targetY - 50) < 4) snapY = 50;
+          
+          targetX = snapX;
+          targetY = snapY;
+        }
+        
+        setPdfWatermarkX(Math.min(100, Math.max(0, Math.round(targetX))));
+        setPdfWatermarkY(Math.min(100, Math.max(0, Math.round(targetY))));
+      }
+    } else if (isDraggingTypography && activeTool === "edit" && e.touches.length === 1) {
+      const touch = e.touches[0];
+      const deltaY = touch.clientY - dragStart.y;
+      const actualDeltaY = deltaY / previewZoom;
+      const targetY = dragStart.originalY + actualDeltaY;
+      let finalY = targetY;
+      
+      if (snapToGrid) {
+        // Snap typography vertical offset to the nearest gridSize
+        const snapValue = Math.round(targetY / gridSize) * gridSize;
+        // If close to center (0), snap exactly to 0
+        if (Math.abs(targetY) < Math.max(10, gridSize / 2)) {
+          finalY = 0;
+        } else {
+          finalY = snapValue;
+        }
+      }
+      
+      setTypographyOffsetPageY(Math.min(250, Math.max(-250, Math.round(finalY))));
+    }
+  };
+
+  const handleViewportWheel = (e: React.WheelEvent<HTMLDivElement>) => {
+    // Zoom in/out based on wheel scroll direction, keeping bounds between 0.5x and 2.0x
+    const scaleFactor = 1.05;
+    let nextZoom = previewZoom;
+    if (e.deltaY < 0) {
+      nextZoom = Math.min(2.0, parseFloat((previewZoom * scaleFactor).toFixed(2)));
+    } else {
+      nextZoom = Math.max(0.5, parseFloat((previewZoom / scaleFactor).toFixed(2)));
+    }
+    setPreviewZoom(nextZoom);
   };
 
   // Convert linear-gradient to inline styles easily
@@ -1069,6 +1608,55 @@ export default function QuoteDesigner({
                   <AlignRight className="w-4 h-4" />
                 </button>
               </div>
+            </div>
+
+            {/* Typography Vertical Position Offset with fine-tuning nudges */}
+            <div className="col-span-2 pt-2 border-t border-slate-100 dark:border-slate-800/40">
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-455 dark:text-slate-400">
+                  Vertical Typography Offset
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setTypographyOffsetPageY(0)}
+                  className="text-[9.5px] font-bold text-indigo-650 dark:text-indigo-400 hover:underline cursor-pointer"
+                >
+                  Center
+                </button>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTypographyOffsetPageY(prev => Math.max(-250, prev - 5))}
+                  className="w-6 h-6 bg-slate-50 hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-850 border border-slate-200/50 dark:border-slate-800 rounded-lg flex items-center justify-center font-bold text-xs cursor-pointer text-slate-700 dark:text-slate-300"
+                  title="Nudge Up (5px)"
+                >
+                  -
+                </button>
+                <input
+                  type="range"
+                  min="-250"
+                  max="250"
+                  step="5"
+                  value={typographyOffsetPageY}
+                  onChange={(e) => setTypographyOffsetPageY(parseInt(e.target.value))}
+                  className="flex-1 accent-indigo-600 cursor-pointer h-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg"
+                />
+                <button
+                  type="button"
+                  onClick={() => setTypographyOffsetPageY(prev => Math.min(250, prev + 5))}
+                  className="w-6 h-6 bg-slate-50 hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-850 border border-slate-200/50 dark:border-slate-800 rounded-lg flex items-center justify-center font-bold text-xs cursor-pointer text-slate-700 dark:text-slate-300"
+                  title="Nudge Down (5px)"
+                >
+                  +
+                </button>
+                <span className="text-[10px] font-mono font-extrabold text-slate-550 dark:text-slate-350 bg-slate-50 dark:bg-slate-900 px-1.5 py-0.5 rounded border border-slate-200/40 dark:border-slate-800/40 shrink-0">
+                  {typographyOffsetPageY > 0 ? `+${typographyOffsetPageY}` : typographyOffsetPageY}px
+                </span>
+              </div>
+              <p className="text-[9px] text-slate-400 dark:text-slate-550 mt-1 leading-normal">
+                Click-and-drag text inside the preview or use nudges to alter safe vertical spacing.
+              </p>
             </div>
           </div>
         </div>
@@ -1428,10 +2016,226 @@ export default function QuoteDesigner({
                       </div>
                     </div>
                   </div>
+
+                  {/* High Precision Watermark Positioning (Sliders + Fine-Tuning Nudges) */}
+                  <div className="space-y-2.5 pt-2 border-t border-slate-100 dark:border-slate-800/40">
+                    <div className="flex items-center justify-between">
+                      <label className="block text-[10px] font-bold uppercase tracking-wider text-slate-455 dark:text-slate-400">
+                        Watermark Positioning (Drag or Use Sliders)
+                      </label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPdfWatermarkX(50);
+                          setPdfWatermarkY(50);
+                        }}
+                        className="text-[9.5px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                      >
+                        Reset Position
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <div className="flex justify-between items-center text-[9px] text-slate-450 dark:text-slate-400 font-medium mb-1">
+                          <span>Horizontal (X: {pdfWatermarkX}%)</span>
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setPdfWatermarkX(prev => Math.max(0, prev - 2))}
+                              className="w-4 h-4 bg-slate-50 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 rounded flex items-center justify-center font-bold text-[8px] cursor-pointer text-slate-600 dark:text-slate-400"
+                            >
+                              -
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPdfWatermarkX(prev => Math.min(100, prev + 2))}
+                              className="w-4 h-4 bg-slate-50 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 rounded flex items-center justify-center font-bold text-[8px] cursor-pointer text-slate-600 dark:text-slate-400"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={pdfWatermarkX}
+                          onChange={(e) => setPdfWatermarkX(parseInt(e.target.value))}
+                          className="w-full accent-indigo-600 cursor-pointer h-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg"
+                        />
+                      </div>
+
+                      <div>
+                        <div className="flex justify-between items-center text-[9px] text-slate-450 dark:text-slate-400 font-medium mb-1">
+                          <span>Vertical (Y: {pdfWatermarkY}%)</span>
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              onClick={() => setPdfWatermarkY(prev => Math.max(0, prev - 2))}
+                              className="w-4 h-4 bg-slate-50 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 rounded flex items-center justify-center font-bold text-[8px] cursor-pointer text-slate-600 dark:text-slate-400"
+                            >
+                              -
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPdfWatermarkY(prev => Math.min(100, prev + 2))}
+                              className="w-4 h-4 bg-slate-50 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 rounded flex items-center justify-center font-bold text-[8px] cursor-pointer text-slate-600 dark:text-slate-400"
+                            >
+                              +
+                            </button>
+                          </div>
+                        </div>
+                        <input
+                          type="range"
+                          min="0"
+                          max="100"
+                          value={pdfWatermarkY}
+                          onChange={(e) => setPdfWatermarkY(parseInt(e.target.value))}
+                          className="w-full accent-indigo-600 cursor-pointer h-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg"
+                        />
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
             </div>
           </div>
+        </div>
+
+        <div className="h-px bg-slate-200/60 dark:bg-slate-800/40 my-4 shrink-0" />
+
+        <div className="space-y-4 pt-2 shrink-0">
+          <div className="flex items-center justify-between">
+            <div className="text-left">
+              <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 uppercase tracking-wider flex items-center gap-1.5 mb-1">
+                <FolderArchive className="w-4 h-4 text-indigo-500" /> Saved Session Variants
+              </h3>
+              <p className="text-xs text-slate-500 dark:text-slate-400">
+                Save snapshots of current configurations to export as a single ZIP.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={handleSaveCurrentVariant}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-bold rounded-lg transition-all cursor-pointer shadow-xs shrink-0 select-none"
+              title="Save current layout as a variant to the active session list"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <span>Save Variant</span>
+            </button>
+          </div>
+
+          {savedVariants.length === 0 ? (
+            <div className="text-center py-6 px-4 bg-white/40 dark:bg-slate-950/20 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
+              <FolderArchive className="w-8 h-8 text-slate-300 dark:text-slate-700 mx-auto mb-2" />
+              <p className="text-xs font-semibold text-slate-400 dark:text-slate-500">No variants saved in this session yet.</p>
+              <p className="text-[10px] text-slate-400 dark:text-slate-500/80 mt-1">Design a quote and click "Save Variant" to capture a snapshot!</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {/* Batch Actions row */}
+              <div className="flex items-center justify-between gap-2 p-2 bg-slate-100/60 dark:bg-slate-900/40 rounded-xl border border-slate-200/40 dark:border-slate-800/40">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-450 dark:text-slate-400">
+                  {savedVariants.length} Saved {savedVariants.length === 1 ? 'Variant' : 'Variants'}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (window.confirm("Are you sure you want to clear all saved session variants?")) {
+                        setSavedVariants([]);
+                        setSaveStatus({ success: true, msg: "Cleared all session variants." });
+                      }
+                    }}
+                    className="text-[10px] font-bold text-rose-600 hover:text-rose-750 hover:underline cursor-pointer"
+                  >
+                    Clear All
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleBatchExportZip}
+                    disabled={isSaving}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-700 text-white text-[10px] font-extrabold rounded-md shadow-3xs cursor-pointer transition-all disabled:opacity-55 animate-pulse"
+                    title="Export all session variants as a single ZIP file containing high-res PNGs"
+                  >
+                    <FolderArchive className="w-3 h-3 text-emerald-100" />
+                    <span>Download ZIP Archive</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Variants Grid/List */}
+              <div className="grid grid-cols-1 gap-2.5 max-h-[250px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
+                {savedVariants.map((variant) => {
+                  const hasImage = variant.config.bgStyle === "image" && variant.bgImage;
+                  return (
+                    <div
+                      key={variant.id}
+                      onClick={() => handleLoadVariant(variant)}
+                      className="group flex items-center justify-between p-2.5 bg-white dark:bg-slate-950 border border-slate-200/50 dark:border-slate-850 hover:border-indigo-400 dark:hover:border-indigo-900/60 hover:bg-indigo-50/10 dark:hover:bg-indigo-950/5 rounded-xl cursor-pointer transition-all shadow-3xs"
+                      title="Click to load this layout configuration onto the designer canvas"
+                    >
+                      <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                        {/* Mini thumbnail or gradient block */}
+                        <div
+                          className="w-12 h-12 rounded-lg border border-slate-200/60 dark:border-slate-800 shrink-0 relative overflow-hidden flex items-center justify-center text-[6px] text-white/90 leading-none"
+                          style={{
+                            background: variant.config.bgStyle === "gradient" ? variant.config.bgValue : (variant.config.bgStyle === "color" ? variant.config.bgValue : "none"),
+                          }}
+                        >
+                          {hasImage && (
+                            <img src={variant.bgImage!} alt="Preview" className="w-full h-full object-cover" />
+                          )}
+                          <div className="absolute inset-0 bg-black/15 flex items-center justify-center p-1 text-[7px] font-black uppercase text-center drop-shadow-sm select-none text-white">
+                            {variant.config.aspectRatio}
+                          </div>
+                        </div>
+
+                        {/* Description */}
+                        <div className="min-w-0 flex-1 text-left">
+                          <p className="text-[11px] font-extrabold text-slate-800 dark:text-slate-200 truncate pr-2">
+                            "{variant.config.text}"
+                          </p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            <span className="text-[9.5px] font-bold text-slate-400 dark:text-slate-500 truncate max-w-[80px]">
+                              — {variant.config.author || "Anonymous"}
+                            </span>
+                            <span className="text-[8.5px] font-bold bg-slate-100 dark:bg-slate-900 text-slate-500 px-1 rounded truncate max-w-[80px]">
+                              {variant.config.fontFamily}
+                            </span>
+                            <span className="text-[8.5px] font-mono text-slate-400 dark:text-slate-550">
+                              {variant.timestamp}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Quick action buttons */}
+                      <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-900/60 p-0.5 rounded-lg border border-slate-150/40 dark:border-slate-800 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
+                        <button
+                          type="button"
+                          onClick={(e) => handleDownloadSingleVariant(variant, e)}
+                          className="p-1 text-slate-500 hover:text-indigo-600 dark:hover:text-indigo-400 rounded hover:bg-white dark:hover:bg-slate-950 transition-all cursor-pointer"
+                          title="Download PNG for this variant"
+                        >
+                          <Download className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => handleDeleteVariant(variant.id, e)}
+                          className="p-1 text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 rounded hover:bg-white dark:hover:bg-slate-950 transition-all cursor-pointer"
+                          title="Delete variant from session"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1464,7 +2268,7 @@ export default function QuoteDesigner({
               </span>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <button
                 type="button"
                 onClick={() => setShowBleed(prev => !prev)}
@@ -1479,6 +2283,38 @@ export default function QuoteDesigner({
                 <Scissors className={`w-3 h-3 ${showBleed ? "animate-pulse text-rose-500" : ""}`} />
                 <span>Bleed Guard: <strong className="font-black">{showBleed ? "ON" : "OFF"}</strong></span>
               </button>
+
+              <button
+                type="button"
+                onClick={() => setSnapToGrid(prev => !prev)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer border ${
+                  snapToGrid
+                    ? "bg-indigo-50 border-indigo-200 dark:bg-indigo-950/20 dark:border-indigo-900/50 text-indigo-650 dark:text-indigo-400 shadow-3xs"
+                    : "bg-slate-50 hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-850 text-slate-500 dark:text-slate-455 border-slate-200 dark:border-slate-800"
+                }`}
+                title="Toggle automatic snapping to align typography and watermark elements to a precision grid"
+                id="btn-toggle-snap-to-grid"
+              >
+                <LayoutGrid className={`w-3 h-3 ${snapToGrid ? "animate-pulse text-indigo-550" : ""}`} />
+                <span>Snap to Grid: <strong className="font-black">{snapToGrid ? "ON" : "OFF"}</strong></span>
+              </button>
+
+              {snapToGrid && (
+                <div className="flex items-center gap-1 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-2 py-1 rounded-lg">
+                  <span className="text-[9px] font-bold text-slate-400 dark:text-slate-550 uppercase">Grid:</span>
+                  <select
+                    value={gridSize}
+                    onChange={(e) => setGridSize(parseInt(e.target.value))}
+                    className="bg-transparent border-none text-[10px] font-black text-indigo-650 dark:text-indigo-400 focus:outline-none cursor-pointer py-0 px-1 pr-4"
+                    title="Choose spacing grid step size in pixels"
+                  >
+                    <option value="10">10px</option>
+                    <option value="20">20px</option>
+                    <option value="25">25px</option>
+                    <option value="50">50px</option>
+                  </select>
+                </div>
+              )}
             </div>
             
             <div className="flex items-center gap-2.5">
@@ -1520,6 +2356,87 @@ export default function QuoteDesigner({
                 </button>
               )}
             </div>
+          </div>
+
+          {/* Workspace Precision Mode & Tool Selector */}
+          <div className="flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-950 px-3.5 py-2.5 rounded-xl border border-slate-200/40 dark:border-slate-800/60 shadow-3xs mb-3.5 select-none shrink-0">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-black text-slate-450 dark:text-slate-400 uppercase tracking-widest block">
+                Active Tool:
+              </span>
+              <div className="flex bg-slate-100 dark:bg-slate-900 rounded-lg p-0.5 border border-slate-200/50 dark:border-slate-800/50">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTool("edit");
+                    setIsPanning(false);
+                  }}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 text-[10px] font-extrabold rounded-md uppercase transition-all cursor-pointer ${
+                    activeTool === "edit"
+                      ? "bg-white dark:bg-slate-950 shadow-sm text-indigo-650 dark:text-indigo-400 border border-slate-200/20"
+                      : "text-slate-455 hover:text-slate-650 dark:text-slate-500 dark:hover:text-slate-350"
+                  }`}
+                  title="Edit Mode: Drag elements and typography"
+                >
+                  <MousePointer className="w-3 h-3 text-indigo-500" />
+                  <span>Interactive Edit</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveTool("pan");
+                  }}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1 text-[10px] font-extrabold rounded-md uppercase transition-all cursor-pointer ${
+                    activeTool === "pan"
+                      ? "bg-white dark:bg-slate-950 shadow-sm text-indigo-650 dark:text-indigo-400 border border-slate-200/20"
+                      : "text-slate-455 hover:text-slate-650 dark:text-slate-500 dark:hover:text-slate-350"
+                  }`}
+                  title="Pan Mode: Drag canvas to navigate detailed layouts"
+                >
+                  <Move className="w-3 h-3 text-amber-500" />
+                  <span>Canvas Pan</span>
+                </button>
+              </div>
+            </div>
+
+            {/* User Links - 1 links (Luminous Link) & 2 links (Wonderful Link) */}
+            <div className="flex items-center gap-2">
+              <span className="text-[9px] font-black text-slate-400 dark:text-slate-550 uppercase tracking-widest block">
+                Nodes:
+              </span>
+              <a
+                href="https://ai.studio/build?id=11170621"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-50 hover:bg-indigo-50/50 dark:bg-slate-900 dark:hover:bg-indigo-950/20 border border-slate-200/40 dark:border-slate-800/80 rounded-md text-[9.5px] font-extrabold text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all cursor-pointer"
+                title="Open Luminous Link 11170621"
+              >
+                <ExternalLink className="w-2.5 h-2.5 text-indigo-400 shrink-0" />
+                <span>Luminous link</span>
+              </a>
+              <a
+                href="https://ai.studio/build?id=11223979"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-50 hover:bg-indigo-50/50 dark:bg-slate-900 dark:hover:bg-indigo-950/20 border border-slate-200/40 dark:border-slate-800/80 rounded-md text-[9.5px] font-extrabold text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all cursor-pointer"
+                title="Open Wonderful Link 11223979"
+              >
+                <ExternalLink className="w-2.5 h-2.5 text-indigo-400 shrink-0" />
+                <span>Wonderful link</span>
+              </a>
+            </div>
+
+            {/* Reset Pan Option */}
+            {(panOffset.x !== 0 || panOffset.y !== 0) && (
+              <button
+                type="button"
+                onClick={() => setPanOffset({ x: 0, y: 0 })}
+                className="text-[9.5px] font-bold text-indigo-650 dark:text-indigo-400 hover:underline cursor-pointer"
+                title="Reset canvas pan position"
+              >
+                Reset Pan Offset
+              </button>
+            )}
           </div>
 
           {/* Real-time Typography & Text Control Panel */}
@@ -1617,6 +2534,49 @@ export default function QuoteDesigner({
               </div>
             </div>
 
+            {/* Vertical Position slider inside the top control panel */}
+            <div className="flex flex-wrap items-center gap-4 justify-between border-t border-slate-100 dark:border-slate-900/60 pt-2.5">
+              <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+                <span className="text-[10px] font-black text-slate-455 dark:text-slate-400 uppercase tracking-widest block shrink-0">
+                  Vertical Typography Shift ({typographyOffsetPageY}px):
+                </span>
+                <input
+                  type="range"
+                  min="-250"
+                  max="250"
+                  step="5"
+                  value={typographyOffsetPageY}
+                  onChange={(e) => setTypographyOffsetPageY(parseInt(e.target.value))}
+                  className="flex-1 accent-indigo-600 cursor-pointer h-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg"
+                />
+              </div>
+              <div className="flex gap-1">
+                <button
+                  type="button"
+                  onClick={() => setTypographyOffsetPageY(prev => Math.max(-250, prev - 5))}
+                  className="px-2 py-0.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-850 border border-slate-200/50 dark:border-slate-800 rounded text-[10px] font-bold text-slate-650 dark:text-slate-350 cursor-pointer"
+                  title="Nudge Up (5px)"
+                >
+                  Up
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTypographyOffsetPageY(prev => Math.min(250, prev + 5))}
+                  className="px-2 py-0.5 bg-slate-50 hover:bg-slate-105 dark:bg-slate-900 dark:hover:bg-slate-850 border border-slate-200/50 dark:border-slate-800 rounded text-[10px] font-bold text-slate-650 dark:text-slate-350 cursor-pointer"
+                  title="Nudge Down (5px)"
+                >
+                  Down
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTypographyOffsetPageY(0)}
+                  className="text-[9px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer ml-1.5"
+                >
+                  Reset
+                </button>
+              </div>
+            </div>
+
             {/* Direct text editor input for instant typography check */}
             <div className="flex items-center gap-2.5 border-t border-slate-100 dark:border-slate-900 pt-2.5">
               <span className="text-[10px] font-black text-slate-455 dark:text-slate-400 uppercase tracking-widest block shrink-0 select-none">
@@ -1632,16 +2592,37 @@ export default function QuoteDesigner({
             </div>
           </div>
 
-          <div className="flex-1 w-full flex items-center justify-center overflow-auto p-2 sm:p-4 min-h-[300px] sm:min-h-[400px] custom-scroll scrollbar-none">
+          {/* Viewport container supporting precise desktop/mobile panning and wheel zooming */}
+          <div
+            ref={viewportRef}
+            onMouseDown={handleViewportMouseDown}
+            onMouseMove={handleViewportMouseMove}
+            onMouseUp={handleViewportMouseUp}
+            onMouseLeave={handleViewportMouseUp}
+            onTouchStart={handleViewportTouchStart}
+            onTouchMove={handleViewportTouchMove}
+            onTouchEnd={handleViewportMouseUp}
+            onWheel={handleViewportWheel}
+            className={`flex-1 w-full flex items-center justify-center overflow-hidden p-2 sm:p-4 min-h-[300px] sm:min-h-[400px] border border-dashed border-slate-350 dark:border-slate-800 rounded-2xl relative select-none bg-slate-50 dark:bg-slate-950/20 ${
+              activeTool === "pan" ? "cursor-grab active:cursor-grabbing bg-slate-100/50 dark:bg-slate-900/10" : ""
+            }`}
+          >
+            {/* Quick guide helper overlay */}
+            <div className="absolute bottom-2 left-3 z-35 pointer-events-none text-[8.5px] font-bold tracking-wide text-slate-400 dark:text-slate-500 bg-white/70 dark:bg-slate-900/60 px-2 py-0.5 rounded border border-slate-200/40 dark:border-slate-800/40">
+              {activeTool === "pan"
+                ? "Pan Mode: Drag canvas to navigate • Use mouse wheel to zoom"
+                : "Edit Mode: Drag text or watermark to position • Toggle Pan tool to shift canvas"}
+            </div>
+
             <div
               ref={previewRef}
               style={{
                 padding: `${config.padding}px`,
-                transform: `scale(${previewZoom})`,
+                transform: `translate(${panOffset.x}px, ${panOffset.y}px) scale(${previewZoom})`,
                 transformOrigin: "center center",
               }}
               id="quote-card-preview"
-              className={`print-ready-quote-card w-full rounded-2xl shadow-xl flex flex-col justify-between items-stretch relative overflow-hidden transition-all duration-300 ${
+              className={`print-ready-quote-card w-full rounded-2xl shadow-xl flex flex-col justify-between items-stretch relative overflow-hidden transition-shadow duration-300 ${
                 config.aspectRatio === "9:16"
                   ? "aspect-[9/16] max-w-[310px]"
                   : config.aspectRatio === "3:1"
@@ -1710,6 +2691,86 @@ export default function QuoteDesigner({
               </div>
             )}
 
+            {/* Snap to Grid visual overlay guidelines */}
+            {snapToGrid && (
+              <div className="absolute inset-0 z-10 pointer-events-none select-none overflow-hidden print:hidden">
+                {/* Horizontal center guideline */}
+                <div className="absolute top-1/2 left-0 right-0 h-px border-t border-dashed border-indigo-400/40" />
+                {/* Vertical center guideline */}
+                <div className="absolute left-1/2 top-0 bottom-0 w-px border-l border-dashed border-indigo-400/40" />
+
+                {/* Draw faint grid lines every gridSize pixels */}
+                <div 
+                  className="absolute inset-0 opacity-40 dark:opacity-30" 
+                  style={{
+                    backgroundImage: `
+                      linear-gradient(to right, rgba(99, 102, 241, 0.12) 1px, transparent 1px),
+                      linear-gradient(to bottom, rgba(99, 102, 241, 0.12) 1px, transparent 1px)
+                    `,
+                    backgroundSize: `${gridSize}px ${gridSize}px`,
+                    backgroundPosition: "center center"
+                  }}
+                />
+
+                {/* Snapped center vertical feedback indicator */}
+                {typographyOffsetPageY === 0 && (
+                  <div className="absolute bottom-4 left-4 bg-indigo-650 dark:bg-indigo-700 text-white font-mono text-[7.5px] uppercase tracking-widest px-1.5 py-0.5 rounded shadow-sm font-black flex items-center gap-1 select-none animate-bounce">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                    <span>Typography perfectly centered (Y: 0)</span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Draggable/Interactive PDF Watermark Overlay Layer (rendered live on stage for wysiwyg precision edit) */}
+            {pdfWatermarkEnabled && pdfWatermarkText && (
+              <div
+                style={{
+                  top: `${pdfWatermarkY}%`,
+                  left: `${pdfWatermarkX}%`,
+                  transform: `translate(-50%, -50%) rotate(${pdfWatermarkAngle}deg)`,
+                  color: pdfWatermarkColor,
+                  opacity: pdfWatermarkOpacity,
+                  fontSize: `${pdfWatermarkFontSize}px`,
+                  fontFamily: "sans-serif",
+                  fontWeight: "bold",
+                }}
+                onMouseDown={(e) => {
+                  if (activeTool === "edit") {
+                    e.stopPropagation();
+                    setIsDraggingWatermark(true);
+                    setDragStart({
+                      x: e.clientX,
+                      y: e.clientY,
+                      originalX: pdfWatermarkX,
+                      originalY: pdfWatermarkY,
+                    });
+                  }
+                }}
+                onTouchStart={(e) => {
+                  if (activeTool === "edit" && e.touches.length === 1) {
+                    e.stopPropagation();
+                    setIsDraggingWatermark(true);
+                    const touch = e.touches[0];
+                    setDragStart({
+                      x: touch.clientX,
+                      y: touch.clientY,
+                      originalX: pdfWatermarkX,
+                      originalY: pdfWatermarkY,
+                    });
+                  }
+                }}
+                className={`absolute z-15 select-none text-center whitespace-nowrap leading-none transition-all ${
+                  activeTool === "edit"
+                    ? "cursor-move hover:outline hover:outline-dashed hover:outline-indigo-500 hover:outline-offset-4 bg-transparent"
+                    : ""
+                }`}
+                title="Interactive Watermark Layer - Drag to reposition"
+              >
+                {pdfWatermarkText}
+              </div>
+            )}
+
             {/* Inner Content Area */}
             <div className="flex flex-col h-full justify-center relative z-10 select-none">
               {isGeneratingQuote ? (
@@ -1728,7 +2789,43 @@ export default function QuoteDesigner({
                   </div>
                 </div>
               ) : (
-                <>
+                <div
+                  style={{
+                    transform: `translateY(${typographyOffsetPageY}px)`,
+                    transition: isDraggingTypography ? "none" : "transform 0.15s ease-out",
+                  }}
+                  onMouseDown={(e) => {
+                    if (activeTool === "edit") {
+                      e.stopPropagation();
+                      setIsDraggingTypography(true);
+                      setDragStart({
+                        x: e.clientX,
+                        y: e.clientY,
+                        originalX: 0,
+                        originalY: typographyOffsetPageY,
+                      });
+                    }
+                  }}
+                  onTouchStart={(e) => {
+                    if (activeTool === "edit" && e.touches.length === 1) {
+                      e.stopPropagation();
+                      setIsDraggingTypography(true);
+                      const touch = e.touches[0];
+                      setDragStart({
+                        x: touch.clientX,
+                        y: touch.clientY,
+                        originalX: 0,
+                        originalY: typographyOffsetPageY,
+                      });
+                    }
+                  }}
+                  className={`relative p-3 rounded-xl transition-colors ${
+                    activeTool === "edit"
+                      ? "cursor-ns-resize hover:bg-white/5 hover:outline hover:outline-dashed hover:outline-indigo-550/40 hover:outline-offset-2"
+                      : ""
+                  }`}
+                  title="Typography Group - Drag vertically to shift positioning"
+                >
                   {motionEnabled ? (
                     <motion.p
                       key={config.text}
@@ -1744,7 +2841,7 @@ export default function QuoteDesigner({
                         fontStyle: config.isItalic !== undefined ? (config.isItalic ? "italic" : "normal") : (config.fontStyle || "italic"),
                         fontWeight: config.isBold ? "bold" : "500",
                       }}
-                      className="tracking-wide break-words"
+                      className="tracking-wide break-words select-none"
                     >
                       "{config.text || "Click left column to draft quote..."}"
                     </motion.p>
@@ -1759,7 +2856,7 @@ export default function QuoteDesigner({
                         fontStyle: config.isItalic !== undefined ? (config.isItalic ? "italic" : "normal") : (config.fontStyle || "italic"),
                         fontWeight: config.isBold ? "bold" : "500",
                       }}
-                      className="tracking-wide break-words"
+                      className="tracking-wide break-words select-none"
                     >
                       "{config.text || "Click left column to draft quote..."}"
                     </p>
@@ -1778,7 +2875,7 @@ export default function QuoteDesigner({
                           color: config.fontColor,
                           textAlign: config.textAlign,
                         }}
-                        className="font-semibold mt-5 tracking-tight border-t border-white/10 pt-2"
+                        className="font-semibold mt-5 tracking-tight border-t border-white/10 pt-2 select-none"
                       >
                         — {config.author}
                       </motion.p>
@@ -1790,13 +2887,13 @@ export default function QuoteDesigner({
                           color: config.fontColor,
                           textAlign: config.textAlign,
                         }}
-                        className="font-semibold opacity-80 mt-5 tracking-tight border-t border-white/10 pt-2"
+                        className="font-semibold opacity-80 mt-5 tracking-tight border-t border-white/10 pt-2 select-none"
                       >
                         — {config.author}
                       </p>
                     )
                   )}
-                </>
+                </div>
               )}
             </div>
           </div>

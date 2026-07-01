@@ -203,6 +203,12 @@ export default function ColorExtractor({
   const [customBgInput, setCustomBgInput] = useState<string>("#ffffff");
   const [customTxInput, setCustomTxInput] = useState<string>("#0f172a");
   const [paletteSortMode, setPaletteSortMode] = useState<"hue" | "saturation" | "brightness" | "luminance">("hue");
+  const [sortDirection, setSortDirection] = useState<"asc" | "desc" >(() => {
+    if (typeof window !== "undefined") {
+      return (localStorage.getItem("toolkit_pro_palette_sort_direction") as "asc" | "desc") || "desc";
+    }
+    return "desc";
+  });
   const [colorBlindnessMode, setColorBlindnessMode] = useState<string>("normal");
   const [paletteSearchQuery, setPaletteSearchQuery] = useState<string>("");
   const [customPaletteName, setCustomPaletteName] = useState<string>("");
@@ -1260,27 +1266,41 @@ export default function ColorExtractor({
     }
   };
 
-  const handleSortPalette = (mode: "hue" | "saturation" | "brightness" | "luminance") => {
+  const handleSortPalette = (mode: "hue" | "saturation" | "brightness" | "luminance", customDirection?: "asc" | "desc") => {
+    let nextDirection = customDirection || sortDirection;
+    if (!customDirection && mode === paletteSortMode) {
+      nextDirection = sortDirection === "asc" ? "desc" : "asc";
+    }
+    
     setPaletteSortMode(mode);
+    setSortDirection(nextDirection);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("toolkit_pro_palette_sort_direction", nextDirection);
+    }
+    
     if (palette.length === 0) return;
 
     const sorted = [...palette].sort((a, b) => {
+      let comparison = 0;
       if (mode === "luminance") {
         const lumA = getRelativeLuminance(a.hex);
         const lumB = getRelativeLuminance(b.hex);
-        return lumA - lumB; // Darkest to lightest
-      }
-      
-      const hslA = hexToHslLocal(a.hex);
-      const hslB = hexToHslLocal(b.hex);
-
-      if (mode === "hue") {
-        return hslA.h - hslB.h; // Hue spectrum order
+        comparison = lumA - lumB; // Darkest to lightest (asc)
       } else if (mode === "saturation") {
-        return hslB.s - hslA.s; // High saturation to desaturated
+        const hslA = hexToHslLocal(a.hex);
+        const hslB = hexToHslLocal(b.hex);
+        comparison = hslA.s - hslB.s; // Desaturated to saturated (asc)
+      } else if (mode === "brightness") {
+        const hslA = hexToHslLocal(a.hex);
+        const hslB = hexToHslLocal(b.hex);
+        comparison = hslA.l - hslB.l; // Darkest to brightest (asc)
       } else {
-        return hslB.l - hslA.l; // Brightest to darkest
+        const hslA = hexToHslLocal(a.hex);
+        const hslB = hexToHslLocal(b.hex);
+        comparison = hslA.h - hslB.h; // Hue spectrum (asc)
       }
+
+      return nextDirection === "asc" ? comparison : -comparison;
     });
 
     setPalette(sorted);
@@ -1289,7 +1309,7 @@ export default function ColorExtractor({
       detail: {
         type: "palette",
         title: `Sorted Palette`,
-        detail: `Organized color swatches by ${mode.toUpperCase()} dynamically`,
+        detail: `Organized color swatches by ${mode.toUpperCase()} (${nextDirection.toUpperCase()}) dynamically`,
         icon: "Sliders",
         tab: "palette"
       }
@@ -2762,21 +2782,64 @@ export default function ColorExtractor({
                             )}
                           </div>
                         </div>
-                        <div className="flex flex-wrap items-center gap-2.5 self-start lg:self-auto select-none">
-                          <div className="flex items-center gap-1.5">
+                        <div className="flex flex-wrap items-center gap-3.5 self-start lg:self-auto select-none">
+                          <div className="flex flex-wrap items-center gap-2">
                             <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wide font-mono whitespace-nowrap">Sort Palette:</span>
-                            <select
-                              value={paletteSortMode}
-                              onChange={(e) => handleSortPalette(e.target.value as any)}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-emerald-800 bg-emerald-50 hover:bg-emerald-100/70 border border-emerald-200/55 rounded-lg shadow-2xs transition-all cursor-pointer outline-none select-none appearance-none"
-                              title="Sort color swatches dynamically by Hue, Saturation, Brightness, or Luminance"
-                              id="select-palette-sort"
+                            <div className="flex items-center bg-slate-50 dark:bg-slate-950 p-0.5 rounded-lg border border-slate-200/60 dark:border-slate-800">
+                              {(["hue", "saturation", "luminance", "brightness"] as const).map((mode) => {
+                                const isActive = paletteSortMode === mode;
+                                let label = "";
+                                let icon = "";
+                                switch (mode) {
+                                  case "hue":
+                                    label = "Hue";
+                                    icon = "🌈";
+                                    break;
+                                  case "saturation":
+                                    label = "Saturation";
+                                    icon = "🔥";
+                                    break;
+                                  case "luminance":
+                                    label = "Luminance";
+                                    icon = "👁️";
+                                    break;
+                                  case "brightness":
+                                    label = "Brightness";
+                                    icon = "☀️";
+                                    break;
+                                }
+                                return (
+                                  <button
+                                    type="button"
+                                    key={mode}
+                                    onClick={() => handleSortPalette(mode)}
+                                    className={`px-2.5 py-1 text-xs font-bold rounded-md transition-all cursor-pointer border-0 flex items-center gap-1 ${
+                                      isActive
+                                        ? "bg-white dark:bg-slate-900 text-emerald-800 dark:text-emerald-400 shadow-3xs font-black"
+                                        : "text-slate-500 hover:text-slate-700 dark:text-slate-400 dark:hover:text-slate-300"
+                                    }`}
+                                    title={`Sort swatches by ${label}`}
+                                  >
+                                    <span>{icon}</span>
+                                    <span>{label}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            
+                            {/* Sort Direction Toggle Button */}
+                            <button
+                              type="button"
+                              onClick={() => handleSortPalette(paletteSortMode, sortDirection === "asc" ? "desc" : "asc")}
+                              className="inline-flex items-center justify-center p-1.5 rounded-lg text-slate-650 dark:text-slate-400 hover:text-indigo-650 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-3xs transition-all cursor-pointer font-bold text-xs"
+                              title={`Currently sorted in ${sortDirection === "asc" ? "Ascending" : "Descending"} order. Click to toggle.`}
+                              id="btn-toggle-sort-direction"
                             >
-                              <option value="hue">🌈 Hue (Spectrum)</option>
-                              <option value="saturation">🔥 Saturation (Intensity)</option>
-                              <option value="brightness">☀️ Brightness (Lightness)</option>
-                              <option value="luminance">👁️ Luminance (Contrast)</option>
-                            </select>
+                              <ArrowUpDown className={`w-3.5 h-3.5 mr-1 transition-transform duration-200 ${sortDirection === "asc" ? "rotate-180 text-indigo-500" : "text-emerald-500"}`} />
+                              <span className="text-[10px] uppercase font-mono tracking-wider">
+                                {sortDirection === "asc" ? "Asc" : "Desc"}
+                              </span>
+                            </button>
                           </div>
 
                           <div className="flex items-center gap-1.5">
@@ -2813,6 +2876,8 @@ export default function ColorExtractor({
                         {filteredPalette.length > 0 ? (
                           filteredPalette.map((color, idx) => {
                             const simulatedColor = simulateColorBlindness(color.hex, colorBlindnessMode);
+                            const hsl = hexToHslLocal(color.hex);
+                            const luminance = getRelativeLuminance(color.hex);
                             
                             // Determine dynamic contrast text color based on simulatedColor
                             const cleanHex = simulatedColor.startsWith("#") ? simulatedColor.slice(1) : simulatedColor;
@@ -2847,14 +2912,25 @@ export default function ColorExtractor({
                                 onClick={() => handleCopyValue(color.hex, "HEX")}
                                 title="Click anywhere to copy HEX code"
                               >
-                                {/* Card top banner (Ordinal + Checkmark) */}
+                                {/* Card top banner (Ordinal + Metric badge + Checkmark) */}
                                 <div className="flex justify-between items-center w-full select-none">
-                                  <span 
-                                    style={{ color: dynamicContrastColor }} 
-                                    className="text-[9px] font-extrabold tracking-wider font-mono opacity-60"
-                                  >
-                                    C{idx + 1}
-                                  </span>
+                                  <div className="flex items-center gap-1 shrink-0">
+                                    <span 
+                                      style={{ color: dynamicContrastColor }} 
+                                      className="text-[9px] font-extrabold tracking-wider font-mono opacity-60"
+                                    >
+                                      C{idx + 1}
+                                    </span>
+                                    <span
+                                      style={{ color: dynamicContrastColor, backgroundColor: `${dynamicContrastColor}15` }}
+                                      className="text-[7.5px] font-black uppercase font-mono px-1.5 py-0.5 rounded-md scale-90 origin-left"
+                                    >
+                                      {paletteSortMode === "hue" && `${hsl.h}°`}
+                                      {paletteSortMode === "saturation" && `SAT ${hsl.s}%`}
+                                      {paletteSortMode === "luminance" && `LUM ${(luminance * 100).toFixed(0)}%`}
+                                      {paletteSortMode === "brightness" && `BRT ${hsl.l}%`}
+                                    </span>
+                                  </div>
                                   {isCopied && (
                                     <Check 
                                       style={{ color: dynamicContrastColor }} 

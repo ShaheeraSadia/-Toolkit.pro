@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { User } from "firebase/auth";
 import { uploadFileToDrive } from "../lib/drive";
 import { triggerFileDownload } from "../lib/download";
+// @ts-ignore
+import gifshot from "gifshot";
 import { motion, AnimatePresence } from "motion/react";
 import {
   Video,
@@ -779,6 +781,8 @@ export default function ImageToVideo({
   const [exportEstTimeRemaining, setExportEstTimeRemaining] = useState<string>("Calculating...");
   const [exportElapsedTime, setExportElapsedTime] = useState<string>("0.0s");
   const [saveToDriveAfterExport, setSaveToDriveAfterExport] = useState<boolean>(false);
+  const [replaceOnUpload, setReplaceOnUpload] = useState<boolean>(true);
+  const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; sub: string; success: boolean } | null>(null);
   
   // CapCut Pro Timeline states
@@ -789,7 +793,7 @@ export default function ImageToVideo({
   
   // AI Prompt Builder states
   const [isEnhancingPrompt, setIsEnhancingPrompt] = useState<boolean>(false);
-  const [promptTemplateStyle, setPromptTemplateStyle] = useState<"detailed" | "minimal" | "sora_luma">("detailed");
+  const [promptTemplateStyle, setPromptTemplateStyle] = useState<"detailed" | "minimal" | "sora_luma" | "runway_agent">("runway_agent");
   const [copySuccess, setCopySuccess] = useState<boolean>(false);
   const [userPromptText, setUserPromptText] = useState<string>("");
   const [isGeneratingScene, setIsGeneratingScene] = useState<boolean>(false);
@@ -815,6 +819,14 @@ export default function ImageToVideo({
   const [showFinalOutput, setShowFinalOutput] = useState<boolean>(false);
   const [isSavingToDrive, setIsSavingToDrive] = useState<boolean>(false);
   const [isWaitingForLogin, setIsWaitingForLogin] = useState<boolean>(false);
+  const [exportFormat, setExportFormat] = useState<"webm" | "mp4" | "gif">("webm");
+  const [subtitleManualOffset, setSubtitleManualOffset] = useState<number>(0);
+
+  // For the custom integrated video player
+  const previewVideoRef = useRef<HTMLVideoElement | null>(null);
+  const [previewPlaying, setPreviewPlaying] = useState<boolean>(true);
+  const [previewTime, setPreviewTime] = useState<number>(0);
+  const [previewDuration, setPreviewDuration] = useState<number>(0);
 
   // HTML canvas & Audio management refs
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -842,7 +854,9 @@ export default function ImageToVideo({
       success: true,
     });
 
-    const videoNameWithExtension = `${exportFileName.replace(/\s+/g, "_")}.webm`;
+    const fileExt = exportFormat;
+    const videoNameWithExtension = `${exportFileName.replace(/\s+/g, "_")}.${fileExt}`;
+    const mimeType = exportFormat === "gif" ? "image/gif" : exportFormat === "mp4" ? "video/mp4" : "video/webm";
 
     try {
       const fileReader = new FileReader();
@@ -853,7 +867,7 @@ export default function ImageToVideo({
           await uploadFileToDrive(
             accessToken,
             videoNameWithExtension,
-            "video/webm",
+            mimeType,
             base64DataUrl
           );
           
@@ -879,7 +893,7 @@ export default function ImageToVideo({
       setIsSavingToDrive(false);
       setToastMessage({
         text: "Conversion Error",
-        sub: "Failed to convert video file for upload.",
+        sub: "Failed to convert file for upload.",
         success: false
       });
     }
@@ -1090,19 +1104,46 @@ export default function ImageToVideo({
     } catch (e) {}
   };
 
-  // File picker handler
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const filesUploaded = e.target.files;
-    if (!filesUploaded) return;
+  // Drag and drop handlers for local file uploads
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingFile(true);
+  };
 
-    const newSlides: ImageSlide[] = [];
-    (Array.from(filesUploaded) as File[]).forEach((file, index) => {
+  const handleDragLeave = () => {
+    setIsDraggingFile(false);
+  };
+
+  const handleFileDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingFile(false);
+    
+    const filesUploaded = e.dataTransfer.files;
+    if (!filesUploaded || filesUploaded.length === 0) return;
+
+    processFilesList(filesUploaded);
+  };
+
+  const processFilesList = (filesList: FileList) => {
+    const uploadedSlides: ImageSlide[] = [];
+    const filesArray = Array.from(filesList) as File[];
+    let loadedCount = 0;
+
+    filesArray.forEach((file, index) => {
+      if (!file.type.startsWith("image/")) {
+        loadedCount++;
+        if (loadedCount === filesArray.length && uploadedSlides.length > 0) {
+          applyUploadedSlides(uploadedSlides);
+        }
+        return;
+      }
+
       const reader = new FileReader();
       reader.onload = (event) => {
         if (event.target?.result) {
           const urlStr = event.target.result as string;
           const slide: ImageSlide = {
-            id: `uploaded-${Date.now()}-${index}-${Math.random().toString(36).substr(2, 4)}`,
+            id: `uploaded-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 6)}`,
             url: urlStr,
             name: file.name,
             duration: 3,
@@ -1116,12 +1157,51 @@ export default function ImageToVideo({
             subjectDescription: "",
             style: "Cinematic"
           };
-          setSlides((prev) => [...prev, slide]);
+          uploadedSlides.push(slide);
+          
+          // Cache the image instantly to prevent blank previews
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          img.src = urlStr;
+          img.onload = () => {
+            imageCacheRef.current[slide.id] = img;
+          };
+        }
+        loadedCount++;
+        if (loadedCount === filesArray.length) {
+          applyUploadedSlides(uploadedSlides);
         }
       };
       reader.readAsDataURL(file);
     });
+  };
+
+  const applyUploadedSlides = (uploadedSlides: ImageSlide[]) => {
+    if (uploadedSlides.length === 0) return;
+
+    if (replaceOnUpload) {
+      setSlides(uploadedSlides);
+      setSelectedSlideId(uploadedSlides[0].id);
+      setCurrentTime(0);
+    } else {
+      setSlides((prev) => [...prev, ...uploadedSlides]);
+    }
+    
+    setToastMessage({
+      text: "📸 Photo Loaded Successfully!",
+      sub: replaceOnUpload 
+        ? "Timeline replaced with your new photo(s). Click 'Create CapCut Video' to generate your clip!"
+        : "Appended new photo(s) to the end of the timeline track.",
+      success: true
+    });
     triggerBeepChime();
+  };
+
+  // File picker handler
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const filesUploaded = e.target.files;
+    if (!filesUploaded) return;
+    processFilesList(filesUploaded);
   };
 
   // Delete slide
@@ -1342,7 +1422,7 @@ export default function ImageToVideo({
     triggerBeepChime();
   };
 
-  const getGeneratedPrompt = (slide: ImageSlide, templateStyle: "detailed" | "minimal" | "sora_luma" = "detailed") => {
+  const getGeneratedPrompt = (slide: ImageSlide, templateStyle: "detailed" | "minimal" | "sora_luma" | "runway_agent" = "runway_agent") => {
     const styleVal = slide.style || "Cinematic";
     const cameraVal = slide.cameraMovement || "Slow Zoom";
     const durationVal = slide.promptDuration ?? 3;
@@ -1350,29 +1430,61 @@ export default function ImageToVideo({
     const lightingVal = slide.lightingType || "Golden Hour";
     const speedVal = (slide.motionSpeed ?? 1.0).toFixed(1);
     const aspectText = aspectRatio === "9:16" 
-      ? "vertical 9:16 aspect ratio (TikTok/Shorts)" 
+      ? "vertical 9:16 aspect ratio" 
       : aspectRatio === "1:1" 
-        ? "square 1:1 aspect ratio (Instagram)" 
+        ? "square 1:1 aspect ratio" 
         : "cinematic 16:9 widescreen aspect ratio";
 
     const subjectText = slide.subjectDescription?.trim();
 
-    // Duration-based camera movement instructions
+    // Duration-based camera movement instructions and pacing descriptions
     let durationCameraInstruction = "";
-    if (durationVal === 2) {
-      durationCameraInstruction = "Since this is a snappy 2-second clip, apply a dynamic, high-energy camera trajectory with fast shutter/motion sweep to capture quick action without lingering.";
-    } else if (durationVal === 4) {
-      durationCameraInstruction = "Since this is a standard 4-second clip, maintain cinematic pacing with a steady kinetic tracking motion, ensuring smooth visual flow and balanced progression.";
-    } else if (durationVal === 8) {
-      durationCameraInstruction = "Since this is an extended 8-second clip, utilize a grand, slow, and sweeping camera movement (such as a majestic drone panoramic flyover or deep continuous panning) to allow complex physical motion, atmospheric drift, and fine details to evolve beautifully over the long take.";
+    let pacingDesc = "steady and balanced pacing";
+
+    if (durationVal >= 2 && durationVal <= 3) {
+      durationCameraInstruction = `Since this is a fast-paced ${durationVal}-second clip, apply snappy, quick, and energetic camera tracking with a punchy motion sweep to capture dynamic progression without lingering.`;
+      pacingDesc = "fast and punchy pacing";
+    } else if (durationVal >= 4 && durationVal <= 6) {
+      durationCameraInstruction = `Since this is a balanced ${durationVal}-second clip, maintain cinematic pacing with a steady kinetic tracking motion and smooth, natural, flowing transitions.`;
+      pacingDesc = "steady and balanced pacing";
+    } else if (durationVal >= 7 && durationVal <= 8) {
+      durationCameraInstruction = `Since this is an atmospheric ${durationVal}-second clip, utilize a graceful, slow-sweeping, and highly cinematic camera movement to allow subtle details and ambient motion to evolve beautifully over the long take.`;
+      pacingDesc = "graceful and atmospheric pacing";
+    } else if (durationVal >= 9 && durationVal <= 10) {
+      durationCameraInstruction = `Since this is an epic ${durationVal}-second master take, execute a majestic, sweeping, and panoramic camera orbit to deliver immersive storytelling, high frame coherence, and intricate, evolving physical dynamics throughout the extended duration.`;
+      pacingDesc = "epic cinematic panoramic pacing";
     } else {
       durationCameraInstruction = `The motion should be optimized for a steady ${durationVal}-second visual duration, maintaining high fidelity and balanced frame coherence.`;
+    }
+
+    if (templateStyle === "runway_agent") {
+      const imageDescription = subjectText || "a highly detailed and beautifully composed visual narrative, capturing raw texture and volumetric atmosphere";
+      const mainSubject = subjectText ? `The ${subjectText}` : "The central focal subject";
+
+      let motionStyle = "balanced, smooth, and natural flow";
+      let specificCamera = `executing a steady ${cameraVal} sweep`;
+
+      if (durationVal >= 2 && durationVal <= 3) {
+        motionStyle = "snappy, quick, and energetic";
+        specificCamera = `gliding with a swift and responsive ${cameraVal} trajectory`;
+      } else if (durationVal >= 4 && durationVal <= 6) {
+        motionStyle = "balanced, smooth, and natural flow";
+        specificCamera = `gliding with a steady ${cameraVal} sweep`;
+      } else if (durationVal >= 7 && durationVal <= 8) {
+        motionStyle = "atmospheric, graceful, and cinematic";
+        specificCamera = `weaving in a slow and graceful ${cameraVal} track`;
+      } else if (durationVal >= 9 && durationVal <= 10) {
+        motionStyle = "majestic, sweeping, and detailed story-driven";
+        specificCamera = `unfolding in a majestic panoramic ${cameraVal} orbit`;
+      }
+
+      return `Starting from the provided image: ${imageDescription}.\n\n${mainSubject} performs a ${motionStyle} animation, ${specificCamera}, smooth and natural movement, high temporal consistency.\n\nDuration: ${durationVal} seconds, ${pacingDesc}, ${lightingVal} lighting, ${styleVal} mood, highly detailed, 4K.`;
     }
 
     if (templateStyle === "minimal") {
       let prompt = `Video from image. Style: ${styleVal}. Camera: ${cameraVal}. Speed: ${speedVal}x.`;
       if (subjectText) prompt += ` Subject: ${subjectText}.`;
-      prompt += ` Duration: ${durationVal}s. ${durationCameraInstruction} Lighting: ${lightingVal}. Optimized for ${aspectText}.`;
+      prompt += ` Duration: ${durationVal} seconds, ${pacingDesc}. ${durationCameraInstruction} Lighting: ${lightingVal}. Optimized for ${aspectText}.`;
       return prompt;
     }
 
@@ -1383,7 +1495,7 @@ export default function ImageToVideo({
       } else {
         prompt += `The scene animates with continuous professional movement. `;
       }
-      prompt += `Camera setup: ${cameraVal} executed smoothly at ${speedVal}x playback speed. ${durationCameraInstruction} Atmospheric lighting: ${lightingVal}. Optimized for ${aspectText} with flawless detail retention.`;
+      prompt += `Camera setup: ${cameraVal} executed smoothly at ${speedVal}x playback speed. ${durationCameraInstruction} Atmospheric lighting: ${lightingVal}. Optimized for ${aspectText} with flawless detail retention. Duration: ${durationVal} seconds, ${pacingDesc}.`;
       return prompt;
     }
 
@@ -1392,7 +1504,7 @@ export default function ImageToVideo({
     if (subjectText) {
       prompt += `The primary motion and focus of the video should be ${subjectText}, with realistic physical movement and seamless animations. `;
     }
-    prompt += `Implement professional ${cameraVal} camera movement at a speed factor of ${speedVal}x. The video segment spans a ${durationVal} second duration, incorporating a smooth ${transitionVal} transition effect. ${durationCameraInstruction} Ensure the atmospheric lighting is configured to ${lightingVal} to match the visual mood. The final output is fully optimized for ${aspectText} display.`;
+    prompt += `Implement professional ${cameraVal} camera movement at a speed factor of ${speedVal}x. ${durationCameraInstruction} Ensure the atmospheric lighting is configured to ${lightingVal} to match the visual mood. The final output is fully optimized for ${aspectText} display. Duration: ${durationVal} seconds, ${pacingDesc}.`;
     return prompt;
   };
 
@@ -1914,7 +2026,11 @@ export default function ImageToVideo({
       const rectWidth = textWidth + paddingX * 2;
       const rectHeight = textHeight + paddingY * 2;
       const rectX = (width - rectWidth) / 2;
-      const rectY = height - rectHeight - Math.round(45 * textRatioScale) + offsetY;
+      let extraOffsetY = 0;
+      if (cinematicLetterbox && aspectRatio === "16:9") {
+        extraOffsetY = -Math.round(height * 0.10); // shift subtitles up to avoid the letterbox
+      }
+      const rectY = height - rectHeight - Math.round(45 * textRatioScale) + offsetY + extraOffsetY - subtitleManualOffset;
 
       // Draw Subtitle Styles (netflix, neon, karaoke, minimal, classical)
       if (subtitleStyle === "netflix") {
@@ -2054,7 +2170,7 @@ export default function ImageToVideo({
     ctx.textAlign = "right";
     ctx.fillText("ToolkitPro CapCut Studio", width - 15, 25);
     ctx.restore();
-  }, [slides, transitionStyle, transitionDuration, subtitleStyle, cinematicLetterbox, vignetteOverlay, aspectRatio]);
+  }, [slides, transitionStyle, transitionDuration, subtitleStyle, cinematicLetterbox, vignetteOverlay, aspectRatio, subtitleManualOffset]);
 
   // Hook rendering logic to active timeline time changes
   useEffect(() => {
@@ -2075,7 +2191,7 @@ export default function ImageToVideo({
     canvas.height = height;
 
     drawVideoFrame(ctx, canvasWidth, height, currentTime);
-  }, [currentTime, aspectRatio, slides, transitionStyle, transitionDuration, drawVideoFrame, subtitleStyle, cinematicLetterbox, vignetteOverlay]);
+  }, [currentTime, aspectRatio, slides, transitionStyle, transitionDuration, drawVideoFrame, subtitleStyle, cinematicLetterbox, vignetteOverlay, subtitleManualOffset]);
 
   // Canvas MediaRecorder video render engine
   const handleCreateVideo = async () => {
@@ -2092,6 +2208,9 @@ export default function ImageToVideo({
     setExportCurrentStage("Analyzing frame");
     setExportElapsedTime("0.0s");
     setExportEstTimeRemaining("Calculating...");
+
+    const gifFrames: string[] = [];
+    const gifFps = 10;
 
     // Stop active music playbacks
     synthManagerRef.current.stop();
@@ -2148,9 +2267,21 @@ export default function ImageToVideo({
       const combinedStream = new MediaStream(combinedTracks);
       
       // Determine support options
-      let options = { mimeType: "video/webm;codecs=vp8,opus" };
-      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
-        options = { mimeType: "video/webm" };
+      let options: any = { 
+        mimeType: "video/webm;codecs=vp8,opus",
+        videoBitsPerSecond: 8000000 // Ultra-sharp 8 Mbps video stream quality
+      };
+      
+      if (exportFormat === "mp4") {
+        if (MediaRecorder.isTypeSupported("video/mp4;codecs=h264")) {
+          options = { mimeType: "video/mp4;codecs=h264", videoBitsPerSecond: 8000000 };
+        } else if (MediaRecorder.isTypeSupported("video/mp4")) {
+          options = { mimeType: "video/mp4", videoBitsPerSecond: 8000000 };
+        }
+      } else {
+        if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+          options = { mimeType: "video/webm", videoBitsPerSecond: 8000000 };
+        }
       }
 
       const mediaRecorder = new MediaRecorder(combinedStream, options);
@@ -2208,6 +2339,21 @@ export default function ImageToVideo({
         const renderTime = (currentFrame / fps) * videoPlaybackSpeed;
         drawVideoFrame(renderCtx, canvasWidth, height, renderTime);
         
+        // Capture GIF frames if GIF format is selected
+        if (exportFormat === "gif") {
+          const frameStep = Math.max(1, Math.round(fps / gifFps));
+          if (currentFrame % frameStep === 0) {
+            const gifCanvas = document.createElement("canvas");
+            gifCanvas.width = 480;
+            gifCanvas.height = Math.round(480 * (height / canvasWidth));
+            const gifCtx = gifCanvas.getContext("2d");
+            if (gifCtx) {
+              gifCtx.drawImage(renderCanvas, 0, 0, gifCanvas.width, gifCanvas.height);
+              gifFrames.push(gifCanvas.toDataURL("image/jpeg", 0.70));
+            }
+          }
+        }
+        
         // Detect slide boundaries for transition SFX during export
         if (!isMuted) {
           const prevRenderTime = ((currentFrame - 1) / fps) * videoPlaybackSpeed;
@@ -2260,93 +2406,145 @@ export default function ImageToVideo({
 
       mediaRecorder.onstop = async () => {
         setExportCurrentStage("Finalizing encode");
-        setExportStatus("Exporting video track blob...");
+        setExportStatus("Exporting master track...");
         setExportEstTimeRemaining("0.1s");
         renderSynthManager.stop();
 
-        const videoBlob = new Blob(chunks, { type: "video/webm" });
-        const videoNameWithExtension = `${exportFileName.replace(/\s+/g, "_")}.webm`;
-        triggerFileDownload(videoBlob, videoNameWithExtension);
-
-        // Support Monetag Direct Link Integration (Zone ID: 11170621)
-        try {
-          window.open("https://omg10.com/4/11170621", "_blank", "noopener,noreferrer");
-        } catch (e) {
-          console.warn("Direct link popup blocked by browser policies", e);
-        }
-
-        // Generate URL for local preview of compiled WebM
-        const videoUrl = URL.createObjectURL(videoBlob);
-        setExportedVideoUrl(videoUrl);
-        setExportedVideoBlob(videoBlob);
-        setShowFinalOutput(true);
-
-        setExportProgress(100);
-        setExportCurrentStage("Finished");
-        setExportEstTimeRemaining("0s");
-        setIsExporting(false);
-
-        // Google Drive sync option
-        if (saveToDriveAfterExport && accessToken) {
-          setExportProgress(95);
-          setExportCurrentStage("Uploading to Cloud Storage");
-          setExportStatus("Uploading generated WebM to Google Drive storage...");
-          try {
-            // Convert video blob to dataUrl
-            const fileReader = new FileReader();
-            fileReader.readAsDataURL(videoBlob);
-            fileReader.onloadend = async () => {
-              try {
-                const base64DataUrl = fileReader.result as string;
-                await uploadFileToDrive(
-                  accessToken,
-                  videoNameWithExtension,
-                  "video/webm",
-                  base64DataUrl
-                );
-                
-                onRefreshDrive();
-                setExportCurrentStage("Finished");
-                setExportProgress(100);
-                setToastMessage({
-                  text: "Export & Sync Completed!",
-                  sub: `Generated video successfully downloaded and backed up to Google Drive as ${videoNameWithExtension}`,
-                  success: true
-                });
-              } catch (err) {
-                console.error(err);
-                setExportCurrentStage("Finished");
-                setExportProgress(100);
-                setToastMessage({
-                  text: "Video Downloaded Offline Only",
-                  sub: `Completed video download but Google Drive sync failed: ${err instanceof Error ? err.message : String(err)}`,
-                  success: false
-                });
-              }
-            };
-          } catch (e) {
-            console.error(e);
+        const dataURLtoBlob = (dataurl: string) => {
+          const arr = dataurl.split(',');
+          const mime = arr[0].match(/:(.*?);/)?.[1] || "image/gif";
+          const bstr = atob(arr[1]);
+          let n = bstr.length;
+          const u8arr = new Uint8Array(n);
+          while (n--) {
+            u8arr[n] = bstr.charCodeAt(n);
           }
-        } else {
-          setToastMessage({
-            text: "Video Exported Successfully!",
-            sub: `Downloaded ${videoNameWithExtension} directly to your device. Standard CapCut WebM format.`,
-            success: true
-          });
-        }
+          return new Blob([u8arr], { type: mime });
+        };
 
-        // Dispatch a global activities widget trace
-        window.dispatchEvent(
-          new CustomEvent("toolkit-add-activity", {
-            detail: {
-              type: "file",
-              title: "Exported CapCut Video",
-              detail: `Generated '${videoNameWithExtension}' containing ${slides.length} styled image tracks`,
-              icon: "Video",
-              tab: "video"
+        const finalizeOutput = async (blob: Blob, format: string, mime: string) => {
+          const fileNameWithExt = `${exportFileName.replace(/\s+/g, "_")}.${format}`;
+          triggerFileDownload(blob, fileNameWithExt);
+
+          // Support Direct Links Integration (Zone IDs: 11170621, 11223979)
+          try {
+            window.open("https://omg10.com/4/11170621", "_blank", "noopener,noreferrer");
+          } catch (e) {
+            console.warn("Direct link popup blocked by browser policies", e);
+          }
+          try {
+            window.open("https://omg10.com/4/11223979", "_blank", "noopener,noreferrer");
+          } catch (e) {
+            console.warn("Direct link popup blocked by browser policies", e);
+          }
+
+          const fileUrl = URL.createObjectURL(blob);
+          setExportedVideoUrl(fileUrl);
+          setExportedVideoBlob(blob);
+          setShowFinalOutput(true);
+
+          setExportProgress(100);
+          setExportCurrentStage("Finished");
+          setExportEstTimeRemaining("0s");
+          setIsExporting(false);
+
+          if (saveToDriveAfterExport && accessToken) {
+            setExportProgress(95);
+            setExportCurrentStage("Uploading to Cloud Storage");
+            setExportStatus(`Uploading generated ${format.toUpperCase()} to Google Drive storage...`);
+            try {
+              const fileReader = new FileReader();
+              fileReader.readAsDataURL(blob);
+              fileReader.onloadend = async () => {
+                try {
+                  const base64DataUrl = fileReader.result as string;
+                  await uploadFileToDrive(
+                    accessToken,
+                    fileNameWithExt,
+                    mime,
+                    base64DataUrl
+                  );
+                  
+                  onRefreshDrive();
+                  setExportCurrentStage("Finished");
+                  setExportProgress(100);
+                  setToastMessage({
+                    text: "Export & Sync Completed!",
+                    sub: `Generated ${format.toUpperCase()} successfully downloaded and backed up to Google Drive as ${fileNameWithExt}`,
+                    success: true
+                  });
+                } catch (err) {
+                  console.error(err);
+                  setExportCurrentStage("Finished");
+                  setExportProgress(100);
+                  setToastMessage({
+                    text: `${format.toUpperCase()} Downloaded Offline Only`,
+                    sub: `Completed ${format.toUpperCase()} download but Google Drive sync failed: ${err instanceof Error ? err.message : String(err)}`,
+                    success: false
+                  });
+                }
+              };
+            } catch (e) {
+              console.error(e);
             }
-          })
-        );
+          } else {
+            setToastMessage({
+              text: `${format.toUpperCase()} Exported Successfully!`,
+              sub: `Downloaded ${fileNameWithExt} directly to your device.`,
+              success: true
+            });
+          }
+
+          // Dispatch a global activities widget trace
+          window.dispatchEvent(
+            new CustomEvent("toolkit-add-activity", {
+              detail: {
+                type: "file",
+                title: `Exported CapCut ${format.toUpperCase()}`,
+                detail: `Generated '${fileNameWithExt}' containing ${slides.length} styled image tracks`,
+                icon: "Video",
+                tab: "video"
+              }
+            })
+          );
+        };
+
+        if (exportFormat === "gif") {
+          setExportCurrentStage("Compiling GIF");
+          setExportStatus("Building highly-optimized animated GIF frames with gifshot...");
+          setExportProgress(85);
+          
+          if (gifFrames.length === 0) {
+            // fallback if no frames captured
+            const mimeType = "video/webm";
+            const videoBlob = new Blob(chunks, { type: mimeType });
+            await finalizeOutput(videoBlob, "webm", mimeType);
+            return;
+          }
+
+          gifshot.createGIF({
+            images: gifFrames,
+            interval: 1 / gifFps,
+            gifWidth: 480,
+            gifHeight: Math.round(480 * (height / canvasWidth)),
+            numFrames: gifFrames.length,
+            sampleInterval: 5
+          }, async (obj: any) => {
+            if (obj.error) {
+              console.error("GIF generation failed:", obj.errorMsg);
+              const mimeType = "video/webm";
+              const videoBlob = new Blob(chunks, { type: mimeType });
+              await finalizeOutput(videoBlob, "webm", mimeType);
+            } else {
+              const gifBlob = dataURLtoBlob(obj.image);
+              await finalizeOutput(gifBlob, "gif", "image/gif");
+            }
+          });
+        } else {
+          const mimeType = exportFormat === "mp4" ? "video/mp4" : "video/webm";
+          const videoBlob = new Blob(chunks, { type: mimeType });
+          await finalizeOutput(videoBlob, exportFormat, mimeType);
+        }
       };
 
     } catch (e: any) {
@@ -2416,7 +2614,39 @@ export default function ImageToVideo({
                 Interactive CapCut-Style Timeline
               </p>
             </div>
-            <div className="flex items-center gap-1.5">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    window.open("https://omg10.com/4/11170621", "_blank", "noopener,noreferrer");
+                  } catch (e) {
+                    console.warn(e);
+                  }
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-extrabold text-amber-700 dark:text-amber-350 bg-amber-50 dark:bg-amber-950/40 border border-amber-150 dark:border-amber-900/30 rounded-lg cursor-pointer transition-all hover:bg-amber-100/80 active:scale-95"
+                title="Luminous Link Portal"
+              >
+                <Sparkles className="w-2.5 h-2.5 text-amber-500 animate-pulse" />
+                <span>Luminous Link</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    window.open("https://omg10.com/4/11223979", "_blank", "noopener,noreferrer");
+                  } catch (e) {
+                    console.warn(e);
+                  }
+                }}
+                className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-extrabold text-indigo-700 dark:text-indigo-350 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-150 dark:border-indigo-900/30 rounded-lg cursor-pointer transition-all hover:bg-indigo-100/80 active:scale-95"
+                title="Wonderful Link Portal"
+              >
+                <Sparkles className="w-2.5 h-2.5 text-indigo-500 animate-pulse" />
+                <span>Wonderful Link</span>
+              </button>
+
               <button
                 type="button"
                 onClick={loadDefaultSampleSlides}
@@ -2426,6 +2656,96 @@ export default function ImageToVideo({
                 <Sparkles className="w-3 h-3 text-amber-500 animate-bounce" />
                 <span>Preload Samples</span>
               </button>
+            </div>
+          </div>
+
+          {/* Quick Image-to-Video Dropzone / Direct Creator Panel */}
+          <div 
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleFileDrop}
+            className={`border-2 border-dashed rounded-3xl p-5 text-center transition-all relative overflow-hidden flex flex-col items-center justify-center gap-3.5 ${
+              isDraggingFile 
+                ? "border-indigo-500 bg-indigo-500/10 scale-[1.01]" 
+                : "border-slate-200 dark:border-slate-800 bg-white/60 dark:bg-slate-900/40 hover:border-indigo-500/50 dark:hover:border-indigo-500/30"
+            }`}
+          >
+            <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/5 rounded-full blur-2xl pointer-events-none" />
+            
+            <div className="p-3.5 rounded-full bg-indigo-50 dark:bg-indigo-950/50 text-indigo-650 dark:text-indigo-400">
+              <Upload className="w-6 h-6 animate-pulse" />
+            </div>
+
+            <div className="space-y-1 max-w-sm">
+              <h4 className="text-sm font-black uppercase tracking-wider text-slate-800 dark:text-slate-100 flex items-center justify-center gap-1.5">
+                <span>⚡ Direct Image-to-Video Creator</span>
+              </h4>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400 font-medium leading-normal">
+                Drag & Drop or click below to upload your image. We'll instantly build a gorgeous animated video from it!
+              </p>
+            </div>
+
+            <div className="flex flex-col sm:flex-row items-center gap-3 w-full max-w-md pt-1.5 justify-center">
+              {/* Custom styled File Upload Label */}
+              <label className="px-4 py-2.5 bg-indigo-650 hover:bg-indigo-500 text-white rounded-xl text-[10.5px] font-black uppercase tracking-wider cursor-pointer flex items-center gap-1.5 transition-all select-none border border-indigo-500/30 active:scale-97">
+                <Plus className="w-4 h-4" />
+                <span>Select Your Image</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageUpload}
+                  className="hidden"
+                />
+              </label>
+
+              {/* Instant Compile Button (if slides are loaded) */}
+              {slides.length > 0 && (
+                <button
+                  type="button"
+                  disabled={isExporting}
+                  onClick={handleCreateVideo}
+                  className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white rounded-xl text-[10.5px] font-black uppercase tracking-wider cursor-pointer flex items-center gap-1.5 transition-all select-none border border-emerald-500/30 active:scale-97"
+                >
+                  <Video className="w-4 h-4 fill-current animate-pulse" />
+                  <span>⚡ Create Video Now ({slides.length} {slides.length === 1 ? "Image" : "Images"})</span>
+                </button>
+              )}
+            </div>
+
+            {/* Replacement vs Appending options bar */}
+            <div className="flex flex-wrap items-center justify-center gap-4 text-[10px] text-slate-550 dark:text-slate-450 font-bold mt-1 border-t border-slate-100 dark:border-slate-850 pt-2.5 w-full">
+              <label className="flex items-center gap-2 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={replaceOnUpload}
+                  onChange={(e) => {
+                    setReplaceOnUpload(e.target.checked);
+                    triggerBeepChime();
+                  }}
+                  className="rounded border-slate-300 dark:border-slate-800 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5 cursor-pointer"
+                />
+                <span>Replace current timeline clips on upload (Recommended)</span>
+              </label>
+              
+              {slides.length > 0 && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSlides([]);
+                    triggerBeepChime();
+                    setToastMessage({
+                      text: "🗑️ Timeline Cleared",
+                      sub: "All frames have been cleared. Ready for your custom uploads!",
+                      success: true
+                    });
+                  }}
+                  className="text-rose-550 dark:text-rose-400 hover:underline flex items-center gap-1 cursor-pointer"
+                  title="Clear all clips currently loaded in the timeline"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  <span>Clear Timeline</span>
+                </button>
+              )}
             </div>
           </div>
 
@@ -2439,63 +2759,94 @@ export default function ImageToVideo({
                 aspectRatio === "9:16" ? "h-[450px] aspect-[9/16]" : aspectRatio === "1:1" ? "h-[360px] aspect-square" : "w-full aspect-[16/9]"
               } ${isExporting || showFinalOutput ? "hidden" : "block"}`}
             />
-
-            {/* Simulated Live Loading / Processing Animation */}
             {isExporting && (
-              <div className="absolute inset-0 bg-slate-950 flex flex-col items-center justify-center p-5 text-center select-none z-10 overflow-y-auto">
-                <div className="w-full max-w-md space-y-4">
+              <div className="absolute inset-0 bg-slate-950 flex flex-col justify-between p-4 text-center select-none z-10 overflow-y-auto">
+                {/* 1. Futuristic Blurred Video Canvas Background Mockup */}
+                {(() => {
+                  const activeSlide = slides.find(s => s.id === selectedSlideId) || slides[0];
+                  return activeSlide?.url ? (
+                    <div 
+                      className="absolute inset-0 bg-cover bg-center opacity-15 blur-xl pointer-events-none"
+                      style={{ backgroundImage: `url(${activeSlide.url})` }}
+                    />
+                  ) : null;
+                })()}
+
+                {/* Horizontal Laser Scan Line Animation */}
+                <motion.div 
+                  className="absolute left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-indigo-400 to-transparent shadow-[0_0_12px_rgba(129,140,248,0.8)] z-10 pointer-events-none"
+                  animate={{ top: ["0%", "100%", "0%"] }}
+                  transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                />
+
+                {/* 2. Sleek Mock Video Player Frame Header */}
+                <div className="w-full max-w-lg mx-auto space-y-3 relative z-20 flex-1 flex flex-col justify-center">
                   
-                  {/* Glowing spinner visual */}
-                  <div className="relative w-20 h-20 mx-auto flex items-center justify-center">
+                  {/* Active Status Header Badge */}
+                  <div className="flex items-center justify-between bg-indigo-950/40 border border-indigo-900/30 backdrop-blur-md px-3 py-1.5 rounded-full max-w-fit mx-auto gap-2 shadow-sm">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                    </span>
+                    <span className="text-[10px] font-black uppercase tracking-widest text-indigo-300 font-mono">
+                      Generating Video Preview...
+                    </span>
+                  </div>
+
+                  {/* Main High-Tech Spinner & Render Camera Symbol */}
+                  <div className="relative w-16 h-16 mx-auto flex items-center justify-center">
                     <div className="absolute inset-0 rounded-full border-4 border-indigo-500/10 dark:border-indigo-400/5" />
                     <motion.div
                       className="absolute inset-0 rounded-full border-4 border-transparent border-t-indigo-500 border-r-purple-500"
                       animate={{ rotate: 360 }}
                       transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
                     />
-                    <motion.div
-                      className="absolute w-14 h-0.5 bg-gradient-to-r from-transparent via-indigo-400 to-transparent"
-                      animate={{ y: [-24, 24, -24] }}
-                      transition={{ duration: 2.2, repeat: Infinity, ease: "easeInOut" }}
-                    />
-                    <Video className="w-6 h-6 text-indigo-400 animate-pulse relative z-10" />
+                    <Video className="w-5 h-5 text-indigo-400 animate-pulse relative z-10" />
                   </div>
 
-                  {/* Rendering Details */}
-                  <div className="space-y-2">
-                    <h3 className="text-xs font-black uppercase tracking-widest text-indigo-400 flex items-center justify-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-400 animate-spin" style={{ animationDuration: '3s' }} />
-                      <span>Compiling Master Video...</span>
-                    </h3>
-                    <p className="text-base font-black text-slate-100 font-mono tracking-tight">
-                      {exportProgress}% Complete
-                    </p>
-
-                    {/* Live Timing & Stage Metrics Row */}
-                    <div className="grid grid-cols-3 gap-2 max-w-sm mx-auto pt-2 pb-1 text-left font-mono">
-                      <div className="bg-slate-900/60 border border-slate-800/40 p-2 rounded-xl text-center">
-                        <span className="block text-[7.5px] uppercase text-slate-500 font-black tracking-wider mb-0.5">Elapsed</span>
-                        <span className="text-[11px] font-black text-slate-200">{exportElapsedTime}</span>
-                      </div>
-                      <div className="bg-slate-900/60 border border-slate-800/40 p-2 rounded-xl text-center">
-                        <span className="block text-[7.5px] uppercase text-slate-500 font-black tracking-wider mb-0.5">Est. Remaining</span>
-                        <span className="text-[11px] font-black text-indigo-400 animate-pulse">{exportEstTimeRemaining}</span>
-                      </div>
-                      <div className="bg-slate-900/60 border border-slate-800/40 p-2 rounded-xl text-center">
-                        <span className="block text-[7.5px] uppercase text-slate-500 font-black tracking-wider mb-0.5">Stage</span>
-                        <span className="text-[9px] font-extrabold text-emerald-400 truncate block leading-tight" title={exportCurrentStage}>{exportCurrentStage || "Analyzing"}</span>
-                      </div>
+                  {/* Dynamic 'Generating...' Progress Bar Block */}
+                  <div className="space-y-2 max-w-sm mx-auto w-full">
+                    <div className="flex items-center justify-between text-[11px] font-mono text-slate-400 font-extrabold tracking-wide px-1">
+                      <span className="flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-amber-400 animate-spin shrink-0" style={{ animationDuration: '3s' }} />
+                        <span>Compiling Motion Frames</span>
+                      </span>
+                      <span className="text-indigo-400 font-black animate-pulse">{exportProgress}%</span>
                     </div>
 
-                    <p className="text-[10.5px] text-slate-400 leading-normal italic px-4">
-                      {exportStatus}
-                    </p>
+                    {/* Progress Track */}
+                    <div className="w-full h-2.5 bg-slate-900/80 border border-slate-800/60 rounded-full overflow-hidden p-0.5">
+                      <div
+                        className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 transition-all duration-300 rounded-full shadow-[0_0_8px_rgba(99,102,241,0.5)]"
+                        style={{ width: `${exportProgress}%` }}
+                      />
+                    </div>
                   </div>
 
-                  {/* Live Parameter Summary HUD */}
-                  <div className="bg-slate-900/80 border border-slate-850 rounded-2xl p-3 text-left space-y-2.5">
+                  {/* High-Tech Timing HUD & Stage Matrix Grid */}
+                  <div className="grid grid-cols-3 gap-2.5 max-w-md mx-auto pt-1 w-full text-left font-mono relative z-20">
+                    <div className="bg-slate-900/60 border border-slate-800/40 p-2 rounded-xl text-center backdrop-blur-xs">
+                      <span className="block text-[7px] uppercase text-slate-500 font-black tracking-wider mb-0.5">Elapsed Time</span>
+                      <span className="text-[11px] font-black text-slate-200">{exportElapsedTime}</span>
+                    </div>
+                    <div className="bg-slate-900/60 border border-slate-800/40 p-2 rounded-xl text-center backdrop-blur-xs">
+                      <span className="block text-[7px] uppercase text-slate-500 font-black tracking-wider mb-0.5">Est. Remaining</span>
+                      <span className="text-[11px] font-black text-indigo-400 animate-pulse">{exportEstTimeRemaining}</span>
+                    </div>
+                    <div className="bg-slate-900/60 border border-slate-800/40 p-2 rounded-xl text-center backdrop-blur-xs">
+                      <span className="block text-[7px] uppercase text-slate-500 font-black tracking-wider mb-0.5">Active Stage</span>
+                      <span className="text-[8.5px] font-extrabold text-emerald-400 truncate block leading-tight" title={exportCurrentStage}>{exportCurrentStage || "Analyzing"}</span>
+                    </div>
+                  </div>
+
+                  <p className="text-[10px] text-slate-400 leading-normal italic px-4 font-medium max-w-sm mx-auto">
+                    {exportStatus}
+                  </p>
+
+                  {/* Selected Blueprint Parameters Summary HUD */}
+                  <div className="bg-slate-900/70 border border-slate-850 rounded-2xl p-3 text-left space-y-2 max-w-md mx-auto w-full relative z-20 backdrop-blur-sm">
                     <div className="flex items-center justify-between border-b border-slate-800/50 pb-1.5">
-                      <span className="text-[9px] font-black uppercase tracking-wider text-slate-500">
+                      <span className="text-[8.5px] font-black uppercase tracking-wider text-slate-500">
                         Selected Blueprint Parameters
                       </span>
                       <span className="text-[8px] bg-indigo-950/80 text-indigo-400 border border-indigo-900 px-1.5 py-0.5 rounded-full font-mono uppercase tracking-widest leading-none">
@@ -2503,60 +2854,55 @@ export default function ImageToVideo({
                       </span>
                     </div>
                     
-                    <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-[10.5px] text-slate-300">
+                    <div className="grid grid-cols-2 gap-x-3 gap-y-1.5 text-[10px] text-slate-300">
                       <div>
-                        <span className="text-slate-500 block uppercase text-[8px] font-black tracking-wider leading-none mb-0.5">Aspect Ratio:</span>
+                        <span className="text-slate-500 block uppercase text-[7.5px] font-black tracking-wider leading-none mb-0.5">Aspect Ratio:</span>
                         <span className="font-bold truncate block">
                           {aspectRatio === "9:16" ? "📱 Portrait (9:16)" : aspectRatio === "1:1" ? "⏹️ Square (1:1)" : "📺 Landscape (16:9)"}
                         </span>
                       </div>
                       <div>
-                        <span className="text-slate-500 block uppercase text-[8px] font-black tracking-wider leading-none mb-0.5">Duration:</span>
+                        <span className="text-slate-500 block uppercase text-[7.5px] font-black tracking-wider leading-none mb-0.5">Duration:</span>
                         <span className="font-bold block truncate">⏱️ {totalDuration.toFixed(1)}s ({slides.length} slides)</span>
                       </div>
                       <div>
-                        <span className="text-slate-500 block uppercase text-[8px] font-black tracking-wider leading-none mb-0.5">Soundtrack:</span>
+                        <span className="text-slate-500 block uppercase text-[7.5px] font-black tracking-wider leading-none mb-0.5">Soundtrack:</span>
                         <span className="font-bold block truncate capitalize">🎵 {soundtrack === "none" ? "Silent" : soundtrack}</span>
                       </div>
                       <div>
-                        <span className="text-slate-500 block uppercase text-[8px] font-black tracking-wider leading-none mb-0.5">Transition:</span>
+                        <span className="text-slate-500 block uppercase text-[7.5px] font-black tracking-wider leading-none mb-0.5">Transition:</span>
                         <span className="font-bold block truncate capitalize">🎬 {transitionStyle} ({transitionDuration}s)</span>
                       </div>
-                    </div>
-
-                    {/* Show selected slide AI prompter config */}
-                    {(() => {
-                      const activeSlide = slides.find(s => s.id === selectedSlideId);
-                      if (!activeSlide) return null;
-                      return (
-                        <div className="pt-2 border-t border-slate-800/40 space-y-1">
-                          <span className="text-slate-505 block uppercase text-[8px] font-black tracking-wider leading-none">
-                            Edit Slide Prompt (Click & Paste):
-                          </span>
-                          <textarea
-                            value={activeSlide.subjectDescription ?? ""}
-                            onChange={(e) => updateSlideProp(activeSlide.id, "subjectDescription", e.target.value)}
-                            placeholder="Type or paste custom prompt..."
-                            rows={2}
-                            className="w-full bg-slate-950/80 text-[10.5px] font-medium text-slate-200 p-2 rounded-xl border border-slate-800 hover:border-slate-700 focus:border-indigo-550 focus:ring-1 focus:ring-indigo-500/30 leading-normal outline-none resize-none transition-all placeholder:text-slate-650"
-                          />
-                          {renderPromptValidationInfo(activeSlide.subjectDescription ?? "", true)}
-                        </div>
-                      );
-                    })()}
-                  </div>
-
-                  {/* Progressive loading tracks */}
-                  <div className="w-full space-y-1">
-                    <div className="w-full h-1 bg-slate-900 rounded-full overflow-hidden">
-                      <div
-                        className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 transition-all duration-300"
-                        style={{ width: `${exportProgress}%` }}
-                      />
                     </div>
                   </div>
 
                 </div>
+
+                {/* 3. Sleek Mock Player Timeline Controller Bar (Visual-only feedback during rendering) */}
+                <div className="w-full border-t border-slate-900 bg-slate-950/80 p-2.5 rounded-b-2xl mt-2 flex items-center justify-between gap-3 text-slate-500 text-[10px] font-mono select-none relative z-20">
+                  <div className="flex items-center gap-2">
+                    <button disabled className="opacity-40 cursor-not-allowed">
+                      <Play className="w-3.5 h-3.5" />
+                    </button>
+                    <span>00:00.0</span>
+                  </div>
+                  
+                  {/* Faux Timeline Slider Track showing rendering highlight */}
+                  <div className="flex-1 h-1 bg-slate-900 rounded-full relative overflow-hidden">
+                    <div 
+                      className="absolute inset-y-0 left-0 bg-indigo-500/30"
+                      style={{ width: `${exportProgress}%` }}
+                    />
+                  </div>
+
+                  <div className="flex items-center gap-2.5">
+                    <span>{totalDuration.toFixed(1)}s</span>
+                    <button disabled className="opacity-40 cursor-not-allowed">
+                      <Sliders className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+                </div>
+
               </div>
             )}
 
@@ -2590,19 +2936,122 @@ export default function ImageToVideo({
                   </div>
 
                   {/* Main HTML5 Video Viewport Player */}
-                  <div className="relative rounded-2xl overflow-hidden border border-slate-850 bg-slate-900 shadow-2xl flex items-center justify-center mx-auto"
+                  <div className="relative rounded-2xl overflow-hidden border border-slate-850 bg-slate-900 shadow-2xl flex flex-col justify-between mx-auto w-full"
                     style={{
-                      maxHeight: "220px",
+                      minHeight: "230px",
                       aspectRatio: aspectRatio === "9:16" ? "9/16" : aspectRatio === "1:1" ? "1/1" : "16/9"
                     }}
                   >
-                    <video
-                      src={exportedVideoUrl}
-                      controls
-                      autoPlay
-                      loop
-                      className="w-full h-full object-contain"
-                    />
+                    {exportFormat === "gif" ? (
+                      /* GIF Animation */
+                      <img
+                        src={exportedVideoUrl}
+                        alt="Exported Animated GIF"
+                        className="w-full h-full max-h-[220px] object-contain"
+                      />
+                    ) : (
+                      /* Premium Interactive Player with Timeline Scrubber Controls */
+                      <div className="w-full h-full flex flex-col justify-between bg-slate-950 p-2 group/player relative">
+                        <video
+                          ref={previewVideoRef}
+                          src={exportedVideoUrl}
+                          autoPlay
+                          loop
+                          muted
+                          onTimeUpdate={(e) => setPreviewTime(e.currentTarget.currentTime)}
+                          onDurationChange={(e) => setPreviewDuration(e.currentTarget.duration)}
+                          onPlay={() => setPreviewPlaying(true)}
+                          onPause={() => setPreviewPlaying(false)}
+                          className="w-full max-h-[150px] object-contain flex-1"
+                        />
+                        
+                        {/* Custom Player controls block */}
+                        <div className="space-y-1 bg-slate-900/90 border border-slate-800/60 p-2 rounded-xl mt-1.5">
+                          {/* Timeline Slider with Frames Indicator */}
+                          <div className="flex items-center gap-2">
+                            <span className="text-[9px] font-mono font-bold text-indigo-400 select-none">
+                              {Math.round(previewTime * 30).toString().padStart(3, "0")}f
+                            </span>
+                            <input
+                              type="range"
+                              min={0}
+                              max={previewDuration || 1}
+                              step={0.01}
+                              value={previewTime}
+                              onChange={(e) => {
+                                const newTime = parseFloat(e.target.value);
+                                setPreviewTime(newTime);
+                                if (previewVideoRef.current) {
+                                  previewVideoRef.current.currentTime = newTime;
+                                }
+                              }}
+                              className="flex-1 h-1 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                            />
+                            <span className="text-[9px] font-mono font-bold text-slate-400 select-none">
+                              {Math.round(previewDuration * 30).toString().padStart(3, "0")}f
+                            </span>
+                          </div>
+
+                          {/* Action Controls Row */}
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1">
+                              {/* Play / Pause Toggle */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (previewVideoRef.current) {
+                                    if (previewPlaying) {
+                                      previewVideoRef.current.pause();
+                                    } else {
+                                      previewVideoRef.current.play();
+                                    }
+                                  }
+                                }}
+                                className="p-1 text-slate-300 hover:text-white hover:bg-slate-800 rounded transition-all cursor-pointer"
+                                title={previewPlaying ? "Pause Playback" : "Start Playback"}
+                              >
+                                {previewPlaying ? <Pause className="w-3 h-3 text-indigo-400" /> : <Play className="w-3 h-3 text-emerald-400" />}
+                              </button>
+
+                              {/* Frame Step Backward */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (previewVideoRef.current) {
+                                    previewVideoRef.current.pause();
+                                    previewVideoRef.current.currentTime = Math.max(0, previewVideoRef.current.currentTime - 1/30);
+                                  }
+                                }}
+                                className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-all cursor-pointer"
+                                title="Previous Frame"
+                              >
+                                <ChevronLeft className="w-3 h-3" />
+                              </button>
+
+                              {/* Frame Step Forward */}
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (previewVideoRef.current) {
+                                    previewVideoRef.current.pause();
+                                    previewVideoRef.current.currentTime = Math.min(previewDuration, previewVideoRef.current.currentTime + 1/30);
+                                  }
+                                }}
+                                className="p-1 text-slate-400 hover:text-white hover:bg-slate-800 rounded transition-all cursor-pointer"
+                                title="Next Frame"
+                              >
+                                <ChevronRight className="w-3 h-3" />
+                              </button>
+                            </div>
+
+                            {/* Timestamp readout */}
+                            <div className="text-[9px] font-mono text-slate-400 font-bold select-none">
+                              {previewTime.toFixed(2)}s / {previewDuration.toFixed(2)}s
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   {/* Metadata and Stats Card */}
@@ -2610,7 +3059,7 @@ export default function ImageToVideo({
                     <div className="flex justify-between items-center text-[10px] border-b border-slate-800/40 pb-1.5">
                       <span className="text-slate-500 uppercase font-black tracking-wider text-[8px]">File details</span>
                       <span className="font-mono text-indigo-400 font-bold truncate max-w-[180px]">
-                        {exportFileName}.webm
+                        {exportFileName}.{exportFormat}
                       </span>
                     </div>
                     <div className="grid grid-cols-3 gap-1.5 text-center text-[10px]">
@@ -2626,8 +3075,49 @@ export default function ImageToVideo({
                       </div>
                       <div className="bg-slate-950/40 p-1.5 rounded-xl border border-slate-800/30">
                         <span className="text-slate-500 block uppercase text-[8px] font-black mb-0.5">Container</span>
-                        <span className="font-bold uppercase text-emerald-400">WEBM</span>
+                        <span className="font-bold uppercase text-emerald-400 font-mono">{exportFormat}</span>
                       </div>
+                    </div>
+                  </div>
+
+                  {/* Premium Call to Action (CTA) Portal Card */}
+                  <div className="bg-slate-900/95 border border-amber-500/20 rounded-2xl p-3 text-left space-y-2 shadow-lg">
+                    <div className="flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-amber-400 animate-pulse" />
+                      <span className="text-[10px] font-black text-amber-300 uppercase tracking-widest leading-none">
+                        Special Sponsor Portals
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-300 leading-normal">
+                      Connect with our exclusive creative suites to access premium filters, sound packs, and visual templates!
+                    </p>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          try {
+                            window.open("https://omg10.com/4/11170621", "_blank", "noopener,noreferrer");
+                          } catch (e) {
+                            console.warn(e);
+                          }
+                        }}
+                        className="w-full py-2 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-slate-950 font-black text-[11px] rounded-xl shadow-md cursor-pointer text-center transition-all duration-200 active:scale-95"
+                      >
+                        Luminous Portal
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          try {
+                            window.open("https://omg10.com/4/11223979", "_blank", "noopener,noreferrer");
+                          } catch (e) {
+                            console.warn(e);
+                          }
+                        }}
+                        className="w-full py-2 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 text-white font-black text-[11px] rounded-xl shadow-md cursor-pointer text-center transition-all duration-200 active:scale-95"
+                      >
+                        Wonderful Portal
+                      </button>
                     </div>
                   </div>
 
@@ -4991,38 +5481,91 @@ export default function ImageToVideo({
 
               {/* 3. VIDEO DURATION & TRANSITION EFFECT */}
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5">
-                  <label className="text-[10.5px] font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
-                    3. Video Duration:
-                  </label>
-                  <div className="grid grid-cols-3 gap-1 bg-slate-100/80 dark:bg-slate-900 p-1 rounded-xl border border-slate-200/60 dark:border-slate-850">
-                    {[2, 4, 8].map((d) => {
-                      const isActive = (selectedSlide.promptDuration ?? 3) === d;
-                      return (
-                        <button
-                          key={d}
-                          type="button"
-                          onClick={() => {
-                            updateSlideProp(selectedSlide.id, "promptDuration", d);
-                            triggerBeepChime();
-                          }}
-                          className={`py-1.5 px-1.5 rounded-lg text-[10.5px] font-black tracking-tight transition-all cursor-pointer select-none text-center ${
-                            isActive
-                              ? "bg-indigo-600 text-white shadow-xs"
-                              : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-800/30"
-                          }`}
-                        >
-                          {d}s
-                        </button>
-                      );
-                    })}
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10.5px] font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
+                      3. Video Duration:
+                    </label>
+                    <span className="text-[10.5px] font-mono font-black text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-md">
+                      {(selectedSlide.promptDuration ?? 3)}s
+                    </span>
                   </div>
-                  <span className="block text-[8px] font-bold text-slate-450 dark:text-slate-500 uppercase tracking-wide leading-tight">
-                    {(selectedSlide.promptDuration ?? 3) === 2 && "⚡ Fast & Snappy sweep motion"}
-                    {(selectedSlide.promptDuration ?? 3) === 4 && "🎬 Steady kinetic pacing glide"}
-                    {(selectedSlide.promptDuration ?? 3) === 8 && "🏔️ Majestic long-take pan"}
-                    {![2, 4, 8].includes(selectedSlide.promptDuration ?? 3) && "⏱️ Custom duration setting"}
-                  </span>
+                  
+                  {/* Slider Control */}
+                  <input
+                    type="range"
+                    min={2}
+                    max={10}
+                    step={1}
+                    value={selectedSlide.promptDuration ?? 3}
+                    onChange={(e) => {
+                      updateSlideProp(selectedSlide.id, "promptDuration", parseInt(e.target.value));
+                      triggerBeepChime();
+                    }}
+                    className="w-full h-1 bg-slate-200 dark:bg-slate-850 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    title="Drag to adjust video duration from 2 to 10 seconds"
+                    id="slider-video-duration"
+                  />
+
+                  {/* Preset Quick Buttons */}
+                  <div className="flex flex-col gap-1.5 bg-slate-100/50 dark:bg-slate-900/50 p-1.5 rounded-xl border border-slate-200/40 dark:border-slate-850/60">
+                    <span className="text-[9px] font-black text-slate-400 uppercase tracking-wide px-1">Presets:</span>
+                    <div className="flex flex-wrap gap-1">
+                      {[
+                        { val: 3, label: "3s Punchy" },
+                        { val: 6, label: "6s Balanced" },
+                        { val: 9, label: "9s Cinematic" }
+                      ].map((preset) => {
+                        const isActive = (selectedSlide.promptDuration ?? 3) === preset.val;
+                        return (
+                          <button
+                            key={preset.val}
+                            type="button"
+                            onClick={() => {
+                              updateSlideProp(selectedSlide.id, "promptDuration", preset.val);
+                              triggerBeepChime();
+                            }}
+                            className={`flex-1 py-1 px-1.5 rounded-lg text-[9px] font-black tracking-tight transition-all cursor-pointer select-none text-center whitespace-nowrap ${
+                              isActive
+                                ? "bg-indigo-600 text-white shadow-xs"
+                                : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-white/50 dark:hover:bg-slate-800/30 bg-slate-200/20 dark:bg-slate-800/10"
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                  
+                  {/* Dynamic Motion Recommendation Guide */}
+                  <div className="p-2 bg-indigo-50/50 dark:bg-indigo-950/25 border border-indigo-100/40 dark:border-indigo-900/40 rounded-xl space-y-1">
+                    <span className="block text-[8.5px] font-extrabold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">
+                      💡 Recommended Camera Motion:
+                    </span>
+                    <div className="text-[9.5px] text-slate-600 dark:text-slate-300 leading-normal font-medium">
+                      {(selectedSlide.promptDuration ?? 3) <= 3 && (
+                        <>
+                          <span className="font-bold text-indigo-600 dark:text-indigo-400">⚡ Snappy pacing:</span> Try <span className="font-bold underline decoration-indigo-300 dark:decoration-indigo-800">Fast Zoom</span>, <span className="font-bold underline decoration-indigo-300 dark:decoration-indigo-800">Quick Pan</span>, or <span className="font-bold underline decoration-indigo-300 dark:decoration-indigo-800">Kinetic Tilt</span>.
+                        </>
+                      )}
+                      {(selectedSlide.promptDuration ?? 3) >= 4 && (selectedSlide.promptDuration ?? 3) <= 6 && (
+                        <>
+                          <span className="font-bold text-emerald-600 dark:text-emerald-400">🎬 Balanced pacing:</span> Try <span className="font-bold underline decoration-emerald-300 dark:decoration-emerald-800">Slow Zoom In</span>, <span className="font-bold underline decoration-emerald-300 dark:decoration-emerald-800">Smooth Pan</span>, or <span className="font-bold underline decoration-emerald-300 dark:decoration-emerald-800">Soft Orbit</span>.
+                        </>
+                      )}
+                      {(selectedSlide.promptDuration ?? 3) >= 7 && (selectedSlide.promptDuration ?? 3) <= 8 && (
+                        <>
+                          <span className="font-bold text-amber-600 dark:text-amber-500">🏔️ Graceful pacing:</span> Try <span className="font-bold underline decoration-amber-300 dark:decoration-amber-800">Gentle Parallax</span>, <span className="font-bold underline decoration-amber-300 dark:decoration-amber-800">Soft Breathing</span>, or <span className="font-bold underline decoration-amber-300 dark:decoration-amber-800">Elegant Orbit</span>.
+                        </>
+                      )}
+                      {(selectedSlide.promptDuration ?? 3) >= 9 && (selectedSlide.promptDuration ?? 3) <= 10 && (
+                        <>
+                          <span className="font-bold text-rose-600 dark:text-rose-400">🌟 Majestic pacing:</span> Try <span className="font-bold underline decoration-rose-300 dark:decoration-rose-800">Epic Panoramic</span>, <span className="font-bold underline decoration-rose-300 dark:decoration-rose-800">Continuous Flyover</span>, or <span className="font-bold underline decoration-rose-300 dark:decoration-rose-800">Narrative Glide</span>.
+                        </>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="space-y-1.5">
@@ -5195,8 +5738,9 @@ export default function ImageToVideo({
                 <label className="text-[10.5px] font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
                   9. Prompt Optimization Engine:
                 </label>
-                <div className="grid grid-cols-3 gap-1.5">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
                   {[
+                    { id: "runway_agent", label: "Runway Gen-4", desc: "Cinematic Gen-4" },
                     { id: "detailed", label: "Detailed", desc: "Heavy Adjectives" },
                     { id: "minimal", label: "Minimal", desc: "Short Keywords" },
                     { id: "sora_luma", label: "Sora & Luma", desc: "AI Optimized" }
@@ -5573,6 +6117,32 @@ export default function ImageToVideo({
               </div>
             </div>
 
+            {/* Subtitle manual vertical offset adjustment */}
+            <div className="space-y-1.5 pt-1">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  Caption Height (Overlap Avoidance):
+                </label>
+                <span className="text-[10px] font-mono font-bold text-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded">
+                  {subtitleManualOffset}px
+                </span>
+              </div>
+              <input
+                type="range"
+                min={-30}
+                max={150}
+                step={5}
+                value={subtitleManualOffset}
+                onChange={(e) => {
+                  setSubtitleManualOffset(parseInt(e.target.value));
+                }}
+                className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+              />
+              <p className="text-[8px] text-slate-400 leading-tight">
+                Shift captions vertically to avoid overlapping with transitions or background items.
+              </p>
+            </div>
+
             {/* Overlays toggle switches */}
             <div className="space-y-2.5 pt-1">
               <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider block">
@@ -5654,9 +6224,43 @@ export default function ImageToVideo({
                   className="flex-1 px-3.5 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl outline-none"
                   placeholder="Output file name..."
                 />
-                <span className="px-3.5 py-2 text-xs font-bold text-slate-400 bg-slate-100 dark:bg-slate-900/40 border border-slate-200 rounded-xl font-mono leading-none flex items-center justify-center select-none">
-                  .webm
+                <span className="px-3.5 py-2 text-xs font-bold text-slate-400 bg-slate-100 dark:bg-slate-900/40 border border-slate-200 rounded-xl font-mono leading-none flex items-center justify-center select-none uppercase">
+                  .{exportFormat}
                 </span>
+              </div>
+            </div>
+
+            {/* Output Format Selector */}
+            <div className="space-y-1.5">
+              <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                Output Format:
+              </label>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { id: "mp4", label: "MP4", desc: "Highly Compatible" },
+                  { id: "webm", label: "WebM", desc: "Ultra Compact" },
+                  { id: "gif", label: "GIF", desc: "Animated Image" }
+                ].map((item) => {
+                  const isActive = exportFormat === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        setExportFormat(item.id as any);
+                        triggerBeepChime();
+                      }}
+                      className={`p-2 rounded-xl border text-center transition-all cursor-pointer select-none flex flex-col items-center justify-center gap-0.5 ${
+                        isActive
+                          ? "bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-500/10"
+                          : "bg-white dark:bg-slate-950 border-slate-150 hover:border-slate-350"
+                      }`}
+                    >
+                      <span className="text-[11px] font-black leading-none">{item.label}</span>
+                      <span className="text-[8px] font-medium opacity-80 leading-none mt-0.5">{item.desc}</span>
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
