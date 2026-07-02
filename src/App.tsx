@@ -48,7 +48,252 @@ import {
   Smartphone,
   Download,
   Loader2,
+  Crop,
+  Eye,
 } from "lucide-react";
+
+function renderTabPreview(tabId: string) {
+  switch (tabId) {
+    case "quote":
+      return (
+        <div className="space-y-2">
+          <div className="relative border border-slate-200/50 dark:border-slate-800 p-2.5 rounded-lg bg-white/40 dark:bg-slate-900/40 backdrop-blur-xs flex flex-col items-center justify-center text-center">
+            <div className="absolute -inset-1 bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-indigo-500/10 rounded-lg blur-md opacity-75" />
+            <span className="relative text-[11px] font-black text-slate-800 dark:text-slate-100 font-sans tracking-tight">
+              "Design beautiful graphics..."
+            </span>
+            <div className="relative flex gap-1.5 mt-2">
+              <span className="w-2.5 h-2.5 rounded-full bg-indigo-500" />
+              <span className="w-2.5 h-2.5 rounded-full bg-pink-500" />
+              <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+            </div>
+          </div>
+          <div className="flex justify-between items-center text-[8px] font-mono text-slate-400 dark:text-slate-500">
+            <span>Canvas size: 1080px</span>
+            <span>PNG/JPEG export</span>
+          </div>
+        </div>
+      );
+    case "compress":
+      return (
+        <div className="space-y-2">
+          <div className="relative border border-dashed border-indigo-400/40 p-2.5 rounded-lg bg-indigo-50/10 dark:bg-indigo-950/10 backdrop-blur-xs flex flex-col items-center justify-center">
+            <div className="absolute -inset-1 bg-gradient-to-r from-emerald-500/15 to-teal-500/15 rounded-lg blur-md opacity-70" />
+            <span className="relative text-[9px] font-bold text-slate-500 dark:text-slate-400">
+              Drag file here to compress
+            </span>
+            <div className="relative flex items-center gap-1.5 mt-2">
+              <span className="text-[8px] bg-rose-500/20 text-rose-400 px-1 py-0.5 rounded">4.2 MB</span>
+              <span className="text-[8px] text-slate-400">→</span>
+              <span className="text-[8px] bg-emerald-500/20 text-emerald-400 px-1 py-0.5 rounded font-bold">480 KB</span>
+            </div>
+          </div>
+          <div className="flex justify-between items-center text-[8px] font-mono text-slate-400 dark:text-slate-500">
+            <span>Median Cut algorithm</span>
+            <span className="text-emerald-500 font-bold">-89% saved</span>
+          </div>
+        </div>
+      );
+    case "qr":
+      return (
+        <div className="space-y-2">
+          <div className="relative border border-slate-200/50 dark:border-slate-800 p-2.5 rounded-lg bg-white/40 dark:bg-slate-900/40 backdrop-blur-xs flex items-center justify-between gap-3">
+            <div className="absolute -inset-1 bg-gradient-to-r from-amber-500/15 to-yellow-500/15 rounded-lg blur-md opacity-70" />
+            <div className="relative w-8 h-8 border border-slate-400/40 p-0.5 bg-slate-950 rounded">
+              <div className="grid grid-cols-4 gap-0.5 h-full w-full opacity-80">
+                <div className="bg-white rounded-xs" />
+                <div className="bg-transparent" />
+                <div className="bg-white rounded-xs" />
+                <div className="bg-white rounded-xs" />
+                <div className="bg-transparent" />
+                <div className="bg-white rounded-xs" />
+                <div className="bg-transparent" />
+                <div className="bg-white rounded-xs" />
+                <div className="bg-white rounded-xs" />
+                <div className="bg-transparent" />
+                <div className="bg-white rounded-xs" />
+                <div className="bg-white rounded-xs" />
+                <div className="bg-white rounded-xs" />
+                <div className="bg-white rounded-xs" />
+                <div className="bg-transparent" />
+                <div className="bg-white rounded-xs" />
+              </div>
+            </div>
+            <div className="relative flex-1 space-y-1">
+              <div className="h-1 w-full bg-slate-300 dark:bg-slate-700 rounded" />
+              <div className="h-1 w-3/4 bg-slate-300 dark:bg-slate-700 rounded" />
+              <div className="h-1 w-1/2 bg-slate-300 dark:bg-slate-700 rounded" />
+            </div>
+          </div>
+          <div className="flex justify-between items-center text-[8px] font-mono text-slate-400 dark:text-slate-500">
+            <span>Reed-Solomon ECC</span>
+            <span>Custom corners</span>
+          </div>
+        </div>
+      );
+    case "palette":
+      return (
+        <div className="space-y-2">
+          <div className="relative border border-slate-200/50 dark:border-slate-800 p-2.5 rounded-lg bg-white/40 dark:bg-slate-900/40 backdrop-blur-xs">
+            <div className="absolute -inset-1 bg-gradient-to-r from-pink-500/10 via-purple-500/10 to-indigo-500/10 rounded-lg blur-md opacity-70" />
+            <div className="relative flex h-5 rounded overflow-hidden">
+              <div className="flex-1 bg-indigo-600" />
+              <div className="flex-1 bg-purple-500" />
+              <div className="flex-1 bg-pink-500" />
+              <div className="flex-1 bg-amber-400" />
+              <div className="flex-1 bg-emerald-400" />
+            </div>
+            <div className="relative flex justify-between mt-1 text-[7px] font-mono text-slate-400">
+              <span>#4F46E5</span>
+              <span>#10B981</span>
+            </div>
+          </div>
+          <div className="flex justify-between items-center text-[8px] font-mono text-slate-400 dark:text-slate-500">
+            <span>Median Cut algorithm</span>
+            <span>Copy hex codes</span>
+          </div>
+        </div>
+      );
+    case "video":
+      return (
+        <div className="space-y-2">
+          <div className="relative border border-slate-200/50 dark:border-slate-800 p-2 rounded-lg bg-white/40 dark:bg-slate-900/40 backdrop-blur-xs space-y-1.5">
+            <div className="absolute -inset-1 bg-gradient-to-r from-purple-500/15 to-indigo-500/15 rounded-lg blur-md opacity-70" />
+            <div className="relative h-6 bg-slate-950/80 rounded flex items-center justify-center overflow-hidden">
+              <span className="text-[7.5px] font-mono text-indigo-400 font-bold animate-pulse">00:06.0</span>
+            </div>
+            <div className="relative space-y-1">
+              <div className="h-1.5 bg-indigo-500/30 dark:bg-indigo-950/50 border border-indigo-400/20 rounded w-full flex items-center px-1">
+                <div className="h-0.5 bg-indigo-500 w-2/3 rounded" />
+              </div>
+              <div className="h-1.5 bg-emerald-500/20 dark:bg-emerald-950/30 border border-emerald-400/20 rounded w-full flex items-center px-1">
+                <div className="h-0.5 bg-emerald-500 w-1/2 rounded" />
+              </div>
+            </div>
+          </div>
+          <div className="flex justify-between items-center text-[8px] font-mono text-slate-400 dark:text-slate-500">
+            <span>Video & subtitles</span>
+            <span>Luma & Sora engine</span>
+          </div>
+        </div>
+      );
+    case "drive":
+      return (
+        <div className="space-y-2">
+          <div className="relative border border-slate-200/50 dark:border-slate-800 p-2 rounded-lg bg-white/40 dark:bg-slate-900/40 backdrop-blur-xs space-y-1.5">
+            <div className="absolute -inset-1 bg-gradient-to-r from-sky-500/15 to-blue-500/15 rounded-lg blur-md opacity-70" />
+            <div className="relative grid grid-cols-2 gap-1.5">
+              <div className="p-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200/30 dark:border-slate-700 flex items-center gap-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-blue-500 shrink-0" />
+                <span className="text-[7px] font-bold text-slate-600 dark:text-slate-300 truncate">Quotes</span>
+              </div>
+              <div className="p-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-200/30 dark:border-slate-700 flex items-center gap-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-purple-500 shrink-0" />
+                <span className="text-[7px] font-bold text-slate-600 dark:text-slate-300 truncate">Videos</span>
+              </div>
+            </div>
+            <div className="relative h-1 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
+              <div className="h-full bg-sky-500 w-2/3" />
+            </div>
+          </div>
+          <div className="flex justify-between items-center text-[8px] font-mono text-slate-400 dark:text-slate-500">
+            <span>Google Drive files</span>
+            <span>Cloud sync engine</span>
+          </div>
+        </div>
+      );
+    case "resources":
+      return (
+        <div className="space-y-2">
+          <div className="relative border border-slate-200/50 dark:border-slate-800 p-2 rounded-lg bg-white/40 dark:bg-slate-900/40 backdrop-blur-xs space-y-1">
+            <div className="absolute -inset-1 bg-gradient-to-r from-teal-500/15 to-emerald-500/15 rounded-lg blur-md opacity-70" />
+            <div className="relative space-y-1 border-b border-slate-200/20 pb-1">
+              <div className="h-1.5 w-full bg-slate-400 dark:bg-slate-600 rounded" />
+              <div className="h-1 w-2/3 bg-slate-300 dark:bg-slate-700 rounded" />
+            </div>
+            <div className="relative flex justify-between items-center pt-0.5 text-[7px] font-bold text-teal-600 dark:text-teal-400">
+              <span>Read: CPC Guide</span>
+              <span className="bg-teal-500/20 text-[6px] px-1 rounded-sm leading-none py-0.5 uppercase tracking-wider font-mono">5m</span>
+            </div>
+          </div>
+          <div className="flex justify-between items-center text-[8px] font-mono text-slate-400 dark:text-slate-500">
+            <span>SEO knowledge hub</span>
+            <span>AdSense policies</span>
+          </div>
+        </div>
+      );
+    case "legal":
+      return (
+        <div className="space-y-2">
+          <div className="relative border border-slate-200/50 dark:border-slate-800 p-2 rounded-lg bg-white/40 dark:bg-slate-900/40 backdrop-blur-xs flex items-center gap-2">
+            <div className="absolute -inset-1 bg-gradient-to-r from-slate-500/15 to-indigo-500/15 rounded-lg blur-md opacity-70" />
+            <div className="relative w-5 h-5 rounded-full bg-slate-200/50 dark:bg-slate-800 flex items-center justify-center shrink-0 border border-slate-300/30 dark:border-slate-700">
+              <div className="w-2.5 h-2.5 rounded-sm bg-emerald-500 animate-pulse" />
+            </div>
+            <div className="relative flex-1 space-y-1">
+              <div className="h-1 w-full bg-slate-400 dark:bg-slate-600 rounded" />
+              <div className="h-1 w-5/6 bg-slate-300 dark:bg-slate-700 rounded" />
+            </div>
+          </div>
+          <div className="flex justify-between items-center text-[8px] font-mono text-slate-400 dark:text-slate-500">
+            <span>Privacy & AdSense</span>
+            <span>Direct help desk</span>
+          </div>
+        </div>
+      );
+    default:
+      return null;
+  }
+}
+
+export interface PrinterPreset {
+  id: string;
+  name: string;
+  description: string;
+  margins: "standard" | "minimum" | "none";
+  cropMarks: boolean;
+  safeArea: boolean;
+  icon: string;
+}
+
+export const PRINTER_PRESETS: PrinterPreset[] = [
+  {
+    id: "home-inkjet",
+    name: "Home Inkjet",
+    description: "Standard margins, safe areas active, crop marks disabled for home printers.",
+    margins: "standard",
+    cropMarks: false,
+    safeArea: true,
+    icon: "🖨️",
+  },
+  {
+    id: "professional-offset",
+    name: "Professional Offset",
+    description: "High-precision trim marks, registration targets, and minimum bleed margins.",
+    margins: "minimum",
+    cropMarks: true,
+    safeArea: true,
+    icon: "🏭",
+  },
+  {
+    id: "standard-pdf",
+    name: "Standard PDF Export",
+    description: "Standard margins, clean borders, and zero crop/registration overlays.",
+    margins: "standard",
+    cropMarks: false,
+    safeArea: false,
+    icon: "📄",
+  },
+  {
+    id: "full-bleed-poster",
+    name: "Full Bleed Poster",
+    description: "Zero margins and corner trim marks for borderless edge-to-edge printing.",
+    margins: "none",
+    cropMarks: true,
+    safeArea: true,
+    icon: "🎨",
+  }
+];
 
 export default function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -226,6 +471,84 @@ export default function App() {
     }
     return "quote";
   });
+
+  const [hoveredTab, setHoveredTab] = useState<string | null>(null);
+
+  // Print Preview state declarations
+  const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState<boolean>(false);
+  const [printPageMargins, setPrintPageMargins] = useState<"standard" | "minimum" | "none">("minimum");
+  const [printOrientation, setPrintOrientation] = useState<"portrait" | "landscape">("portrait");
+  const [previewScale, setPreviewScale] = useState<number>(0.85);
+  const [previewHtml, setPreviewHtml] = useState<string>("");
+  const [showCropMarks, setShowCropMarks] = useState<boolean>(true);
+  const [showSafeArea, setShowSafeArea] = useState<boolean>(true);
+  const [selectedPresetId, setSelectedPresetId] = useState<string>("professional-offset");
+
+  // Sync preset selection automatically with current overlay configuration options
+  useEffect(() => {
+    const matchedPreset = PRINTER_PRESETS.find(
+      (p) =>
+        p.margins === printPageMargins &&
+        p.cropMarks === showCropMarks &&
+        p.safeArea === showSafeArea
+    );
+    if (matchedPreset) {
+      setSelectedPresetId(matchedPreset.id);
+    } else {
+      setSelectedPresetId("custom");
+    }
+  }, [printPageMargins, showCropMarks, showSafeArea]);
+
+  useEffect(() => {
+    if (isPrintPreviewOpen) {
+      let selector = "";
+      if (activeTab === "quote") {
+        selector = "#quote-card-preview";
+      } else if (activeTab === "qr") {
+        selector = "#qr-code-preview-card";
+      } else if (activeTab === "palette") {
+        selector = ".palette-swatches-grid";
+      } else if (activeTab === "compress") {
+        selector = ".compression-results-view, #active-compression-preview";
+      } else if (activeTab === "drive") {
+        selector = ".drive-files-grid";
+      }
+
+      if (selector) {
+        // Yield minor layout frame buffer before polling DOM for accurate updated state content
+        const timer = setTimeout(() => {
+          const element = document.querySelector(selector);
+          if (element) {
+            if (activeTab === "palette") {
+              const hist = document.querySelector(".color-histogram-chart");
+              let combined = element.outerHTML;
+              if (hist) {
+                combined += `<div class="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800">${hist.outerHTML}</div>`;
+              }
+              setPreviewHtml(combined);
+            } else {
+              setPreviewHtml(element.outerHTML);
+            }
+          } else {
+            setPreviewHtml(`
+              <div class="p-12 text-center text-slate-450 dark:text-slate-500 font-sans space-y-4">
+                <p class="font-black text-sm uppercase tracking-wider text-slate-700 dark:text-slate-300">No Content Ready to Print</p>
+                <p class="text-[11px] leading-relaxed max-w-xs mx-auto text-slate-400">Please generate or load an active design layout in the ${activeTab === "quote" ? "Quote Designer" : "active tool"} panel to view its high-fidelity physical printed replica page layout!</p>
+              </div>
+            `);
+          }
+        }, 100);
+        return () => clearTimeout(timer);
+      } else {
+        setPreviewHtml(`
+          <div class="p-12 text-center text-slate-450 dark:text-slate-500 font-sans space-y-4">
+            <p class="font-black text-sm uppercase tracking-wider text-indigo-505 dark:text-amber-400">Document Review Mode</p>
+            <p class="text-[11px] leading-relaxed max-w-xs mx-auto text-slate-400">The current workspace consists of digital articles or compliance forms which will be formatted automatically to standardized standard paper layouts when choosing browser print actions.</p>
+          </div>
+        `);
+      }
+    }
+  }, [isPrintPreviewOpen, activeTab]);
 
   const [legalSubTab, setLegalSubTab] = useState<"privacy" | "terms" | "about" | "contact">(() => {
     if (typeof window !== "undefined") {
@@ -1004,6 +1327,8 @@ export default function App() {
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id as any)}
+                onMouseEnter={() => setHoveredTab(tab.id)}
+                onMouseLeave={() => setHoveredTab(null)}
                 role="tab"
                 aria-selected={isActive}
                 aria-controls={`tabpanel-${tab.id}`}
@@ -1041,6 +1366,39 @@ export default function App() {
                     </span>
                   )}
                 </span>
+
+                {/* Micro interface preview tooltip */}
+                <AnimatePresence>
+                  {hoveredTab === tab.id && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      transition={{ duration: 0.15, ease: "easeOut" }}
+                      className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-3 z-50 w-56 p-3 rounded-2xl border backdrop-blur-md shadow-2xl pointer-events-none text-left whitespace-normal ${
+                        theme === "dark"
+                          ? "bg-slate-950/95 border-slate-850 text-slate-100 shadow-slate-950/80"
+                          : "bg-white/95 border-slate-200/80 text-slate-800 shadow-slate-200/80"
+                      }`}
+                    >
+                      <div className="flex items-center gap-1.5 border-b border-slate-150/55 dark:border-slate-850 pb-2 mb-2 font-sans">
+                        <Icon className={`w-3.5 h-3.5 ${theme === "dark" ? "text-emerald-400" : "text-indigo-600"}`} />
+                        <span className="text-[10px] font-black uppercase tracking-wider">{tab.label}</span>
+                      </div>
+                      
+                      <div className="relative overflow-hidden rounded-xl bg-slate-50/50 dark:bg-slate-900/50 p-2 border border-slate-100/40 dark:border-slate-800/40">
+                        {renderTabPreview(tab.id)}
+                      </div>
+                      
+                      {/* Tooltip pointer caret */}
+                      <div className={`absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 border-r border-b ${
+                        theme === "dark"
+                          ? "bg-slate-950/95 border-slate-850"
+                          : "bg-white/95 border-slate-200/80"
+                      }`} />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </button>
             );
           })}
@@ -1473,6 +1831,28 @@ export default function App() {
 
             <button
               onClick={() => {
+                setIsPrintPreviewOpen(true);
+                logSessionActivity({
+                  type: "tool",
+                  title: "Opened Print Preview",
+                  detail: `Triggered high-fidelity scaled-down visual print preview modal for active ${activeTab} tool`,
+                  icon: "ShieldCheck",
+                  tab: activeTab
+                });
+              }}
+              className="hover:bg-amber-500 hover:text-white dark:hover:bg-amber-600 cursor-pointer font-bold flex items-center gap-1.5 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-900/40 bg-white dark:bg-slate-900/40 px-3 py-1.5 rounded-xl transition-all shadow-3xs hover:scale-102 active:scale-97 select-none"
+              title="Visualize exact physical printed document using a scaled A4 page layout preview container"
+              id="footer-print-preview-trigger-btn"
+            >
+              <Printer className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+              <span>
+                Print Preview
+              </span>
+            </button>
+            <span className="text-slate-300 dark:text-slate-700 select-none">•</span>
+
+            <button
+              onClick={() => {
                 window.focus();
                 window.print();
                 logSessionActivity({
@@ -1489,15 +1869,7 @@ export default function App() {
             >
               <Printer className="w-3.5 h-3.5 text-indigo-500 dark:text-amber-400 animate-pulse" />
               <span>
-                Print Active {
-                  activeTab === "quote" ? "Quote" : 
-                  activeTab === "compress" ? "Compression Proof" :
-                  activeTab === "qr" ? "QR Code" : 
-                  activeTab === "palette" ? "Palette" : 
-                  activeTab === "video" ? "Timeline Editor" :
-                  activeTab === "drive" ? "Drive Panel" : 
-                  activeTab === "resources" ? "Content Guides" : "Compliance View"
-                }
+                Print Now
               </span>
             </button>
           </div>
@@ -1553,6 +1925,381 @@ export default function App() {
         onClose={() => setIsFeedbackOpen(false)}
         theme={theme}
       />
+
+      {/* Visual High-Fidelity Print Preview Modal */}
+      <AnimatePresence>
+        {isPrintPreviewOpen && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-950/60 backdrop-blur-md z-[110] flex items-center justify-center p-4 md:p-6 overflow-y-auto select-none"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 20 }}
+              transition={{ type: "spring", duration: 0.5 }}
+              className={`w-full max-w-5xl rounded-3xl border shadow-2xl flex flex-col md:flex-row overflow-hidden ${
+                theme === "dark" ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-200 text-slate-800"
+              }`}
+            >
+              {/* Left Settings & Controller Side-Bar */}
+              <div className="w-full md:w-80 border-b md:border-b-0 md:border-r border-slate-200 dark:border-slate-800 p-5 md:p-6 space-y-6 shrink-0 bg-slate-50/50 dark:bg-slate-950/30">
+                <div className="flex items-center gap-2.5">
+                  <div className="p-2 bg-amber-100 dark:bg-amber-950/70 text-amber-650 dark:text-amber-400 rounded-xl">
+                    <Printer className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm font-black uppercase tracking-wider">Print Preview</h3>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase tracking-widest mt-0.5 font-mono">Physical Simulator</p>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {/* Printer Preset controller */}
+                  <div className="space-y-1.5 pb-3 border-b border-slate-200/50 dark:border-slate-800/50">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Printer Preset</span>
+                    <div className="relative">
+                      <select
+                        value={selectedPresetId}
+                        onChange={(e) => {
+                          const val = e.target.value;
+                          setSelectedPresetId(val);
+                          if (val !== "custom") {
+                            const preset = PRINTER_PRESETS.find(p => p.id === val);
+                            if (preset) {
+                              setPrintPageMargins(preset.margins);
+                              setShowCropMarks(preset.cropMarks);
+                              setShowSafeArea(preset.safeArea);
+                            }
+                          }
+                        }}
+                        className="w-full px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none cursor-pointer"
+                      >
+                        {PRINTER_PRESETS.map((p) => (
+                          <option key={p.id} value={p.id}>
+                            {p.icon} {p.name}
+                          </option>
+                        ))}
+                        <option value="custom">⚙️ Custom Settings</option>
+                      </select>
+                    </div>
+                    {/* Dynamic description info */}
+                    <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium leading-relaxed mt-1">
+                      {selectedPresetId === "custom" 
+                        ? "Manually adjusted layout parameters" 
+                        : PRINTER_PRESETS.find(p => p.id === selectedPresetId)?.description}
+                    </p>
+                  </div>
+
+                  {/* Orientation controller */}
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Page Orientation</span>
+                    <div className="grid grid-cols-2 gap-2">
+                      {[
+                        { id: "portrait" as const, label: "📄 Portrait" },
+                        { id: "landscape" as const, label: "📁 Landscape" }
+                      ].map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => setPrintOrientation(opt.id)}
+                          className={`py-2 px-1 text-xs font-black rounded-xl border transition-all cursor-pointer ${
+                            printOrientation === opt.id
+                              ? "bg-indigo-650 border-indigo-650 text-white"
+                              : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-850"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Margins controller */}
+                  <div className="space-y-1.5">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Paper Margins</span>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {[
+                        { id: "standard" as const, label: "Standard" },
+                        { id: "minimum" as const, label: "Minimum" },
+                        { id: "none" as const, label: "None" }
+                      ].map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => setPrintPageMargins(opt.id)}
+                          className={`py-2 px-1 text-[10px] font-black rounded-xl border transition-all cursor-pointer ${
+                            printPageMargins === opt.id
+                              ? "bg-indigo-650 border-indigo-650 text-white"
+                              : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-850"
+                          }`}
+                        >
+                          {opt.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Visual scale / zoom controller */}
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Preview Scale</span>
+                      <span className="text-[10px] font-mono font-bold text-indigo-505 dark:text-indigo-400">
+                        {Math.round(previewScale * 100)}%
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.4"
+                      max="1.2"
+                      step="0.05"
+                      value={previewScale}
+                      onChange={(e) => setPreviewScale(parseFloat(e.target.value))}
+                      className="w-full accent-indigo-600 dark:accent-indigo-400 cursor-pointer h-1.5 rounded bg-slate-200 dark:bg-slate-850"
+                    />
+                    <div className="flex justify-between text-[8px] text-slate-405 dark:text-slate-500 font-mono">
+                      <span>40%</span>
+                      <button type="button" onClick={() => setPreviewScale(0.85)} className="hover:text-indigo-505 dark:hover:text-indigo-400 cursor-pointer">Reset (85%)</button>
+                      <span>120%</span>
+                    </div>
+                  </div>
+
+                  {/* Print Overlay Alignment Tools */}
+                  <div className="space-y-2 pt-3.5 border-t border-slate-200/65 dark:border-slate-800/65">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Print Overlays</span>
+                    
+                    <div className="space-y-2">
+                      {/* Crop Marks Toggle */}
+                      <label className="flex items-center justify-between p-2.5 rounded-xl border border-slate-150 dark:border-slate-800 bg-white dark:bg-slate-900 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-850/50 transition-all select-none">
+                        <div className="flex items-center gap-2">
+                          <Crop className="w-3.5 h-3.5 text-rose-500" />
+                          <div className="text-left">
+                            <span className="text-xs font-bold block">Crop Marks</span>
+                            <span className="text-[8px] text-slate-400 block leading-none font-medium mt-0.5">Registration & trim markers</span>
+                          </div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={showCropMarks}
+                          onChange={(e) => setShowCropMarks(e.target.checked)}
+                          className="w-4 h-4 rounded border-slate-300 text-indigo-650 focus:ring-indigo-650 accent-indigo-650 cursor-pointer"
+                        />
+                      </label>
+
+                      {/* Safe Area Toggle */}
+                      <label className="flex items-center justify-between p-2.5 rounded-xl border border-slate-150 dark:border-slate-800 bg-white dark:bg-slate-900 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-850/50 transition-all select-none">
+                        <div className="flex items-center gap-2">
+                          <Eye className="w-3.5 h-3.5 text-emerald-500" />
+                          <div className="text-left">
+                            <span className="text-xs font-bold block">Safe Area Border</span>
+                            <span className="text-[8px] text-slate-400 block leading-none font-medium mt-0.5">Dashed safe printing zone</span>
+                          </div>
+                        </div>
+                        <input
+                          type="checkbox"
+                          checked={showSafeArea}
+                          onChange={(e) => setShowSafeArea(e.target.checked)}
+                          className="w-4 h-4 rounded border-slate-300 text-indigo-650 focus:ring-indigo-650 accent-indigo-650 cursor-pointer"
+                        />
+                      </label>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="border-t border-slate-200 dark:border-slate-800 pt-5 space-y-4">
+                  {/* Quick features breakdown */}
+                  <div className="bg-amber-50 dark:bg-amber-955 px-3.5 py-3 rounded-2xl border border-amber-100 dark:border-amber-900/30 text-[10px] text-amber-800 dark:text-amber-300 leading-relaxed space-y-1 text-left font-sans shadow-3xs">
+                    <p className="font-bold flex items-center gap-1">
+                      <span>💡</span>
+                      <span>Print-media Engine</span>
+                    </p>
+                    <p>This layout uses the exact CSS `@media print` rules from `index.css` that hide editing sidebars, settings parameters, and banners to render only clean content.</p>
+                  </div>
+
+                  {/* Manual Refresh Trigger */}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Trigger state refresh by briefly clearing and re-checking
+                      setPreviewHtml("");
+                      setTimeout(() => {
+                        let selector = "";
+                        if (activeTab === "quote") selector = "#quote-card-preview";
+                        else if (activeTab === "qr") selector = "#qr-code-preview-card";
+                        else if (activeTab === "palette") selector = ".palette-swatches-grid";
+                        else if (activeTab === "compress") selector = ".compression-results-view, #active-compression-preview";
+                        else if (activeTab === "drive") selector = ".drive-files-grid";
+
+                        if (selector) {
+                          const element = document.querySelector(selector);
+                          if (element) {
+                            if (activeTab === "palette") {
+                              const hist = document.querySelector(".color-histogram-chart");
+                              let combined = element.outerHTML;
+                              if (hist) combined += `<div class="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800">${hist.outerHTML}</div>`;
+                              setPreviewHtml(combined);
+                            } else {
+                              setPreviewHtml(element.outerHTML);
+                            }
+                          } else {
+                            setPreviewHtml(`
+                              <div class="p-12 text-center text-slate-450 dark:text-slate-500 font-sans space-y-4">
+                                <p class="font-black text-sm uppercase tracking-wider text-slate-700 dark:text-slate-300">No Content Ready</p>
+                                <p class="text-[11px] leading-relaxed max-w-xs mx-auto text-slate-400">Please generate or load an active design layout to print.</p>
+                              </div>
+                            `);
+                          }
+                        }
+                      }, 50);
+                    }}
+                    className="w-full py-2 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold rounded-xl transition-all hover:bg-slate-50 dark:hover:bg-slate-850 flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <span>🔄</span>
+                    <span>Refresh Content</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* Main Simulated Paper View Container */}
+              <div className="flex-1 p-6 md:p-8 flex flex-col justify-between bg-slate-100 dark:bg-slate-950 overflow-y-auto max-h-[85vh] min-h-[500px]">
+                {/* Header detail */}
+                <div className="flex items-center justify-between pb-4 border-b border-slate-200/50 dark:border-slate-800/50 select-none">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400">
+                    Active Output: {activeTab === "quote" ? "Quote Card" : activeTab === "qr" ? "QR Matrix" : activeTab === "palette" ? "Median Extract" : "Workspace Summary"}
+                  </span>
+                  <span className="text-[9px] font-black tracking-widest uppercase bg-indigo-100 dark:bg-indigo-950/75 text-indigo-700 dark:text-indigo-400 px-2.5 py-1 rounded-md">
+                    Standard A4 Page (Simulated)
+                  </span>
+                </div>
+
+                {/* Simulated Paper sheet bounding box */}
+                <div className="flex-1 flex items-center justify-center py-6 overflow-hidden">
+                  <div
+                    className={`relative bg-white shadow-2xl rounded-sm transition-all duration-300 origin-center select-none overflow-hidden ${
+                      printOrientation === "portrait"
+                        ? "w-[440px] h-[622px]"
+                        : "w-[622px] h-[440px]"
+                    }`}
+                    style={{
+                      padding:
+                        printPageMargins === "standard"
+                          ? "1.5cm"
+                          : printPageMargins === "minimum"
+                          ? "0.5cm"
+                          : "0cm",
+                      color: "#000000",
+                    }}
+                  >
+                    {/* Visual margin guidelines on screen */}
+                    {printPageMargins !== "none" && (
+                      <div className="absolute inset-0 border border-dashed border-sky-200 dark:border-sky-900/25 pointer-events-none m-[inherit] rounded-xs" />
+                    )}
+
+                    {/* Visual Crop Marks Overlay */}
+                    {showCropMarks && (
+                      <>
+                        {/* Top-Left Corner Crop Mark */}
+                        <div className="absolute top-0 left-0 w-6 h-[1.5px] bg-rose-600/95 pointer-events-none z-30" />
+                        <div className="absolute top-0 left-0 w-[1.5px] h-6 bg-rose-600/95 pointer-events-none z-30" />
+                        
+                        {/* Top-Right Corner Crop Mark */}
+                        <div className="absolute top-0 right-0 w-6 h-[1.5px] bg-rose-600/95 pointer-events-none z-30" />
+                        <div className="absolute top-0 right-0 w-[1.5px] h-6 bg-rose-600/95 pointer-events-none z-30" />
+
+                        {/* Bottom-Left Corner Crop Mark */}
+                        <div className="absolute bottom-0 left-0 w-6 h-[1.5px] bg-rose-600/95 pointer-events-none z-30" />
+                        <div className="absolute bottom-0 left-0 w-[1.5px] h-6 bg-rose-600/95 pointer-events-none z-30" />
+
+                        {/* Bottom-Right Corner Crop Mark */}
+                        <div className="absolute bottom-0 right-0 w-6 h-[1.5px] bg-rose-600/95 pointer-events-none z-30" />
+                        <div className="absolute bottom-0 right-0 w-[1.5px] h-6 bg-rose-600/95 pointer-events-none z-30" />
+
+                        {/* Registration Targets for color alignment (top, bottom, left, right centers) */}
+                        <div className="absolute top-1.5 left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none w-4 h-4 z-30" title="Registration Target">
+                          <div className="w-3 h-3 rounded-full border border-rose-600/90 flex items-center justify-center">
+                            <div className="w-4 h-[1px] bg-rose-600/90 absolute" />
+                            <div className="h-4 w-[1px] bg-rose-600/90 absolute" />
+                          </div>
+                        </div>
+                        <div className="absolute bottom-1.5 left-1/2 -translate-x-1/2 flex items-center justify-center pointer-events-none w-4 h-4 z-30" title="Registration Target">
+                          <div className="w-3 h-3 rounded-full border border-rose-600/90 flex items-center justify-center">
+                            <div className="w-4 h-[1px] bg-rose-600/90 absolute" />
+                            <div className="h-4 w-[1px] bg-rose-600/90 absolute" />
+                          </div>
+                        </div>
+                        <div className="absolute left-1.5 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none w-4 h-4 z-30" title="Registration Target">
+                          <div className="w-3 h-3 rounded-full border border-rose-600/90 flex items-center justify-center">
+                            <div className="w-4 h-[1px] bg-rose-600/90 absolute" />
+                            <div className="h-4 w-[1px] bg-rose-600/90 absolute" />
+                          </div>
+                        </div>
+                        <div className="absolute right-1.5 top-1/2 -translate-y-1/2 flex items-center justify-center pointer-events-none w-4 h-4 z-30" title="Registration Target">
+                          <div className="w-3 h-3 rounded-full border border-rose-600/90 flex items-center justify-center">
+                            <div className="w-4 h-[1px] bg-rose-600/90 absolute" />
+                            <div className="h-4 w-[1px] bg-rose-600/90 absolute" />
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Safe Area Guideline */}
+                    {showSafeArea && (
+                      <div className="absolute inset-5 border-2 border-dashed border-emerald-500/50 pointer-events-none rounded-xs z-20 flex items-start justify-start p-1" title="Safe Area (0.25in / 6mm offset)">
+                        <span className="text-[7px] font-mono font-extrabold text-emerald-600 bg-emerald-50 px-1 py-0.5 rounded leading-none select-none uppercase tracking-widest opacity-80 scale-90 origin-top-left">
+                          Safe Area
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Scale boundary wrapper wrapping injected live HTML */}
+                    <div 
+                      className="w-full h-full flex flex-col items-center justify-center overflow-hidden font-sans text-slate-800 print-preview-content-area"
+                      style={{
+                        transform: `scale(${previewScale})`,
+                        transformOrigin: "center center"
+                      }}
+                      dangerouslySetInnerHTML={{ __html: previewHtml }}
+                    />
+                  </div>
+                </div>
+
+                {/* Actions row footer */}
+                <div className="pt-4 border-t border-slate-200/50 dark:border-slate-800/50 flex flex-col sm:flex-row items-center justify-between gap-3">
+                  <div className="text-[10px] text-slate-400 text-left leading-tight font-medium">
+                    <p>💡 Tip: Verify all design custom colors and font pairings look correct.</p>
+                    <p className="mt-0.5">Physical size adjustments will map safely to actual printer papers.</p>
+                  </div>
+                  <div className="flex items-center gap-2.5 w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={() => setIsPrintPreviewOpen(false)}
+                      className="flex-1 sm:flex-none py-2 px-4 border border-slate-205 dark:border-slate-805 text-xs font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-900 transition-all cursor-pointer text-slate-700 dark:text-slate-300"
+                    >
+                      Close Preview
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setIsPrintPreviewOpen(false);
+                        setTimeout(() => {
+                          window.focus();
+                          window.print();
+                        }, 250);
+                      }}
+                      className="flex-1 sm:flex-none py-2 px-5 bg-indigo-650 text-white text-xs font-black rounded-xl hover:bg-indigo-700 transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Printer className="w-3.5 h-3.5" />
+                      <span>Print Document</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Floating launcher badges for quick clicking visual palette and accessibility discovery */}
       <div className="fixed bottom-6 right-6 z-40 flex items-center gap-3">

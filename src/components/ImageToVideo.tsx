@@ -1,4 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+// @ts-ignore
+import garreyExplorerUrl from "../assets/images/garrey_explorer_1783014281882.jpg";
 import { User } from "firebase/auth";
 import { uploadFileToDrive } from "../lib/drive";
 import { triggerFileDownload } from "../lib/download";
@@ -41,6 +43,21 @@ import {
   Lightbulb
 } from "lucide-react";
 
+interface OverlayElement {
+  id: string;
+  type: "rect" | "circle" | "arrow" | "star" | "triangle" | "heart" | "checkmark" | "icon";
+  iconName?: string;
+  x: number; // Percentage on canvas 0 - 100
+  y: number; // Percentage on canvas 0 - 100
+  size: number; // in pixels (e.g. 20 to 120)
+  color: string; // hex color code
+  opacity: number; // 0.1 to 1.0
+  rotation: number; // rotation in degrees
+  lineWidth?: number; // border thickness
+  filled?: boolean; // filled vs stroke only
+  animation?: "pulse" | "spin" | "none";
+}
+
 interface ImageSlide {
   id: string;
   url: string;
@@ -60,6 +77,12 @@ interface ImageSlide {
   lightingType?: string;
   motionSpeed?: number; // motion speed / factor
   sfx?: string;
+  isTextSlide?: boolean;
+  textSlideBackground?: string;
+  textSlideFontSize?: number;
+  textSlideColor?: string;
+  elements?: OverlayElement[];
+  fontFamily?: string;
 }
 
 interface ImageToVideoProps {
@@ -628,6 +651,22 @@ const STYLE_TAGS: Record<string, string> = {
 
 const SAMPLE_SLIDES: ImageSlide[] = [
   {
+    id: "sample-garrey",
+    url: garreyExplorerUrl,
+    name: "Garrey the Fantasy Explorer.jpg",
+    duration: 3,
+    text: "Garrey the Fantasy Explorer",
+    textAnimation: "pop",
+    filter: "cinematic-warm",
+    scaleStart: 1.0,
+    scaleEnd: 1.18,
+    promptDuration: 3,
+    cameraMovement: "Slow Zoom",
+    subjectDescription: "cute fantasy fluffy explorer with tiny hat and brass goggles looking at glowing valley",
+    style: "Cinematic",
+    sfx: "celestial-chime"
+  },
+  {
     id: "sample-1",
     url: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&auto=format&fit=crop",
     name: "Golden Coast Beach.jpg",
@@ -729,6 +768,75 @@ const SOUNDTRACK_LIBRARY: SoundtrackItem[] = [
   { id: "none", name: "Silent Video File", bpm: 0, emoji: "🔇", genre: "Mute", desc: "Deactivate all live synthesis. Export your final video clip with no sound track." }
 ];
 
+interface FontOption {
+  id: string;
+  name: string;
+  family: string;
+  category: "Sans-Serif" | "Serif" | "Monospace" | "Display" | "Handwritten";
+}
+
+const CURATED_FONTS: FontOption[] = [
+  { id: "space-grotesk", name: "Space Grotesk", family: '"Space Grotesk", sans-serif', category: "Display" },
+  { id: "inter", name: "Inter (Clean)", family: '"Inter", sans-serif', category: "Sans-Serif" },
+  { id: "playfair", name: "Playfair Display", family: '"Playfair Display", "Georgia", serif', category: "Serif" },
+  { id: "jetbrains-mono", name: "JetBrains Mono", family: '"JetBrains Mono", monospace', category: "Monospace" },
+  { id: "cinzel", name: "Cinzel Cinematic", family: '"Cinzel", serif', category: "Serif" },
+  { id: "montserrat", name: "Montserrat", family: '"Montserrat", sans-serif', category: "Sans-Serif" },
+  { id: "bebas-neue", name: "Bebas Neue", family: '"Bebas Neue", sans-serif', category: "Display" },
+  { id: "outfit", name: "Outfit Geometric", family: '"Outfit", sans-serif', category: "Sans-Serif" },
+  { id: "lilita-one", name: "Lilita One", family: '"Lilita One", sans-serif', category: "Display" },
+  { id: "lobster", name: "Lobster Script", family: '"Lobster", sans-serif', category: "Handwritten" }
+];
+
+interface CuratedMusicTrack {
+  id: string;
+  name: string;
+  url: string;
+  genre: string;
+  emoji: string;
+  desc: string;
+  duration: string;
+}
+
+const CURATED_MP3_LIBRARY: CuratedMusicTrack[] = [
+  {
+    id: "lounge-jazz",
+    name: "Sunset Horizon Lounge",
+    url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
+    genre: "Chill Lounge",
+    emoji: "🎷",
+    desc: "A warm, smooth jazz-hop blend with slow brass chords, acoustic piano, and double bass.",
+    duration: "6:12"
+  },
+  {
+    id: "cinematic-dreams",
+    name: "Nebula Cinematic Dreams",
+    url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
+    genre: "Ambient",
+    emoji: "🌌",
+    desc: "Ethereal string movements, swelling synth textures, and distant echoing woodwinds.",
+    duration: "5:44"
+  },
+  {
+    id: "synthwave-80s",
+    name: "Neon Horizon Synthwave",
+    url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3",
+    genre: "Synthwave",
+    emoji: "🏎️",
+    desc: "Retro 80s arpeggiated basslines, classic analog drum machines, and futuristic pads.",
+    duration: "5:02"
+  },
+  {
+    id: "acoustic-journey",
+    name: "Coastal Breeze Acoustic",
+    url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3",
+    genre: "Acoustic Pop",
+    emoji: "🎸",
+    desc: "Upbeat organic acoustic guitars paired with warm piano harmonies and a positive rhythm.",
+    duration: "7:03"
+  }
+];
+
 export default function ImageToVideo({
   user,
   accessToken,
@@ -763,6 +871,7 @@ export default function ImageToVideo({
   
   // Cinematic visual & subtitle effects states
   const [subtitleStyle, setSubtitleStyle] = useState<"netflix" | "neon" | "karaoke" | "minimal" | "classical">("netflix");
+  const [subtitleFont, setSubtitleFont] = useState<string>("space-grotesk");
   const [cinematicLetterbox, setCinematicLetterbox] = useState<boolean>(false);
   const [vignetteOverlay, setVignetteOverlay] = useState<boolean>(false);
   
@@ -819,8 +928,37 @@ export default function ImageToVideo({
   const [showFinalOutput, setShowFinalOutput] = useState<boolean>(false);
   const [isSavingToDrive, setIsSavingToDrive] = useState<boolean>(false);
   const [isWaitingForLogin, setIsWaitingForLogin] = useState<boolean>(false);
+  
+  // Text-to-Video and Title Clip workspace states
+  const [creatorMode, setCreatorMode] = useState<"single" | "script" | "text-slide">("single");
+  const [videoScriptText, setVideoScriptText] = useState<string>("");
+  const [isGeneratingScript, setIsGeneratingScript] = useState<boolean>(false);
+  const [scriptCurrentLineIdx, setScriptCurrentLineIdx] = useState<number>(0);
+  const [scriptTotalLines, setScriptTotalLines] = useState<number>(0);
+  const [titleSlideText, setTitleSlideText] = useState<string>("ENTER TITLE HERE");
+  const [titleSlideBg, setTitleSlideBg] = useState<string>("gradient-sunset");
+  const [titleSlideFontSize, setTitleSlideFontSize] = useState<number>(44);
+  const [titleSlideColor, setTitleSlideColor] = useState<string>("#ffffff");
+
   const [exportFormat, setExportFormat] = useState<"webm" | "mp4" | "gif">("webm");
   const [subtitleManualOffset, setSubtitleManualOffset] = useState<number>(0);
+
+  // Premium Audio Visualizer & Voiceover state variables
+  const [visualizerStyle, setVisualizerStyle] = useState<"none" | "bars" | "wave" | "pulse">("wave");
+  const [voiceoverEnabled, setVoiceoverEnabled] = useState<boolean>(false);
+  const [voiceoverGender, setVoiceoverGender] = useState<"female" | "male">("female");
+  const [voiceoverVolume, setVoiceoverVolume] = useState<number>(0.7);
+
+  // Global Real-time Video Master Filter choice
+  const [masterVideoFilter, setMasterVideoFilter] = useState<
+    "none" | "grayscale" | "sepia" | "vintage" | "high-contrast" | "cyberpunk" | "noir" | "cool" | "warm"
+  >("none");
+
+  // Track active overlay element being edited
+  const [activeElementId, setActiveElementId] = useState<string | null>(null);
+
+  // Real-time CSS filter to apply instantly to the created/exported video/GIF in the player
+  const [createdVideoPlayerFilter, setCreatedVideoPlayerFilter] = useState<string>("none");
 
   // For the custom integrated video player
   const previewVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -938,6 +1076,43 @@ export default function ImageToVideo({
     currentTimeRef.current = currentTime;
   }, [currentTime]);
 
+  // Keep drawVideoFrame callback accessible in hooks declared above it via a React ref
+  const drawVideoFrameRef = useRef<any>(null);
+
+  // Continuous 60FPS requestAnimationFrame render loop during playback for smooth Ken Burns & reactive visualizers
+  useEffect(() => {
+    if (!isPlaying) return;
+
+    let active = true;
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const renderLoop = () => {
+      if (!active) return;
+
+      let height = 450;
+      if (aspectRatio === "9:16") {
+        height = Math.round(canvasWidth * (16 / 9));
+      } else if (aspectRatio === "1:1") {
+        height = canvasWidth;
+      }
+
+      // Draw the frame at the high-precision current time using the callback ref
+      if (drawVideoFrameRef.current) {
+        drawVideoFrameRef.current(ctx, canvasWidth, height, currentTimeRef.current);
+      }
+
+      requestAnimationFrame(renderLoop);
+    };
+
+    requestAnimationFrame(renderLoop);
+    return () => {
+      active = false;
+    };
+  }, [isPlaying, aspectRatio]);
+
   // Audio mute & mix sync
   useEffect(() => {
     if (isPlaying && !isMuted) {
@@ -992,8 +1167,33 @@ export default function ImageToVideo({
       if (slide && slide.sfx && slide.sfx !== "none" && !isMuted) {
         synthManagerRef.current.playSingleSfx(slide.sfx, audioVolume);
       }
+
+      // TTS Voiceover Narration Engine
+      if (slide && slide.text && voiceoverEnabled && !isMuted && typeof window !== "undefined" && window.speechSynthesis) {
+        try {
+          window.speechSynthesis.cancel(); // Stop current narration
+          const utterance = new SpeechSynthesisUtterance(slide.text);
+          const voices = window.speechSynthesis.getVoices();
+          if (voices.length > 0) {
+            let selectedVoice = voices.find(v => v.lang.startsWith("en"));
+            if (voiceoverGender === "female") {
+              selectedVoice = voices.find(v => v.lang.startsWith("en") && (v.name.toLowerCase().includes("female") || v.name.toLowerCase().includes("zira") || v.name.toLowerCase().includes("google us english") || v.name.toLowerCase().includes("samantha") || v.name.toLowerCase().includes("hazel")));
+            } else {
+              selectedVoice = voices.find(v => v.lang.startsWith("en") && (v.name.toLowerCase().includes("male") || v.name.toLowerCase().includes("david") || v.name.toLowerCase().includes("mark") || v.name.toLowerCase().includes("george")));
+            }
+            if (selectedVoice) {
+              utterance.voice = selectedVoice;
+            }
+          }
+          utterance.volume = voiceoverVolume; // Custom voiceover volume fader
+          utterance.rate = 1.05; // slightly faster social narration pace
+          window.speechSynthesis.speak(utterance);
+        } catch (e) {
+          console.warn("Speech Synthesis Voiceover failed:", e);
+        }
+      }
     }
-  }, [currentTime, isPlaying, slides, isMuted, audioVolume]);
+  }, [currentTime, isPlaying, slides, isMuted, audioVolume, voiceoverVolume, voiceoverEnabled, voiceoverGender]);
 
   // Dynamic live volume adjustments during playback
   useEffect(() => {
@@ -1006,6 +1206,9 @@ export default function ImageToVideo({
       synthManagerRef.current.stop();
       if (playbackIntervalRef.current) {
         clearInterval(playbackIntervalRef.current);
+      }
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        window.speechSynthesis.cancel();
       }
     };
   }, []);
@@ -1035,6 +1238,9 @@ export default function ImageToVideo({
     if (previewingTrack) {
       synthManagerRef.current.stop();
       setPreviewingTrack(null);
+    }
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
     }
     if (isPlaying) {
       setIsPlaying(false);
@@ -1074,6 +1280,9 @@ export default function ImageToVideo({
     setPreviewingTrack(null);
     if (playbackIntervalRef.current) {
       clearInterval(playbackIntervalRef.current);
+    }
+    if (typeof window !== "undefined" && window.speechSynthesis) {
+      window.speechSynthesis.cancel();
     }
     setCurrentTime(0);
     synthManagerRef.current.stop();
@@ -1508,6 +1717,191 @@ export default function ImageToVideo({
     return prompt;
   };
 
+  const handleGenerateScriptToVideo = async () => {
+    if (!videoScriptText.trim()) {
+      setToastMessage({
+        text: "Please enter a narrative script",
+        sub: "Write a few lines of story or scenes to build your movie",
+        success: false
+      });
+      return;
+    }
+
+    // Split by lines
+    const lines = videoScriptText
+      .split(/\n+/)
+      .map(line => line.trim())
+      .filter(line => line.length > 5); // Ignore empty/short lines
+
+    if (lines.length === 0) {
+      setToastMessage({
+        text: "Script too short",
+        sub: "Provide detailed cinematic descriptions on separate lines",
+        success: false
+      });
+      return;
+    }
+
+    setIsGeneratingScript(true);
+    setScriptTotalLines(lines.length);
+    setScriptCurrentLineIdx(0);
+
+    // If replaceOnUpload is checked, clear current timeline before starting batch
+    let currentSlides = replaceOnUpload ? [] : [...slides];
+    if (replaceOnUpload) {
+      setSlides([]);
+    }
+
+    try {
+      for (let i = 0; i < lines.length; i++) {
+        setScriptCurrentLineIdx(i + 1);
+        const currentLinePrompt = lines[i];
+
+        setToastMessage({
+          text: `🎬 Generating Scene ${i + 1} of ${lines.length}`,
+          sub: `"${currentLinePrompt.substring(0, 35)}..."`,
+          success: true
+        });
+
+        const response = await fetch("/api/video/generate-scene", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ 
+            prompt: currentLinePrompt,
+            engine: aiModelEngine,
+            motion: aiMotionIntensity,
+            camera: aiCameraDirection,
+            style: aiStylePreset
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Failed on Scene ${i + 1}`);
+        }
+
+        const data = await response.json();
+        const unsplashKeywords = data.keywords || "nature";
+        const imageUrl = `https://images.unsplash.com/featured/800x450/?${encodeURIComponent(unsplashKeywords)}&sig=${Date.now()}-${i}`;
+        
+        const intensityScale = 1.0 + (aiMotionIntensity * 0.035);
+        let finalCamera = aiCameraDirection === "auto" ? (data.camera || "Slow Zoom") : aiCameraDirection;
+        let scaleStartValue = 1.0;
+        let scaleEndValue = intensityScale;
+
+        if (finalCamera === "zoom-out" || finalCamera === "Zoom Out" || finalCamera === "Tilt Down" || finalCamera === "Tilt Up") {
+          scaleStartValue = intensityScale;
+          scaleEndValue = 1.0;
+        } else if (finalCamera === "Static" || finalCamera === "Static Framing") {
+          scaleStartValue = 1.0;
+          scaleEndValue = 1.0;
+        }
+
+        const newSlide: ImageSlide = {
+          id: `ai-scene-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          url: imageUrl,
+          name: `Script Sc ${i + 1}: ${currentLinePrompt.substring(0, 15)}...`,
+          duration: 4,
+          text: data.caption || currentLinePrompt.substring(0, 30),
+          textAnimation: "typewriter",
+          filter: aiStylePreset === "auto" ? (data.filter || "normal") : (aiStylePreset === "cinematic" ? "cinematic-warm" : aiStylePreset as any),
+          scaleStart: scaleStartValue,
+          scaleEnd: scaleEndValue,
+          promptDuration: 4,
+          cameraMovement: finalCamera,
+          subjectDescription: currentLinePrompt,
+          style: data.style || "Cinematic",
+          motionSpeed: aiMotionIntensity / 5.0
+        };
+
+        // Preload image
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.src = imageUrl;
+        await new Promise<void>((resolve) => {
+          img.onload = () => {
+            imageCacheRef.current[newSlide.id] = img;
+            resolve();
+          };
+          img.onerror = () => {
+            resolve();
+          };
+        });
+
+        currentSlides.push(newSlide);
+        setSlides([...currentSlides]);
+        setSelectedSlideId(newSlide.id);
+        
+        // Add a tiny delay between requests to be gentle to API
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+
+      setToastMessage({
+        text: "✨ Movie Script Compiled!",
+        sub: `Successfully generated a high-fidelity ${lines.length}-scene narrative video.`,
+        success: true
+      });
+      triggerBeepChime();
+
+    } catch (err: any) {
+      console.error(err);
+      setToastMessage({
+        text: "⚠️ Script generation stopped",
+        sub: err.message || "An unexpected error occurred during batch compiling.",
+        success: false
+      });
+    } finally {
+      setIsGeneratingScript(false);
+    }
+  };
+
+  const handleAddTextTitleSlide = () => {
+    if (!titleSlideText.trim()) {
+      setToastMessage({
+        text: "Please enter title text",
+        sub: "A text slide needs a visual message to display",
+        success: false
+      });
+      return;
+    }
+
+    const intensityScale = 1.0 + (aiMotionIntensity * 0.035);
+    const newSlide: ImageSlide = {
+      id: `text-slide-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+      url: "", // Text slides don't have an Unsplash URL
+      name: `📝 Text: ${titleSlideText.substring(0, 15)}`,
+      duration: 4,
+      text: titleSlideText,
+      textAnimation: "none", // Since text is drawn inside the center, we don't double draw the caption
+      filter: "normal",
+      scaleStart: 1.0,
+      scaleEnd: intensityScale, // Centered zoom works perfectly
+      promptDuration: 4,
+      cameraMovement: aiCameraDirection === "auto" ? "Slow Zoom" : aiCameraDirection,
+      subjectDescription: titleSlideText,
+      style: "Typography",
+      isTextSlide: true,
+      textSlideBackground: titleSlideBg,
+      textSlideFontSize: titleSlideFontSize,
+      textSlideColor: titleSlideColor
+    };
+
+    if (replaceOnUpload) {
+      setSlides([newSlide]);
+      setSelectedSlideId(newSlide.id);
+      setCurrentTime(0);
+    } else {
+      setSlides((prev) => [...prev, newSlide]);
+      setSelectedSlideId(newSlide.id);
+    }
+
+    setToastMessage({
+      text: "📝 Title Clip Appended!",
+      sub: "Added a styled text canvas to your cinematic timeline.",
+      success: true
+    });
+    triggerBeepChime();
+  };
+
   const handleGenerateAIScene = async (autoExportAfter: boolean = false) => {
     if (!userPromptText.trim()) {
       setToastMessage({
@@ -1786,8 +2180,10 @@ export default function ImageToVideo({
       alpha: number,
       offsetProgress: number = 0 // for horizontal sliding offset
     ) => {
-      const img = imageCacheRef.current[targetSlide.id];
-      if (!img) {
+      const isTextSlide = !!targetSlide.isTextSlide;
+      const img = !isTextSlide ? imageCacheRef.current[targetSlide.id] : null;
+
+      if (!isTextSlide && !img) {
         // Fallback placeholder while preloading
         ctx.fillStyle = "#1e293b";
         ctx.fillRect(0, 0, width, height);
@@ -1801,22 +2197,42 @@ export default function ImageToVideo({
       ctx.save();
       ctx.globalAlpha = alpha;
 
-      // Apply Filter Presets
-      if (targetSlide.filter === "noir") {
-        ctx.filter = "grayscale(100%) contrast(120%)";
-      } else if (targetSlide.filter === "vintage") {
-        ctx.filter = "sepia(50%) contrast(90%) brightness(105%)";
-      } else if (targetSlide.filter === "cinematic-warm") {
-        ctx.filter = "sepia(20%) saturate(135%) hue-rotate(-10deg) contrast(110%)";
-      } else if (targetSlide.filter === "cyberpunk") {
-        ctx.filter = "hue-rotate(185deg) saturate(180%) contrast(125%)";
-      } else if (targetSlide.filter === "vhs") {
-        ctx.filter = "contrast(112%) saturate(125%) hue-rotate(5deg) brightness(98%)";
-      } else if (targetSlide.filter === "retro") {
-        ctx.filter = "sepia(42%) saturate(108%) contrast(95%)";
+      // Apply Filter Presets (Global master filter takes precedence or merges, falls back to individual slide filter)
+      let activeFilter = "none";
+      if (masterVideoFilter !== "none") {
+        if (masterVideoFilter === "grayscale") {
+          activeFilter = "grayscale(100%)";
+        } else if (masterVideoFilter === "sepia") {
+          activeFilter = "sepia(100%)";
+        } else if (masterVideoFilter === "vintage") {
+          activeFilter = "sepia(60%) contrast(90%) brightness(105%) saturate(110%)";
+        } else if (masterVideoFilter === "high-contrast") {
+          activeFilter = "contrast(150%) brightness(105%)";
+        } else if (masterVideoFilter === "cyberpunk") {
+          activeFilter = "hue-rotate(180deg) saturate(185%) contrast(125%)";
+        } else if (masterVideoFilter === "noir") {
+          activeFilter = "grayscale(100%) contrast(140%) brightness(90%)";
+        } else if (masterVideoFilter === "cool") {
+          activeFilter = "hue-rotate(30deg) saturate(115%) brightness(95%) contrast(105%)";
+        } else if (masterVideoFilter === "warm") {
+          activeFilter = "sepia(30%) saturate(130%) hue-rotate(-10deg) brightness(105%)";
+        }
       } else {
-        ctx.filter = "none";
+        if (targetSlide.filter === "noir") {
+          activeFilter = "grayscale(100%) contrast(120%)";
+        } else if (targetSlide.filter === "vintage") {
+          activeFilter = "sepia(50%) contrast(90%) brightness(105%)";
+        } else if (targetSlide.filter === "cinematic-warm") {
+          activeFilter = "sepia(20%) saturate(135%) hue-rotate(-10deg) contrast(110%)";
+        } else if (targetSlide.filter === "cyberpunk") {
+          activeFilter = "hue-rotate(185deg) saturate(180%) contrast(125%)";
+        } else if (targetSlide.filter === "vhs") {
+          activeFilter = "contrast(112%) saturate(125%) hue-rotate(5deg) brightness(98%)";
+        } else if (targetSlide.filter === "retro") {
+          activeFilter = "sepia(42%) saturate(108%) contrast(95%)";
+        }
       }
+      ctx.filter = activeFilter;
 
       // Slide Transitions Positioning
       let slideX = 0;
@@ -1874,36 +2290,98 @@ export default function ImageToVideo({
       ctx.fillStyle = "#020617";
       ctx.fillRect(0, 0, width, height);
 
-      // Draw Image cropped to fill / fit the aspect ratio with dynamic scale
-      const imgRatio = img.width / img.height;
-      const canvasRatio = width / height;
-      
-      let renderWidth = width;
-      let renderHeight = height;
-
-      if (imgRatio > canvasRatio) {
-        renderWidth = height * imgRatio;
-      } else {
-        renderHeight = width / imgRatio;
-      }
-
-      const drawX = (width - renderWidth) / 2 + slideX;
-      const drawY = (height - renderHeight) / 2 + slideY;
-
       // Transform with scale centered in canvas (applying camera simulation offsets)
       ctx.translate(width / 2 + slideX + camX, height / 2 + slideY + camY);
       if (camRot !== 0) {
         ctx.rotate(camRot);
       }
       ctx.scale(currentScale, currentScale);
-      
-      ctx.drawImage(
-        img,
-        -renderWidth / 2,
-        -renderHeight / 2,
-        renderWidth,
-        renderHeight
-      );
+
+      if (isTextSlide) {
+        const bgType = targetSlide.textSlideBackground || "gradient-sunset";
+        const halfW = width / 2;
+        const halfH = height / 2;
+
+        if (bgType === "dark") {
+          ctx.fillStyle = "#0f172a";
+          ctx.fillRect(-halfW, -halfH, width, height);
+        } else if (bgType === "indigo") {
+          ctx.fillStyle = "#1e1b4b";
+          ctx.fillRect(-halfW, -halfH, width, height);
+        } else if (bgType === "gradient-sunset") {
+          const grad = ctx.createLinearGradient(-halfW, -halfH, halfW, halfH);
+          grad.addColorStop(0, "#f43f5e");
+          grad.addColorStop(0.5, "#d946ef");
+          grad.addColorStop(1, "#6366f1");
+          ctx.fillStyle = grad;
+          ctx.fillRect(-halfW, -halfH, width, height);
+        } else if (bgType === "gradient-ocean") {
+          const grad = ctx.createLinearGradient(-halfW, -halfH, halfW, halfH);
+          grad.addColorStop(0, "#06b6d4");
+          grad.addColorStop(0.5, "#3b82f6");
+          grad.addColorStop(1, "#1d4ed8");
+          ctx.fillStyle = grad;
+          ctx.fillRect(-halfW, -halfH, width, height);
+        } else if (bgType === "gradient-neon") {
+          const grad = ctx.createLinearGradient(-halfW, -halfH, halfW, halfH);
+          grad.addColorStop(0, "#ec4899");
+          grad.addColorStop(0.5, "#8b5cf6");
+          grad.addColorStop(1, "#06b6d4");
+          ctx.fillStyle = grad;
+          ctx.fillRect(-halfW, -halfH, width, height);
+        } else {
+          ctx.fillStyle = "#1e293b";
+          ctx.fillRect(-halfW, -halfH, width, height);
+        }
+
+        // Draw the main text centrally
+        const textRatioScale = width / 800;
+        const mainFontSize = Math.round((targetSlide.textSlideFontSize || 38) * textRatioScale);
+        
+        const fontId = targetSlide.fontFamily || subtitleFont || "space-grotesk";
+        const fontObj = CURATED_FONTS.find((f) => f.id === fontId) || CURATED_FONTS[0];
+        const selectedFontFamily = fontObj.family;
+
+        ctx.font = `900 ${mainFontSize}px ${selectedFontFamily}`;
+        ctx.fillStyle = targetSlide.textSlideColor || "#ffffff";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+
+        ctx.shadowColor = "rgba(0, 0, 0, 0.45)";
+        ctx.shadowBlur = 12 * textRatioScale;
+        ctx.shadowOffsetX = 2 * textRatioScale;
+        ctx.shadowOffsetY = 3 * textRatioScale;
+
+        const mainText = targetSlide.text || "Title Slide";
+        ctx.fillText(mainText, 0, 0);
+        
+        // Reset shadow
+        ctx.shadowColor = "transparent";
+        ctx.shadowBlur = 0;
+        ctx.shadowOffsetX = 0;
+        ctx.shadowOffsetY = 0;
+      } else if (img) {
+        // Draw Image cropped to fill / fit the aspect ratio with dynamic scale
+        const imgRatio = img.width / img.height;
+        const canvasRatio = width / height;
+        
+        let renderWidth = width;
+        let renderHeight = height;
+
+        if (imgRatio > canvasRatio) {
+          renderWidth = height * imgRatio;
+        } else {
+          renderHeight = width / imgRatio;
+        }
+
+        ctx.drawImage(
+          img,
+          -renderWidth / 2,
+          -renderHeight / 2,
+          renderWidth,
+          renderHeight
+        );
+      }
 
       ctx.restore();
 
@@ -1972,6 +2450,200 @@ export default function ImageToVideo({
       drawSlideWithTransformAndFilter(slide, slideProgress, 1.0);
     }
 
+    // DRAW OVERLAY ELEMENTS (geometric shapes, arrows, or icons)
+    const activeElements = slide.elements || [];
+    if (activeElements.length > 0) {
+      ctx.save();
+      activeElements.forEach((el) => {
+        ctx.save();
+        ctx.globalAlpha = el.opacity !== undefined ? el.opacity : 1.0;
+
+        // Calculate actual pixel position based on percentage
+        // x and y are in percentage (0 to 100) relative to the canvas size
+        const elX = (el.x / 100) * width;
+        const elY = (el.y / 100) * height;
+
+        // Apply rotation if any
+        ctx.translate(elX, elY);
+        let rotRad = ((el.rotation || 0) * Math.PI) / 180;
+        
+        // Handle animations
+        if (el.animation === "spin") {
+          // Spin continuously based on playback time (e.g. 1 full spin per 3 seconds)
+          const spinOffset = (time * (360 / 3) * Math.PI) / 180;
+          rotRad += spinOffset;
+        } else if (el.animation === "pulse") {
+          // Pulse scale based on playback time (1Hz frequency)
+          const scaleOffset = 1.0 + Math.sin(time * Math.PI * 2) * 0.15;
+          ctx.scale(scaleOffset, scaleOffset);
+        }
+
+        ctx.rotate(rotRad);
+
+        // Draw shape/icon centered at (0,0)
+        ctx.fillStyle = el.color || "#ffffff";
+        ctx.strokeStyle = el.color || "#ffffff";
+        ctx.lineWidth = el.lineWidth || 3;
+        ctx.lineCap = "round";
+        ctx.lineJoin = "round";
+
+        const size = el.size || 40;
+        const half = size / 2;
+
+        if (el.type === "rect") {
+          if (el.filled) {
+            ctx.beginPath();
+            ctx.roundRect(-half, -half, size, size, 4);
+            ctx.fill();
+          } else {
+            ctx.beginPath();
+            ctx.roundRect(-half, -half, size, size, 4);
+            ctx.stroke();
+          }
+        } 
+        else if (el.type === "circle") {
+          ctx.beginPath();
+          ctx.arc(0, 0, half, 0, 2 * Math.PI);
+          if (el.filled) {
+            ctx.fill();
+          } else {
+            ctx.stroke();
+          }
+        } 
+        else if (el.type === "triangle") {
+          ctx.beginPath();
+          ctx.moveTo(0, -half);
+          ctx.lineTo(half, half);
+          ctx.lineTo(-half, half);
+          ctx.closePath();
+          if (el.filled) {
+            ctx.fill();
+          } else {
+            ctx.stroke();
+          }
+        } 
+        else if (el.type === "star") {
+          ctx.beginPath();
+          const spikes = 5;
+          const outerRadius = half;
+          const innerRadius = half * 0.4;
+          let cx = 0;
+          let cy = 0;
+          let rot = (Math.PI / 2) * 3;
+          let x = cx;
+          let y = cy;
+          const step = Math.PI / spikes;
+
+          ctx.moveTo(cx, cy - outerRadius);
+          for (let i = 0; i < spikes; i++) {
+            x = cx + Math.cos(rot) * outerRadius;
+            y = cy + Math.sin(rot) * outerRadius;
+            ctx.lineTo(x, y);
+            rot += step;
+
+            x = cx + Math.cos(rot) * innerRadius;
+            y = cy + Math.sin(rot) * innerRadius;
+            ctx.lineTo(x, y);
+            rot += step;
+          }
+          ctx.lineTo(cx, cy - outerRadius);
+          ctx.closePath();
+          if (el.filled) {
+            ctx.fill();
+          } else {
+            ctx.stroke();
+          }
+        }
+        else if (el.type === "heart") {
+          ctx.beginPath();
+          // Heart shape centered at (0,0)
+          const hX = 0;
+          const hY = -half * 0.2;
+          ctx.moveTo(hX, hY + half * 0.3);
+          // top left curve
+          ctx.bezierCurveTo(hX - half * 0.5, hY - half * 0.5, hX - half, hY - half * 0.1, hX, hY + half);
+          ctx.moveTo(hX, hY + half * 0.3);
+          // top right curve
+          ctx.bezierCurveTo(hX + half * 0.5, hY - half * 0.5, hX + half, hY - half * 0.1, hX, hY + half);
+          
+          if (el.filled) {
+            ctx.fill();
+          } else {
+            ctx.stroke();
+          }
+        }
+        else if (el.type === "arrow") {
+          // Draw an arrow pointing right
+          ctx.beginPath();
+          ctx.moveTo(-half, -half * 0.3);
+          ctx.lineTo(half * 0.2, -half * 0.3);
+          ctx.lineTo(half * 0.2, -half * 0.7);
+          ctx.lineTo(half, 0);
+          ctx.lineTo(half * 0.2, half * 0.7);
+          ctx.lineTo(half * 0.2, half * 0.3);
+          ctx.lineTo(-half, half * 0.3);
+          ctx.closePath();
+          if (el.filled) {
+            ctx.fill();
+          } else {
+            ctx.stroke();
+          }
+        }
+        else if (el.type === "checkmark") {
+          // Checkmark shape
+          ctx.beginPath();
+          ctx.moveTo(-half * 0.8, 0);
+          ctx.lineTo(-half * 0.2, half * 0.6);
+          ctx.lineTo(half * 0.8, -half * 0.6);
+          ctx.stroke();
+        }
+        else if (el.type === "icon") {
+          // Render a custom high-fidelity dynamic icon overlay
+          if (el.iconName === "smile") {
+            ctx.beginPath();
+            ctx.arc(0, 0, half, 0, 2 * Math.PI);
+            ctx.stroke();
+            // Eyes
+            ctx.beginPath();
+            ctx.arc(-half * 0.3, -half * 0.2, 2, 0, 2 * Math.PI);
+            ctx.arc(half * 0.3, -half * 0.2, 2, 0, 2 * Math.PI);
+            ctx.fillStyle = el.color;
+            ctx.fill();
+            // Mouth
+            ctx.beginPath();
+            ctx.arc(0, 0, half * 0.6, 0.1 * Math.PI, 0.9 * Math.PI);
+            ctx.stroke();
+          } else if (el.iconName === "target") {
+            // Draw a crosshair target
+            ctx.beginPath();
+            ctx.arc(0, 0, half, 0, 2 * Math.PI);
+            ctx.arc(0, 0, half * 0.5, 0, 2 * Math.PI);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(-half * 1.2, 0); ctx.lineTo(half * 1.2, 0);
+            ctx.moveTo(0, -half * 1.2); ctx.lineTo(0, half * 1.2);
+            ctx.stroke();
+          } else {
+            // Default elegant diamond star
+            ctx.beginPath();
+            ctx.moveTo(0, -half);
+            ctx.lineTo(half * 0.3, -half * 0.3);
+            ctx.lineTo(half, 0);
+            ctx.lineTo(half * 0.3, half * 0.3);
+            ctx.lineTo(0, half);
+            ctx.lineTo(-half * 0.3, half * 0.3);
+            ctx.lineTo(-half, 0);
+            ctx.lineTo(-half * 0.3, -half * 0.3);
+            ctx.closePath();
+            if (el.filled) ctx.fill(); else ctx.stroke();
+          }
+        }
+
+        ctx.restore();
+      });
+      ctx.restore();
+    }
+
     // DRAW OVERLAY CAPTIONS / SUBTITLE TEXT with selected animation and theme style
     if (slide.text.trim()) {
       ctx.save();
@@ -1980,10 +2652,16 @@ export default function ImageToVideo({
       const textRatioScale = width / 800;
       const fontSize = Math.round(28 * textRatioScale);
       
-      if (subtitleStyle === "classical") {
+      const fontId = slide.fontFamily || subtitleFont || "space-grotesk";
+      const fontObj = CURATED_FONTS.find((f) => f.id === fontId) || CURATED_FONTS[0];
+      const selectedFontFamily = fontObj.family;
+
+      if (subtitleStyle === "classical" && fontId === "space-grotesk") {
         ctx.font = `italic 500 ${Math.round(26 * textRatioScale)}px "Playfair Display", "Georgia", serif`;
+      } else if (subtitleStyle === "classical") {
+        ctx.font = `italic 500 ${Math.round(26 * textRatioScale)}px ${selectedFontFamily}`;
       } else {
-        ctx.font = `bold ${fontSize}px "Space Grotesk", sans-serif`;
+        ctx.font = `bold ${fontSize}px ${selectedFontFamily}`;
       }
       ctx.textAlign = "center";
       ctx.textBaseline = "bottom";
@@ -2170,7 +2848,86 @@ export default function ImageToVideo({
     ctx.textAlign = "right";
     ctx.fillText("ToolkitPro CapCut Studio", width - 15, 25);
     ctx.restore();
-  }, [slides, transitionStyle, transitionDuration, subtitleStyle, cinematicLetterbox, vignetteOverlay, aspectRatio, subtitleManualOffset]);
+
+    // Real-Time Audio Visualizer Drawing on the Canvas
+    if (visualizerStyle !== "none" && synthManagerRef.current) {
+      const analyser = synthManagerRef.current.getAnalyser();
+      if (analyser) {
+        ctx.save();
+        const bufferLength = analyser.frequencyBinCount;
+        const dataArray = new Uint8Array(bufferLength);
+
+        if (visualizerStyle === "bars") {
+          // Drawing jumping audio spectrum bars
+          analyser.getByteFrequencyData(dataArray);
+          const barWidth = (width / bufferLength) * 1.5;
+          let barHeight;
+          let x = 0;
+
+          ctx.shadowBlur = 8;
+          ctx.shadowColor = "rgba(16, 185, 129, 0.6)"; // glowing green
+
+          for (let i = 0; i < bufferLength; i++) {
+            barHeight = (dataArray[i] / 255) * 45 * (height / 450);
+            if (barHeight > 0) {
+              const grad = ctx.createLinearGradient(x, height - barHeight - 15, x, height - 15);
+              grad.addColorStop(0, "#34d399"); // emerald
+              grad.addColorStop(1, "#6366f1"); // indigo
+              ctx.fillStyle = grad;
+              ctx.beginPath();
+              ctx.roundRect(x, height - barHeight - 15, barWidth - 3, barHeight, 3);
+              ctx.fill();
+            }
+            x += barWidth;
+          }
+        } else if (visualizerStyle === "wave") {
+          // Drawing a sleek neon oscilloscope wave
+          analyser.getByteTimeDomainData(dataArray);
+          ctx.beginPath();
+          ctx.lineWidth = 3;
+          ctx.strokeStyle = "rgba(99, 102, 241, 0.85)"; // glowing indigo/neon
+          ctx.shadowBlur = 12;
+          ctx.shadowColor = "rgba(99, 102, 241, 0.7)";
+
+          const sliceWidth = width / bufferLength;
+          let x = 0;
+
+          for (let i = 0; i < bufferLength; i++) {
+            const v = dataArray[i] / 128.0;
+            const y = (v * 30) + (height - 50);
+
+            if (i === 0) {
+              ctx.moveTo(x, y);
+            } else {
+              ctx.lineTo(x, y);
+            }
+            x += sliceWidth;
+          }
+          ctx.stroke();
+        } else if (visualizerStyle === "pulse") {
+          // Subtle radial ambient pulse matching low-mid frequencies
+          analyser.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < bufferLength; i++) {
+            sum += dataArray[i];
+          }
+          const avgFreq = sum / bufferLength;
+          const pulseScale = 1.0 + (avgFreq / 255) * 0.08;
+
+          if (avgFreq > 10) {
+            ctx.strokeStyle = "rgba(236, 72, 153, 0.25)"; // glowing pink
+            ctx.lineWidth = 8;
+            ctx.shadowBlur = 15;
+            ctx.shadowColor = "rgba(236, 72, 153, 0.4)";
+            ctx.beginPath();
+            ctx.arc(width / 2, height / 2, Math.min(width, height) * 0.35 * pulseScale, 0, 2 * Math.PI);
+            ctx.stroke();
+          }
+        }
+        ctx.restore();
+      }
+    }
+  }, [slides, transitionStyle, transitionDuration, subtitleStyle, subtitleFont, cinematicLetterbox, vignetteOverlay, aspectRatio, subtitleManualOffset, visualizerStyle, masterVideoFilter]);
 
   // Hook rendering logic to active timeline time changes
   useEffect(() => {
@@ -2191,7 +2948,12 @@ export default function ImageToVideo({
     canvas.height = height;
 
     drawVideoFrame(ctx, canvasWidth, height, currentTime);
-  }, [currentTime, aspectRatio, slides, transitionStyle, transitionDuration, drawVideoFrame, subtitleStyle, cinematicLetterbox, vignetteOverlay, subtitleManualOffset]);
+  }, [currentTime, aspectRatio, slides, transitionStyle, transitionDuration, drawVideoFrame, subtitleStyle, subtitleFont, cinematicLetterbox, vignetteOverlay, subtitleManualOffset, masterVideoFilter]);
+
+  // Sync the ref with the latest drawVideoFrame callback on each change
+  useEffect(() => {
+    drawVideoFrameRef.current = drawVideoFrame;
+  }, [drawVideoFrame]);
 
   // Canvas MediaRecorder video render engine
   const handleCreateVideo = async () => {
@@ -2441,6 +3203,7 @@ export default function ImageToVideo({
           const fileUrl = URL.createObjectURL(blob);
           setExportedVideoUrl(fileUrl);
           setExportedVideoBlob(blob);
+          setCreatedVideoPlayerFilter(masterVideoFilter);
           setShowFinalOutput(true);
 
           setExportProgress(100);
@@ -2947,7 +3710,18 @@ export default function ImageToVideo({
                       <img
                         src={exportedVideoUrl}
                         alt="Exported Animated GIF"
-                        className="w-full h-full max-h-[220px] object-contain"
+                        className="w-full h-full max-h-[220px] object-contain transition-all duration-300"
+                        style={{
+                          filter:
+                            createdVideoPlayerFilter === "grayscale" ? "grayscale(100%)" :
+                            createdVideoPlayerFilter === "sepia" ? "sepia(100%)" :
+                            createdVideoPlayerFilter === "vintage" ? "sepia(60%) contrast(90%) brightness(105%) saturate(110%)" :
+                            createdVideoPlayerFilter === "high-contrast" ? "contrast(150%) brightness(105%)" :
+                            createdVideoPlayerFilter === "cyberpunk" ? "hue-rotate(180deg) saturate(185%) contrast(125%)" :
+                            createdVideoPlayerFilter === "noir" ? "grayscale(100%) contrast(140%) brightness(90%)" :
+                            createdVideoPlayerFilter === "cool" ? "hue-rotate(30deg) saturate(115%) brightness(95%) contrast(105%)" :
+                            createdVideoPlayerFilter === "warm" ? "sepia(30%) saturate(130%) hue-rotate(-10deg) brightness(105%)" : "none"
+                        }}
                       />
                     ) : (
                       /* Premium Interactive Player with Timeline Scrubber Controls */
@@ -2962,7 +3736,18 @@ export default function ImageToVideo({
                           onDurationChange={(e) => setPreviewDuration(e.currentTarget.duration)}
                           onPlay={() => setPreviewPlaying(true)}
                           onPause={() => setPreviewPlaying(false)}
-                          className="w-full max-h-[150px] object-contain flex-1"
+                          className="w-full max-h-[150px] object-contain flex-1 transition-all duration-300"
+                          style={{
+                            filter:
+                              createdVideoPlayerFilter === "grayscale" ? "grayscale(100%)" :
+                              createdVideoPlayerFilter === "sepia" ? "sepia(100%)" :
+                              createdVideoPlayerFilter === "vintage" ? "sepia(60%) contrast(90%) brightness(105%) saturate(110%)" :
+                              createdVideoPlayerFilter === "high-contrast" ? "contrast(150%) brightness(105%)" :
+                              createdVideoPlayerFilter === "cyberpunk" ? "hue-rotate(180deg) saturate(185%) contrast(125%)" :
+                              createdVideoPlayerFilter === "noir" ? "grayscale(100%) contrast(140%) brightness(90%)" :
+                              createdVideoPlayerFilter === "cool" ? "hue-rotate(30deg) saturate(115%) brightness(95%) contrast(105%)" :
+                              createdVideoPlayerFilter === "warm" ? "sepia(30%) saturate(130%) hue-rotate(-10deg) brightness(105%)" : "none"
+                          }}
                         />
                         
                         {/* Custom Player controls block */}
@@ -3052,6 +3837,52 @@ export default function ImageToVideo({
                         </div>
                       </div>
                     )}
+                  </div>
+
+                  {/* Real-time Interactive Player Filters */}
+                  <div className="bg-slate-900/80 border border-slate-850 rounded-2xl p-3 text-left space-y-2">
+                    <div className="flex items-center justify-between border-b border-slate-800/40 pb-1.5">
+                      <span className="text-slate-400 uppercase font-black tracking-wider text-[8px] flex items-center gap-1">
+                        <span>✨</span>
+                        <span>Real-Time Player Filters</span>
+                      </span>
+                      <span className="text-[7.5px] font-semibold text-indigo-400 uppercase tracking-wider font-mono bg-indigo-950/40 px-1.5 py-0.5 rounded border border-indigo-900/40">
+                        GPU Accelerated
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {[
+                        { id: "none", label: "Original", emoji: "❌" },
+                        { id: "grayscale", label: "Grayscale", emoji: "🌑" },
+                        { id: "sepia", label: "Sepia", emoji: "🟫" },
+                        { id: "vintage", label: "Vintage", emoji: "📜" },
+                        { id: "high-contrast", label: "High Contrast", emoji: "⚡" },
+                        { id: "cyberpunk", label: "Cyberpunk", emoji: "🔮" },
+                        { id: "noir", label: "Noir Film", emoji: "🎬" },
+                        { id: "cool", label: "Cool Blue", emoji: "❄️" },
+                        { id: "warm", label: "Warm Glow", emoji: "☀️" }
+                      ].map((item) => {
+                        const isSelected = createdVideoPlayerFilter === item.id;
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => {
+                              setCreatedVideoPlayerFilter(item.id);
+                              triggerBeepChime();
+                            }}
+                            className={`px-1.5 py-1 rounded-xl border text-center transition-all cursor-pointer select-none flex flex-col items-center justify-center gap-0.5 ${
+                              isSelected
+                                ? "bg-indigo-650 border-indigo-650 text-white shadow-md shadow-indigo-500/20 scale-102"
+                                : "bg-slate-950/40 border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white"
+                            }`}
+                          >
+                            <span className="text-[10px] leading-none">{item.emoji}</span>
+                            <span className="text-[8.5px] font-bold leading-none mt-1 truncate max-w-full">{item.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
 
                   {/* Metadata and Stats Card */}
@@ -4058,187 +4889,347 @@ export default function ImageToVideo({
             </div>
 
             {/* 2. PROMPT PLAYGROUND CONTAINER */}
-            <div className="space-y-3 relative z-10">
-              <div className="flex items-center justify-between flex-wrap gap-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
-                  2. Describe Your Scene:
-                </label>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    disabled={isGeneratingScene}
-                    onClick={handleRandomizePrompt}
-                    className="text-[9px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400 hover:text-amber-600 dark:hover:text-amber-300 flex items-center gap-1 cursor-pointer select-none bg-amber-500/5 dark:bg-amber-500/10 px-2.5 py-1 rounded-md border border-amber-500/15 transition-all hover:scale-105 active:scale-95"
-                    title="Synthesize a completely surprise custom high-fidelity scene storyboard"
-                  >
-                    <span>🎲 Surprise Me!</span>
-                  </button>
-                  <button
-                    type="button"
-                    disabled={isEnhancingPrompt || isGeneratingScene || !userPromptText.trim()}
-                    onClick={async () => {
-                      setIsEnhancingPrompt(true);
-                      try {
-                        const response = await fetch("/api/video/enhance-prompt", {
-                          method: "POST",
-                          headers: { "Content-Type": "application/json" },
-                          body: JSON.stringify({
-                            subject: userPromptText,
-                            style: aiStylePreset === "auto" ? "Cinematic" : aiStylePreset,
-                            camera: aiCameraDirection === "auto" ? "Slow Zoom" : aiCameraDirection
-                          })
-                        });
-                        if (response.ok) {
-                          const data = await response.json();
-                          if (data?.enhancedSubject) {
-                            setUserPromptText(data.enhancedSubject);
-                            setToastMessage({
-                              text: "✨ Prompt Optimized!",
-                              sub: "AI expanded your descriptors for maximum cinematic depth.",
-                              success: true
-                            });
-                            triggerBeepChime();
-                          }
-                        }
-                      } catch (e) {
-                        console.error(e);
-                      } finally {
-                        setIsEnhancingPrompt(false);
-                      }
-                    }}
-                    className="text-[9px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 flex items-center gap-1 cursor-pointer disabled:opacity-40 select-none bg-indigo-500/5 px-2.5 py-1 rounded-md border border-indigo-500/10 transition-all hover:scale-105 active:scale-95"
-                    title="Enhance this prompt using Gemini's director model"
-                  >
-                    <Sparkles className="w-2.5 h-2.5" />
-                    <span>{isEnhancingPrompt ? "Enhancing..." : "Magic Expand"}</span>
-                  </button>
-                </div>
+            <div className="space-y-4 relative z-10 bg-slate-500/5 p-4 rounded-2xl border border-slate-200/50 dark:border-slate-850">
+              <div className="flex bg-slate-100 dark:bg-slate-900/60 p-1 rounded-xl border border-slate-250/25 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreatorMode("single");
+                    triggerBeepChime();
+                  }}
+                  className={`flex-1 py-2 rounded-lg text-center text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                    creatorMode === "single"
+                      ? "bg-white dark:bg-slate-950 text-indigo-600 dark:text-indigo-400 shadow-3xs border border-slate-200/10"
+                      : "text-slate-500 hover:text-slate-850 dark:text-slate-400 dark:hover:text-slate-200"
+                  }`}
+                >
+                  🎥 Single Scene
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreatorMode("script");
+                    triggerBeepChime();
+                  }}
+                  className={`flex-1 py-2 rounded-lg text-center text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                    creatorMode === "script"
+                      ? "bg-white dark:bg-slate-950 text-indigo-600 dark:text-indigo-400 shadow-3xs border border-slate-200/10"
+                      : "text-slate-500 hover:text-slate-850 dark:text-slate-400 dark:hover:text-slate-200"
+                  }`}
+                >
+                  📜 Script-to-Video
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCreatorMode("text-slide");
+                    triggerBeepChime();
+                  }}
+                  className={`flex-1 py-2 rounded-lg text-center text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                    creatorMode === "text-slide"
+                      ? "bg-white dark:bg-slate-950 text-indigo-600 dark:text-indigo-400 shadow-3xs border border-slate-200/10"
+                      : "text-slate-500 hover:text-slate-850 dark:text-slate-400 dark:hover:text-slate-200"
+                  }`}
+                >
+                  📝 Title Slide
+                </button>
               </div>
 
-              <div className="relative">
-                <textarea
-                  value={userPromptText}
-                  onChange={(e) => setUserPromptText(e.target.value)}
-                  placeholder='Describe your scene, e.g., "A deep cybercar speeding through pink neon skyscrapers", "A majestic glowing waterfall in a mystical fairy forest", "Sunbeams filtering through autumn leaves close-up"...'
-                  rows={3}
-                  className="w-full p-4 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500/40 text-slate-800 dark:text-slate-100 resize-none leading-relaxed shadow-3xs"
-                  disabled={isGeneratingScene}
-                />
-                {renderPromptValidationInfo(userPromptText)}
-              </div>
-
-              {/* Suggested Styles Selector */}
-              <div className="space-y-1">
-                <span className="text-[8.5px] font-black uppercase tracking-widest text-slate-400">
-                  ⚡ Suggested Styles (Auto-Appends High-Quality Keywords):
-                </span>
-                <div className="flex flex-wrap gap-1.5">
-                  {Object.entries(STYLE_TAGS).map(([styleName, styleKeywords]) => {
-                    const isSelected = userPromptText.includes(styleKeywords);
-                    return (
+              {creatorMode === "single" && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between flex-wrap gap-2">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
+                      Describe Your Scene:
+                    </label>
+                    <div className="flex items-center gap-1.5">
                       <button
-                        key={styleName}
                         type="button"
                         disabled={isGeneratingScene}
-                        onClick={() => handleAppendStyle(styleKeywords)}
-                        className={`px-2.5 py-1 text-[9px] font-bold rounded-lg border transition-all cursor-pointer select-none active:scale-95 ${
-                          isSelected
-                            ? "bg-indigo-600 border-indigo-600 text-white shadow-xs dark:bg-indigo-500 dark:border-indigo-500"
-                            : "bg-slate-50 dark:bg-slate-950/40 border-slate-200 dark:border-slate-850 text-slate-700 dark:text-slate-300 hover:border-slate-350 dark:hover:border-slate-700 hover:bg-slate-100/50"
-                        }`}
+                        onClick={handleRandomizePrompt}
+                        className="text-[9px] font-black uppercase tracking-wider text-amber-700 dark:text-amber-400 hover:text-amber-600 dark:hover:text-amber-300 flex items-center gap-1 cursor-pointer select-none bg-amber-500/5 dark:bg-amber-500/10 px-2.5 py-1 rounded-md border border-amber-500/15 transition-all hover:scale-105 active:scale-95"
+                        title="Synthesize a completely surprise custom high-fidelity scene storyboard"
                       >
-                        {styleName}
+                        <span>🎲 Surprise Me!</span>
                       </button>
-                    );
-                  })}
-                </div>
-              </div>
+                      <button
+                        type="button"
+                        disabled={isEnhancingPrompt || isGeneratingScene || !userPromptText.trim()}
+                        onClick={async () => {
+                          setIsEnhancingPrompt(true);
+                          try {
+                            const response = await fetch("/api/video/enhance-prompt", {
+                              method: "POST",
+                              headers: { "Content-Type": "application/json" },
+                              body: JSON.stringify({
+                                subject: userPromptText,
+                                style: aiStylePreset === "auto" ? "Cinematic" : aiStylePreset,
+                                camera: aiCameraDirection === "auto" ? "Slow Zoom" : aiCameraDirection
+                              })
+                            });
+                            if (response.ok) {
+                              const data = await response.json();
+                              if (data?.enhancedSubject) {
+                                setUserPromptText(data.enhancedSubject);
+                                setToastMessage({
+                                  text: "✨ Prompt Optimized!",
+                                  sub: "AI expanded your descriptors for maximum cinematic depth.",
+                                  success: true
+                                });
+                                triggerBeepChime();
+                              }
+                            }
+                          } catch (e) {
+                            console.error(e);
+                          } finally {
+                            setIsEnhancingPrompt(false);
+                          }
+                        }}
+                        className="text-[9px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 flex items-center gap-1 cursor-pointer disabled:opacity-40 select-none bg-indigo-500/5 px-2.5 py-1 rounded-md border border-indigo-500/10 transition-all hover:scale-105 active:scale-95"
+                        title="Enhance this prompt using Gemini's director model"
+                      >
+                        <Sparkles className="w-2.5 h-2.5" />
+                        <span>{isEnhancingPrompt ? "Enhancing..." : "Magic Expand"}</span>
+                      </button>
+                    </div>
+                  </div>
 
-              {/* Inspiration Bubbles */}
-              <div className="space-y-1">
-                <span className="text-[8.5px] font-black uppercase tracking-widest text-slate-400">
-                  Quick Inspiration Prompts:
-                </span>
-                <div className="flex flex-wrap gap-1.5">
-                  {[
-                    { label: "🌌 Neon Cyber", prompt: "A sleek futuristic cyberpunk car speeding past neon skyscrapers, night rain, detailed reflections, volumetric light" },
-                    { label: "🧚 Fairy Forest", prompt: "A magical glowing crystal waterfall in a mystical fairy forest at dusk, golden fireflies, cinematic depth of field" },
-                    { label: "🪐 Deep Space", prompt: "An astronaut sitting on a celestial cliff overlooking a massive swirling purple galaxy nebula, cosmic particles" },
-                    { label: "🍂 Autumn River", prompt: "Golden sunbeams filtering through glowing orange autumn leaves next to a calm running mountain stream, 4k" }
-                  ].map((preset, idx) => (
-                    <button
-                      key={idx}
-                      type="button"
+                  <div className="relative">
+                    <textarea
+                      value={userPromptText}
+                      onChange={(e) => setUserPromptText(e.target.value)}
+                      placeholder='Describe your scene, e.g., "A deep cybercar speeding through pink neon skyscrapers", "A majestic glowing waterfall in a mystical fairy forest", "Sunbeams filtering through autumn leaves close-up"...'
+                      rows={3}
+                      className="w-full p-4 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500/40 text-slate-800 dark:text-slate-100 resize-none leading-relaxed shadow-3xs"
                       disabled={isGeneratingScene}
-                      onClick={() => {
-                        setUserPromptText(preset.prompt);
-                        triggerBeepChime();
-                      }}
-                      className="px-2 py-1 bg-slate-100 hover:bg-indigo-50 dark:bg-slate-950/70 dark:hover:bg-indigo-950/30 text-slate-650 dark:text-slate-350 hover:text-indigo-650 dark:hover:text-indigo-400 border border-slate-200/50 dark:border-slate-850 text-[9px] font-bold rounded-lg transition-all cursor-pointer select-none"
-                    >
-                      {preset.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+                    />
+                    {renderPromptValidationInfo(userPromptText)}
+                  </div>
 
-              {/* Categorized Creative Booster Keywords */}
-              <div className="space-y-1.5 bg-slate-500/5 p-3 rounded-xl border border-slate-200/40 dark:border-slate-850/60">
-                <span className="text-[8.5px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 flex items-center gap-1">
-                  <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" />
-                  <span>Pro Booster Modifiers (Click to Add):</span>
-                </span>
-                <div className="space-y-2">
-                  <div>
-                    <span className="text-[7.5px] font-extrabold uppercase text-slate-400 tracking-wider block mb-1">🎬 Cinematography & Cameras</span>
-                    <div className="flex flex-wrap gap-1">
-                      {["Anamorphic Lens", "Shallow Depth of Field", "Slow-motion fluid", "Drone flyover sweep", "Intimate Close-up", "Handheld dramatic shake"].map(mod => (
+                  {/* Suggested Styles Selector */}
+                  <div className="space-y-1">
+                    <span className="text-[8.5px] font-black uppercase tracking-widest text-slate-400">
+                      ⚡ Suggested Styles (Auto-Appends High-Quality Keywords):
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {Object.entries(STYLE_TAGS).map(([styleName, styleKeywords]) => {
+                        const isSelected = userPromptText.includes(styleKeywords);
+                        return (
+                          <button
+                            key={styleName}
+                            type="button"
+                            disabled={isGeneratingScene}
+                            onClick={() => handleAppendStyle(styleKeywords)}
+                            className={`px-2.5 py-1 text-[9px] font-bold rounded-lg border transition-all cursor-pointer select-none active:scale-95 ${
+                              isSelected
+                                ? "bg-indigo-600 border-indigo-600 text-white shadow-xs dark:bg-indigo-500 dark:border-indigo-500"
+                                : "bg-slate-50 dark:bg-slate-950/40 border-slate-200 dark:border-slate-850 text-slate-700 dark:text-slate-300 hover:border-slate-350 dark:hover:border-slate-700 hover:bg-slate-100/50"
+                            }`}
+                          >
+                            {styleName}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Inspiration Bubbles */}
+                  <div className="space-y-1">
+                    <span className="text-[8.5px] font-black uppercase tracking-widest text-slate-400">
+                      Quick Inspiration Prompts:
+                    </span>
+                    <div className="flex flex-wrap gap-1.5">
+                      {[
+                        { label: "🌌 Neon Cyber", prompt: "A sleek futuristic cyberpunk car speeding past neon skyscrapers, night rain, detailed reflections, volumetric light" },
+                        { label: "🧚 Fairy Forest", prompt: "A magical glowing crystal waterfall in a mystical fairy forest at dusk, golden fireflies, cinematic depth of field" },
+                        { label: "🪐 Deep Space", prompt: "An astronaut sitting on a celestial cliff overlooking a massive swirling purple galaxy nebula, cosmic particles" },
+                        { label: "🍂 Autumn River", prompt: "Golden sunbeams filtering through glowing orange autumn leaves next to a calm running mountain stream, 4k" }
+                      ].map((preset, idx) => (
                         <button
-                          key={mod}
+                          key={idx}
                           type="button"
                           disabled={isGeneratingScene}
-                          onClick={() => handleAppendModifier(mod)}
-                          className="px-1.5 py-0.5 bg-white dark:bg-slate-950 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-slate-650 dark:text-slate-350 border border-slate-200/60 dark:border-slate-850 text-[8px] font-bold rounded cursor-pointer transition-all hover:scale-105"
+                          onClick={() => {
+                            setUserPromptText(preset.prompt);
+                            triggerBeepChime();
+                          }}
+                          className="px-2 py-1 bg-slate-100 hover:bg-indigo-50 dark:bg-slate-950/70 dark:hover:bg-indigo-950/30 text-slate-650 dark:text-slate-350 hover:text-indigo-650 dark:hover:text-indigo-400 border border-slate-200/50 dark:border-slate-850 text-[9px] font-bold rounded-lg transition-all cursor-pointer select-none"
                         >
-                          +{mod}
+                          {preset.label}
                         </button>
                       ))}
                     </div>
                   </div>
-                  <div>
-                    <span className="text-[7.5px] font-extrabold uppercase text-slate-400 tracking-wider block mb-1">💡 Lighting & Atmosphere</span>
-                    <div className="flex flex-wrap gap-1">
-                      {["Volumetric Fog", "Warm God Rays", "Moody Cyberpunk Neon", "Ethereal Moonlight", "Bioluminescent Glow", "Golden Hour Sunbeams"].map(mod => (
-                        <button
-                          key={mod}
-                          type="button"
-                          disabled={isGeneratingScene}
-                          onClick={() => handleAppendModifier(mod)}
-                          className="px-1.5 py-0.5 bg-white dark:bg-slate-950 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-slate-650 dark:text-slate-350 border border-slate-200/60 dark:border-slate-850 text-[8px] font-bold rounded cursor-pointer transition-all hover:scale-105"
-                        >
-                          +{mod}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                  <div>
-                    <span className="text-[7.5px] font-extrabold uppercase text-slate-400 tracking-wider block mb-1">✨ Art Style & Resolution</span>
-                    <div className="flex flex-wrap gap-1">
-                      {["Unreal Engine 5 Render", "Classic Retro VHS Tape", "Detailed 8K Resolution", "Studio Ghibli Aesthetic", "Intricate Pencil Sketch", "Rich Impasto Oil Paint"].map(mod => (
-                        <button
-                          key={mod}
-                          type="button"
-                          disabled={isGeneratingScene}
-                          onClick={() => handleAppendModifier(mod)}
-                          className="px-1.5 py-0.5 bg-white dark:bg-slate-950 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-slate-650 dark:text-slate-350 border border-slate-200/60 dark:border-slate-850 text-[8px] font-bold rounded cursor-pointer transition-all hover:scale-105"
-                        >
-                          +{mod}
-                        </button>
-                      ))}
+
+                  {/* Categorized Creative Booster Keywords */}
+                  <div className="space-y-1.5 bg-slate-500/5 p-3 rounded-xl border border-slate-200/40 dark:border-slate-850/60">
+                    <span className="text-[8.5px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-amber-500 animate-pulse" />
+                      <span>Pro Booster Modifiers (Click to Add):</span>
+                    </span>
+                    <div className="space-y-2">
+                      <div>
+                        <span className="text-[7.5px] font-extrabold uppercase text-slate-400 tracking-wider block mb-1">🎬 Cinematography & Cameras</span>
+                        <div className="flex flex-wrap gap-1">
+                          {["Anamorphic Lens", "Shallow Depth of Field", "Slow-motion fluid", "Drone flyover sweep", "Intimate Close-up", "Handheld dramatic shake"].map(mod => (
+                            <button
+                              key={mod}
+                              type="button"
+                              disabled={isGeneratingScene}
+                              onClick={() => handleAppendModifier(mod)}
+                              className="px-1.5 py-0.5 bg-white dark:bg-slate-950 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-slate-650 dark:text-slate-350 border border-slate-200/60 dark:border-slate-850 text-[8px] font-bold rounded cursor-pointer transition-all hover:scale-105"
+                            >
+                              +{mod}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-[7.5px] font-extrabold uppercase text-slate-400 tracking-wider block mb-1">💡 Lighting & Atmosphere</span>
+                        <div className="flex flex-wrap gap-1">
+                          {["Volumetric Fog", "Warm God Rays", "Moody Cyberpunk Neon", "Ethereal Moonlight", "Bioluminescent Glow", "Golden Hour Sunbeams"].map(mod => (
+                            <button
+                              key={mod}
+                              type="button"
+                              disabled={isGeneratingScene}
+                              onClick={() => handleAppendModifier(mod)}
+                              className="px-1.5 py-0.5 bg-white dark:bg-slate-950 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-slate-650 dark:text-slate-350 border border-slate-200/60 dark:border-slate-850 text-[8px] font-bold rounded cursor-pointer transition-all hover:scale-105"
+                            >
+                              +{mod}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      <div>
+                        <span className="text-[7.5px] font-extrabold uppercase text-slate-400 tracking-wider block mb-1">✨ Art Style & Resolution</span>
+                        <div className="flex flex-wrap gap-1">
+                          {["Unreal Engine 5 Render", "Classic Retro VHS Tape", "Detailed 8K Resolution", "Studio Ghibli Aesthetic", "Intricate Pencil Sketch", "Rich Impasto Oil Paint"].map(mod => (
+                            <button
+                              key={mod}
+                              type="button"
+                              disabled={isGeneratingScene}
+                              onClick={() => handleAppendModifier(mod)}
+                              className="px-1.5 py-0.5 bg-white dark:bg-slate-950 hover:bg-indigo-50 dark:hover:bg-indigo-950/30 text-slate-650 dark:text-slate-350 border border-slate-200/60 dark:border-slate-850 text-[8px] font-bold rounded cursor-pointer transition-all hover:scale-105"
+                            >
+                              +{mod}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              )}
+
+              {creatorMode === "script" && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
+                      📜 Enter Multi-Line Movie Script:
+                    </label>
+                    <span className="text-[8px] font-black tracking-widest text-indigo-600 dark:text-indigo-400 bg-indigo-500/10 px-1.5 py-0.5 rounded uppercase">
+                      BATCH SCRIPT TO VIDEO
+                    </span>
+                  </div>
+                  <p className="text-[9.5px] text-slate-500 dark:text-slate-400 font-bold leading-relaxed">
+                    Write or paste a descriptive narrative script. Put each scene on a separate line. The AI filmmaker will automatically generate and stitch together stunning custom video clips matching your story!
+                  </p>
+                  
+                  <textarea
+                    value={videoScriptText}
+                    onChange={(e) => setVideoScriptText(e.target.value)}
+                    placeholder={`Line 1: A mystical emerald dragon soaring over lava valleys at dusk\nLine 2: Close up of the dragon's crystal eyes glowing with golden fire\nLine 3: The dragon breathing vibrant rainbow flames into the starry night sky`}
+                    rows={5}
+                    className="w-full p-4 text-xs font-mono font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500/40 text-slate-800 dark:text-slate-100 resize-none leading-relaxed shadow-3xs"
+                    disabled={isGeneratingScript}
+                  />
+
+                  <div className="pt-1.5">
+                    <button
+                      type="button"
+                      disabled={isGeneratingScript || !videoScriptText.trim()}
+                      onClick={handleGenerateScriptToVideo}
+                      className="w-full py-3 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 disabled:from-indigo-600/50 disabled:to-purple-600/50 text-white font-black uppercase text-[10px] tracking-wider rounded-xl cursor-pointer shadow-md shadow-indigo-600/10 flex items-center justify-center gap-2"
+                    >
+                      <Sparkles className={`w-3.5 h-3.5 ${isGeneratingScript ? "animate-spin" : ""}`} />
+                      <span>{isGeneratingScript ? `COMPILING SCENE ${scriptCurrentLineIdx} OF ${scriptTotalLines}...` : "GENERATE FULL MOVIE FROM SCRIPT"}</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {creatorMode === "text-slide" && (
+                <div className="space-y-4 bg-slate-100/30 dark:bg-slate-950/20 p-4 rounded-xl border border-slate-200/50 dark:border-slate-850/60">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
+                      📝 Create Title Slide:
+                    </label>
+                    <span className="text-[8px] font-black tracking-widest text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded uppercase font-mono">
+                      TEXT DISPLAY
+                    </span>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <span className="text-[8.5px] font-black uppercase tracking-widest text-slate-400">
+                      Title Display Text:
+                    </span>
+                    <input
+                      type="text"
+                      value={titleSlideText}
+                      onChange={(e) => setTitleSlideText(e.target.value)}
+                      placeholder="E.g., CHAPTER 1: THE BEGINNING"
+                      className="w-full px-3 py-2.5 text-xs font-extrabold text-slate-850 dark:text-slate-100 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/30"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-1.5">
+                      <span className="text-[8.5px] font-black uppercase tracking-widest text-slate-400">
+                        Background style:
+                      </span>
+                      <select
+                        value={titleSlideBg}
+                        onChange={(e) => setTitleSlideBg(e.target.value)}
+                        className="w-full px-3 py-2 text-xs font-extrabold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-slate-250/50 dark:border-slate-800 rounded-lg outline-none cursor-pointer"
+                      >
+                        <option value="gradient-sunset">🌅 Sunset Rose Glow</option>
+                        <option value="gradient-ocean">🌊 Deep Ocean Breeze</option>
+                        <option value="gradient-neon">🔮 Cyberpunk Neon Night</option>
+                        <option value="dark">🖤 Minimalist Dark Carbon</option>
+                        <option value="indigo">🌌 Deep Velvet Indigo</option>
+                      </select>
+                    </div>
+
+                    <div className="space-y-1.5">
+                      <span className="text-[8.5px] font-black uppercase tracking-widest text-slate-400">
+                        Font Size (px):
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <input
+                          type="range"
+                          min="24"
+                          max="64"
+                          value={titleSlideFontSize}
+                          onChange={(e) => setTitleSlideFontSize(Number(e.target.value))}
+                          className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                        />
+                        <span className="text-[10px] font-mono font-black text-slate-700 dark:text-slate-300 w-8 shrink-0">{titleSlideFontSize}px</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      handleAddTextTitleSlide();
+                      triggerBeepChime();
+                    }}
+                    className="w-full py-2.5 bg-slate-900 hover:bg-slate-850 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white font-black uppercase text-[10px] tracking-wider rounded-xl cursor-pointer shadow-xs flex items-center justify-center gap-2 border border-slate-800"
+                  >
+                    <Plus className="w-3.5 h-3.5" />
+                    <span>Insert Title Slide Clip</span>
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* 3. STYLE PRESET & CAMERA CONTROLS */}
@@ -5167,6 +6158,58 @@ export default function ImageToVideo({
                   </select>
                 </div>
 
+                {/* Typography / Font Selector */}
+                <div className="space-y-1.5 col-span-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      Typography Font Style:
+                    </label>
+                    <span className="text-[8.5px] font-black uppercase tracking-wider text-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded font-mono">
+                      Per-Slide
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <select
+                      value={selectedSlide.fontFamily || ""}
+                      onChange={(e) => {
+                        updateSlideProp(selectedSlide.id, "fontFamily", e.target.value || undefined);
+                        triggerBeepChime();
+                      }}
+                      className="flex-1 px-2.5 py-2 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-xl outline-none cursor-pointer"
+                    >
+                      <option value="">⚙️ Use Global Default Font</option>
+                      {CURATED_FONTS.map((font) => (
+                        <option key={font.id} value={font.id} style={{ fontFamily: font.family }}>
+                          {font.name} ({font.category})
+                        </option>
+                      ))}
+                    </select>
+                    {selectedSlide.fontFamily && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const fontToApply = selectedSlide.fontFamily;
+                          if (fontToApply) {
+                            slides.forEach((slide) => {
+                              updateSlideProp(slide.id, "fontFamily", fontToApply);
+                            });
+                            triggerBeepChime();
+                            setToastMessage({
+                              text: "✏️ Typography Applied to All",
+                              sub: "Set selected font style across all scenes in project.",
+                              success: true
+                            });
+                          }
+                        }}
+                        className="px-2.5 py-2 bg-slate-100 dark:bg-slate-900 border border-slate-200 hover:bg-slate-200 dark:border-slate-800 rounded-xl text-[10px] font-extrabold uppercase tracking-wider text-slate-600 dark:text-slate-300 transition-all cursor-pointer select-none active:scale-95"
+                        title="Apply this typography style to all slides in the timeline"
+                      >
+                        Apply to All
+                      </button>
+                    )}
+                  </div>
+                </div>
+
                 {/* Slide Transition Sound Effect */}
                 <div className="space-y-1.5 col-span-2 md:col-span-1">
                   <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
@@ -5241,6 +6284,455 @@ export default function ImageToVideo({
                     />
                   </div>
                 </div>
+              </div>
+
+              {/* Overlay Elements Creator Sub-section */}
+              <div className="border-t border-slate-150 dark:border-slate-800/80 pt-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                    <span className="text-indigo-500 font-bold">✨</span>
+                    <span>Overlay Elements & Shapes</span>
+                  </label>
+                  <span className="text-[9px] font-black uppercase tracking-wider text-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded-md font-mono">
+                    Slide Overlays
+                  </span>
+                </div>
+
+                <p className="text-[10px] text-slate-500 leading-normal">
+                  Add custom vector shapes, arrows, or decorative icons directly onto this slide as dynamic animated layers.
+                </p>
+
+                {/* Quick Add Elements list */}
+                <div className="space-y-2">
+                  <span className="block text-[9px] font-extrabold uppercase tracking-wider text-slate-400">
+                    ➕ Click to Add Vector Overlay:
+                  </span>
+                  <div className="grid grid-cols-4 gap-1.5">
+                    {[
+                      { type: "rect", label: "Rect", emoji: "⬛" },
+                      { type: "circle", label: "Circle", emoji: "🔴" },
+                      { type: "triangle", label: "Triangle", emoji: "🔺" },
+                      { type: "star", label: "Star", emoji: "⭐" },
+                      { type: "heart", label: "Heart", emoji: "❤️" },
+                      { type: "arrow", label: "Arrow ➡️", emoji: "➡️" },
+                      { type: "checkmark", label: "Check", emoji: "✅" },
+                      { type: "icon-smile", label: "Smile Icon", emoji: "😊" },
+                      { type: "icon-target", label: "Target Cross", emoji: "🎯" },
+                      { type: "icon-diamond", label: "Diamond Star", emoji: "💎" }
+                    ].map((item) => (
+                      <button
+                        key={item.type}
+                        type="button"
+                        onClick={() => {
+                          const elementsList = selectedSlide.elements || [];
+                          const isIcon = item.type.startsWith("icon-");
+                          const actualType = isIcon ? "icon" : item.type as any;
+                          const iconName = isIcon ? item.type.replace("icon-", "") : undefined;
+
+                          const newElement: OverlayElement = {
+                            id: "overlay-" + Date.now() + Math.random().toString(36).substr(2, 5),
+                            type: actualType,
+                            iconName,
+                            x: 50, // center
+                            y: 50, // center
+                            size: 60,
+                            color: item.type === "rect" ? "#4f46e5" : item.type === "circle" ? "#ef4444" : "#f59e0b",
+                            opacity: 1.0,
+                            rotation: 0,
+                            filled: true,
+                            lineWidth: 3,
+                            animation: "none"
+                          };
+
+                          const updatedElements = [...elementsList, newElement];
+                          updateSlideProp(selectedSlide.id, "elements", updatedElements);
+                          setActiveElementId(newElement.id);
+                          triggerBeepChime();
+                        }}
+                        className="px-1.5 py-1 text-[10px] bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 hover:border-slate-350 dark:hover:border-slate-700 rounded-xl font-extrabold transition-all cursor-pointer flex flex-col items-center justify-center gap-0.5 active:scale-95 text-slate-750 dark:text-slate-200"
+                      >
+                        <span className="text-xs leading-none">{item.emoji}</span>
+                        <span className="text-[8.5px] tracking-tight">{item.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Overlays List & Custom Controls */}
+                {(() => {
+                  const slideElements = selectedSlide.elements || [];
+                  if (slideElements.length === 0) {
+                    return (
+                      <div className="bg-slate-100/60 dark:bg-slate-950/40 border border-slate-200/50 dark:border-slate-850 p-4 rounded-2xl text-center select-none">
+                        <span className="text-lg block leading-none">📐</span>
+                        <span className="text-[10.5px] font-bold text-slate-400 block mt-1.5">No vector overlays on this slide yet.</span>
+                      </div>
+                    );
+                  }
+
+                  const activeEl = slideElements.find(el => el.id === activeElementId) || slideElements[0];
+                  
+                  return (
+                    <div className="space-y-3.5">
+                      {/* Select element from dropdown/tabs */}
+                      <div className="space-y-1.5">
+                        <span className="block text-[9px] font-extrabold uppercase tracking-wider text-slate-400">
+                          🎯 Active Layer:
+                        </span>
+                        <div className="flex gap-2">
+                          <select
+                            value={activeEl?.id || ""}
+                            onChange={(e) => {
+                              setActiveElementId(e.target.value);
+                              triggerBeepChime();
+                            }}
+                            className="flex-1 px-3 py-2 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-xl outline-none cursor-pointer"
+                          >
+                            {slideElements.map((el, idx) => {
+                              const typeName = el.type === "icon" ? `${el.iconName} icon` : el.type;
+                              return (
+                                <option key={el.id} value={el.id}>
+                                  Layer #{idx + 1} - {typeName.toUpperCase()} ({el.filled ? "Filled" : "Stroke"})
+                                </option>
+                              );
+                            })}
+                          </select>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (activeEl) {
+                                const remaining = slideElements.filter(el => el.id !== activeEl.id);
+                                updateSlideProp(selectedSlide.id, "elements", remaining);
+                                if (remaining.length > 0) {
+                                  setActiveElementId(remaining[0].id);
+                                } else {
+                                  setActiveElementId(null);
+                                }
+                                triggerBeepChime();
+                              }
+                            }}
+                            className="px-3 border border-red-250 text-red-500 hover:bg-red-50 hover:text-red-700 dark:border-red-900/30 dark:hover:bg-red-950/20 rounded-xl transition-all cursor-pointer text-xs flex items-center justify-center gap-1 font-black uppercase tracking-wider"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                            <span>Remove</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Editing panel for active element */}
+                      {activeEl && (
+                        <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 p-4 rounded-2xl space-y-3 text-left">
+                          <div className="flex justify-between items-center border-b border-slate-100 dark:border-slate-800 pb-2">
+                            <span className="text-[10px] font-black uppercase text-indigo-500 tracking-wider">
+                              Configure Overlay Attributes
+                            </span>
+                            <span className="text-[9px] font-mono font-bold text-slate-400 bg-slate-100 dark:bg-slate-900 px-1.5 py-0.5 rounded">
+                              {activeEl.type.toUpperCase()}
+                            </span>
+                          </div>
+
+                          {/* Coordinates Slider (X, Y) */}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-[9.5px]">
+                                <span className="font-bold text-slate-500">Horizontal (X):</span>
+                                <span className="font-mono text-slate-400">{activeEl.x}%</span>
+                              </div>
+                              <input
+                                type="range"
+                                min={0}
+                                max={100}
+                                step={1}
+                                value={activeEl.x}
+                                onChange={(e) => {
+                                  const updated = slideElements.map(el => {
+                                    if (el.id === activeEl.id) {
+                                      return { ...el, x: parseInt(e.target.value) };
+                                    }
+                                    return el;
+                                  });
+                                  updateSlideProp(selectedSlide.id, "elements", updated);
+                                }}
+                                className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-[9.5px]">
+                                <span className="font-bold text-slate-500">Vertical (Y):</span>
+                                <span className="font-mono text-slate-400">{activeEl.y}%</span>
+                              </div>
+                              <input
+                                type="range"
+                                min={0}
+                                max={100}
+                                step={1}
+                                value={activeEl.y}
+                                onChange={(e) => {
+                                  const updated = slideElements.map(el => {
+                                    if (el.id === activeEl.id) {
+                                      return { ...el, y: parseInt(e.target.value) };
+                                    }
+                                    return el;
+                                  });
+                                  updateSlideProp(selectedSlide.id, "elements", updated);
+                                }}
+                                className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Size & Opacity Slider */}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-[9.5px]">
+                                <span className="font-bold text-slate-500">Size (Diameter):</span>
+                                <span className="font-mono text-slate-400">{activeEl.size}px</span>
+                              </div>
+                              <input
+                                type="range"
+                                min={15}
+                                max={150}
+                                step={5}
+                                value={activeEl.size}
+                                onChange={(e) => {
+                                  const updated = slideElements.map(el => {
+                                    if (el.id === activeEl.id) {
+                                      return { ...el, size: parseInt(e.target.value) };
+                                    }
+                                    return el;
+                                  });
+                                  updateSlideProp(selectedSlide.id, "elements", updated);
+                                }}
+                                className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-[9.5px]">
+                                <span className="font-bold text-slate-500">Opacity:</span>
+                                <span className="font-mono text-slate-400">{Math.round(activeEl.opacity * 100)}%</span>
+                              </div>
+                              <input
+                                type="range"
+                                min={0.1}
+                                max={1.0}
+                                step={0.05}
+                                value={activeEl.opacity}
+                                onChange={(e) => {
+                                  const updated = slideElements.map(el => {
+                                    if (el.id === activeEl.id) {
+                                      return { ...el, opacity: parseFloat(e.target.value) };
+                                    }
+                                    return el;
+                                  });
+                                  updateSlideProp(selectedSlide.id, "elements", updated);
+                                }}
+                                className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Rotation & Line Thickness Slider */}
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-[9.5px]">
+                                <span className="font-bold text-slate-500">Rotation Angle:</span>
+                                <span className="font-mono text-slate-400">{activeEl.rotation}°</span>
+                              </div>
+                              <input
+                                type="range"
+                                min={0}
+                                max={360}
+                                step={5}
+                                value={activeEl.rotation}
+                                onChange={(e) => {
+                                  const updated = slideElements.map(el => {
+                                    if (el.id === activeEl.id) {
+                                      return { ...el, rotation: parseInt(e.target.value) };
+                                    }
+                                    return el;
+                                  });
+                                  updateSlideProp(selectedSlide.id, "elements", updated);
+                                }}
+                                className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                              />
+                            </div>
+                            <div className="space-y-1">
+                              <div className="flex justify-between text-[9.5px]">
+                                <span className="font-bold text-slate-500">Stroke Thickness:</span>
+                                <span className="font-mono text-slate-400">{activeEl.lineWidth || 3}px</span>
+                              </div>
+                              <input
+                                type="range"
+                                min={1}
+                                max={10}
+                                step={1}
+                                value={activeEl.lineWidth || 3}
+                                onChange={(e) => {
+                                  const updated = slideElements.map(el => {
+                                    if (el.id === activeEl.id) {
+                                      return { ...el, lineWidth: parseInt(e.target.value) };
+                                    }
+                                    return el;
+                                  });
+                                  updateSlideProp(selectedSlide.id, "elements", updated);
+                                }}
+                                className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Fill Style & Animation Selection Row */}
+                          <div className="grid grid-cols-2 gap-3 pt-1">
+                            {/* Toggle Fill style (only relevant for non-checkmark) */}
+                            <div className="space-y-1.5">
+                              <span className="block text-[9px] font-extrabold uppercase tracking-wider text-slate-400">
+                                Render Style:
+                              </span>
+                              <div className="flex gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = slideElements.map(el => {
+                                      if (el.id === activeEl.id) {
+                                        return { ...el, filled: true };
+                                      }
+                                      return el;
+                                    });
+                                    updateSlideProp(selectedSlide.id, "elements", updated);
+                                    triggerBeepChime();
+                                  }}
+                                  className={`flex-1 py-1 rounded-lg border text-center font-extrabold text-[10px] cursor-pointer transition-all ${
+                                    activeEl.filled 
+                                      ? "bg-indigo-650 text-white border-indigo-650"
+                                      : "bg-slate-50 dark:bg-slate-900 border-slate-150 hover:bg-slate-100"
+                                  }`}
+                                >
+                                  Solid Fill
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = slideElements.map(el => {
+                                      if (el.id === activeEl.id) {
+                                        return { ...el, filled: false };
+                                      }
+                                      return el;
+                                    });
+                                    updateSlideProp(selectedSlide.id, "elements", updated);
+                                    triggerBeepChime();
+                                  }}
+                                  className={`flex-1 py-1 rounded-lg border text-center font-extrabold text-[10px] cursor-pointer transition-all ${
+                                    !activeEl.filled 
+                                      ? "bg-indigo-650 text-white border-indigo-650"
+                                      : "bg-slate-50 dark:bg-slate-900 border-slate-150 hover:bg-slate-100"
+                                  }`}
+                                >
+                                  Outline
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Dynamic micro-animations */}
+                            <div className="space-y-1.5">
+                              <span className="block text-[9px] font-extrabold uppercase tracking-wider text-slate-400">
+                                Motion Overlay:
+                              </span>
+                              <select
+                                value={activeEl.animation || "none"}
+                                onChange={(e) => {
+                                  const updated = slideElements.map(el => {
+                                    if (el.id === activeEl.id) {
+                                      return { ...el, animation: e.target.value as any };
+                                    }
+                                    return el;
+                                  });
+                                  updateSlideProp(selectedSlide.id, "elements", updated);
+                                }}
+                                className="w-full px-2.5 py-1.5 text-[10px] font-bold text-slate-800 bg-white border border-slate-200 rounded-lg outline-none cursor-pointer"
+                              >
+                                <option value="none">🚫 No Motion</option>
+                                <option value="spin">🌀 Spin (Rotation)</option>
+                                <option value="pulse">💓 Pulse (Breathing)</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          {/* Color Selector */}
+                          <div className="space-y-1.5 pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                            <span className="block text-[9px] font-extrabold uppercase tracking-wider text-slate-400">
+                              Palette Color Accent:
+                            </span>
+                            <div className="flex items-center gap-2">
+                              {/* Color Presets */}
+                              <div className="flex gap-1.5 flex-wrap flex-1">
+                                {[
+                                  { hex: "#ffffff", label: "White" },
+                                  { hex: "#000000", label: "Black" },
+                                  { hex: "#ef4444", label: "Red" },
+                                  { hex: "#f59e0b", label: "Amber" },
+                                  { hex: "#10b981", label: "Emerald" },
+                                  { hex: "#06b6d4", label: "Cyan" },
+                                  { hex: "#4f46e5", label: "Indigo" },
+                                  { hex: "#ec4899", label: "Pink" }
+                                ].map((color) => {
+                                  const isSelected = activeEl.color.toLowerCase() === color.hex.toLowerCase();
+                                  return (
+                                    <button
+                                      key={color.hex}
+                                      type="button"
+                                      onClick={() => {
+                                        const updated = slideElements.map(el => {
+                                          if (el.id === activeEl.id) {
+                                            return { ...el, color: color.hex };
+                                          }
+                                          return el;
+                                        });
+                                        updateSlideProp(selectedSlide.id, "elements", updated);
+                                      }}
+                                      className={`w-5 h-5 rounded-full border transition-all cursor-pointer flex items-center justify-center ${
+                                        isSelected 
+                                          ? "scale-115 border-indigo-600 ring-2 ring-indigo-500/20" 
+                                          : "border-slate-200 hover:scale-105"
+                                      }`}
+                                      style={{ backgroundColor: color.hex }}
+                                      title={color.label}
+                                    >
+                                      {isSelected && (
+                                        <span className={`text-[8px] font-extrabold ${color.hex === "#ffffff" ? "text-slate-900" : "text-white"}`}>
+                                          ✓
+                                        </span>
+                                      )}
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                              {/* Native Custom Color Picker */}
+                              <div className="flex items-center gap-1.5 pl-2 border-l border-slate-100 dark:border-slate-800">
+                                <input
+                                  type="color"
+                                  value={activeEl.color.startsWith("#") ? activeEl.color : "#ffffff"}
+                                  onChange={(e) => {
+                                    const updated = slideElements.map(el => {
+                                      if (el.id === activeEl.id) {
+                                        return { ...el, color: e.target.value };
+                                      }
+                                      return el;
+                                    });
+                                    updateSlideProp(selectedSlide.id, "elements", updated);
+                                  }}
+                                  className="w-6 h-6 rounded-lg cursor-pointer border border-slate-200 bg-transparent p-0"
+                                  title="Pick custom color"
+                                />
+                                <span className="text-[9px] font-mono font-bold text-slate-400">Custom</span>
+                              </div>
+                            </div>
+                          </div>
+
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               {/* Card: Global Playback Speed Controls */}
@@ -6037,6 +7529,106 @@ export default function ImageToVideo({
                   </div>
                 </label>
               </div>
+
+              {/* Premium Live Audio Visualizer Settings */}
+              <div className="border-t border-slate-100 dark:border-slate-900 pt-3.5 space-y-3">
+                <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block flex items-center gap-1.5">
+                  🎨 Live Audio Visualizer Overlay:
+                </span>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {[
+                    { id: "none" as const, label: "❌ None" },
+                    { id: "wave" as const, label: "〰️ Wave" },
+                    { id: "bars" as const, label: "📊 Bars" },
+                    { id: "pulse" as const, label: "💗 Pulse" }
+                  ].map((styleOpt) => {
+                    const isSel = visualizerStyle === styleOpt.id;
+                    return (
+                      <button
+                        key={styleOpt.id}
+                        type="button"
+                        onClick={() => {
+                          setVisualizerStyle(styleOpt.id);
+                          triggerBeepChime();
+                        }}
+                        className={`py-1.5 px-1 rounded-xl border text-center text-[10.5px] font-black transition-all cursor-pointer select-none ${
+                          isSel
+                            ? "bg-indigo-600 border-indigo-600 text-white shadow-xs"
+                            : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-850 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900"
+                        }`}
+                      >
+                        {styleOpt.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* AI Narrator Voiceover settings */}
+              <div className="border-t border-slate-100 dark:border-slate-900 pt-3.5 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-slate-400 block flex items-center gap-1.5">
+                    🤖 AI Voiceover Narration:
+                  </span>
+                  <span className="text-[9px] font-black uppercase tracking-widest bg-emerald-100 dark:bg-emerald-950/70 text-emerald-700 dark:text-emerald-300 px-1.5 py-0.5 rounded">
+                    TTS Engine
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {/* Enable Switcher */}
+                  <label className="flex items-start gap-2.5 p-2.5 rounded-xl border border-slate-150 dark:border-slate-850 hover:bg-slate-50/50 dark:hover:bg-slate-900/30 cursor-pointer select-none">
+                    <input
+                      type="checkbox"
+                      checked={voiceoverEnabled}
+                      onChange={(e) => {
+                        setVoiceoverEnabled(e.target.checked);
+                        triggerBeepChime();
+                      }}
+                      className="mt-0.5 rounded border-slate-300 dark:border-slate-800 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5 cursor-pointer"
+                    />
+                    <div className="flex flex-col">
+                      <span className="text-[11px] font-black text-slate-700 dark:text-slate-200">
+                        Enable Voiceover
+                      </span>
+                      <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">
+                        Narrate slide overlay text
+                      </span>
+                    </div>
+                  </label>
+
+                  {/* Gender Selector */}
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Voice Gender Accent:</span>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {[
+                        { id: "female" as const, label: "👩 Female" },
+                        { id: "male" as const, label: "👨 Male" }
+                      ].map((genderOpt) => {
+                        const isSel = voiceoverGender === genderOpt.id;
+                        return (
+                          <button
+                            key={genderOpt.id}
+                            type="button"
+                            disabled={!voiceoverEnabled}
+                            onClick={() => {
+                              setVoiceoverGender(genderOpt.id);
+                              triggerBeepChime();
+                            }}
+                            className={`py-1.5 px-1 rounded-xl border text-center text-[10px] font-black transition-all cursor-pointer select-none ${
+                              isSel
+                                ? "bg-indigo-600 border-indigo-600 text-white shadow-xs"
+                                : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-850 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900 disabled:opacity-40"
+                            }`}
+                          >
+                            {genderOpt.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
 
             {/* Video Aspect Ratio selector layout options */}
@@ -6079,6 +7671,56 @@ export default function ImageToVideo({
               <span>Cinematic VFX & Captioning</span>
             </h4>
 
+            {/* Global Video Filter selection */}
+            <div className="space-y-2 border-b border-slate-150 dark:border-slate-800/80 pb-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1">
+                  <span>🎭</span>
+                  <span>Global Video Filter:</span>
+                </label>
+                {masterVideoFilter !== "none" && (
+                  <span className="text-[9px] font-mono font-bold text-amber-500 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded animate-pulse">
+                    Active
+                  </span>
+                )}
+              </div>
+              <div className="grid grid-cols-3 gap-1.5">
+                {[
+                  { id: "none", label: "None", emoji: "❌", desc: "Original" },
+                  { id: "grayscale", label: "Grayscale", emoji: "🌑", desc: "Noir-chic" },
+                  { id: "sepia", label: "Sepia", emoji: "🟫", desc: "Warm clay" },
+                  { id: "vintage", label: "Vintage", emoji: "📜", desc: "Retro film" },
+                  { id: "high-contrast", label: "Contrast", emoji: "⚡", desc: "Bold punch" },
+                  { id: "cyberpunk", label: "Cyberpunk", emoji: "🔮", desc: "Neon wave" },
+                  { id: "noir", label: "Noir", emoji: "🎬", desc: "Mood shadow" },
+                  { id: "cool", label: "Cool Blue", emoji: "❄️", desc: "Arctic chill" },
+                  { id: "warm", label: "Warm Light", emoji: "☀️", desc: "Golden hour" }
+                ].map((item) => {
+                  const isSelected = masterVideoFilter === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        setMasterVideoFilter(item.id as any);
+                        triggerBeepChime();
+                      }}
+                      className={`p-1.5 rounded-xl border text-center transition-all cursor-pointer select-none flex flex-col items-center justify-center gap-0.5 ${
+                        isSelected
+                          ? "bg-indigo-650 border-indigo-650 text-white shadow-sm"
+                          : "bg-white dark:bg-slate-950 border-slate-150 hover:border-slate-300 hover:scale-102"
+                      }`}
+                      title={`${item.label} - ${item.desc}`}
+                    >
+                      <span className="text-xs leading-none">{item.emoji}</span>
+                      <span className="text-[9.5px] font-black leading-none mt-1">{item.label}</span>
+                      <span className={`text-[7px] font-medium leading-none ${isSelected ? "text-indigo-200" : "text-slate-450"}`}>{item.desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* Subtitle style selection */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -6111,6 +7753,59 @@ export default function ImageToVideo({
                     >
                       <span className="text-[10.5px] font-black">{style.label}</span>
                       <span className={`text-[8px] font-medium leading-none ${isSelected ? "text-indigo-200" : "text-slate-400"}`}>{style.desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Global Font Library Selector */}
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Type className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>Global Font Style:</span>
+                </label>
+                <span className="text-[9px] font-black uppercase tracking-wider text-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded font-mono">
+                  Default Font
+                </span>
+              </div>
+              <div className="relative">
+                <select
+                  value={subtitleFont}
+                  onChange={(e) => {
+                    setSubtitleFont(e.target.value);
+                    triggerBeepChime();
+                  }}
+                  className="w-full px-3 py-2 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-xl outline-none cursor-pointer"
+                >
+                  {CURATED_FONTS.map((font) => (
+                    <option key={font.id} value={font.id} style={{ fontFamily: font.family }}>
+                      {font.name} ({font.category})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="grid grid-cols-5 gap-1.5 pt-1">
+                {CURATED_FONTS.slice(0, 5).map((font) => {
+                  const isSelected = subtitleFont === font.id;
+                  return (
+                    <button
+                      key={font.id}
+                      type="button"
+                      onClick={() => {
+                        setSubtitleFont(font.id);
+                        triggerBeepChime();
+                      }}
+                      style={{ fontFamily: font.family }}
+                      className={`py-1 text-[10px] font-extrabold rounded-lg border text-center transition-all cursor-pointer select-none truncate ${
+                        isSelected 
+                          ? "bg-indigo-50 text-indigo-700 border-indigo-400 font-black shadow-sm scale-102"
+                          : "bg-white dark:bg-slate-950 border-slate-150 hover:border-slate-300 text-slate-700"
+                      }`}
+                      title={font.name}
+                    >
+                      {font.name.split(" ")[0]}
                     </button>
                   );
                 })}
