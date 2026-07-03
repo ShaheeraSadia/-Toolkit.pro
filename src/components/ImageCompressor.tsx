@@ -1208,6 +1208,11 @@ export default function ImageCompressor({
   const [showOriginalInAB, setShowOriginalInAB] = useState<boolean>(false);
   const [activeImageAspect, setActiveImageAspect] = useState<number | null>(null);
 
+  // Live Compression Preview States
+  const [isLivePreviewEnabled, setIsLivePreviewEnabled] = useState<boolean>(false);
+  const [liveCompressedResult, setLiveCompressedResult] = useState<CompressionResult | null>(null);
+  const [isLiveCompressing, setIsLiveCompressing] = useState<boolean>(false);
+
   // EXIF Info Modal States
   const [isExifModalOpen, setIsExifModalOpen] = useState<boolean>(false);
   const [selectedExifId, setSelectedExifId] = useState<string | null>(null);
@@ -1272,6 +1277,62 @@ export default function ImageCompressor({
 
   // Active item resolution
   const activeItem = queue.find(item => item.id === selectedId) || (queue.length > 0 ? queue[0] : null);
+
+  // Background compression for live preview
+  useEffect(() => {
+    if (!activeItem || !isLivePreviewEnabled) {
+      setLiveCompressedResult(null);
+      return;
+    }
+
+    let isCancelled = false;
+    const runLiveCompress = async () => {
+      setIsLiveCompressing(true);
+      try {
+        // Create a temporary QueueItem copy with current states to compress
+        const tempItem = {
+          ...activeItem,
+          quality: quality,
+          aspectRatio: aspectRatio,
+          filter: imgFilter,
+        };
+        const result = await compressSingleItem(tempItem, quality);
+        if (!isCancelled && result.compressedResult) {
+          setLiveCompressedResult(result.compressedResult);
+        }
+      } catch (err) {
+        console.error("Live compression failed:", err);
+      } finally {
+        if (!isCancelled) {
+          setIsLiveCompressing(false);
+        }
+      }
+    };
+
+    // Debounce to prevent heavy layout thrashing
+    const delay = setTimeout(() => {
+      runLiveCompress();
+    }, 150);
+
+    return () => {
+      isCancelled = true;
+      clearTimeout(delay);
+    };
+  }, [
+    activeItem?.id, 
+    quality, 
+    aspectRatio, 
+    imgFilter, 
+    isLivePreviewEnabled,
+    activeItem?.cropX,
+    activeItem?.cropY,
+    activeItem?.cropWidth,
+    activeItem?.cropHeight,
+    activeItem?.rotation,
+    isSmartResizeEnabled,
+    smartResizeMaxWidth,
+    smartResizeMaxHeight
+  ]);
 
   // Snapshot the current configurations of the active item before any adjustments
   const saveToUndoActiveItem = () => {
@@ -4836,6 +4897,40 @@ export default function ImageCompressor({
               </div>
             </div>
 
+            {/* Live Comparison Preview Toggle Card */}
+            <div className="p-3.5 rounded-2xl bg-gradient-to-br from-indigo-50/40 via-white to-purple-50/40 dark:from-indigo-950/20 dark:via-slate-950 dark:to-purple-950/20 border border-slate-205 dark:border-slate-800/80 shadow-3xs text-left flex items-center justify-between gap-3">
+              <div className="space-y-0.5 flex-1 select-none">
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[11px] font-black uppercase text-slate-800 dark:text-slate-200 tracking-wider">
+                    👁️ Interactive Preview
+                  </span>
+                  {isLivePreviewEnabled && (
+                    <span className="inline-flex h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+                  )}
+                </div>
+                <p className="text-[9.5px] text-slate-400 dark:text-slate-500 leading-snug">
+                  Compare original and compressed side-by-side with slider in real-time.
+                </p>
+              </div>
+              <button
+                type="button"
+                id="live-preview-toggle-btn"
+                onClick={() => {
+                  setIsLivePreviewEnabled(prev => !prev);
+                }}
+                className={`w-11 h-6 rounded-full p-0.5 transition-colors duration-300 focus:outline-none cursor-pointer relative shrink-0 ${
+                  isLivePreviewEnabled ? "bg-indigo-600" : "bg-slate-200 dark:bg-slate-800"
+                }`}
+                aria-label="Toggle Live Comparison Preview"
+              >
+                <div
+                  className={`w-5 h-5 rounded-full bg-white shadow-sm transform transition-transform duration-300 ${
+                    isLivePreviewEnabled ? "translate-x-5" : "translate-x-0"
+                  }`}
+                />
+              </button>
+            </div>
+
             {/* Slider with Quality Score Gauge */}
             <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-950 border border-slate-205 dark:border-slate-800/80 shadow-3xs text-left space-y-4">
               <div className="flex items-center justify-between gap-3">
@@ -5639,7 +5734,180 @@ export default function ImageCompressor({
             </div>
           ) : (
             <div className="flex-1 flex flex-col justify-between h-full">
-              {compressedResult ? (
+              {isLivePreviewEnabled ? (
+                /* Live Preview comparison view with side-by-side sizes and before/after slider */
+                <div className="space-y-6 flex-1 flex flex-col justify-between animate-fade-in py-1">
+                  {/* Live Preview Header */}
+                  <div className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200/50 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm mb-4" id="banner-live-preview-status">
+                    <div className="flex flex-col xs:flex-row xs:items-center gap-3">
+                      <div className="w-10 h-10 bg-indigo-50 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400 rounded-lg flex items-center justify-center shrink-0">
+                        {isLiveCompressing ? (
+                          <span className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
+                        ) : (
+                          <Eye className="w-5 h-5" />
+                        )}
+                      </div>
+                      <div className="text-left">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs font-extrabold text-slate-800 dark:text-slate-200 uppercase tracking-wide">
+                            Live Comparison Preview
+                          </span>
+                          <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-650 dark:text-emerald-400">
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                            Live Sync
+                          </span>
+                        </div>
+                        <p className="text-[10px] text-slate-505 dark:text-slate-400 leading-snug mt-0.5">
+                          Compare quality degradation and size reduction instantly as you tune settings.
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <button
+                      type="button"
+                      onClick={() => setIsLivePreviewEnabled(false)}
+                      className="w-full sm:w-auto inline-flex items-center justify-center gap-1.5 px-3.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800 text-[10.5px] font-bold text-slate-700 dark:text-slate-300 transition-all cursor-pointer shadow-2xs"
+                      id="btn-close-live-preview"
+                    >
+                      Close Live Preview
+                    </button>
+                  </div>
+
+                  {!liveCompressedResult ? (
+                    <div className="flex-1 flex flex-col items-center justify-center text-center py-12 select-none min-h-[300px]">
+                      <span className="w-8 h-8 border-3 border-indigo-600 border-t-transparent rounded-full animate-spin mb-3" />
+                      <h4 className="text-xs font-bold text-slate-700 dark:text-slate-350 uppercase tracking-wider">Generating Real-time Compression...</h4>
+                      <p className="text-[10px] text-slate-405 dark:text-slate-555 max-w-xs mt-1 leading-relaxed">
+                        Compiling original image slices using advanced client-side canvas matrices.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-6 flex-1 flex flex-col">
+                      {/* BEFORE/AFTER COMPARISON SLIDER */}
+                      <div className="flex flex-col space-y-2">
+                        <span className="text-[10px] font-black uppercase text-slate-450 dark:text-slate-500 tracking-wider text-left">
+                          ↔️ Before / After Drag Comparison
+                        </span>
+                        
+                        <div className="flex-1 flex flex-col items-center justify-center py-1 select-none">
+                          <div 
+                            ref={inlineSliderContainerRef}
+                            onMouseDown={onSliderMouseDown}
+                            onTouchStart={onSliderTouchStart}
+                            className="relative w-full rounded-2xl bg-black/5 dark:bg-black/40 border border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden cursor-ew-resize group shadow-inner max-h-[320px] sm:max-h-[420px]"
+                            style={{ aspectRatio: activeImageAspect || "16/9" }}
+                            title="Drag the slider handle to compare before and after"
+                            id="inline-live-compare-slider-container"
+                          >
+                            {/* Before Image (Left Side) */}
+                            <div className="absolute inset-0 select-none pointer-events-none w-full h-full">
+                              <img 
+                                src={originalUrl || activeItem.originalUrl} 
+                                alt="Original Before" 
+                                className="absolute inset-0 w-full h-full object-contain"
+                                style={{
+                                  transform: `rotate(${activeItem?.rotation || 0}deg)`,
+                                  filter: imgFilter === "grayscale" ? "grayscale(100%)" :
+                                          imgFilter === "sepia" ? "sepia(100%)" :
+                                          imgFilter === "invert" ? "invert(100%)" :
+                                          imgFilter === "blur" ? "blur(4px)" : "none"
+                                }}
+                                referrerPolicy="no-referrer"
+                              />
+                              <div className="absolute top-3 left-3 bg-slate-900/80 backdrop-blur-md px-2 py-1 rounded-lg text-[9px] font-bold text-white tracking-wide border border-white/10 uppercase select-none z-10">
+                                Original (Before) • {formatFileSize(activeItem.size)}
+                              </div>
+                            </div>
+
+                            {/* After Image (Right Side, Clipped) */}
+                            <div 
+                              className="absolute inset-0 select-none pointer-events-none w-full h-full"
+                              style={{ clipPath: `polygon(${sliderPosition}% 0, 100% 0, 100% 100%, ${sliderPosition}% 100%)` }}
+                            >
+                              <img 
+                                src={liveCompressedResult.dataUrl} 
+                                alt="Compressed After" 
+                                className="absolute inset-0 w-full h-full object-contain"
+                                style={{ transform: `rotate(${activeItem?.rotation || 0}deg)` }}
+                                referrerPolicy="no-referrer"
+                              />
+                              <div className="absolute top-3 right-3 bg-indigo-650/90 backdrop-blur-md px-2 py-1 rounded-lg text-[9px] font-bold text-white tracking-wide border border-indigo-500/20 uppercase select-none z-10">
+                                Optimized (After) • {formatFileSize(liveCompressedResult.compressedSize)}
+                              </div>
+                            </div>
+
+                            {/* Drag Indicator Splitter Handle Line */}
+                            <div 
+                              className="absolute top-0 bottom-0 w-0.5 bg-white shadow-lg pointer-events-none z-20"
+                              style={{ left: `${sliderPosition}%` }}
+                            >
+                              <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center border-2 border-white shadow-md hover:bg-indigo-500 hover:scale-110 active:scale-95 transition-all cursor-pointer">
+                                <GripVertical className="w-4 h-4" />
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* SIDE-BY-SIDE SIDE COMPARISON CARD SECTION */}
+                      <div className="flex flex-col space-y-2">
+                        <span className="text-[10px] font-black uppercase text-slate-450 dark:text-slate-500 tracking-wider text-left">
+                          📸 Side-by-Side File Comparison
+                        </span>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 items-center">
+                          {/* Original Column */}
+                          <div className="flex flex-col p-3 rounded-2xl bg-white dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 text-left">
+                            <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block mb-2">Original</span>
+                            <div className="aspect-video rounded-xl overflow-hidden bg-slate-900 flex items-center justify-center relative">
+                              <img 
+                                src={originalUrl || activeItem.originalUrl} 
+                                alt="Original Visual" 
+                                className="max-h-full max-w-full object-contain"
+                                style={{
+                                  transform: `rotate(${activeItem?.rotation || 0}deg)`,
+                                  filter: imgFilter === "grayscale" ? "grayscale(100%)" :
+                                          imgFilter === "sepia" ? "sepia(100%)" :
+                                          imgFilter === "invert" ? "invert(100%)" :
+                                          imgFilter === "blur" ? "blur(4px)" : "none"
+                                }}
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
+                            <div className="w-full mt-3 font-mono text-[11px] text-slate-505 border-t border-slate-100 dark:border-slate-900 pt-2.5 text-center flex items-center justify-between">
+                              <span className="text-slate-400 font-bold">File Size:</span>
+                              <strong className="text-slate-700 dark:text-slate-300 font-extrabold">{formatFileSize(activeItem.size)}</strong>
+                            </div>
+                          </div>
+
+                          {/* Compressed Column */}
+                          <div className="flex flex-col p-3 rounded-2xl bg-white dark:bg-slate-900 border border-indigo-500/20 dark:border-indigo-900/40 text-left ring-1 ring-indigo-500/10">
+                            <div className="flex items-center justify-between mb-2">
+                              <span className="text-[9px] font-bold text-indigo-550 dark:text-indigo-450 uppercase tracking-wider">Optimized Preview</span>
+                              <span className="text-[9px] font-black bg-emerald-50 dark:bg-emerald-950/40 text-emerald-650 dark:text-emerald-400 px-1.5 py-0.5 rounded">
+                                -{liveCompressedResult.savingPercentage}% Saved
+                              </span>
+                            </div>
+                            <div className="aspect-video rounded-xl overflow-hidden bg-slate-900 flex items-center justify-center relative">
+                              <img 
+                                src={liveCompressedResult.dataUrl} 
+                                alt="Compressed Visual" 
+                                className="max-h-full max-w-full object-contain"
+                                style={{ transform: `rotate(${activeItem?.rotation || 0}deg)` }}
+                                referrerPolicy="no-referrer"
+                              />
+                            </div>
+                            <div className="w-full mt-3 font-mono text-[11px] text-slate-505 border-t border-slate-100 dark:border-slate-900 pt-2.5 text-center flex items-center justify-between">
+                              <span className="text-slate-400 font-bold">Optimized Size:</span>
+                              <strong className="text-emerald-600 dark:text-emerald-400 font-black">{formatFileSize(liveCompressedResult.compressedSize)}</strong>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : compressedResult ? (
                 /* Post-compression view */
                 <div className="space-y-6 flex-1 flex flex-col justify-between">
                   {/* Sync Details Banner */}
@@ -5949,6 +6217,21 @@ export default function ImageCompressor({
                       </p>
                     </div>
                     <div className="flex flex-wrap items-center gap-1.5 self-start sm:self-center shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => setIsLivePreviewEnabled(prev => !prev)}
+                        className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[10px] font-bold transition-all shadow-sm cursor-pointer ${
+                          isLivePreviewEnabled 
+                            ? "bg-indigo-600 hover:bg-indigo-700 text-white border-indigo-700" 
+                            : "bg-white hover:bg-slate-50 border-slate-200 dark:border-slate-800 dark:bg-slate-900 text-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+                        }`}
+                        title="Toggle live side-by-side and before/after comparison"
+                        id="btn-toggle-live-preview-studio"
+                      >
+                        <Eye className={`w-3.5 h-3.5 ${isLivePreviewEnabled ? "text-white" : "text-indigo-500"}`} />
+                        <span>{isLivePreviewEnabled ? "Studio Editor" : "Live Preview"}</span>
+                      </button>
+
                       <button
                         type="button"
                         onClick={() => handleRotation(-90)}

@@ -550,6 +550,239 @@ export default function App() {
     }
   }, [isPrintPreviewOpen, activeTab]);
 
+  const handleDownloadPDF = () => {
+    // Create a temporary hidden iframe
+    const iframe = document.createElement("iframe");
+    iframe.style.position = "fixed";
+    iframe.style.right = "0";
+    iframe.style.bottom = "0";
+    iframe.style.width = "0";
+    iframe.style.height = "0";
+    iframe.style.border = "none";
+    iframe.style.pointerEvents = "none";
+    document.body.appendChild(iframe);
+
+    const doc = iframe.contentWindow?.document || iframe.contentDocument;
+    if (!doc) return;
+
+    // Get all style elements from current head to preserve styles and tailwind classes
+    const styleElements = Array.from(document.querySelectorAll("link[rel='stylesheet'], style"))
+      .map(el => el.outerHTML)
+      .join("\n");
+
+    const pagePadding =
+      printPageMargins === "standard"
+        ? "1.5cm"
+        : printPageMargins === "minimum"
+        ? "0.5cm"
+        : "0cm";
+
+    const widthDim = printOrientation === "portrait" ? "210mm" : "297mm";
+    const heightDim = printOrientation === "portrait" ? "297mm" : "210mm";
+
+    const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Print Preview - Download as PDF</title>
+  ${styleElements}
+  <style>
+    @page {
+      size: A4 ${printOrientation};
+      margin: 0;
+    }
+    body {
+      margin: 0;
+      padding: 0;
+      background: #ffffff !important;
+      -webkit-print-color-adjust: exact !important;
+      print-color-adjust: exact !important;
+      color-adjust: exact !important;
+    }
+    .print-page {
+      position: relative;
+      width: ${widthDim};
+      height: ${heightDim};
+      box-sizing: border-box;
+      background: #ffffff !important;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      padding: ${pagePadding};
+    }
+    
+    /* Crop marks styling */
+    .crop-mark-h {
+      position: absolute;
+      background-color: #e11d48 !important;
+      height: 1.5px;
+      width: 24px;
+      z-index: 30;
+    }
+    .crop-mark-v {
+      position: absolute;
+      background-color: #e11d48 !important;
+      width: 1.5px;
+      height: 24px;
+      z-index: 30;
+    }
+    
+    /* Registration marks styling */
+    .reg-mark {
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      z-index: 30;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .reg-circle {
+      width: 12px;
+      height: 12px;
+      border: 1px solid #e11d48 !important;
+      border-radius: 50%;
+      position: relative;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .reg-line-h {
+      width: 16px;
+      height: 1px;
+      background-color: #e11d48 !important;
+      position: absolute;
+    }
+    .reg-line-v {
+      height: 16px;
+      width: 1px;
+      background-color: #e11d48 !important;
+      position: absolute;
+    }
+
+    /* Safe Area styling */
+    .safe-area {
+      position: absolute;
+      inset: 20px;
+      border: 2px dashed rgba(16, 185, 129, 0.5) !important;
+      border-radius: 2px;
+      z-index: 20;
+      box-sizing: border-box;
+      pointer-events: none;
+    }
+    .safe-area-label {
+      position: absolute;
+      top: 4px;
+      left: 4px;
+      font-family: monospace;
+      font-size: 8px;
+      font-weight: bold;
+      color: #059669 !important;
+      background-color: #ecfdf5 !important;
+      padding: 2px 4px;
+      border-radius: 2px;
+      line-height: 1;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      opacity: 0.8;
+    }
+
+    /* Content Area styling */
+    .content-area {
+      width: 100%;
+      height: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      overflow: hidden;
+    }
+  </style>
+</head>
+<body>
+  <div class="print-page">
+    ${showCropMarks ? `
+      <!-- Top-Left -->
+      <div class="crop-mark-h" style="top: 0; left: 0;"></div>
+      <div class="crop-mark-v" style="top: 0; left: 0;"></div>
+      
+      <!-- Top-Right -->
+      <div class="crop-mark-h" style="top: 0; right: 0;"></div>
+      <div class="crop-mark-v" style="top: 0; right: 0;"></div>
+      
+      <!-- Bottom-Left -->
+      <div class="crop-mark-h" style="bottom: 0; left: 0;"></div>
+      <div class="crop-mark-v" style="bottom: 0; left: 0;"></div>
+      
+      <!-- Bottom-Right -->
+      <div class="crop-mark-h" style="bottom: 0; right: 0;"></div>
+      <div class="crop-mark-v" style="bottom: 0; right: 0;"></div>
+
+      <!-- Registration Targets -->
+      <div class="reg-mark" style="top: 6px; left: 50%; transform: translateX(-50%);">
+        <div class="reg-circle">
+          <div class="reg-line-h"></div>
+          <div class="reg-line-v"></div>
+        </div>
+      </div>
+      <div class="reg-mark" style="bottom: 6px; left: 50%; transform: translateX(-50%);">
+        <div class="reg-circle">
+          <div class="reg-line-h"></div>
+          <div class="reg-line-v"></div>
+        </div>
+      </div>
+      <div class="reg-mark" style="left: 6px; top: 50%; transform: translateY(-50%);">
+        <div class="reg-circle">
+          <div class="reg-line-h"></div>
+          <div class="reg-line-v"></div>
+        </div>
+      </div>
+      <div class="reg-mark" style="right: 6px; top: 50%; transform: translateY(-50%);">
+        <div class="reg-circle">
+          <div class="reg-line-h"></div>
+          <div class="reg-line-v"></div>
+        </div>
+      </div>
+    ` : ''}
+
+    ${showSafeArea ? `
+      <div class="safe-area">
+        <div class="safe-area-label">Safe Area</div>
+      </div>
+    ` : ''}
+
+    <div class="content-area">
+      ${previewHtml}
+    </div>
+  </div>
+
+  <script>
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        window.focus();
+        window.print();
+      }, 500);
+    });
+  </script>
+</body>
+</html>
+`;
+
+    doc.open();
+    doc.write(htmlContent);
+    doc.close();
+
+    // Clean up iframe after printing dialogue
+    setTimeout(() => {
+      if (document.body.contains(iframe)) {
+        document.body.removeChild(iframe);
+      }
+    }, 10000);
+  };
+
   const [legalSubTab, setLegalSubTab] = useState<"privacy" | "terms" | "about" | "contact">(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
@@ -2278,6 +2511,14 @@ export default function App() {
                       className="flex-1 sm:flex-none py-2 px-4 border border-slate-205 dark:border-slate-805 text-xs font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-900 transition-all cursor-pointer text-slate-700 dark:text-slate-300"
                     >
                       Close Preview
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleDownloadPDF}
+                      className="flex-1 sm:flex-none py-2 px-5 bg-emerald-650 hover:bg-emerald-700 text-white text-xs font-black rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Download as PDF</span>
                     </button>
                     <button
                       type="button"

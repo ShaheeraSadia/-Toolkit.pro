@@ -109,6 +109,8 @@ class RoyaltyFreeSynthManager {
   private totalDuration: number = 10;
   private audioElement: HTMLAudioElement | null = null;
   private audioNode: MediaElementAudioSourceNode | null = null;
+  private trimStart: number = 0;
+  private trimEnd: number = 0;
 
   constructor() {}
 
@@ -189,7 +191,9 @@ class RoyaltyFreeSynthManager {
     fadeOut: boolean = false,
     totalDuration: number = 10,
     customAudioUrl?: string | null,
-    startTime: number = 0
+    startTime: number = 0,
+    trimStart: number = 0,
+    trimEnd: number = 0
   ) {
     if (track === "none") {
       this.stop();
@@ -201,6 +205,8 @@ class RoyaltyFreeSynthManager {
     this.fadeIn = fadeIn;
     this.fadeOut = fadeOut;
     this.totalDuration = totalDuration;
+    this.trimStart = trimStart;
+    this.trimEnd = trimEnd;
 
     if (this.isPlaying) {
       this.stop();
@@ -239,15 +245,26 @@ class RoyaltyFreeSynthManager {
       if (track === "custom" && customAudioUrl) {
         this.audioElement = new Audio(customAudioUrl);
         this.audioElement.volume = volume;
-        this.audioElement.loop = true;
         this.audioElement.crossOrigin = "anonymous";
         this.audioNode = this.ctx.createMediaElementSource(this.audioElement);
         this.audioNode.connect(this.gainNode);
         
+        const hasTrim = this.trimEnd > this.trimStart;
+        this.audioElement.loop = !hasTrim; // Native loop only if not trimmed
+        
         // Seek to correct start time
-        if (startTime > 0) {
-          // Listen to metadata loaded if needed, or set directly
-          this.audioElement.currentTime = startTime;
+        const startOffset = this.trimStart;
+        if (hasTrim) {
+          const trimDur = this.trimEnd - this.trimStart;
+          this.audioElement.currentTime = startOffset + (startTime % (trimDur || 1));
+          
+          this.audioElement.addEventListener("timeupdate", () => {
+            if (this.audioElement && this.audioElement.currentTime >= this.trimEnd) {
+              this.audioElement.currentTime = this.trimStart;
+            }
+          });
+        } else {
+          this.audioElement.currentTime = startOffset + startTime;
         }
 
         this.audioElement.play().catch(e => console.warn("Failed to play custom audio in Synth:", e));
@@ -342,7 +359,13 @@ class RoyaltyFreeSynthManager {
   public seek(time: number) {
     if (this.audioElement) {
       try {
-        this.audioElement.currentTime = time % (this.audioElement.duration || this.totalDuration || 1);
+        const hasTrim = this.trimEnd > this.trimStart;
+        if (hasTrim) {
+          const trimDur = this.trimEnd - this.trimStart;
+          this.audioElement.currentTime = this.trimStart + (time % (trimDur || 1));
+        } else {
+          this.audioElement.currentTime = (this.trimStart || 0) + (time % (this.audioElement.duration || this.totalDuration || 1));
+        }
       } catch (e) {}
     }
   }
@@ -732,6 +755,109 @@ const SAMPLE_SLIDES: ImageSlide[] = [
   }
 ];
 
+export interface PresetImageItem {
+  id: string;
+  name: string;
+  url: string;
+  category: "Adventure" | "Nature" | "Cyberpunk" | "Abstract";
+  text: string;
+  cameraMovement: string;
+  subjectDescription: string;
+  style: string;
+  sfx?: string;
+}
+
+export const PRESET_IMAGES_GALLERY: PresetImageItem[] = [
+  {
+    id: "garrey-preset",
+    name: "Garrey the Explorer",
+    url: garreyExplorerUrl,
+    category: "Adventure",
+    text: "Garrey the Fantasy Explorer",
+    cameraMovement: "Slow Zoom",
+    subjectDescription: "cute fantasy fluffy explorer with tiny hat and brass goggles looking at glowing valley",
+    style: "Cinematic",
+    sfx: "celestial-chime"
+  },
+  {
+    id: "beach-preset",
+    name: "Golden Sunrise Shore",
+    url: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?w=800&auto=format&fit=crop",
+    category: "Nature",
+    text: "Sunrise Golden Coast",
+    cameraMovement: "Slow Zoom",
+    subjectDescription: "gentle waves crashing on the golden sand shore during sunset",
+    style: "Cinematic",
+    sfx: "celestial-chime"
+  },
+  {
+    id: "pines-preset",
+    name: "Alpine Pine Forest",
+    url: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?w=800&auto=format&fit=crop",
+    category: "Nature",
+    text: "Alpine Freshness",
+    cameraMovement: "Pan Left",
+    subjectDescription: "mist floating through tall pine trees in a mountain valley",
+    style: "Anime 🌸",
+    sfx: "none"
+  },
+  {
+    id: "cyber-city",
+    name: "Cyberpunk Neon City",
+    url: "https://images.unsplash.com/photo-1515260268569-9271009adfdb?w=800&auto=format&fit=crop",
+    category: "Cyberpunk",
+    text: "Cyberpunk Alleyway",
+    cameraMovement: "Tilt Up",
+    subjectDescription: "cyberpunk city street with towering glowing neon signs and rain puddles reflecting lights",
+    style: "Retro VHS 📹",
+    sfx: "arcade-rise"
+  },
+  {
+    id: "lake-preset",
+    name: "Emerald Mountain Lake",
+    url: "https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800&auto=format&fit=crop",
+    category: "Nature",
+    text: "Emerald Lake",
+    cameraMovement: "Slow Zoom",
+    subjectDescription: "peaceful crystal clear emerald lake with giant mountains reflecting in the water",
+    style: "Oil Painting 🎨",
+    sfx: "bubble-pop"
+  },
+  {
+    id: "cyber-street",
+    name: "Rainy Tokyo Nights",
+    url: "https://images.unsplash.com/photo-1578894381163-e72c17f2d45f?w=800&auto=format&fit=crop",
+    category: "Cyberpunk",
+    text: "Tokyo Cyber Rain",
+    cameraMovement: "Slow Pan",
+    subjectDescription: "glowing neon lights of dynamic Tokyo street during heavy rain",
+    style: "Retro VHS 📹",
+    sfx: "laser-sweep"
+  },
+  {
+    id: "abstract-liquid",
+    name: "Dynamic Color Melt",
+    url: "https://images.unsplash.com/photo-1541701494587-cb58502866ab?w=800&auto=format&fit=crop",
+    category: "Abstract",
+    text: "Color Explosion",
+    cameraMovement: "Slow Zoom",
+    subjectDescription: "swirling vibrant fluid colors in a stunning high-contrast macro dynamic explosion",
+    style: "3D Render 🪐",
+    sfx: "cinema-impact"
+  },
+  {
+    id: "abstract-shapes",
+    name: "Cybernetic Geometrics",
+    url: "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=800&auto=format&fit=crop",
+    category: "Abstract",
+    text: "Monolithic Shapes",
+    cameraMovement: "Slow Pan",
+    subjectDescription: "abstract glossy futuristic monolithic geometry floating in space with orange and purple lights",
+    style: "3D Render 🪐",
+    sfx: "laser-sweep"
+  }
+];
+
 interface SfxItem {
   id: string;
   name: string;
@@ -855,11 +981,41 @@ export default function ImageToVideo({
   });
 
   const [soundtrack, setSoundtrack] = useState<string>("retro-lofi");
+  const [musicTab, setMusicTab] = useState<"mp3" | "synth" | "custom">("mp3");
   const [audioTrackMode, setAudioTrackMode] = useState<"synth" | "custom" | "sfx">("synth");
   const [selectedSfxId, setSelectedSfxId] = useState<string>("cinema-impact");
   const [customAudioUrl, setCustomAudioUrl] = useState<string | null>(null);
   const [customAudioName, setCustomAudioName] = useState<string | null>(null);
   const [customAudioDuration, setCustomAudioDuration] = useState<number | null>(null);
+  const [audioTrimStart, setAudioTrimStart] = useState<number>(0);
+  const [audioTrimEnd, setAudioTrimEnd] = useState<number>(0);
+
+  useEffect(() => {
+    if (customAudioUrl) {
+      const audio = new Audio(customAudioUrl);
+      const onLoadedMetadata = () => {
+        setCustomAudioDuration(audio.duration);
+        setAudioTrimStart(0);
+        setAudioTrimEnd(audio.duration);
+      };
+      audio.addEventListener("loadedmetadata", onLoadedMetadata);
+      return () => {
+        audio.removeEventListener("loadedmetadata", onLoadedMetadata);
+      };
+    } else {
+      setCustomAudioDuration(null);
+      setAudioTrimStart(0);
+      setAudioTrimEnd(0);
+    }
+  }, [customAudioUrl]);
+
+  const formatTime = (seconds: number | null) => {
+    if (seconds === null || isNaN(seconds)) return "0:00";
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
+  };
+
   const [previewingTrack, setPreviewingTrack] = useState<string | null>(null);
   const [audioVolume, setAudioVolume] = useState<number>(0.3);
   const [audioFadeIn, setAudioFadeIn] = useState<boolean>(true);
@@ -893,6 +1049,7 @@ export default function ImageToVideo({
   const [replaceOnUpload, setReplaceOnUpload] = useState<boolean>(true);
   const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; sub: string; success: boolean } | null>(null);
+  const [activeGalleryCategory, setActiveGalleryCategory] = useState<"All" | "Adventure" | "Nature" | "Cyberpunk" | "Abstract">("All");
   
   // CapCut Pro Timeline states
   const [timelineZoom, setTimelineZoom] = useState<number>(45); // px per second
@@ -1117,7 +1274,7 @@ export default function ImageToVideo({
   useEffect(() => {
     if (isPlaying && !isMuted) {
       if (audioTrackMode === "custom" && customAudioUrl) {
-        synthManagerRef.current.start("custom", audioVolume, false, false, totalDuration, customAudioUrl, currentTimeRef.current);
+        synthManagerRef.current.start("custom", audioVolume, false, false, totalDuration, customAudioUrl, currentTimeRef.current, audioTrimStart, audioTrimEnd);
       } else if (audioTrackMode === "sfx" && selectedSfxId) {
         synthManagerRef.current.start("none");
         synthManagerRef.current.playSingleSfx(selectedSfxId, audioVolume);
@@ -1127,7 +1284,7 @@ export default function ImageToVideo({
     } else {
       synthManagerRef.current.stop();
     }
-  }, [isPlaying, soundtrack, audioTrackMode, selectedSfxId, customAudioUrl, isMuted, audioFadeIn, audioFadeOut, totalDuration]);
+  }, [isPlaying, soundtrack, audioTrackMode, selectedSfxId, customAudioUrl, isMuted, audioFadeIn, audioFadeOut, totalDuration, audioTrimStart, audioTrimEnd]);
 
   // Synchronize custom audio timeline scrubbing when paused
   useEffect(() => {
@@ -1264,7 +1421,7 @@ export default function ImageToVideo({
       
       if (!isMuted) {
         if (audioTrackMode === "custom" && customAudioUrl) {
-          synthManagerRef.current.start("custom", audioVolume, false, false, totalDuration, customAudioUrl, currentTime);
+          synthManagerRef.current.start("custom", audioVolume, false, false, totalDuration, customAudioUrl, currentTime, audioTrimStart, audioTrimEnd);
         } else if (audioTrackMode === "sfx" && selectedSfxId) {
           synthManagerRef.current.start("none");
           synthManagerRef.current.playSingleSfx(selectedSfxId, audioVolume);
@@ -1292,6 +1449,50 @@ export default function ImageToVideo({
   const loadDefaultSampleSlides = () => {
     setSlides(SAMPLE_SLIDES);
     setCurrentTime(0);
+    triggerBeepChime();
+  };
+
+  const handleAddPresetImage = (preset: { url: string; name: string; text: string; cameraMovement?: string; subjectDescription?: string; style?: string; sfx?: string }) => {
+    const slide: ImageSlide = {
+      id: `preset-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      url: preset.url,
+      name: preset.name,
+      duration: 3,
+      text: preset.text,
+      textAnimation: "typewriter",
+      filter: "normal",
+      scaleStart: 1.0,
+      scaleEnd: 1.15,
+      promptDuration: 3,
+      cameraMovement: preset.cameraMovement || "Slow Zoom",
+      subjectDescription: preset.subjectDescription || preset.text,
+      style: preset.style || "Cinematic",
+      sfx: preset.sfx || "none"
+    };
+
+    // Cache the image
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = preset.url;
+    img.onload = () => {
+      imageCacheRef.current[slide.id] = img;
+    };
+
+    if (replaceOnUpload) {
+      setSlides([slide]);
+      setSelectedSlideId(slide.id);
+      setCurrentTime(0);
+    } else {
+      setSlides((prev) => [...prev, slide]);
+    }
+
+    setToastMessage({
+      text: "📸 Preset Photo Added!",
+      sub: replaceOnUpload 
+        ? `Timeline replaced with ${preset.name}. Click 'Create Video Now' to generate!`
+        : `Appended ${preset.name} to the end of the timeline track.`,
+      success: true
+    });
     triggerBeepChime();
   };
 
@@ -2998,7 +3199,7 @@ export default function ImageToVideo({
       // Connect synthesis directly to our render stream destination node
       if (!isMuted) {
         if (audioTrackMode === "custom" && customAudioUrl) {
-          renderSynthManager.start("custom", audioVolume, false, false, totalDuration, customAudioUrl, 0);
+          renderSynthManager.start("custom", audioVolume, false, false, totalDuration, customAudioUrl, 0, audioTrimStart, audioTrimEnd);
         } else if (audioTrackMode === "sfx" && selectedSfxId) {
           renderSynthManager.start("none");
           renderSynthManager.playSingleSfx(selectedSfxId, audioVolume);
@@ -3509,6 +3710,87 @@ export default function ImageToVideo({
                   <span>Clear Timeline</span>
                 </button>
               )}
+            </div>
+          </div>
+
+          {/* Curated Preset Image Gallery (Featuring Garrey) */}
+          <div className="bg-white/60 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 flex flex-col gap-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+              <div className="space-y-0.5">
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-indigo-500 animate-pulse" />
+                  <span>Curated Image Presets Gallery</span>
+                </h4>
+                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-normal">
+                  Select a gorgeous high-fidelity preset to instantly load it as an active video slide.
+                </p>
+              </div>
+              
+              {/* Category tabs */}
+              <div className="flex flex-wrap items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200/50 dark:border-slate-850/60">
+                {(["All", "Adventure", "Nature", "Cyberpunk", "Abstract"] as const).map((cat) => {
+                  const isActive = activeGalleryCategory === cat;
+                  return (
+                    <button
+                      key={cat}
+                      type="button"
+                      onClick={() => {
+                        setActiveGalleryCategory(cat);
+                        triggerBeepChime();
+                      }}
+                      className={`px-2.5 py-1 text-[9.5px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                        isActive
+                          ? "bg-indigo-650 text-white shadow-xs"
+                          : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-900/50"
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Gallery Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+              {PRESET_IMAGES_GALLERY.filter(
+                (item) => activeGalleryCategory === "All" || item.category === activeGalleryCategory
+              ).map((item) => (
+                <div
+                  key={item.id}
+                  onClick={() => handleAddPresetImage(item)}
+                  className="group relative rounded-2xl overflow-hidden aspect-[4/3] bg-slate-100 dark:bg-slate-950 border border-slate-250/30 dark:border-slate-800/40 cursor-pointer shadow-xs transition-all hover:scale-102 hover:shadow-md hover:border-indigo-500/40"
+                  title={`Add "${item.name}" to your video clips`}
+                >
+                  <img
+                    src={item.url}
+                    alt={item.name}
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                  />
+                  {/* Category overlay label */}
+                  <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-slate-950/70 text-slate-200 font-mono text-[7.5px] font-bold uppercase tracking-widest backdrop-blur-xs">
+                    {item.category}
+                  </span>
+                  
+                  {/* Subtle glass hover banner with plus icon */}
+                  <div className="absolute inset-0 bg-slate-950/45 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-between p-2">
+                    <div className="flex justify-end">
+                      <div className="p-1 rounded-full bg-indigo-600 text-white shadow-sm">
+                        <Plus className="w-3.5 h-3.5" />
+                      </div>
+                    </div>
+                    <div className="space-y-0.5 text-left">
+                      <p className="text-[10px] font-black text-white leading-tight truncate">
+                        {item.name}
+                      </p>
+                      <p className="text-[7.5px] font-bold text-slate-300 uppercase tracking-wider truncate font-mono">
+                        {item.style}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
@@ -7328,65 +7610,120 @@ export default function ImageToVideo({
               <span>Studio Soundtrack & Ratios</span>
             </h4>
 
-            {/* Background Audio Selector & Music Library */}
-            <div className="space-y-3">
+            {/* Background Audio Selector & Music Library with Sub-Tabs */}
+            <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                  <span>Background Music Library:</span>
+                  <span>Background Soundtrack Library:</span>
                 </label>
                 {previewingTrack && (
-                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 animate-pulse">
-                    🔊 Auditioning Live
+                  <span className="text-[10px] font-black uppercase tracking-widest text-emerald-600 dark:text-emerald-400 animate-pulse flex items-center gap-1">
+                    <span className="relative flex h-1.5 w-1.5">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-emerald-500"></span>
+                    </span>
+                    Auditioning Live
                   </span>
                 )}
               </div>
 
-              <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
-                {SOUNDTRACK_LIBRARY.map((track) => {
-                  const isSelected = soundtrack === track.id;
-                  const isPreviewing = previewingTrack === track.id;
+              {/* Tab Header Selector */}
+              <div className="flex bg-slate-100 dark:bg-slate-950 p-1 rounded-2xl border border-slate-200 dark:border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMusicTab("mp3");
+                    triggerBeepChime();
+                  }}
+                  className={`flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer ${
+                    musicTab === "mp3"
+                      ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                      : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400"
+                  }`}
+                >
+                  🎵 Music Library
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMusicTab("synth");
+                    triggerBeepChime();
+                  }}
+                  className={`flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer ${
+                    musicTab === "synth"
+                      ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                      : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400"
+                  }`}
+                >
+                  🎹 Synth Loops
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMusicTab("custom");
+                    triggerBeepChime();
+                  }}
+                  className={`flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer ${
+                    musicTab === "custom"
+                      ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                      : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400"
+                  }`}
+                >
+                  📂 Custom Audio
+                </button>
+              </div>
 
-                  return (
-                    <div
-                      key={track.id}
-                      className={`relative p-3 rounded-2xl border transition-all duration-200 flex flex-col justify-between gap-2.5 ${
-                        isSelected
-                          ? "bg-indigo-50/50 dark:bg-indigo-950/10 border-indigo-500 shadow-sm"
-                          : "bg-white dark:bg-slate-950 border-slate-200 hover:border-slate-350 dark:border-slate-850 dark:hover:border-slate-700"
-                      }`}
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <div
-                          onClick={() => {
-                            setSoundtrack(track.id);
-                            triggerBeepChime();
-                            if (isPlaying) {
-                              synthManagerRef.current.stop();
-                              if (!isMuted && track.id !== "none") {
-                                setTimeout(() => synthManagerRef.current.start(track.id, audioVolume, audioFadeIn, audioFadeOut, totalDuration), 100);
+              {/* Tab 1: CURATED_MP3_LIBRARY */}
+              {musicTab === "mp3" && (
+                <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
+                  {CURATED_MP3_LIBRARY.map((track) => {
+                    const isSelected = audioTrackMode === "custom" && customAudioUrl === track.url;
+                    const isPreviewing = previewingTrack === track.id;
+
+                    return (
+                      <div
+                        key={track.id}
+                        className={`relative p-3 rounded-2xl border transition-all duration-200 flex flex-col justify-between gap-2.5 ${
+                          isSelected
+                            ? "bg-indigo-50/50 dark:bg-indigo-950/10 border-indigo-500 shadow-sm"
+                            : "bg-white dark:bg-slate-950 border-slate-200 hover:border-slate-350 dark:border-slate-850 dark:hover:border-slate-700"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div
+                            onClick={() => {
+                              setAudioTrackMode("custom");
+                              setCustomAudioUrl(track.url);
+                              setCustomAudioName(track.name);
+                              triggerBeepChime();
+                              if (isPlaying) {
+                                synthManagerRef.current.stop();
+                                if (!isMuted) {
+                                  setTimeout(() => {
+                                    synthManagerRef.current.start("custom", audioVolume, false, false, totalDuration, track.url, currentTime, audioTrimStart, audioTrimEnd);
+                                  }, 100);
+                                }
                               }
-                            }
-                          }}
-                          className="flex-1 cursor-pointer select-none text-left"
-                        >
-                          <div className="flex items-center gap-1.5">
-                            <span className="text-sm">{track.emoji}</span>
-                            <span className="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                              {track.name}
-                              {isSelected && (
-                                <span className="text-[9px] font-extrabold uppercase bg-indigo-100 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded-md leading-none">
-                                  Selected
-                                </span>
-                              )}
-                            </span>
+                            }}
+                            className="flex-1 cursor-pointer select-none text-left"
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm">{track.emoji}</span>
+                              <span className="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                                {track.name}
+                                {isSelected && (
+                                  <span className="text-[9px] font-extrabold uppercase bg-indigo-100 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded-md leading-none">
+                                    Selected
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                            
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 leading-relaxed">
+                              {track.desc}
+                            </p>
                           </div>
-                          
-                          <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 leading-relaxed">
-                            {track.desc}
-                          </p>
-                        </div>
 
-                        {track.id !== "none" && (
                           <button
                             type="button"
                             onClick={() => {
@@ -7403,7 +7740,7 @@ export default function ImageToVideo({
                                 setPreviewingTrack(null);
                               } else {
                                 synthManagerRef.current.stop();
-                                synthManagerRef.current.start(track.id, audioVolume, audioFadeIn, audioFadeOut, totalDuration);
+                                synthManagerRef.current.start("custom", audioVolume, false, false, totalDuration, track.url, 0);
                                 setPreviewingTrack(track.id);
                               }
                               triggerBeepChime();
@@ -7413,7 +7750,7 @@ export default function ImageToVideo({
                                 ? "bg-emerald-500 border-emerald-500 text-white shadow-xs"
                                 : "bg-slate-100 border-slate-200 dark:bg-slate-900/60 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-250 dark:hover:bg-slate-800"
                             }`}
-                            title={isPreviewing ? "Stop Preview" : "Listen Preview Loop"}
+                            title={isPreviewing ? "Stop Preview" : "Listen Preview Track"}
                           >
                             {isPreviewing ? (
                               <Pause className="w-3.5 h-3.5" />
@@ -7421,28 +7758,436 @@ export default function ImageToVideo({
                               <Play className="w-3.5 h-3.5" />
                             )}
                           </button>
-                        )}
-                      </div>
+                        </div>
 
-                      <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-900 text-[9px] font-bold text-slate-450">
-                        <span className="bg-slate-100 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded-md">
-                          Genre: {track.genre}
-                        </span>
-                        {track.bpm > 0 ? (
-                          <span className="font-mono text-[9.5px]">
-                            ⚡ {track.bpm} BPM Live Synth
+                        <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-900 text-[9px] font-bold text-slate-450">
+                          <span className="bg-slate-100 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded-md">
+                            Genre: {track.genre}
                           </span>
-                        ) : (
                           <span className="font-mono text-[9.5px]">
-                            🔇 Silent Output
+                            ⏱️ {track.duration} High-Fidelity MP3
                           </span>
-                        )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Tab 2: SOUNDTRACK_LIBRARY */}
+              {musicTab === "synth" && (
+                <div className="space-y-2 max-h-[350px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
+                  {SOUNDTRACK_LIBRARY.map((track) => {
+                    const isSelected = audioTrackMode === "synth" && soundtrack === track.id;
+                    const isPreviewing = previewingTrack === track.id;
+
+                    return (
+                      <div
+                        key={track.id}
+                        className={`relative p-3 rounded-2xl border transition-all duration-200 flex flex-col justify-between gap-2.5 ${
+                          isSelected
+                            ? "bg-indigo-50/50 dark:bg-indigo-950/10 border-indigo-500 shadow-sm"
+                            : "bg-white dark:bg-slate-950 border-slate-200 hover:border-slate-350 dark:border-slate-850 dark:hover:border-slate-700"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div
+                            onClick={() => {
+                              setAudioTrackMode("synth");
+                              setSoundtrack(track.id);
+                              triggerBeepChime();
+                              if (isPlaying) {
+                                synthManagerRef.current.stop();
+                                if (!isMuted && track.id !== "none") {
+                                  setTimeout(() => {
+                                    synthManagerRef.current.start(track.id, audioVolume, audioFadeIn, audioFadeOut, totalDuration);
+                                  }, 100);
+                                }
+                              }
+                            }}
+                            className="flex-1 cursor-pointer select-none text-left"
+                          >
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-sm">{track.emoji}</span>
+                              <span className="text-xs font-black text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                                {track.name}
+                                {isSelected && (
+                                  <span className="text-[9px] font-extrabold uppercase bg-indigo-100 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 px-1.5 py-0.5 rounded-md leading-none">
+                                    Selected
+                                  </span>
+                                )}
+                              </span>
+                            </div>
+                            
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 leading-relaxed">
+                              {track.desc}
+                            </p>
+                          </div>
+
+                          {track.id !== "none" && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                // If playing video, stop it first
+                                if (isPlaying) {
+                                  setIsPlaying(false);
+                                  if (playbackIntervalRef.current) {
+                                    clearInterval(playbackIntervalRef.current);
+                                  }
+                                }
+
+                                if (isPreviewing) {
+                                  synthManagerRef.current.stop();
+                                  setPreviewingTrack(null);
+                                } else {
+                                  synthManagerRef.current.stop();
+                                  synthManagerRef.current.start(track.id, audioVolume, audioFadeIn, audioFadeOut, totalDuration);
+                                  setPreviewingTrack(track.id);
+                                }
+                                triggerBeepChime();
+                              }}
+                              className={`p-1.5 rounded-xl border flex items-center justify-center transition-all cursor-pointer ${
+                                isPreviewing
+                                  ? "bg-emerald-500 border-emerald-500 text-white shadow-xs"
+                                  : "bg-slate-100 border-slate-200 dark:bg-slate-900/60 dark:border-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-250 dark:hover:bg-slate-800"
+                              }`}
+                              title={isPreviewing ? "Stop Preview" : "Listen Preview Loop"}
+                            >
+                              {isPreviewing ? (
+                                <Pause className="w-3.5 h-3.5" />
+                              ) : (
+                                <Play className="w-3.5 h-3.5" />
+                              )}
+                            </button>
+                          )}
+                        </div>
+
+                        <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-900 text-[9px] font-bold text-slate-450">
+                          <span className="bg-slate-100 dark:bg-slate-900/60 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded-md">
+                            Genre: {track.genre}
+                          </span>
+                          {track.bpm > 0 ? (
+                            <span className="font-mono text-[9.5px]">
+                              ⚡ {track.bpm} BPM Live Synth
+                            </span>
+                          ) : (
+                            <span className="font-mono text-[9.5px]">
+                              🔇 Silent Output
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+
+              {/* Tab 3: Custom Audio File Upload */}
+              {musicTab === "custom" && (
+                <div className="bg-white dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-850 space-y-3 shadow-3xs">
+                  <div className="text-center p-5 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl space-y-2">
+                    <Upload className="w-6 h-6 text-indigo-500 mx-auto" />
+                    <div>
+                      <p className="text-[11px] font-black text-slate-700 dark:text-slate-300">Upload Your Own Soundtrack</p>
+                      <p className="text-[9.5px] text-slate-450 mt-0.5">Pick any MP3 or WAV from your local drive</p>
+                    </div>
+                    <input
+                      type="file"
+                      accept="audio/*"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (!file) return;
+                        const url = URL.createObjectURL(file);
+                        setCustomAudioUrl(url);
+                        setCustomAudioName(file.name);
+                        setAudioTrackMode("custom");
+                        synthManagerRef.current.stop();
+                        if (isPlaying) {
+                          setTimeout(() => {
+                            synthManagerRef.current.start("custom", audioVolume, false, false, totalDuration, url, currentTime, audioTrimStart, audioTrimEnd);
+                          }, 100);
+                        }
+                        setToastMessage({
+                          text: "🎵 Custom Audio Loaded",
+                          sub: `"${file.name}" is now the active background track.`,
+                          success: true
+                        });
+                        triggerBeepChime();
+                      }}
+                      className="hidden"
+                      id="custom-audio-uploader"
+                    />
+                    <label
+                      htmlFor="custom-audio-uploader"
+                      className="inline-block px-3 py-1.5 bg-indigo-50 dark:bg-indigo-950/40 hover:bg-indigo-100 dark:hover:bg-indigo-950 text-indigo-600 dark:text-indigo-400 text-[10px] font-bold rounded-lg border border-indigo-100 dark:border-indigo-900 transition-all cursor-pointer"
+                    >
+                      Choose Audio File
+                    </label>
+                  </div>
+
+                  {customAudioUrl && (
+                    <div className="p-3 bg-indigo-50/20 dark:bg-indigo-950/10 border border-indigo-100 dark:border-indigo-900 rounded-xl flex items-center justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[11px] font-black text-slate-800 dark:text-slate-200 truncate flex items-center gap-1">
+                          🎧 {customAudioName || "Custom Soundtrack"}
+                        </p>
+                        <p className="text-[9.5px] text-slate-400 mt-0.5">Custom Loaded Stream</p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const isPreviewing = previewingTrack === "custom-local";
+                            if (isPlaying) {
+                              setIsPlaying(false);
+                              if (playbackIntervalRef.current) {
+                                clearInterval(playbackIntervalRef.current);
+                              }
+                            }
+                            if (isPreviewing) {
+                              synthManagerRef.current.stop();
+                              setPreviewingTrack(null);
+                            } else {
+                              synthManagerRef.current.stop();
+                              synthManagerRef.current.start("custom", audioVolume, false, false, totalDuration, customAudioUrl, 0, audioTrimStart, audioTrimEnd);
+                              setPreviewingTrack("custom-local");
+                            }
+                            triggerBeepChime();
+                          }}
+                          className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                            previewingTrack === "custom-local"
+                              ? "bg-emerald-500 border-emerald-500 text-white"
+                              : "bg-slate-100 border-slate-200 dark:bg-slate-900 text-slate-600 dark:text-slate-300"
+                          }`}
+                        >
+                          {previewingTrack === "custom-local" ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            synthManagerRef.current.stop();
+                            setCustomAudioUrl(null);
+                            setCustomAudioName(null);
+                            setAudioTrackMode("synth");
+                            setToastMessage({
+                              text: "🗑️ Custom Audio Removed",
+                              sub: "Reverted back to procedurally synthesized lofi soundtrack.",
+                              success: true
+                            });
+                            triggerBeepChime();
+                          }}
+                          className="p-1.5 rounded-lg bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 dark:bg-red-950/20 dark:border-red-950 dark:text-red-400 cursor-pointer transition-all"
+                          title="Remove Audio"
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </button>
                       </div>
                     </div>
-                  );
-                })}
-              </div>
+                  )}
+                </div>
+              )}
             </div>
+
+            {/* Audio Trimmer Feature */}
+            {customAudioUrl && customAudioDuration !== null && (
+              <div id="audio-trimmer-section" className="bg-slate-50 dark:bg-slate-900/40 p-4 rounded-2xl border border-dashed border-slate-200 dark:border-slate-850 space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <Scissors className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400 animate-pulse" />
+                    <span className="text-xs font-black uppercase tracking-wider text-slate-850 dark:text-slate-100">
+                      Audio Segment Trimmer
+                    </span>
+                  </div>
+                  <span className="text-[9px] bg-indigo-100 dark:bg-indigo-950/70 text-indigo-700 dark:text-indigo-300 px-2 py-0.5 rounded-md font-black uppercase tracking-wider">
+                    Trim Active
+                  </span>
+                </div>
+
+                <p className="text-[10.5px] text-slate-455 dark:text-slate-400 leading-relaxed">
+                  Select your preferred segment of <strong className="text-slate-800 dark:text-slate-200 font-extrabold">{customAudioName || "custom track"}</strong> to play in the background. The video will loop this specific portion.
+                </p>
+
+                {/* Simulated Audio Waveform Bar Visualizer */}
+                <div className="relative pt-1">
+                  <div className="h-11 flex items-end justify-between gap-[2px] bg-white dark:bg-slate-950 p-2 rounded-xl border border-slate-200 dark:border-slate-800 overflow-hidden">
+                    {Array.from({ length: 48 }).map((_, i) => {
+                      const percent = i / 48;
+                      const seconds = percent * customAudioDuration;
+                      const isWithinTrim = seconds >= audioTrimStart && seconds <= audioTrimEnd;
+                      // Generate deterministic heights for visual aesthetic
+                      const heightPercent = [20, 45, 75, 55, 30, 40, 65, 85, 90, 60, 40, 25, 50, 70, 80, 55, 30, 45, 60, 75, 40, 20, 50, 80, 95, 70, 45, 30, 55, 75, 85, 60, 35, 25, 50, 75, 90, 65, 40, 30, 55, 70, 80, 50, 25, 45, 65, 30][i];
+                      
+                      return (
+                        <div
+                          key={i}
+                          style={{ height: `${heightPercent}%` }}
+                          className={`w-full rounded-xs transition-colors duration-200 ${
+                            isWithinTrim 
+                              ? "bg-indigo-550 dark:bg-indigo-450" 
+                              : "bg-slate-200 dark:bg-slate-800"
+                          }`}
+                        />
+                      );
+                    })}
+                  </div>
+
+                  {/* Range labels */}
+                  <div className="flex justify-between text-[9.5px] font-bold text-slate-500 mt-1.5 px-0.5">
+                    <span>0:00</span>
+                    <span className="text-indigo-600 dark:text-indigo-400 font-black bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded-md flex items-center gap-1">
+                      ✂️ Selected: {formatTime(audioTrimStart)} – {formatTime(audioTrimEnd)} ({Math.round(audioTrimEnd - audioTrimStart)}s)
+                    </span>
+                    <span>{formatTime(customAudioDuration)}</span>
+                  </div>
+                </div>
+
+                {/* Slider range controls */}
+                <div className="grid grid-cols-2 gap-3.5">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wide flex justify-between">
+                      <span>Start Position</span>
+                      <span className="font-mono text-indigo-600 dark:text-indigo-400">{formatTime(audioTrimStart)}</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="range"
+                        min="0"
+                        max={customAudioDuration.toString()}
+                        step="0.5"
+                        value={audioTrimStart}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          if (val < audioTrimEnd) {
+                            setAudioTrimStart(val);
+                            synthManagerRef.current.seek(currentTime);
+                          }
+                        }}
+                        className="w-full accent-indigo-600 cursor-pointer"
+                      />
+                      <span className="text-[10px] font-mono text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-950 px-1.5 py-1 rounded-md border border-slate-150 dark:border-slate-800 shrink-0 min-w-[45px] text-center shadow-xs">
+                        {Math.round(audioTrimStart)}s
+                      </span>
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-500 uppercase tracking-wide flex justify-between">
+                      <span>End Position</span>
+                      <span className="font-mono text-indigo-600 dark:text-indigo-400">{formatTime(audioTrimEnd)}</span>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="range"
+                        min="0"
+                        max={customAudioDuration.toString()}
+                        step="0.5"
+                        value={audioTrimEnd}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          if (val > audioTrimStart) {
+                            setAudioTrimEnd(val);
+                            synthManagerRef.current.seek(currentTime);
+                          }
+                        }}
+                        className="w-full accent-indigo-600 cursor-pointer"
+                      />
+                      <span className="text-[10px] font-mono text-slate-700 dark:text-slate-300 bg-white dark:bg-slate-950 px-1.5 py-1 rounded-md border border-slate-150 dark:border-slate-800 shrink-0 min-w-[45px] text-center shadow-xs">
+                        {Math.round(audioTrimEnd)}s
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Pre-sets / Quick trims and Action buttons */}
+                <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[9.5px] font-black text-slate-450 uppercase tracking-wider mr-1">Quick Segments:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAudioTrimStart(0);
+                        setAudioTrimEnd(Math.min(15, customAudioDuration));
+                        triggerBeepChime();
+                      }}
+                      className="px-2 py-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-750 text-slate-600 dark:text-slate-355 text-[9.5px] font-bold rounded-lg transition-all cursor-pointer hover:bg-slate-50"
+                    >
+                      15s Intro
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAudioTrimStart(0);
+                        setAudioTrimEnd(Math.min(30, customAudioDuration));
+                        triggerBeepChime();
+                      }}
+                      className="px-2 py-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-750 text-slate-600 dark:text-slate-355 text-[9.5px] font-bold rounded-lg transition-all cursor-pointer hover:bg-slate-50"
+                    >
+                      30s Clip
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const mid = customAudioDuration / 2;
+                        setAudioTrimStart(Math.max(0, Math.round(mid - 15)));
+                        setAudioTrimEnd(Math.min(customAudioDuration, Math.round(mid + 15)));
+                        triggerBeepChime();
+                      }}
+                      className="px-2 py-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-750 text-slate-600 dark:text-slate-355 text-[9.5px] font-bold rounded-lg transition-all cursor-pointer hover:bg-slate-50"
+                    >
+                      Mid 30s
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAudioTrimStart(0);
+                        setAudioTrimEnd(customAudioDuration);
+                        triggerBeepChime();
+                      }}
+                      className="px-2 py-1 bg-indigo-50/50 hover:bg-indigo-50 dark:bg-indigo-950/30 dark:hover:bg-indigo-950 border border-indigo-100 dark:border-indigo-900 text-indigo-600 dark:text-indigo-400 text-[9.5px] font-extrabold rounded-lg transition-all cursor-pointer"
+                    >
+                      Reset Full
+                    </button>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      synthManagerRef.current.stop();
+                      if (previewingTrack === "trim-preview") {
+                        setPreviewingTrack(null);
+                      } else {
+                        // Play from start of trim to end of trim
+                        synthManagerRef.current.start("custom", audioVolume, false, false, audioTrimEnd - audioTrimStart, customAudioUrl, 0, audioTrimStart, audioTrimEnd);
+                        setPreviewingTrack("trim-preview");
+                        setToastMessage({
+                          text: "🎧 Playing Trim Audition",
+                          sub: `Listening to custom trimmed segment (${Math.round(audioTrimEnd - audioTrimStart)} seconds).`,
+                          success: true
+                        });
+                      }
+                      triggerBeepChime();
+                    }}
+                    className={`px-3 py-1 rounded-xl border text-[9.5px] font-black uppercase tracking-wider transition-all flex items-center gap-1 cursor-pointer ${
+                      previewingTrack === "trim-preview"
+                        ? "bg-emerald-500 border-emerald-550 text-white animate-pulse"
+                        : "bg-white border-slate-200 dark:bg-slate-950 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900"
+                    }`}
+                  >
+                    {previewingTrack === "trim-preview" ? (
+                      <>
+                        <Pause className="w-3 h-3" />
+                        Stop Preview
+                      </>
+                    ) : (
+                      <>
+                        <Play className="w-3 h-3" />
+                        Audition Trim
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
 
             {/* Audio Mixing & Faders Controls */}
             <div className="bg-white dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-4 shadow-3xs">

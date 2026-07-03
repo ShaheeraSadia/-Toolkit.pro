@@ -47,14 +47,68 @@ const PRESET_GRADIENTS = [
   { name: "Arctic Crags", value: "linear-gradient(135deg, #2980b9 0%, #2b5876 50%, #4e4376 100%)", colors: ["#2980b9", "#2b5876"] }
 ];
 
+const PRESET_SOLID_COLORS = [
+  { name: "Minimal Charcoal", value: "#1e293b" },
+  { name: "Warm Terracotta", value: "#c2410c" },
+  { name: "Sage Garden", value: "#2d6a4f" },
+  { name: "Creamy Soft", value: "#fafaf9" },
+  { name: "Lavender Bliss", value: "#d8b4fe" },
+  { name: "Ochre Gold", value: "#b45309" },
+  { name: "Ocean Deep", value: "#0f172a" },
+  { name: "Electric Indigo", value: "#4f46e5" },
+  { name: "Rosewater Pink", value: "#fbcfe8" },
+  { name: "Soft Mint", value: "#a7f3d0" },
+  { name: "Desert Sand", value: "#f5e6d3" },
+  { name: "Vintage Wine", value: "#5c0620" }
+];
+
+const PRESET_NOISE_PATTERNS = [
+  { name: "Slate Grit", bgStyle: "color" as const, bgValue: "#1e293b", noiseOpacity: 0.15, description: "Textured industrial slate" },
+  { name: "Warm Sandstone", bgStyle: "color" as const, bgValue: "#f5e6d3", noiseOpacity: 0.12, description: "Organic cream-sand grain" },
+  { name: "Coarse Espresso", bgStyle: "color" as const, bgValue: "#271b15", noiseOpacity: 0.18, description: "Deeply roasted coffee tone" },
+  { name: "Iridescent Nebula", bgStyle: "gradient" as const, bgValue: "linear-gradient(135deg, #1e1b4b 0%, #4c1d95 100%)", noiseOpacity: 0.14, description: "Celestial dust on deep violet" },
+  { name: "Aesthetic Frost", bgStyle: "gradient" as const, bgValue: "linear-gradient(135deg, #475569 0%, #cbd5e1 100%)", noiseOpacity: 0.16, description: "Chilled concrete frozen grain" },
+  { name: "Emerald Moss", bgStyle: "color" as const, bgValue: "#064e3b", noiseOpacity: 0.15, description: "Deep earthy forest ground" },
+  { name: "Rose Quartz", bgStyle: "gradient" as const, bgValue: "linear-gradient(135deg, #fbcfe8 0%, #fda4af 100%)", noiseOpacity: 0.10, description: "Soft mineral on pastel pink" },
+  { name: "Sunset Ash", bgStyle: "gradient" as const, bgValue: "linear-gradient(135deg, #ff7e5f 0%, #feb47b 100%)", noiseOpacity: 0.15, description: "Grainy vintage solar dust" }
+];
+
+const applyNoiseOnCanvas = (ctx: CanvasRenderingContext2D, width: number, height: number, opacity?: number) => {
+  if (!opacity || opacity <= 0) return;
+  const tempCanvas = document.createElement("canvas");
+  tempCanvas.width = 128;
+  tempCanvas.height = 128;
+  const tempCtx = tempCanvas.getContext("2d");
+  if (tempCtx) {
+    const imgData = tempCtx.createImageData(128, 128);
+    const data = imgData.data;
+    for (let i = 0; i < data.length; i += 4) {
+      const val = Math.floor(Math.random() * 255);
+      data[i] = val;
+      data[i + 1] = val;
+      data[i + 2] = val;
+      data[i + 3] = Math.floor(Math.random() * 255 * opacity * 0.45);
+    }
+    tempCtx.putImageData(imgData, 0, 0);
+    const pattern = ctx.createPattern(tempCanvas, "repeat");
+    if (pattern) {
+      ctx.save();
+      ctx.fillStyle = pattern;
+      ctx.fillRect(0, 0, width, height);
+      ctx.restore();
+    }
+  }
+};
+
 interface QuotePreset {
   id: string;
   name: string;
   badge: string;
   description: string;
-  aspectRatio: "1:1" | "9:16" | "3:1";
+  aspectRatio: "1:1" | "9:16" | "3:1" | "16:9" | "4:5" | "7:4" | "4:7";
   fontSize: number;
-  fontFamily: "Space Grotesk" | "Playfair Display" | "Inter" | "JetBrains Mono";
+  fontFamily: string;
+  authorFontFamily?: string;
   fontColor: string;
   textAlign: "left" | "center" | "right";
   padding: number;
@@ -110,6 +164,66 @@ const SOCIAL_PRESETS: QuotePreset[] = [
     overlayOpacity: 0.2
   },
   {
+    id: "social_landscape",
+    name: "Social Landscape",
+    badge: "16:9 Wide",
+    description: "Widescreen format standard for YouTube, Facebook, and Twitter posts",
+    aspectRatio: "16:9",
+    fontSize: 22,
+    fontFamily: "Inter",
+    fontColor: "#ffffff",
+    textAlign: "center",
+    padding: 45,
+    bgStyle: "gradient",
+    bgValue: "linear-gradient(135deg, #6366f1 0%, #4f46e5 100%)",
+    overlayOpacity: 0.2
+  },
+  {
+    id: "social_feed_portrait",
+    name: "Instagram Portrait",
+    badge: "4:5 Portrait",
+    description: "Optimized vertical layout for Instagram and Facebook feed posts",
+    aspectRatio: "4:5",
+    fontSize: 24,
+    fontFamily: "Space Grotesk",
+    fontColor: "#ffffff",
+    textAlign: "center",
+    padding: 50,
+    bgStyle: "gradient",
+    bgValue: "linear-gradient(135deg, #ec4899 0%, #f43f5e 100%)",
+    overlayOpacity: 0.15
+  },
+  {
+    id: "business_card_landscape",
+    name: "Business Card (Landscape)",
+    badge: "3.5×2 Card",
+    description: "Standard US landscape business card layout with elegant print layout",
+    aspectRatio: "7:4",
+    fontSize: 16,
+    fontFamily: "Playfair Display",
+    fontColor: "#ffffff",
+    textAlign: "center",
+    padding: 30,
+    bgStyle: "gradient",
+    bgValue: "linear-gradient(135deg, #1e293b 0%, #0f172a 100%)",
+    overlayOpacity: 0.25
+  },
+  {
+    id: "business_card_portrait",
+    name: "Business Card (Portrait)",
+    badge: "2×3.5 Card",
+    description: "Standard US vertical business card layout with refined editorial look",
+    aspectRatio: "4:7",
+    fontSize: 16,
+    fontFamily: "Inter",
+    fontColor: "#ffffff",
+    textAlign: "center",
+    padding: 35,
+    bgStyle: "gradient",
+    bgValue: "linear-gradient(135deg, #3f3f46 0%, #18181b 100%)",
+    overlayOpacity: 0.2
+  },
+  {
     id: "minimal_serif",
     name: "Aesthetic Story",
     badge: "9:16 Editorial",
@@ -138,6 +252,82 @@ const SOCIAL_PRESETS: QuotePreset[] = [
     bgStyle: "gradient",
     bgValue: "linear-gradient(135deg, #141e30 0%, #243b55 100%)",
     overlayOpacity: 0.1
+  }
+];
+
+interface FontPairing {
+  id: string;
+  name: string;
+  description: string;
+  quoteFont: string;
+  authorFont: string;
+  category: "Serif" | "Sans" | "Display" | "Mono" | "Modern" | "Artistic";
+}
+
+const FONT_PAIRINGS: FontPairing[] = [
+  {
+    id: "classic_editorial",
+    name: "Classic Editorial",
+    description: "Elegant serif with a clean, low-key modern sans-serif subtitle.",
+    quoteFont: "Playfair Display",
+    authorFont: "Inter",
+    category: "Serif",
+  },
+  {
+    id: "modern_tech",
+    name: "Modern Tech",
+    description: "Sleek and highly legible modern tech-inspired geometry.",
+    quoteFont: "Space Grotesk",
+    authorFont: "JetBrains Mono",
+    category: "Mono",
+  },
+  {
+    id: "bold_geometric",
+    name: "Bold Geometric",
+    description: "Striking heavy grotesque display font paired with high legibility.",
+    quoteFont: "Montserrat",
+    authorFont: "Inter",
+    category: "Sans",
+  },
+  {
+    id: "cinematic_serif",
+    name: "Cinematic Roman",
+    description: "Classical proportioned roman serif with a spacious modern subtitle.",
+    quoteFont: "Cinzel",
+    authorFont: "Montserrat",
+    category: "Serif",
+  },
+  {
+    id: "high_impact",
+    name: "High Impact",
+    description: "Condensed, high-energy statement caps paired with clean geometric labels.",
+    quoteFont: "Bebas Neue",
+    authorFont: "Inter",
+    category: "Display",
+  },
+  {
+    id: "futuristic_clean",
+    name: "Futuristic Clean",
+    description: "A friendly, ultra-modern geometric typeface with tech monospace accents.",
+    quoteFont: "Outfit",
+    authorFont: "JetBrains Mono",
+    category: "Modern",
+  },
+  {
+    id: "playful_retro",
+    name: "Playful Retro",
+    description: "Charming bold vintage script with a structured digital foundation.",
+    quoteFont: "Lobster",
+    authorFont: "Outfit",
+    category: "Artistic",
+  },
+  {
+    id: "friendly_chubby",
+    name: "Friendly Display",
+    description: "Chubby display lettering anchored with a sleek geometric subtext.",
+    quoteFont: "Lilita One",
+    authorFont: "Outfit",
+    category: "Artistic",
   }
 ];
 
@@ -177,6 +367,8 @@ export default function QuoteDesigner({
       aspectRatio: "1:1",
       isBold: false,
       isItalic: true,
+      noiseOpacity: 0,
+      noisePreset: "none",
     };
   });
 
@@ -202,6 +394,13 @@ export default function QuoteDesigner({
       }
     }
   }, [bgImage]);
+
+  const [activeLibraryTab, setActiveLibraryTab] = useState<"gradients" | "solids" | "noise" | "photo">(() => {
+    if (config.bgStyle === "image") return "photo";
+    if (config.noiseOpacity !== undefined && config.noiseOpacity > 0) return "noise";
+    if (config.bgStyle === "color") return "solids";
+    return "gradients";
+  });
 
   const [pdfWatermarkEnabled, setPdfWatermarkEnabled] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
@@ -417,6 +616,7 @@ export default function QuoteDesigner({
             text: loadedConfig.text || config.text,
             author: loadedConfig.author !== undefined ? loadedConfig.author : config.author,
             fontFamily: loadedConfig.fontFamily || config.fontFamily,
+            authorFontFamily: loadedConfig.authorFontFamily !== undefined ? loadedConfig.authorFontFamily : (config.authorFontFamily || ""),
             fontSize: Number(loadedConfig.fontSize) || config.fontSize,
             fontColor: loadedConfig.fontColor || config.fontColor,
             textAlign: loadedConfig.textAlign || config.textAlign,
@@ -582,6 +782,18 @@ export default function QuoteDesigner({
       } else if (config.aspectRatio === "3:1") {
         baseWidth = 900;
         baseHeight = 300;
+      } else if (config.aspectRatio === "16:9") {
+        baseWidth = 800;
+        baseHeight = 450;
+      } else if (config.aspectRatio === "4:5") {
+        baseWidth = 640;
+        baseHeight = 800;
+      } else if (config.aspectRatio === "7:4") {
+        baseWidth = 700;
+        baseHeight = 400;
+      } else if (config.aspectRatio === "4:7") {
+        baseWidth = 400;
+        baseHeight = 700;
       }
 
       // scale so that max side meets expected targetSize
@@ -661,7 +873,7 @@ export default function QuoteDesigner({
 
         // Draw Author
         if (config.author) {
-          ctx.font = `600 ${config.fontSize * 0.9}px "${config.fontFamily}", sans-serif`;
+          ctx.font = `600 ${config.fontSize * 0.9}px "${config.authorFontFamily || config.fontFamily}", sans-serif`;
           ctx.fillStyle = config.fontColor === "#ffffff" ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.65)";
           const authorY = startY + (lines.length * textLineHeight) + 40;
           ctx.fillText(`— ${config.author}`, x, authorY);
@@ -706,12 +918,14 @@ export default function QuoteDesigner({
           const imgY = (baseHeight - h) / 2;
           
           ctx.drawImage(img, imgX, imgY, w, h);
+          applyNoiseOnCanvas(ctx, baseWidth, baseHeight, config.noiseOpacity);
           drawTextAndResolve();
         };
         img.onerror = () => {
           // Fallback to solid standard color if image load fails
           ctx.fillStyle = "#1e293b";
           ctx.fillRect(0, 0, baseWidth, baseHeight);
+          applyNoiseOnCanvas(ctx, baseWidth, baseHeight, config.noiseOpacity);
           drawTextAndResolve();
         };
         img.src = bgImage;
@@ -724,11 +938,13 @@ export default function QuoteDesigner({
         grad.addColorStop(1, colors[1]);
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, baseWidth, baseHeight);
+        applyNoiseOnCanvas(ctx, baseWidth, baseHeight, config.noiseOpacity);
         drawTextAndResolve();
       } else {
         // Solid color
         ctx.fillStyle = config.bgValue;
         ctx.fillRect(0, 0, baseWidth, baseHeight);
+        applyNoiseOnCanvas(ctx, baseWidth, baseHeight, config.noiseOpacity);
         drawTextAndResolve();
       }
     });
@@ -768,6 +984,18 @@ export default function QuoteDesigner({
       } else if (variant.config.aspectRatio === "3:1") {
         baseWidth = 900;
         baseHeight = 300;
+      } else if (variant.config.aspectRatio === "16:9") {
+        baseWidth = 800;
+        baseHeight = 450;
+      } else if (variant.config.aspectRatio === "4:5") {
+        baseWidth = 640;
+        baseHeight = 800;
+      } else if (variant.config.aspectRatio === "7:4") {
+        baseWidth = 700;
+        baseHeight = 400;
+      } else if (variant.config.aspectRatio === "4:7") {
+        baseWidth = 400;
+        baseHeight = 700;
       }
 
       const maxSide = Math.max(baseWidth, baseHeight);
@@ -830,7 +1058,7 @@ export default function QuoteDesigner({
         });
 
         if (variant.config.author) {
-          ctx.font = `600 ${variant.config.fontSize * 0.9}px "${variant.config.fontFamily}", sans-serif`;
+          ctx.font = `600 ${variant.config.fontSize * 0.9}px "${variant.config.authorFontFamily || variant.config.fontFamily}", sans-serif`;
           ctx.fillStyle = variant.config.fontColor === "#ffffff" ? "rgba(255,255,255,0.75)" : "rgba(0,0,0,0.65)";
           const authorY = startY + (lines.length * textLineHeight) + 40;
           ctx.fillText(`— ${variant.config.author}`, x, authorY);
@@ -871,11 +1099,13 @@ export default function QuoteDesigner({
           const imgX = (baseWidth - w) / 2;
           const imgY = (baseHeight - h) / 2;
           ctx.drawImage(img, imgX, imgY, w, h);
+          applyNoiseOnCanvas(ctx, baseWidth, baseHeight, variant.config.noiseOpacity);
           drawTextAndResolve();
         };
         img.onerror = () => {
           ctx.fillStyle = "#1e293b";
           ctx.fillRect(0, 0, baseWidth, baseHeight);
+          applyNoiseOnCanvas(ctx, baseWidth, baseHeight, variant.config.noiseOpacity);
           drawTextAndResolve();
         };
         img.src = variant.bgImage;
@@ -887,10 +1117,12 @@ export default function QuoteDesigner({
         grad.addColorStop(1, colors[1]);
         ctx.fillStyle = grad;
         ctx.fillRect(0, 0, baseWidth, baseHeight);
+        applyNoiseOnCanvas(ctx, baseWidth, baseHeight, variant.config.noiseOpacity);
         drawTextAndResolve();
       } else {
         ctx.fillStyle = variant.config.bgValue;
         ctx.fillRect(0, 0, baseWidth, baseHeight);
+        applyNoiseOnCanvas(ctx, baseWidth, baseHeight, variant.config.noiseOpacity);
         drawTextAndResolve();
       }
     });
@@ -1031,6 +1263,18 @@ export default function QuoteDesigner({
       } else if (config.aspectRatio === "3:1") {
         pdfWidthInches = 9;
         pdfHeightInches = 3;
+      } else if (config.aspectRatio === "16:9") {
+        pdfWidthInches = 8;
+        pdfHeightInches = 4.5;
+      } else if (config.aspectRatio === "4:5") {
+        pdfWidthInches = 6.4;
+        pdfHeightInches = 8;
+      } else if (config.aspectRatio === "7:4") {
+        pdfWidthInches = 3.5;
+        pdfHeightInches = 2;
+      } else if (config.aspectRatio === "4:7") {
+        pdfWidthInches = 2;
+        pdfHeightInches = 3.5;
       }
 
       const orientation = pdfWidthInches > pdfHeightInches ? "landscape" : "portrait";
@@ -1384,6 +1628,7 @@ export default function QuoteDesigner({
                       aspectRatio: preset.aspectRatio,
                       fontSize: preset.fontSize,
                       fontFamily: preset.fontFamily,
+                      authorFontFamily: preset.authorFontFamily || "",
                       fontColor: preset.fontColor,
                       textAlign: preset.textAlign,
                       padding: preset.padding,
@@ -1401,9 +1646,9 @@ export default function QuoteDesigner({
                   <div className={`p-1.5 rounded-lg shrink-0 transition-all ${
                     isActive ? "bg-indigo-600 text-white" : "bg-slate-100 dark:bg-slate-850 text-slate-500 dark:text-slate-400 group-hover:bg-slate-200 dark:group-hover:bg-slate-800"
                   }`}>
-                    {preset.aspectRatio === "9:16" ? (
+                    {preset.aspectRatio === "9:16" || preset.aspectRatio === "4:5" || preset.aspectRatio === "4:7" ? (
                       <Smartphone className="w-3.5 h-3.5" />
-                    ) : preset.aspectRatio === "3:1" ? (
+                    ) : preset.aspectRatio === "3:1" || preset.aspectRatio === "16:9" || preset.aspectRatio === "7:4" ? (
                       <Monitor className="w-3.5 h-3.5" />
                     ) : (
                       <LayoutGrid className="w-3.5 h-3.5" />
@@ -1528,22 +1773,114 @@ export default function QuoteDesigner({
           <h4 className="text-xs font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
             <Type className="w-3.5 h-3.5 animate-pulse text-indigo-500" /> Typography & Style
           </h4>
+
+          {/* Typography Library */}
+          <div className="space-y-2 pb-2">
+            <div className="flex items-center justify-between">
+              <label className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 uppercase tracking-wider">Typography Library</label>
+              <span className="text-[9px] text-indigo-600 dark:text-indigo-400 font-mono bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded uppercase font-bold">8 Pairings</span>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-2 max-h-[240px] overflow-y-auto pr-1 select-none custom-scrollbar">
+              {FONT_PAIRINGS.map((pairing) => {
+                const isSelected = config.fontFamily === pairing.quoteFont && (config.authorFontFamily === pairing.authorFont || (!config.authorFontFamily && pairing.quoteFont === pairing.authorFont));
+                return (
+                  <button
+                    key={pairing.id}
+                    type="button"
+                    onClick={() => {
+                      setConfig((prev) => ({
+                        ...prev,
+                        fontFamily: pairing.quoteFont,
+                        authorFontFamily: pairing.authorFont,
+                      }));
+                    }}
+                    className={`group relative text-left p-2 rounded-lg border transition-all flex flex-col justify-between cursor-pointer h-[105px] ${
+                      isSelected
+                        ? "bg-indigo-50/40 dark:bg-indigo-950/10 border-indigo-500 ring-1 ring-indigo-500/30 shadow-xs"
+                        : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-850 hover:border-slate-300 dark:hover:border-slate-800"
+                    }`}
+                  >
+                    {/* Pairing Header */}
+                    <div className="w-full">
+                      <div className="flex items-center justify-between gap-1">
+                        <span className="text-[10px] font-bold text-slate-800 dark:text-slate-200 truncate">{pairing.name}</span>
+                        {isSelected && (
+                          <span className="shrink-0 w-3.5 h-3.5 rounded-full bg-indigo-600 dark:bg-indigo-500 flex items-center justify-center">
+                            <Check className="w-2.5 h-2.5 text-white" />
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[8px] text-slate-400 dark:text-slate-500 mt-0.5 font-medium truncate">
+                        {pairing.category} • {pairing.quoteFont} + {pairing.authorFont}
+                      </p>
+                    </div>
+
+                    {/* Live Preview Box */}
+                    <div className="w-full mt-1.5 py-1 px-1.5 rounded bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-800/60 flex flex-col justify-center items-center h-[52px] group-hover:bg-slate-100/60 dark:group-hover:bg-slate-900 transition-colors">
+                      <span 
+                        style={{ fontFamily: pairing.quoteFont }} 
+                        className="text-xs text-slate-850 dark:text-slate-150 font-bold truncate max-w-full text-center"
+                      >
+                        "Inspiring words"
+                      </span>
+                      <span 
+                        style={{ fontFamily: pairing.authorFont }} 
+                        className="text-[8px] text-slate-400 dark:text-slate-500 font-medium truncate max-w-full text-center mt-1"
+                      >
+                        — Wise Thinker
+                      </span>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           
           <div className="grid grid-cols-2 gap-3.5">
             <div>
-              <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Font Family</label>
+              <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Quote Font</label>
               <select
                 value={config.fontFamily}
-                onChange={(e) => setConfig((prev) => ({ ...prev, fontFamily: e.target.value as any }))}
+                onChange={(e) => setConfig((prev) => ({ ...prev, fontFamily: e.target.value }))}
                 className="w-full text-xs px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-800 dark:focus:border-slate-700"
               >
                 <option value="Playfair Display" className="dark:bg-slate-950">Playfair Display</option>
                 <option value="Space Grotesk" className="dark:bg-slate-950">Space Grotesk</option>
                 <option value="Inter" className="dark:bg-slate-950">Inter (Sans)</option>
                 <option value="JetBrains Mono" className="dark:bg-slate-950">JetBrains Mono</option>
+                <option value="Cinzel" className="dark:bg-slate-950">Cinzel (Roman)</option>
+                <option value="Montserrat" className="dark:bg-slate-950">Montserrat</option>
+                <option value="Bebas Neue" className="dark:bg-slate-950">Bebas Neue</option>
+                <option value="Outfit" className="dark:bg-slate-950">Outfit</option>
+                <option value="Lilita One" className="dark:bg-slate-950">Lilita One</option>
+                <option value="Lobster" className="dark:bg-slate-950">Lobster</option>
               </select>
             </div>
 
+            <div>
+              <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Author Font</label>
+              <select
+                value={config.authorFontFamily || config.fontFamily}
+                onChange={(e) => setConfig((prev) => ({ ...prev, authorFontFamily: e.target.value }))}
+                className="w-full text-xs px-2.5 py-2 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 focus:outline-none focus:border-slate-800 dark:focus:border-slate-700"
+              >
+                <option value="" className="dark:bg-slate-950">Same as Quote Font</option>
+                <option value="Playfair Display" className="dark:bg-slate-950">Playfair Display</option>
+                <option value="Space Grotesk" className="dark:bg-slate-950">Space Grotesk</option>
+                <option value="Inter" className="dark:bg-slate-950">Inter (Sans)</option>
+                <option value="JetBrains Mono" className="dark:bg-slate-950">JetBrains Mono</option>
+                <option value="Cinzel" className="dark:bg-slate-950">Cinzel (Roman)</option>
+                <option value="Montserrat" className="dark:bg-slate-950">Montserrat</option>
+                <option value="Bebas Neue" className="dark:bg-slate-950">Bebas Neue</option>
+                <option value="Outfit" className="dark:bg-slate-950">Outfit</option>
+                <option value="Lilita One" className="dark:bg-slate-950">Lilita One</option>
+                <option value="Lobster" className="dark:bg-slate-950">Lobster</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3.5">
             <div>
               <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Font Color</label>
               <div className="flex items-center space-x-1.5">
@@ -1560,21 +1897,6 @@ export default function QuoteDesigner({
                   className="w-full text-center text-xs border border-slate-200 dark:border-slate-800 rounded px-1.5 py-1 uppercase bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100"
                 />
               </div>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3.5">
-            <div>
-              <label className="block text-[11px] font-medium text-slate-500 dark:text-slate-400 mb-1">Font Size (px)</label>
-              <input
-                type="range"
-                min="16"
-                max="48"
-                value={config.fontSize}
-                onChange={(e) => setConfig((prev) => ({ ...prev, fontSize: parseInt(e.target.value) }))}
-                className="w-full accent-slate-800 dark:accent-amber-400 cursor-pointer"
-              />
-              <span className="text-[10px] text-slate-400 dark:text-slate-500 block text-right mt-0.5">{config.fontSize}px</span>
             </div>
 
             <div>
@@ -1608,6 +1930,22 @@ export default function QuoteDesigner({
                   <AlignRight className="w-4 h-4" />
                 </button>
               </div>
+            </div>
+
+            {/* Font Size Slider */}
+            <div className="col-span-2 space-y-1">
+              <div className="flex items-center justify-between">
+                <label className="block text-[11px] font-semibold uppercase tracking-wider text-slate-455 dark:text-slate-400">Font Size</label>
+                <span className="text-[10px] text-slate-400 dark:text-slate-500 font-bold">{config.fontSize}px</span>
+              </div>
+              <input
+                type="range"
+                min="16"
+                max="48"
+                value={config.fontSize}
+                onChange={(e) => setConfig((prev) => ({ ...prev, fontSize: parseInt(e.target.value) }))}
+                className="w-full accent-slate-800 dark:accent-amber-400 cursor-pointer"
+              />
             </div>
 
             {/* Typography Vertical Position Offset with fine-tuning nudges */}
@@ -1661,34 +1999,65 @@ export default function QuoteDesigner({
           </div>
         </div>
 
-        {/* Background Nature Designer Row */}
+        {/* Background Library Selector Row */}
         <div className="space-y-4 pt-3 border-t border-slate-200 dark:border-slate-800/80">
           <h4 className="text-xs font-semibold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
-            <ImageIcon className="w-3.5 h-3.5 text-indigo-500" /> Canvas Background
+            <Sparkles className="w-3.5 h-3.5 text-indigo-500 animate-pulse" /> Background Library
           </h4>
 
           {/* Selector Type Tabs */}
           <div className="flex bg-slate-100 dark:bg-slate-900 rounded-lg p-0.5 border border-slate-200/50 dark:border-slate-800/50 text-xs">
             <button
-              onClick={() => setConfig(p => ({ ...p, bgStyle: "gradient", bgValue: PRESET_GRADIENTS[0].value }))}
+              type="button"
+              onClick={() => {
+                setActiveLibraryTab("gradients");
+                setConfig(p => ({ ...p, bgStyle: "gradient", bgValue: PRESET_GRADIENTS[0].value }));
+              }}
               className={`flex-1 text-center py-1.5 rounded-md transition-all font-semibold cursor-pointer ${
-                config.bgStyle === "gradient" ? "bg-white dark:bg-slate-950 shadow-sm text-slate-950 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"
+                activeLibraryTab === "gradients" ? "bg-white dark:bg-slate-950 shadow-sm text-slate-950 dark:text-slate-100 font-bold" : "text-slate-500 dark:text-slate-400"
               }`}
             >
-              Nature Gradients
+              Gradients
             </button>
             <button
-              onClick={() => setConfig(p => ({ ...p, bgStyle: "color", bgValue: "#2563eb" }))}
+              type="button"
+              onClick={() => {
+                setActiveLibraryTab("solids");
+                setConfig(p => ({ ...p, bgStyle: "color", bgValue: PRESET_SOLID_COLORS[0].value }));
+              }}
               className={`flex-1 text-center py-1.5 rounded-md transition-all font-semibold cursor-pointer ${
-                config.bgStyle === "color" ? "bg-white dark:bg-slate-950 shadow-sm text-slate-950 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"
+                activeLibraryTab === "solids" ? "bg-white dark:bg-slate-950 shadow-sm text-slate-950 dark:text-slate-100 font-bold" : "text-slate-500 dark:text-slate-400"
               }`}
             >
-              Solid Color
+              Solids
             </button>
             <button
-              onClick={() => setConfig(p => ({ ...p, bgStyle: "image" }))}
-              className={`flex-1 text-center py-1.5 rounded-md transition-all font-semibold flex items-center justify-center gap-1 cursor-pointer ${
-                config.bgStyle === "image" ? "bg-white dark:bg-slate-950 shadow-sm text-slate-950 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"
+              type="button"
+              onClick={() => {
+                setActiveLibraryTab("noise");
+                const firstNoise = PRESET_NOISE_PATTERNS[0];
+                setConfig(p => ({
+                  ...p,
+                  bgStyle: firstNoise.bgStyle,
+                  bgValue: firstNoise.bgValue,
+                  noiseOpacity: firstNoise.noiseOpacity,
+                  noisePreset: firstNoise.name
+                }));
+              }}
+              className={`flex-1 text-center py-1.5 rounded-md transition-all font-semibold cursor-pointer ${
+                activeLibraryTab === "noise" ? "bg-white dark:bg-slate-950 shadow-sm text-slate-950 dark:text-slate-100 font-bold" : "text-slate-500 dark:text-slate-400"
+              }`}
+            >
+              Subtle Noise
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setActiveLibraryTab("photo");
+                setConfig(p => ({ ...p, bgStyle: "image" }));
+              }}
+              className={`flex-1 text-center py-1.5 rounded-md transition-all font-semibold cursor-pointer ${
+                activeLibraryTab === "photo" ? "bg-white dark:bg-slate-950 shadow-sm text-slate-950 dark:text-slate-100 font-bold" : "text-slate-500 dark:text-slate-400"
               }`}
             >
               Custom Photo
@@ -1703,7 +2072,7 @@ export default function QuoteDesigner({
           </div>
 
           {/* Style Details */}
-          {config.bgStyle === "gradient" && (
+          {activeLibraryTab === "gradients" && (
             <div className="space-y-2">
               <div className="flex items-center justify-between pb-1">
                 <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500">
@@ -1721,9 +2090,9 @@ export default function QuoteDesigner({
                   <button
                     key={preset.name}
                     type="button"
-                    onClick={() => setConfig(p => ({ ...p, bgValue: preset.value }))}
+                    onClick={() => setConfig(p => ({ ...p, bgStyle: "gradient", bgValue: preset.value }))}
                     className={`flex-shrink-0 w-28 h-18 rounded-xl relative overflow-hidden transition-all duration-300 shadow-3xs border text-left flex flex-col justify-end p-2 cursor-pointer snap-start ${
-                      config.bgValue === preset.value
+                      config.bgStyle === "gradient" && config.bgValue === preset.value
                         ? "border-slate-900 dark:border-white ring-2 ring-slate-900/50 dark:ring-white/50 scale-[1.02]"
                         : "border-slate-200/60 dark:border-slate-800 hover:border-slate-400 dark:hover:border-slate-600 hover:scale-[1.01]"
                     }`}
@@ -1732,7 +2101,7 @@ export default function QuoteDesigner({
                   >
                     <div className="absolute top-1.5 right-1.5 flex items-center justify-center">
                       <div className={`w-4 h-4 rounded-full flex items-center justify-center transition-opacity ${
-                        config.bgValue === preset.value ? "bg-black/40 backdrop-blur-3xs text-white opacity-100" : "opacity-0"
+                        config.bgStyle === "gradient" && config.bgValue === preset.value ? "bg-black/40 backdrop-blur-3xs text-white opacity-100" : "opacity-0"
                       }`}>
                         <Check className="w-2.5 h-2.5" />
                       </div>
@@ -1746,22 +2115,131 @@ export default function QuoteDesigner({
             </div>
           )}
 
-          {config.bgStyle === "color" && (
-            <div className="flex items-center space-x-3 bg-white dark:bg-slate-950 p-2.5 rounded-xl border border-slate-200 dark:border-slate-850">
-              <input
-                type="color"
-                value={config.bgValue}
-                onChange={(e) => setConfig(p => ({ ...p, bgValue: e.target.value }))}
-                className="w-10 h-10 rounded-lg cursor-pointer border-0 bg-transparent"
-              />
-              <div>
-                <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase">{config.bgValue}</p>
-                <p className="text-[10px] text-slate-400 dark:text-slate-500">Apply a solid color background</p>
+          {activeLibraryTab === "solids" && (
+            <div className="space-y-3">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
+                Curated Palette
+              </span>
+              <div className="grid grid-cols-6 gap-2">
+                {PRESET_SOLID_COLORS.map((item) => (
+                  <button
+                    key={item.name}
+                    type="button"
+                    onClick={() => setConfig(p => ({ ...p, bgStyle: "color", bgValue: item.value }))}
+                    className={`h-9 rounded-lg relative overflow-hidden transition-all duration-200 border cursor-pointer ${
+                      config.bgStyle === "color" && config.bgValue === item.value
+                        ? "border-slate-900 dark:border-white ring-2 ring-slate-900/30 dark:ring-white/30 scale-105"
+                        : "border-slate-200 dark:border-slate-800 hover:scale-[1.02]"
+                    }`}
+                    style={{ backgroundColor: item.value }}
+                    title={item.name}
+                  >
+                    {config.bgStyle === "color" && config.bgValue === item.value && (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/10">
+                        <Check className="w-4 h-4 text-white" />
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+
+              {/* Advanced Color Input Picker */}
+              <div className="flex items-center space-x-3 bg-white dark:bg-slate-950 p-2.5 rounded-xl border border-slate-200 dark:border-slate-850">
+                <input
+                  type="color"
+                  value={config.bgStyle === "color" ? config.bgValue : "#3b82f6"}
+                  onChange={(e) => setConfig(p => ({ ...p, bgStyle: "color", bgValue: e.target.value }))}
+                  className="w-10 h-10 rounded-lg cursor-pointer border-0 bg-transparent shrink-0"
+                />
+                <div>
+                  <p className="text-xs font-semibold text-slate-700 dark:text-slate-300 uppercase">
+                    {config.bgStyle === "color" ? config.bgValue : "Custom HEX"}
+                  </p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500">Apply a precise custom hex color</p>
+                </div>
               </div>
             </div>
           )}
 
-          {config.bgStyle === "image" && (
+          {activeLibraryTab === "noise" && (
+            <div className="space-y-4">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 dark:text-slate-500 block">
+                Noise Textured Presets
+              </span>
+              <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
+                {PRESET_NOISE_PATTERNS.map((item) => {
+                  const isActive = config.bgValue === item.bgValue && config.noiseOpacity === item.noiseOpacity;
+                  return (
+                    <button
+                      key={item.name}
+                      type="button"
+                      onClick={() => setConfig(p => ({
+                        ...p,
+                        bgStyle: item.bgStyle,
+                        bgValue: item.bgValue,
+                        noiseOpacity: item.noiseOpacity,
+                        noisePreset: item.name
+                      }))}
+                      className={`flex flex-col justify-between p-2 rounded-xl text-left border relative overflow-hidden h-20 transition-all cursor-pointer ${
+                        isActive
+                          ? "border-slate-900 dark:border-white ring-2 ring-slate-900/30 dark:ring-white/30 scale-[1.01]"
+                          : "border-slate-200 dark:border-slate-800 hover:border-slate-300 hover:scale-[1.01]"
+                      }`}
+                    >
+                      {/* Simulated background + subtle SVG noise mockup in list item */}
+                      <div
+                        className="absolute inset-0 z-0 opacity-80"
+                        style={{
+                          background: item.bgValue,
+                          backgroundImage: `${item.bgValue}, url("data:image/svg+xml,%3Csvg viewBox='0 0 100 100' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='${item.noiseOpacity}'/%3E%3C/svg%3E")`,
+                          backgroundBlendMode: "overlay"
+                        }}
+                      />
+                      <div className="absolute top-1.5 right-1.5 z-10">
+                        {isActive && (
+                          <div className="w-4 h-4 rounded-full bg-slate-900 dark:bg-white text-white dark:text-slate-950 flex items-center justify-center">
+                            <Check className="w-2.5 h-2.5" />
+                          </div>
+                        )}
+                      </div>
+                      <div className="mt-auto z-10 w-full">
+                        <p className="text-[10px] font-bold text-white drop-shadow-[0_1.2px_1.2px_rgba(0,0,0,0.8)] truncate">
+                          {item.name}
+                        </p>
+                        <p className="text-[8px] text-white/90 drop-shadow-[0_1px_1px_rgba(0,0,0,0.8)] line-clamp-1">
+                          {item.description}
+                        </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Adjustable Noise Grain Slider */}
+              <div className="space-y-1 bg-slate-50/50 dark:bg-slate-900/30 p-2.5 rounded-xl border border-slate-100 dark:border-slate-850">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">Custom Grain Density</span>
+                  <span className="font-mono text-[10px] font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded">
+                    {Math.round((config.noiseOpacity || 0) * 100)}%
+                  </span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="0.4"
+                  step="0.01"
+                  value={config.noiseOpacity || 0}
+                  onChange={(e) => setConfig(p => ({ ...p, noiseOpacity: parseFloat(e.target.value) }))}
+                  className="w-full accent-indigo-500 h-1 bg-slate-200 dark:bg-slate-800 rounded-lg cursor-pointer"
+                />
+                <p className="text-[9px] text-slate-400 dark:text-slate-500">
+                  Slide to adjust the retro grain opacity overlay over any active color/gradient.
+                </p>
+              </div>
+            </div>
+          )}
+
+          {activeLibraryTab === "photo" && (
             <div className="space-y-4">
               <div
                 onDragOver={handleDragOver}
@@ -2627,6 +3105,14 @@ export default function QuoteDesigner({
                   ? "aspect-[9/16] max-w-[310px]"
                   : config.aspectRatio === "3:1"
                   ? "aspect-[3/1] max-w-[550px]"
+                  : config.aspectRatio === "16:9"
+                  ? "aspect-[16/9] max-w-[550px]"
+                  : config.aspectRatio === "4:5"
+                  ? "aspect-[4/5] max-w-[380px]"
+                  : config.aspectRatio === "7:4"
+                  ? "aspect-[7/4] max-w-[500px]"
+                  : config.aspectRatio === "4:7"
+                  ? "aspect-[4/7] max-w-[300px]"
                   : "aspect-square max-w-[450px]"
               }`}
             >
@@ -2652,6 +3138,17 @@ export default function QuoteDesigner({
                   backgroundPosition: "center",
                 }}
                 className="absolute inset-0 z-0 pointer-events-none"
+              />
+            )}
+
+            {/* Subtle Noise Pattern Overlay */}
+            {config.noiseOpacity !== undefined && config.noiseOpacity > 0 && (
+              <div
+                style={{
+                  backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")`,
+                  opacity: config.noiseOpacity,
+                }}
+                className="absolute inset-0 z-[2] pointer-events-none mix-blend-overlay"
               />
             )}
 
@@ -2870,7 +3367,7 @@ export default function QuoteDesigner({
                         animate={{ opacity: 0.8, y: 0 }}
                         transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1], delay: 0.22 }}
                         style={{
-                          fontFamily: config.fontFamily,
+                          fontFamily: config.authorFontFamily || config.fontFamily,
                           fontSize: `${config.fontSize * 0.85}px`,
                           color: config.fontColor,
                           textAlign: config.textAlign,
@@ -2882,7 +3379,7 @@ export default function QuoteDesigner({
                     ) : (
                       <p
                         style={{
-                          fontFamily: config.fontFamily,
+                          fontFamily: config.authorFontFamily || config.fontFamily,
                           fontSize: `${config.fontSize * 0.85}px`,
                           color: config.fontColor,
                           textAlign: config.textAlign,
