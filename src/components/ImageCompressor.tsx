@@ -408,6 +408,13 @@ export default function ImageCompressor({
     }
     return false;
   });
+  const [isAutoOrientEnabled, setIsAutoOrientEnabled] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("toolkit_image_auto_orient_enabled");
+      return saved !== "false"; // default to true
+    }
+    return true;
+  });
   const [smartResizeMaxWidth, setSmartResizeMaxWidth] = useState<number>(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("toolkit_image_smart_resize_max_width");
@@ -1754,6 +1761,58 @@ export default function ImageCompressor({
     }
   };
 
+  // Detect EXIF orientation and map to rotation angle
+  const detectExifRotation = async (file: File): Promise<number> => {
+    const supportExif = ["image/jpeg", "image/tiff", "image/webp", "image/png", "image/heic"];
+    if (!supportExif.includes(file.type.toLowerCase())) {
+      return 0;
+    }
+    try {
+      const tags = await ExifReader.load(file);
+      if (tags && tags['Orientation']) {
+        const orientationObj = tags['Orientation'];
+        let val = 1;
+        if (typeof orientationObj === "object") {
+          if (orientationObj.value !== undefined) {
+            if (Array.isArray(orientationObj.value)) {
+              val = Number(orientationObj.value[0]);
+            } else {
+              val = Number(orientationObj.value);
+            }
+          } else if (orientationObj.description !== undefined) {
+            const desc = String(orientationObj.description).toLowerCase();
+            if (desc.includes("90 cw") || desc.includes("rotate 90")) {
+              return 90;
+            } else if (desc.includes("180")) {
+              return 180;
+            } else if (desc.includes("270") || desc.includes("90 ccw")) {
+              return 270;
+            }
+          }
+        } else {
+          val = Number(orientationObj);
+        }
+        
+        switch (val) {
+          case 3:
+          case 4:
+            return 180;
+          case 6:
+          case 7:
+            return 90;
+          case 8:
+          case 5:
+            return 270;
+          default:
+            return 0;
+        }
+      }
+    } catch (err) {
+      console.log("No EXIF metadata or failed to parse orientation for", file.name, err);
+    }
+    return 0;
+  };
+
   // Process and load multiple selected/dropped files
   const processMultipleFiles = (filesList: FileList | File[]) => {
     const validFiles = Array.from(filesList).filter(file => file.type.startsWith("image/"));
@@ -1770,6 +1829,17 @@ export default function ImageCompressor({
             const rawDataUrl = e.target.result as string;
             // Generate lightning-fast optimized low-res thumbnail
             const thumbnail = await generateLowResThumbnail(rawDataUrl);
+            
+            // Detect EXIF orientation
+            let initialRotation = 0;
+            if (isAutoOrientEnabled) {
+              try {
+                initialRotation = await detectExifRotation(file);
+              } catch (exifErr) {
+                console.warn("EXIF read failure in upload flow:", exifErr);
+              }
+            }
+
             const item: QueueItem = {
               id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).substring(2, 9),
               file: file,
@@ -1784,7 +1854,7 @@ export default function ImageCompressor({
               cropY: 0,
               cropWidth: 1,
               cropHeight: 1,
-              rotation: 0,
+              rotation: initialRotation,
               compressedResult: null,
               isCompressing: false,
               isSaving: false,
@@ -5229,6 +5299,33 @@ export default function ImageCompressor({
                 </label>
                 <span className="text-[9px] text-slate-400 dark:text-slate-500 leading-tight mt-1">
                   Remove sensitive camera model, GPS coordinates, lens specs, creation date, and device headers from compressed images
+                </span>
+              </div>
+            </div>
+
+            {/* EXIF Metadata Auto-Orient Control Switch */}
+            <div className="flex items-center gap-2.5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/40 border border-slate-150 dark:border-slate-800/85 hover:border-indigo-305 dark:hover:border-indigo-900/40 transition-colors select-none">
+              <input
+                type="checkbox"
+                id="checkbox-auto-orient"
+                checked={isAutoOrientEnabled}
+                onChange={(e) => {
+                  const val = e.target.checked;
+                  setIsAutoOrientEnabled(val);
+                  localStorage.setItem("toolkit_image_auto_orient_enabled", String(val));
+                }}
+                className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 text-indigo-600 focus:ring-indigo-500 accent-indigo-500 cursor-pointer"
+              />
+              <div className="flex flex-col text-left">
+                <label 
+                  htmlFor="checkbox-auto-orient" 
+                  className="text-[11px] font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none leading-none flex items-center gap-1.5"
+                >
+                  <span>EXIF Auto-Orientation</span>
+                  <span className="text-[8px] bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-450 font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider">Smart Assist</span>
+                </label>
+                <span className="text-[9px] text-slate-400 dark:text-slate-500 leading-tight mt-1">
+                  Automatically rotate photos to their correct upright orientation during upload using EXIF orientation tags
                 </span>
               </div>
             </div>

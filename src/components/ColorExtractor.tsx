@@ -4,7 +4,7 @@ import { User } from "firebase/auth";
 import { PaletteColor } from "../types";
 import { uploadFileToDrive, getOrCreateFolder } from "../lib/drive";
 import { triggerFileDownload } from "../lib/download";
-import { Cloud, Download, Copy, Pipette, UploadCloud, Check, Sparkles, AlertCircle, Code, Sun, ArrowUpDown, Share2, Eye, CheckCircle2, Sliders, FileCode, FileJson, Search, X, History, RotateCcw, Layers, Palette } from "lucide-react";
+import { Cloud, Download, Copy, Pipette, UploadCloud, Check, Sparkles, AlertCircle, Code, Sun, ArrowUpDown, Share2, Eye, CheckCircle2, Sliders, FileCode, FileJson, Search, X, History, RotateCcw, Layers, Palette, GripVertical } from "lucide-react";
 
 interface SessionPalette {
   id: string;
@@ -302,6 +302,60 @@ export default function ColorExtractor({
   const [isSavingAll, setIsSavingAll] = useState<boolean>(false);
   const [saveStatus, setSaveStatus] = useState<{ success?: boolean; msg?: string; iconType?: "cloud" | "share" } | null>(null);
   const [isDragging, setIsDragging] = useState<boolean>(false);
+
+  const [draggedSwatchIndex, setDraggedSwatchIndex] = useState<number | null>(null);
+  const [dragOverSwatchIndex, setDragOverSwatchIndex] = useState<number | null>(null);
+
+  const handleDragStartSwatch = (e: React.DragEvent, index: number, filteredPalette: PaletteColor[]) => {
+    const actualIndex = palette.findIndex(p => p.hex === filteredPalette[index].hex);
+    if (actualIndex !== -1) {
+      setDraggedSwatchIndex(actualIndex);
+      e.dataTransfer.effectAllowed = "move";
+      e.dataTransfer.setData("text/plain", actualIndex.toString());
+    }
+  };
+
+  const handleDragOverSwatch = (e: React.DragEvent, index: number, filteredPalette: PaletteColor[]) => {
+    e.preventDefault();
+    const actualIndex = palette.findIndex(p => p.hex === filteredPalette[index].hex);
+    if (actualIndex !== -1 && draggedSwatchIndex !== null && draggedSwatchIndex !== actualIndex) {
+      setDragOverSwatchIndex(actualIndex);
+    }
+  };
+
+  const handleDragLeaveSwatch = () => {
+    setDragOverSwatchIndex(null);
+  };
+
+  const handleDropSwatch = (e: React.DragEvent, index: number, filteredPalette: PaletteColor[]) => {
+    e.preventDefault();
+    const actualTargetIndex = palette.findIndex(p => p.hex === filteredPalette[index].hex);
+    if (draggedSwatchIndex !== null && actualTargetIndex !== -1 && draggedSwatchIndex !== actualTargetIndex) {
+      setPalette((prev) => {
+        const next = [...prev];
+        const [moved] = next.splice(draggedSwatchIndex, 1);
+        next.splice(actualTargetIndex, 0, moved);
+        return next;
+      });
+
+      window.dispatchEvent(new CustomEvent("toolkit-add-activity", {
+        detail: {
+          type: "palette",
+          title: "Rearranged Swatches",
+          detail: `Rearranged color swatch order in palette manually`,
+          icon: "ArrowUpDown",
+          tab: "palette"
+        }
+      }));
+    }
+    setDraggedSwatchIndex(null);
+    setDragOverSwatchIndex(null);
+  };
+
+  const handleDragEndSwatch = () => {
+    setDraggedSwatchIndex(null);
+    setDragOverSwatchIndex(null);
+  };
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
@@ -2752,7 +2806,7 @@ export default function ColorExtractor({
                       <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-4 bg-white/60 p-2.5 rounded-xl border border-slate-200/50">
                         <div className="flex flex-col sm:flex-row sm:items-center gap-3 flex-1">
                           <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest flex items-center gap-1.5 whitespace-nowrap">
-                            <Pipette className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> Color Spec Swatches (Tap to copy hex)
+                            <Pipette className="w-3.5 h-3.5 text-emerald-500 shrink-0" /> Color Spec Swatches (Drag to rearrange, tap to copy)
                           </span>
                           {customPaletteName && (
                             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-100/50 text-[10px] font-black text-emerald-700 animate-in fade-in duration-200">
@@ -2901,16 +2955,28 @@ export default function ColorExtractor({
                             const contrastWhite = getContrastRatio(simulatedColor, "#ffffff");
                             const contrastBlack = getContrastRatio(simulatedColor, "#000000");
 
+                            const actualPaletteIndex = palette.findIndex(p => p.hex === color.hex);
+
                             return (
                               <motion.div
                                 key={idx}
+                                draggable
+                                onDragStart={(e) => handleDragStartSwatch(e, idx, filteredPalette)}
+                                onDragOver={(e) => handleDragOverSwatch(e, idx, filteredPalette)}
+                                onDragLeave={handleDragLeaveSwatch}
+                                onDrop={(e) => handleDropSwatch(e, idx, filteredPalette)}
+                                onDragEnd={handleDragEndSwatch}
                                 whileHover={{ scale: 1.04, y: -3 }}
                                 whileTap={{ scale: 0.98 }}
                                 transition={{ type: "spring", stiffness: 400, damping: 20 }}
                                 style={{ backgroundColor: simulatedColor }}
-                                className="min-h-[185px] rounded-2xl relative overflow-hidden flex flex-col justify-between p-2.5 text-left border border-black/10 group shadow-md cursor-pointer select-none"
+                                className={`min-h-[185px] rounded-2xl relative overflow-hidden flex flex-col justify-between p-2.5 text-left border border-black/10 group shadow-md cursor-pointer select-none transition-all ${
+                                  actualPaletteIndex === draggedSwatchIndex ? "opacity-40" : ""
+                                } ${
+                                  actualPaletteIndex === dragOverSwatchIndex ? "ring-2 ring-indigo-500 scale-[1.02] border-indigo-500 shadow-lg" : ""
+                                }`}
                                 onClick={() => handleCopyValue(color.hex, "HEX")}
-                                title="Click anywhere to copy HEX code"
+                                title="Drag swatch to rearrange, click to copy HEX"
                               >
                                 {/* Card top banner (Ordinal + Metric badge + Checkmark) */}
                                 <div className="flex justify-between items-center w-full select-none">
@@ -2931,10 +2997,15 @@ export default function ColorExtractor({
                                       {paletteSortMode === "brightness" && `BRT ${hsl.l}%`}
                                     </span>
                                   </div>
-                                  {isCopied && (
+                                  {isCopied ? (
                                     <Check 
                                       style={{ color: dynamicContrastColor }} 
                                       className="w-3.5 h-3.5 select-none animate-in zoom-in duration-200" 
+                                    />
+                                  ) : (
+                                    <GripVertical 
+                                      style={{ color: dynamicContrastColor }} 
+                                      className="w-3.5 h-3.5 opacity-40 group-hover:opacity-100 transition-opacity cursor-grab active:cursor-grabbing" 
                                     />
                                   )}
                                 </div>

@@ -90,7 +90,9 @@ export const uploadFileToDrive = async (
   filename: string,
   mimeType: string,
   base64DataUrl: string,
-  parentId?: string
+  parentId?: string,
+  description?: string,
+  properties?: Record<string, string>
 ): Promise<DriveFile> => {
   const boundary = "toolkit_pro_boundary";
   const delimiter = `\r\n--${boundary}\r\n`;
@@ -105,6 +107,12 @@ export const uploadFileToDrive = async (
   };
   if (parentId) {
     metadata.parents = [parentId];
+  }
+  if (description) {
+    metadata.description = description;
+  }
+  if (properties) {
+    metadata.properties = properties;
   }
 
   const metadataPart = [
