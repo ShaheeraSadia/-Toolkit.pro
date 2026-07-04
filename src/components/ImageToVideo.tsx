@@ -1048,6 +1048,7 @@ export default function ImageToVideo({
   const [saveToDriveAfterExport, setSaveToDriveAfterExport] = useState<boolean>(false);
   const [replaceOnUpload, setReplaceOnUpload] = useState<boolean>(true);
   const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
+  const [isAudioDragging, setIsAudioDragging] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; sub: string; success: boolean } | null>(null);
   const [activeGalleryCategory, setActiveGalleryCategory] = useState<"All" | "Adventure" | "Nature" | "Cyberpunk" | "Abstract">("All");
   
@@ -7609,6 +7610,169 @@ export default function ImageToVideo({
               <Music className="w-4 h-4 text-emerald-500" />
               <span>Studio Soundtrack & Ratios</span>
             </h4>
+
+            {/* Direct Background Audio File Input Card with Drag-and-Drop */}
+            <div 
+              className={`p-4 rounded-2xl border transition-all text-left space-y-3 shadow-3xs ${
+                isAudioDragging
+                  ? "bg-indigo-50/50 dark:bg-indigo-950/20 border-indigo-500 scale-[1.01]"
+                  : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800/80"
+              }`}
+              onDragOver={(e) => {
+                e.preventDefault();
+                setIsAudioDragging(true);
+              }}
+              onDragLeave={() => setIsAudioDragging(false)}
+              onDrop={(e) => {
+                e.preventDefault();
+                setIsAudioDragging(false);
+                const file = e.dataTransfer.files?.[0];
+                if (!file) return;
+                if (!file.type.startsWith("audio/")) {
+                  setToastMessage({
+                    text: "⚠️ Invalid File Format",
+                    sub: "Please upload an audio file (MP3, WAV, M4A, etc.)",
+                    success: false
+                  });
+                  return;
+                }
+                const url = URL.createObjectURL(file);
+                setCustomAudioUrl(url);
+                setCustomAudioName(file.name);
+                setAudioTrackMode("custom");
+                setMusicTab("custom");
+                synthManagerRef.current.stop();
+                if (isPlaying) {
+                  setTimeout(() => {
+                    synthManagerRef.current.start("custom", audioVolume, false, false, totalDuration, url, currentTime, audioTrimStart, audioTrimEnd);
+                  }, 100);
+                }
+                setToastMessage({
+                  text: "🎵 Background Audio Loaded",
+                  sub: `"${file.name}" is now the active background track.`,
+                  success: true
+                });
+                triggerBeepChime();
+              }}
+              id="bg-audio-drag-uploader"
+            >
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-black uppercase text-slate-700 dark:text-slate-300 tracking-wider flex items-center gap-1.5">
+                  <Upload className="w-3.5 h-3.5 text-indigo-500" />
+                  Background Audio File (MP3 / WAV)
+                </span>
+                {customAudioUrl && (
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-bold bg-emerald-50 dark:bg-emerald-950/40 text-emerald-650 dark:text-emerald-400">
+                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    Active Soundtrack
+                  </span>
+                )}
+              </div>
+
+              {!customAudioUrl ? (
+                <div className="relative border border-dashed border-slate-200 dark:border-slate-800 hover:border-indigo-450 dark:hover:border-indigo-800 rounded-xl transition-all">
+                  <input
+                    type="file"
+                    accept="audio/*"
+                    id="direct-bg-audio-uploader-input"
+                    className="absolute inset-0 opacity-0 cursor-pointer z-10 w-full h-full"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const url = URL.createObjectURL(file);
+                      setCustomAudioUrl(url);
+                      setCustomAudioName(file.name);
+                      setAudioTrackMode("custom");
+                      setMusicTab("custom");
+                      synthManagerRef.current.stop();
+                      if (isPlaying) {
+                        setTimeout(() => {
+                          synthManagerRef.current.start("custom", audioVolume, false, false, totalDuration, url, currentTime, audioTrimStart, audioTrimEnd);
+                        }, 100);
+                      }
+                      setToastMessage({
+                        text: "🎵 Background Audio Loaded",
+                        sub: `"${file.name}" is now the active background track.`,
+                        success: true
+                      });
+                      triggerBeepChime();
+                    }}
+                  />
+                  <div className="p-4 flex flex-col items-center justify-center text-center space-y-1.5">
+                    <Music className="w-5 h-5 text-slate-400" />
+                    <div>
+                      <p className="text-[10.5px] font-black text-slate-700 dark:text-slate-300">
+                        Upload Your Own Soundtrack File
+                      </p>
+                      <p className="text-[9px] text-slate-450 dark:text-slate-500">
+                        Drag and drop or click here to select background music or sound
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="p-3 bg-indigo-50/20 dark:bg-indigo-950/10 border border-indigo-100 dark:border-indigo-900 rounded-xl flex items-center justify-between gap-3">
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-black text-slate-800 dark:text-slate-200 truncate flex items-center gap-1.5">
+                      🎧 {customAudioName || "Custom Background Track"}
+                    </p>
+                    <p className="text-[9.5px] text-slate-450 dark:text-slate-500 mt-0.5">
+                      Loaded Locally • {customAudioDuration ? formatTime(customAudioDuration) : "Analyzing duration..."}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const isPreviewing = previewingTrack === "custom-local";
+                        if (isPlaying) {
+                          setIsPlaying(false);
+                          if (playbackIntervalRef.current) {
+                            clearInterval(playbackIntervalRef.current);
+                          }
+                        }
+                        if (isPreviewing) {
+                          synthManagerRef.current.stop();
+                          setPreviewingTrack(null);
+                        } else {
+                          synthManagerRef.current.stop();
+                          synthManagerRef.current.start("custom", audioVolume, false, false, totalDuration, customAudioUrl, 0, audioTrimStart, audioTrimEnd);
+                          setPreviewingTrack("custom-local");
+                        }
+                        triggerBeepChime();
+                      }}
+                      className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                        previewingTrack === "custom-local"
+                          ? "bg-emerald-500 border-emerald-500 text-white"
+                          : "bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-300"
+                      }`}
+                      title={previewingTrack === "custom-local" ? "Pause Audition" : "Audition Soundtrack"}
+                    >
+                      {previewingTrack === "custom-local" ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        synthManagerRef.current.stop();
+                        setCustomAudioUrl(null);
+                        setCustomAudioName(null);
+                        setAudioTrackMode("synth");
+                        setToastMessage({
+                          text: "🗑️ Custom Audio Removed",
+                          sub: "Reverted back to procedurally synthesized soundtrack.",
+                          success: true
+                        });
+                        triggerBeepChime();
+                      }}
+                      className="p-1.5 rounded-lg bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 dark:bg-red-950/20 dark:border-red-950 dark:text-red-400 cursor-pointer transition-all"
+                      title="Remove Audio"
+                    >
+                      <Trash2 className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
 
             {/* Background Audio Selector & Music Library with Sub-Tabs */}
             <div className="space-y-4">
