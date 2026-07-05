@@ -343,19 +343,69 @@ body {
 }
 
 /* Active Scan Line Animation for QR Preview */
-@keyframes active-qr-scan {
+@keyframes active-qr-scan-line {
   0% {
-    top: 2%;
+    top: 4%;
   }
   50% {
-    top: 98%;
+    top: 96%;
   }
   100% {
-    top: 2%;
+    top: 4%;
   }
 }
 
-.animate-active-qr-scan {
-  animation: active-qr-scan 4s ease-in-out infinite;
+@keyframes active-qr-scan-gradient {
+  0% {
+    top: 4%;
+    transform: translateY(-50%) scaleY(1);
+  }
+  50% {
+    top: 96%;
+    transform: translateY(-50%) scaleY(-1);
+  }
+  100% {
+    top: 4%;
+    transform: translateY(-50%) scaleY(1);
+  }
+}
+
+.animate-active-qr-scan-line {
+  animation: active-qr-scan-line 3s ease-in-out infinite;
+}
+
+.animate-active-qr-scan-gradient {
+  animation: active-qr-scan-gradient 3s ease-in-out infinite;
+}
+
+/* ── CUSTOM REUSABLE SKELETON SHIMMER ANIMATION ── */
+@keyframes shimmer-sweep {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.shimmer {
+  background: linear-gradient(
+    90deg,
+    #f1f5f9 25%,
+    #e2e8f0 50%,
+    #f1f5f9 75%
+  );
+  background-size: 200% 100%;
+  animation: shimmer-sweep 1.6s infinite linear;
+}
+
+.dark .shimmer {
+  background: linear-gradient(
+    90deg,
+    #1e293b 25%,
+    #334155 50%,
+    #1e293b 75%
+  );
+  background-size: 200% 100%;
 }
 

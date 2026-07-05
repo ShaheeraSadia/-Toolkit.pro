@@ -6,7 +6,7 @@ import JSZip from "jszip";
 import { QuoteConfig, BgStyleType } from "../types";
 import { uploadFileToDrive } from "../lib/drive";
 import { triggerFileDownload } from "../lib/download";
-import { Download, Cloud, Sparkles, Image as ImageIcon, Type, AlignLeft, AlignCenter, AlignRight, Check, Printer, Share2, Smartphone, LayoutGrid, Monitor, Upload, FileJson, Scissors, ExternalLink, X, Bold, Italic, FileText, Shield, Move, MousePointer, FolderArchive, Trash2, Plus } from "lucide-react";
+import { Download, Cloud, Sparkles, Image as ImageIcon, Type, AlignLeft, AlignCenter, AlignRight, Check, Printer, Share2, Smartphone, LayoutGrid, Monitor, Upload, FileJson, Scissors, ExternalLink, X, Bold, Italic, FileText, Shield, Move, MousePointer, FolderArchive, Trash2, Plus, Link } from "lucide-react";
 
 interface SavedVariant {
   id: string;
@@ -255,6 +255,122 @@ const SOCIAL_PRESETS: QuotePreset[] = [
   }
 ];
 
+interface LayoutTemplate {
+  id: string;
+  name: string;
+  badge: string;
+  description: string;
+  fontFamily: string;
+  authorFontFamily: string;
+  fontSize: number;
+  textAlign: "left" | "center" | "right";
+  padding: number;
+  isBold: boolean;
+  isItalic: boolean;
+  overlayOpacity?: number;
+  overlayBlur?: number;
+  noiseOpacity?: number;
+}
+
+const LAYOUT_TEMPLATES: LayoutTemplate[] = [
+  {
+    id: "minimalist",
+    name: "Minimalist",
+    badge: "Spacious",
+    description: "Elegant lightweight serif with spacious padding and small, subtle centered text.",
+    fontFamily: "Playfair Display",
+    authorFontFamily: "Inter",
+    fontSize: 20,
+    textAlign: "center",
+    padding: 65,
+    isBold: false,
+    isItalic: true,
+    overlayOpacity: 0.1,
+    overlayBlur: 0,
+    noiseOpacity: 0.05
+  },
+  {
+    id: "bold_typography",
+    name: "Bold Typography",
+    badge: "Bold Display",
+    description: "Compact, heavy geometric display fonts with tight spacing and left alignment.",
+    fontFamily: "Bebas Neue",
+    authorFontFamily: "Space Grotesk",
+    fontSize: 42,
+    textAlign: "left",
+    padding: 30,
+    isBold: true,
+    isItalic: false,
+    overlayOpacity: 0.25,
+    overlayBlur: 0,
+    noiseOpacity: 0
+  },
+  {
+    id: "vintage",
+    name: "Vintage",
+    badge: "Earthy Warmth",
+    description: "A gorgeous classic editorial serif with medium italic sizing and centered alignment.",
+    fontFamily: "Cinzel",
+    authorFontFamily: "Montserrat",
+    fontSize: 26,
+    textAlign: "center",
+    padding: 45,
+    isBold: false,
+    isItalic: true,
+    overlayOpacity: 0.2,
+    overlayBlur: 0,
+    noiseOpacity: 0.15
+  },
+  {
+    id: "modern_tech",
+    name: "Modern Tech",
+    badge: "Sleek Mono",
+    description: "Sleek grotesque and monospaced font combination, featuring sharp left-aligned styling.",
+    fontFamily: "Space Grotesk",
+    authorFontFamily: "JetBrains Mono",
+    fontSize: 24,
+    textAlign: "left",
+    padding: 40,
+    isBold: true,
+    isItalic: false,
+    overlayOpacity: 0.15,
+    overlayBlur: 0,
+    noiseOpacity: 0.08
+  },
+  {
+    id: "artistic_playful",
+    name: "Artistic Playful",
+    badge: "Script",
+    description: "Charming bold script letters with relaxed spacing and friendly accents.",
+    fontFamily: "Lobster",
+    authorFontFamily: "Outfit",
+    fontSize: 32,
+    textAlign: "center",
+    padding: 50,
+    isBold: false,
+    isItalic: false,
+    overlayOpacity: 0.12,
+    overlayBlur: 0,
+    noiseOpacity: 0.05
+  },
+  {
+    id: "editorial_classic",
+    name: "Classic Book",
+    badge: "Symmetry",
+    description: "Standard literary pairing of classical serif and sans fonts with generous margins.",
+    fontFamily: "Playfair Display",
+    authorFontFamily: "Montserrat",
+    fontSize: 28,
+    textAlign: "center",
+    padding: 55,
+    isBold: false,
+    isItalic: false,
+    overlayOpacity: 0.15,
+    overlayBlur: 0,
+    noiseOpacity: 0.1
+  }
+];
+
 interface FontPairing {
   id: string;
   name: string;
@@ -339,6 +455,32 @@ export default function QuoteDesigner({
 }: QuoteDesignerProps) {
   const [config, setConfig] = useState<QuoteConfig>(() => {
     if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("quote_text")) {
+        try {
+          return {
+            text: params.get("quote_text") || "",
+            author: params.get("quote_author") || "",
+            fontFamily: params.get("quote_font") || "Playfair Display",
+            fontSize: parseInt(params.get("quote_size") || "28"),
+            fontColor: params.get("quote_color") || "#ffffff",
+            textAlign: (params.get("quote_align") as any) || "center",
+            bgStyle: (params.get("quote_bg_style") as any) || "gradient",
+            bgValue: params.get("quote_bg_val") || PRESET_GRADIENTS[0].value,
+            overlayOpacity: parseFloat(params.get("quote_opacity") || "0.2"),
+            overlayBlur: parseFloat(params.get("quote_blur") || "0"),
+            padding: parseInt(params.get("quote_pad") || "40"),
+            aspectRatio: (params.get("quote_aspect") as any) || "1:1",
+            isBold: params.get("quote_bold") === "true",
+            isItalic: params.get("quote_italic") === "true",
+            noiseOpacity: parseFloat(params.get("quote_noise_op") || "0"),
+            noisePreset: params.get("quote_noise_pre") || "none",
+          };
+        } catch (e) {
+          console.error("Failed to parse quote config from URL params:", e);
+        }
+      }
+
       const persisted = localStorage.getItem("toolkit_pro_quote_config");
       if (persisted) {
         try {
@@ -486,6 +628,22 @@ export default function QuoteDesigner({
       localStorage.setItem("toolkit_pro_quote_grid_size", gridSize.toString());
     }
   }, [snapToGrid, gridSize]);
+
+  // Handle notifying user about shared design template loading from URL params on mount
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get("quote_text")) {
+        setSaveStatus({
+          success: true,
+          msg: "Shared design template loaded successfully! Feel free to customize and re-share!"
+        });
+        // Clear URL parameters without reloading to keep address bar clean
+        const cleanUrl = window.location.protocol + "//" + window.location.host + window.location.pathname;
+        window.history.replaceState({ path: cleanUrl }, '', cleanUrl);
+      }
+    }
+  }, []);
 
   // Precision canvas panning states
   const [panOffset, setPanOffset] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
@@ -1389,6 +1547,57 @@ export default function QuoteDesigner({
     }
   };
 
+  const handleCopyShareLink = async () => {
+    try {
+      const params = new URLSearchParams();
+      params.set("quote_text", config.text);
+      params.set("quote_author", config.author);
+      params.set("quote_font", config.fontFamily);
+      params.set("quote_size", config.fontSize.toString());
+      params.set("quote_color", config.fontColor);
+      params.set("quote_align", config.textAlign);
+      params.set("quote_bg_style", config.bgStyle || "gradient");
+      params.set("quote_bg_val", config.bgValue || "");
+      params.set("quote_opacity", config.overlayOpacity.toString());
+      params.set("quote_blur", config.overlayBlur.toString());
+      params.set("quote_pad", config.padding.toString());
+      params.set("quote_aspect", config.aspectRatio);
+      params.set("quote_bold", config.isBold ? "true" : "false");
+      params.set("quote_italic", config.isItalic ? "true" : "false");
+      params.set("quote_noise_op", (config.noiseOpacity || 0).toString());
+      params.set("quote_noise_pre", config.noisePreset || "none");
+
+      // Generate the full URL
+      const shareUrl = `${window.location.origin}${window.location.pathname}?${params.toString()}`;
+
+      if (navigator.clipboard) {
+        await navigator.clipboard.writeText(shareUrl);
+        setSaveStatus({
+          success: true,
+          msg: "Shareable configuration link copied to clipboard! Share it with anyone to load this exact design layout.",
+        });
+
+        window.dispatchEvent(new CustomEvent("toolkit-add-activity", {
+          detail: {
+            type: "share",
+            title: "Copied Quote Config Link",
+            detail: `Generated custom design share link for quote by "${config.author || "Anonymous"}"`,
+            icon: "Link",
+            tab: "quote"
+          }
+        }));
+      } else {
+        throw new Error("Clipboard API not available");
+      }
+    } catch (err: any) {
+      console.error("Error generating shareable URL link:", err);
+      setSaveStatus({
+        success: false,
+        msg: "Failed to generate copyable URL link: " + (err.message || String(err)),
+      });
+    }
+  };
+
   const handleShare = async () => {
     try {
       const dataUrl = await getCanvasDataUrl();
@@ -1670,6 +1879,80 @@ export default function QuoteDesigner({
                     <p className="text-[10px] text-slate-500 dark:text-slate-400 mt-0.5 leading-tight">
                       {preset.description}
                     </p>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="h-px bg-slate-200/60" />
+
+        {/* Aesthetic Layout Templates */}
+        <div className="space-y-3">
+          <div>
+            <h3 className="text-sm font-bold text-indigo-950 dark:text-indigo-300 uppercase tracking-wider flex items-center gap-1.5 mb-1">
+              <Sparkles className="w-4 h-4 text-amber-500" /> Layout Templates
+            </h3>
+            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5 leading-snug">
+              Apply predefined font style, text alignment, and spacing (padding) configurations to your canvas.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 gap-2">
+            {LAYOUT_TEMPLATES.map((tmpl) => {
+              const isActive = 
+                config.fontFamily === tmpl.fontFamily &&
+                config.textAlign === tmpl.textAlign &&
+                config.padding === tmpl.padding &&
+                config.fontSize === tmpl.fontSize &&
+                !!config.isBold === !!tmpl.isBold &&
+                !!config.isItalic === !!tmpl.isItalic;
+              return (
+                <button
+                  key={tmpl.id}
+                  type="button"
+                  onClick={() => {
+                    setConfig((prev) => ({
+                      ...prev,
+                      fontFamily: tmpl.fontFamily,
+                      authorFontFamily: tmpl.authorFontFamily,
+                      fontSize: tmpl.fontSize,
+                      textAlign: tmpl.textAlign,
+                      padding: tmpl.padding,
+                      isBold: tmpl.isBold,
+                      isItalic: tmpl.isItalic,
+                      ...(tmpl.overlayOpacity !== undefined ? { overlayOpacity: tmpl.overlayOpacity } : {}),
+                      ...(tmpl.overlayBlur !== undefined ? { overlayBlur: tmpl.overlayBlur } : {}),
+                      ...(tmpl.noiseOpacity !== undefined ? { noiseOpacity: tmpl.noiseOpacity } : {}),
+                    }));
+                  }}
+                  className={`group relative text-left p-2.5 rounded-xl border transition-all flex flex-col justify-between cursor-pointer h-[100px] ${
+                    isActive
+                      ? "bg-amber-50/50 dark:bg-amber-950/20 border-amber-500 ring-1 ring-amber-500/30"
+                      : "bg-white dark:bg-slate-950 hover:bg-slate-100/50 dark:hover:bg-slate-900/50 border-slate-200 dark:border-slate-850 hover:border-slate-350 dark:hover:border-slate-700"
+                  }`}
+                >
+                  <div className="w-full">
+                    <div className="flex items-center justify-between gap-1 mb-1">
+                      <span className="text-[11.5px] font-bold text-slate-900 dark:text-slate-100 group-hover:text-amber-950 dark:group-hover:text-amber-300 truncate">
+                        {tmpl.name}
+                      </span>
+                      {isActive && (
+                        <span className="flex h-2 w-2 relative shrink-0">
+                          <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
+                          <span className="relative inline-flex rounded-full h-2 w-2 bg-amber-500"></span>
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[9.5px] text-slate-500 dark:text-slate-400 leading-tight line-clamp-2">
+                      {tmpl.description}
+                    </p>
+                  </div>
+                  
+                  <div className="w-full flex items-center justify-between mt-1 pt-1 border-t border-slate-100 dark:border-slate-850/60 text-[8.5px] text-slate-400 font-mono font-bold uppercase">
+                    <span>{tmpl.badge}</span>
+                    <span className="opacity-80">{tmpl.textAlign}</span>
                   </div>
                 </button>
               );
@@ -3520,6 +3803,16 @@ export default function QuoteDesigner({
           >
             <Share2 className="w-4 h-4 mr-2 text-indigo-500" />
             Share Design
+          </button>
+
+          <button
+            onClick={handleCopyShareLink}
+            className="flex-1 min-w-[150px] inline-flex items-center justify-center px-4 py-3 border border-amber-200 hover:bg-amber-50/50 rounded-xl bg-white text-amber-700 text-sm font-semibold shadow-sm transition-all cursor-pointer"
+            id="btn-copy-share-link"
+            title="Generate a sharable URL to replicate your custom design configuration"
+          >
+            <Link className="w-4 h-4 mr-2 text-amber-500" />
+            Copy Share Link
           </button>
 
           <button

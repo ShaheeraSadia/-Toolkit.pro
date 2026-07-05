@@ -3,7 +3,7 @@ import { User } from "firebase/auth";
 import QRCode from "qrcode";
 import { uploadFileToDrive } from "../lib/drive";
 import { triggerFileDownload } from "../lib/download";
-import { Cloud, Download, QrCode, Settings, Palette, CheckCircle2, Image, X, Upload, History, Trash2, Printer, Share2, RefreshCw, AlertTriangle, Sparkles, Globe, Mail, Car, MapPin, Gauge, Key, Copy, Check, Layers, Type, Shapes, Camera, Grid, Crop, Scissors, Link, Zap, ExternalLink } from "lucide-react";
+import { Cloud, Download, QrCode, Settings, Palette, CheckCircle2, Image, X, Upload, History, Trash2, Printer, Share2, RefreshCw, AlertTriangle, Sparkles, Globe, Mail, Car, MapPin, Gauge, Key, Copy, Check, Layers, Type, Shapes, Camera, Grid, Crop, Scissors, Link, Zap, ExternalLink, Volume2, VolumeX } from "lucide-react";
 import { motion } from "motion/react";
 import { useDrag } from "@use-gesture/react";
 // @ts-ignore
@@ -824,6 +824,14 @@ export default function QrGenerator({
     return true;
   });
 
+  const [enableAudioFeedback, setEnableAudioFeedback] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      const persisted = localStorage.getItem("toolkit_pro_qr_enable_audio_feedback");
+      return persisted !== "false";
+    }
+    return true;
+  });
+
   const [enableGradient, setEnableGradient] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
       return localStorage.getItem("toolkit_pro_qr_enable_gradient") === "true";
@@ -996,6 +1004,7 @@ export default function QrGenerator({
       localStorage.setItem("toolkit_pro_qr_pattern_style", patternStyle);
       localStorage.setItem("toolkit_pro_qr_eye_style", eyeStyle);
       localStorage.setItem("toolkit_pro_qr_enable_scan_line", enableScanLine ? "true" : "false");
+      localStorage.setItem("toolkit_pro_qr_enable_audio_feedback", enableAudioFeedback ? "true" : "false");
       localStorage.setItem("toolkit_pro_qr_auto_optimize", autoOptimizeDensity ? "true" : "false");
       localStorage.setItem("toolkit_pro_qr_download_format", downloadFormat);
       localStorage.setItem("toolkit_pro_qr_enable_gradient", enableGradient ? "true" : "false");
@@ -1003,7 +1012,7 @@ export default function QrGenerator({
       localStorage.setItem("toolkit_pro_qr_gradient_color2", gradientColor2);
       localStorage.setItem("toolkit_pro_qr_gradient_direction", gradientDirection);
     }
-  }, [text, foregroundColor, backgroundColor, size, margin, previewScale, errorCorrectionLevel, logoScale, logoShape, logoPadding, highDpi, frameStyle, frameBorderShape, frameCustomText, enableTextOverlay, overlayText, overlayPosition, overlayFontFamily, overlayFontSize, overlayFontWeight, overlayColor, patternStyle, eyeStyle, enableScanLine, autoOptimizeDensity, downloadFormat, enableGradient, gradientType, gradientColor2, gradientDirection]);
+  }, [text, foregroundColor, backgroundColor, size, margin, previewScale, errorCorrectionLevel, logoScale, logoShape, logoPadding, highDpi, frameStyle, frameBorderShape, frameCustomText, enableTextOverlay, overlayText, overlayPosition, overlayFontFamily, overlayFontSize, overlayFontWeight, overlayColor, patternStyle, eyeStyle, enableScanLine, enableAudioFeedback, autoOptimizeDensity, downloadFormat, enableGradient, gradientType, gradientColor2, gradientDirection]);
   
   const [isGenerating, setIsGenerating] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
@@ -2469,7 +2478,9 @@ export default function QrGenerator({
         }));
 
         // Audio feedback cue
-        playSuccessBeep();
+        if (enableAudioFeedback) {
+          playSuccessBeep();
+        }
       } catch (err) {
         console.error("QR Code Generation failed:", err);
       } finally {
@@ -4910,6 +4921,34 @@ export default function QrGenerator({
             </div>
           )}
         </div>
+
+        {/* Studio Preferences Section */}
+        <div className="bg-white rounded-2xl p-5 border border-slate-200/60 shadow-2xs space-y-4">
+          <h4 className="text-xs font-bold text-slate-800 uppercase tracking-widest flex items-center gap-1.5 font-sans">
+            <Volume2 className="w-4 h-4 text-indigo-505" /> Studio Sound Preferences
+          </h4>
+          <p className="text-[10.5px] text-slate-500 leading-normal">
+            Configure sound feedback to play a subtle chime/beep whenever a new QR code matrix is successfully calculated.
+          </p>
+          <div className="flex items-center justify-between border-t border-slate-100 pt-3">
+            <span className="text-[11px] font-semibold text-slate-600">
+              Audio Chime Feedback
+            </span>
+            <label htmlFor="audio-feedback-toggle" className="inline-flex items-center cursor-pointer select-none">
+              <input 
+                id="audio-feedback-toggle"
+                type="checkbox" 
+                checked={enableAudioFeedback} 
+                onChange={(e) => setEnableAudioFeedback(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="relative w-8 h-4.5 bg-slate-250 checked:bg-indigo-600 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:start-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-indigo-650"></div>
+              <span className="ms-2 text-[10.5px] font-bold text-slate-650">
+                {enableAudioFeedback ? "On" : "Off"}
+              </span>
+            </label>
+          </div>
+        </div>
       </div>
 
       {/* Screen Preview: 7 Cols */}
@@ -4946,6 +4985,21 @@ export default function QrGenerator({
                   <div className="relative w-7.5 h-4.5 bg-slate-200 dark:bg-slate-850 rounded-full peer peer-checked:bg-indigo-600 peer-checked:after:translate-x-3 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2.5px] after:start-[2.5px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all dark:border-slate-600"></div>
                   <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-300">
                     Scan Effect
+                  </span>
+                </label>
+
+                {/* Audio Feedback Toggle */}
+                <label className="flex items-center gap-2 cursor-pointer select-none bg-white dark:bg-slate-950 border border-slate-150 dark:border-slate-800/80 rounded-xl px-3 py-1.5 shadow-2xs" id="btn-qr-audio-toggle">
+                  <input
+                    type="checkbox"
+                    checked={enableAudioFeedback}
+                    onChange={(e) => setEnableAudioFeedback(e.target.checked)}
+                    className="sr-only peer"
+                  />
+                  <div className="relative w-7.5 h-4.5 bg-slate-200 dark:bg-slate-850 rounded-full peer peer-checked:bg-indigo-600 peer-checked:after:translate-x-3 peer-checked:after:border-white after:content-[''] after:absolute after:top-[2.5px] after:start-[2.5px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all dark:border-slate-600"></div>
+                  <span className="text-[10px] sm:text-[11px] font-bold text-slate-500 dark:text-slate-300 flex items-center gap-1.5">
+                    {enableAudioFeedback ? <Volume2 className="w-3.5 h-3.5 text-indigo-500" /> : <VolumeX className="w-3.5 h-3.5 text-slate-400" />}
+                    Beep Sound
                   </span>
                 </label>
 
@@ -5058,9 +5112,19 @@ export default function QrGenerator({
                         </div>
                       )}
                       {enableScanLine && (
-                        <div
-                          className="absolute left-0 right-0 h-0.5 bg-indigo-500 shadow-[0_0_10px_#6366f1] opacity-85 pointer-events-none print:hidden z-10 animate-active-qr-scan"
-                        />
+                        <div className="absolute inset-0 pointer-events-none overflow-hidden rounded-2xl z-10 print:hidden select-none">
+                          {/* Corner custom target brackets that pulse */}
+                          <div className="absolute top-3 left-3 w-4 h-4 border-t-2 border-l-2 border-indigo-500 dark:border-indigo-400 rounded-tl animate-pulse opacity-80" />
+                          <div className="absolute top-3 right-3 w-4 h-4 border-t-2 border-r-2 border-indigo-500 dark:border-indigo-400 rounded-tr animate-pulse opacity-80" />
+                          <div className="absolute bottom-3 left-3 w-4 h-4 border-b-2 border-l-2 border-indigo-500 dark:border-indigo-400 rounded-bl animate-pulse opacity-80" />
+                          <div className="absolute bottom-3 right-3 w-4 h-4 border-b-2 border-r-2 border-indigo-500 dark:border-indigo-400 rounded-br animate-pulse opacity-80" />
+
+                          {/* Beautiful ambient scanning sweep gradient */}
+                          <div className="absolute left-3 right-3 h-20 bg-gradient-to-b from-indigo-500/0 via-indigo-500/10 to-indigo-500/0 pointer-events-none animate-active-qr-scan-gradient" />
+
+                          {/* Highly dynamic neon laser sweep line */}
+                          <div className="absolute left-0 right-0 h-[3px] bg-gradient-to-r from-transparent via-indigo-500 to-transparent shadow-[0_0_12px_#6366f1,0_0_3px_#ffffff] pointer-events-none animate-active-qr-scan-line" />
+                        </div>
                       )}
                       
                       {isScanningLaserActive && (

@@ -221,6 +221,8 @@ export default function ColorExtractor({
   const [selectedGradientBaseHex, setSelectedGradientBaseHex] = useState<string | null>(null);
   const [gradientAngle, setGradientAngle] = useState<string>("135deg");
 
+  const isAutoUpdatingRef = useRef<boolean>(false);
+
   useEffect(() => {
     if (palette.length > 0) {
       if (!selectedGradientBaseHex || !palette.some(p => p.hex === selectedGradientBaseHex)) {
@@ -229,10 +231,17 @@ export default function ColorExtractor({
     } else {
       setSelectedGradientBaseHex(null);
     }
-    // Reset suggested names on palette changes so they don't stay stale
-    setSuggestedNames([]);
-    setNamingError(null);
-    setCustomPaletteName("");
+    
+    // Reset suggested names on palette changes so they don't stay stale,
+    // unless this is an automatic update (e.g. initial image extraction or random palette generation)
+    if (!isAutoUpdatingRef.current) {
+      setSuggestedNames([]);
+      setNamingError(null);
+      setCustomPaletteName("");
+    } else {
+      // Clear flag after use
+      isAutoUpdatingRef.current = false;
+    }
   }, [palette]);
 
   const [sessionHistory, setSessionHistory] = useState<SessionPalette[]>(() => {
@@ -624,9 +633,13 @@ export default function ColorExtractor({
         });
 
         const nameToUse = customFileName || fileName || "Extracted Palette";
+        isAutoUpdatingRef.current = true;
         setPalette(paletteColors);
         setIsProcessing(false);
         addToHistory(paletteColors, nameToUse, imgSrc);
+
+        // Automatically generate descriptive names for extracted palettes using AI based on the color composition
+        handleSuggestPaletteNames(paletteColors);
       };
       img.src = imgSrc;
     }, 750);
@@ -1121,6 +1134,7 @@ export default function ColorExtractor({
     });
 
     // Save state & persist
+    isAutoUpdatingRef.current = true;
     setPalette(randomPalette);
     
     // Set file name parameter to indicate it's generated
@@ -1132,6 +1146,9 @@ export default function ColorExtractor({
     setImageUrl(null);
 
     addToHistory(randomPalette, randomName, null);
+
+    // Automatically generate descriptive names for generated palettes using AI based on the color composition
+    handleSuggestPaletteNames(randomPalette);
 
     // Register Activity Logs beautifully
     window.dispatchEvent(new CustomEvent("toolkit-add-activity", {
@@ -1283,8 +1300,9 @@ export default function ColorExtractor({
     ];
   };
 
-  const handleSuggestPaletteNames = async () => {
-    if (palette.length === 0) return;
+  const handleSuggestPaletteNames = async (paletteToUse?: PaletteColor[]) => {
+    const activePalette = paletteToUse || palette;
+    if (activePalette.length === 0) return;
     setIsSuggestingNames(true);
     setNamingError(null);
 
@@ -1294,7 +1312,7 @@ export default function ColorExtractor({
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ colors: palette }),
+        body: JSON.stringify({ colors: activePalette }),
       });
 
       if (!response.ok) {
@@ -1305,8 +1323,8 @@ export default function ColorExtractor({
       const data = await response.json();
       if (data && Array.isArray(data.names)) {
         setSuggestedNames(data.names);
-        // Pre-fill with the first suggestion if custom name isn't already set
-        if (!customPaletteName) {
+        // Pre-fill with the first suggestion
+        if (data.names.length > 0) {
           setCustomPaletteName(data.names[0].name);
         }
       } else {
@@ -2926,7 +2944,20 @@ export default function ColorExtractor({
                         </div>
                       </div>
                       
-                      <div className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-6 gap-3.5 palette-swatches-grid extracted-palette-view">
+                      <motion.div
+                        variants={{
+                          hidden: { opacity: 0 },
+                          show: {
+                            opacity: 1,
+                            transition: {
+                              staggerChildren: 0.05
+                            }
+                          }
+                        }}
+                        initial="hidden"
+                        animate="show"
+                        className="grid grid-cols-2 xs:grid-cols-3 sm:grid-cols-6 gap-3.5 palette-swatches-grid extracted-palette-view"
+                      >
                         {filteredPalette.length > 0 ? (
                           filteredPalette.map((color, idx) => {
                             const simulatedColor = simulateColorBlindness(color.hex, colorBlindnessMode);
@@ -2955,11 +2986,42 @@ export default function ColorExtractor({
                             const contrastWhite = getContrastRatio(simulatedColor, "#ffffff");
                             const contrastBlack = getContrastRatio(simulatedColor, "#000000");
 
+                            const bestContrast = Math.max(contrastWhite, contrastBlack);
+                            const passesAAA = bestContrast >= 7.0;
+                            const passesAA = bestContrast >= 4.5;
+                            const passesLarge = bestContrast >= 3.0;
+
+                            let accessibilityLabel = "Low Contrast";
+                            let accessibilityTitle = "This color has insufficient contrast for body text (WCAG Fail).";
+                            if (passesAAA) {
+                              accessibilityLabel = "WCAG AAA";
+                              accessibilityTitle = `Excellent contrast! Highly readable body text with ${contrastWhite >= 7.0 ? 'White' : 'Black'} text (${bestContrast.toFixed(1)}:1 ratio).`;
+                            } else if (passesAA) {
+                              accessibilityLabel = "WCAG AA";
+                              accessibilityTitle = `Good contrast. Readable body text with ${contrastWhite >= 4.5 ? 'White' : 'Black'} text (${bestContrast.toFixed(1)}:1 ratio).`;
+                            } else if (passesLarge) {
+                              accessibilityLabel = "AA Lrg";
+                              accessibilityTitle = `Suitable for large headings/titles (minimum 3:1 ratio), but not standard body text.`;
+                            }
+
                             const actualPaletteIndex = palette.findIndex(p => p.hex === color.hex);
 
                             return (
                               <motion.div
                                 key={idx}
+                                variants={{
+                                  hidden: { opacity: 0, y: 15, scale: 0.93 },
+                                  show: { 
+                                    opacity: 1, 
+                                    y: 0, 
+                                    scale: 1,
+                                    transition: {
+                                      type: "spring",
+                                      stiffness: 260,
+                                      damping: 22
+                                    }
+                                  }
+                                }}
                                 draggable
                                 onDragStart={(e) => handleDragStartSwatch(e, idx, filteredPalette)}
                                 onDragOver={(e) => handleDragOverSwatch(e, idx, filteredPalette)}
@@ -2997,6 +3059,23 @@ export default function ColorExtractor({
                                       {paletteSortMode === "brightness" && `BRT ${hsl.l}%`}
                                     </span>
                                   </div>
+
+                                  {/* Contrast Accessibility Badge */}
+                                  <div
+                                    style={{
+                                      color: dynamicContrastColor,
+                                      borderColor: `${dynamicContrastColor}20`,
+                                      backgroundColor: `${dynamicContrastColor}10`
+                                    }}
+                                    className="text-[7.5px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-md border flex items-center gap-1 origin-right scale-90 select-none"
+                                    title={accessibilityTitle}
+                                  >
+                                    <span className={`w-1 h-1 rounded-full shrink-0 ${
+                                      passesAAA ? "bg-emerald-500" : passesAA ? "bg-amber-500" : passesLarge ? "bg-orange-500" : "bg-rose-500"
+                                    }`} />
+                                    <span>{accessibilityLabel}</span>
+                                  </div>
+
                                   {isCopied ? (
                                     <Check 
                                       style={{ color: dynamicContrastColor }} 
@@ -3173,7 +3252,7 @@ export default function ColorExtractor({
                             </button>
                           </div>
                         )}
-                      </div>
+                      </motion.div>
                     </>
                   );
                 })()}

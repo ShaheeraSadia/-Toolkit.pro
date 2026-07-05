@@ -1261,22 +1261,82 @@ export default function DriveExplorer({
       )}
 
       {isLoading ? (
-        <div className="space-y-4">
-          <div className="flex items-center gap-2 text-xs text-indigo-600 dark:text-indigo-400 font-extrabold font-mono animate-pulse">
+        <div className="space-y-6">
+          <div className="flex items-center gap-2 text-xs text-indigo-600 dark:text-indigo-400 font-extrabold font-mono">
             <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-505" />
-            <span>SYNCLOOP IN PROGRESS: PREFETCHED {files.length} STORAGE NODES...</span>
+            <span>SYNCLOOP IN PROGRESS: PREFETCHING SECURE STORAGE NODES...</span>
           </div>
-          {/* Progress Loader grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 animate-pulse">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="bg-white dark:bg-slate-900 border border-slate-105 dark:border-slate-800 rounded-2xl h-44 p-4 flex flex-col justify-between">
-                <div className="w-full h-24 bg-slate-100 dark:bg-slate-800/80 rounded-xl" />
-                <div className="space-y-1.5 mt-2">
-                  <div className="h-3 w-3/4 bg-slate-100 dark:bg-slate-800/80 rounded" />
-                  <div className="h-2 w-1/2 bg-slate-100 dark:bg-slate-800/80 rounded" />
+
+          <div className="space-y-8 text-left w-full">
+            {/* Folder Skeletons Grid (only when tree mode is active) */}
+            {viewMode === "tree" && (
+              <div className="space-y-3">
+                <h5 className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500 pl-1 flex items-center gap-1.5">
+                  <Folder className="w-3.5 h-3.5 text-slate-300 dark:text-slate-700 animate-pulse" />
+                  <span>Loading Folders...</span>
+                </h5>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                  {[1, 2, 3, 4, 5, 6].map((i) => (
+                    <div
+                      key={`folder-sk-${i}`}
+                      className="bg-white dark:bg-slate-900 px-4 py-3.5 border border-slate-200 dark:border-slate-800 rounded-2xl flex items-center justify-between shadow-2xs"
+                    >
+                      <div className="flex items-center space-x-3 w-full">
+                        <div className="p-2 bg-slate-50 dark:bg-slate-950 rounded-xl w-8 h-8 shrink-0 flex items-center justify-center">
+                          <div className="w-4 h-4 rounded-md shimmer opacity-80" />
+                        </div>
+                        <div className="h-3 w-2/3 rounded-lg shimmer opacity-80" />
+                      </div>
+                    </div>
+                  ))}
                 </div>
               </div>
-            ))}
+            )}
+
+            {/* File Skeletons Grid */}
+            <div className="space-y-3">
+              <h5 className="text-[11px] font-extrabold uppercase tracking-widest text-slate-400 dark:text-slate-500 flex items-center gap-1.5 pl-1">
+                <FileImage className="w-3.5 h-3.5 text-slate-300 dark:text-slate-700 animate-pulse" />
+                <span>Loading Files...</span>
+              </h5>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
+                {[1, 2, 3, 4, 5, 6, 7, 8].map((i) => (
+                  <div
+                    key={`file-sk-${i}`}
+                    className="bg-white dark:bg-slate-950 rounded-2xl border border-slate-100 dark:border-slate-850 overflow-hidden shadow-sm flex flex-col justify-between"
+                  >
+                    {/* Upper thumbnail container skeleton */}
+                    <div className="h-36 bg-slate-50 dark:bg-slate-900/60 border-b border-slate-50 dark:border-slate-850/60 flex items-center justify-center relative overflow-hidden">
+                      {/* Category Badge skeleton */}
+                      <div className="absolute top-2.5 left-2.5 h-5 w-12 rounded bg-slate-200 dark:bg-slate-800 shimmer" />
+                      
+                      {/* Checkbox skeleton */}
+                      <div className="absolute top-2.5 right-2.5 h-5.5 w-5.5 rounded-lg bg-slate-200 dark:bg-slate-800 shimmer" />
+
+                      {/* Center Image Placeholder */}
+                      <FileImage className="w-10 h-10 text-slate-200/60 dark:text-slate-800/40" />
+                    </div>
+
+                    {/* File Info parameters skeleton */}
+                    <div className="p-4 space-y-3.5 flex-1 flex flex-col justify-between text-left">
+                      <div>
+                        <div className="h-3.5 w-5/6 rounded-lg shimmer" />
+                        <div className="h-2.5 w-1/3 rounded-md mt-2.5 shimmer" />
+                      </div>
+
+                      {/* Action drawers skeleton */}
+                      <div className="flex items-center justify-between pt-2.5 border-t border-slate-100 dark:border-slate-850 text-xs">
+                        <div className="flex items-center gap-1">
+                          <div className="h-7.5 w-8 rounded-lg bg-slate-105 dark:bg-slate-850 shimmer" />
+                          <div className="h-7.5 w-8 rounded-lg bg-slate-105 dark:bg-slate-850 shimmer" />
+                        </div>
+                        <div className="h-7.5 w-16 rounded-lg bg-slate-105 dark:bg-slate-850 shimmer" />
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
         </div>
       ) : viewMode === "tree" && currentFolders.length === 0 && currentFiles.length === 0 ? (

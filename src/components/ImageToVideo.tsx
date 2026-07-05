@@ -39,6 +39,7 @@ import {
   Info,
   Check,
   RefreshCw,
+  Copy,
   Sliders,
   Scissors,
   Clock,
@@ -73,7 +74,7 @@ interface ImageSlide {
   duration: number; // in seconds
   text: string;
   textAnimation: "typewriter" | "fade" | "pop" | "slide-up" | "none";
-  filter: "normal" | "noir" | "vintage" | "cinematic-warm" | "cyberpunk" | "vhs" | "retro";
+  filter: "normal" | "noir" | "vintage" | "cinematic-warm" | "cyberpunk" | "vhs" | "retro" | "glitch-synth" | "dreamy-pastel" | "matrix-code";
   scaleStart: number;
   scaleEnd: number;
   // AI Prompt generator fields
@@ -1065,7 +1066,7 @@ export default function ImageToVideo({
   const [audioVolume, setAudioVolume] = useState<number>(0.3);
   const [audioFadeIn, setAudioFadeIn] = useState<boolean>(true);
   const [audioFadeOut, setAudioFadeOut] = useState<boolean>(true);
-  const [transitionStyle, setTransitionStyle] = useState<"fade" | "slide-left" | "slide-right" | "zoom" | "flash" | "none">("fade");
+  const [transitionStyle, setTransitionStyle] = useState<"fade" | "slide-left" | "slide-right" | "zoom" | "flash" | "cross-zoom" | "curtain-wipe" | "blur-fade" | "glitch-wave" | "none">("fade");
   const [transitionDuration, setTransitionDuration] = useState<number>(0.6);
   const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16" | "1:1">("16:9");
   const [videoPlaybackSpeed, setVideoPlaybackSpeed] = useState<number>(1.0);
@@ -1137,6 +1138,11 @@ export default function ImageToVideo({
   const [flowAiNegativePromptText, setFlowAiNegativePromptText] = useState<string>("");
   const [flowAiIntensityValue, setFlowAiIntensityValue] = useState<number>(1.0);
   const [flowAiFailures, setFlowAiFailures] = useState<Record<string, boolean>>({});
+
+  // AI Subtitle Generator states
+  const [isGeneratingSubtitles, setIsGeneratingSubtitles] = useState<boolean>(false);
+  const [subtitleGenerationMode, setSubtitleGenerationMode] = useState<"prompt" | "audio">("prompt");
+  const [subtitleThemePrompt, setSubtitleThemePrompt] = useState<string>("");
 
   useEffect(() => {
     const active = slides.find(s => s.id === selectedSlideId);
@@ -1752,6 +1758,88 @@ export default function ImageToVideo({
   const deleteSlide = (id: string) => {
     setSlides((prev) => prev.filter((s) => s.id !== id));
     triggerBeepChime();
+  };
+
+  // Duplicate slide
+  const duplicateSlide = (id: string) => {
+    setSlides((prev) => {
+      const idx = prev.findIndex((s) => s.id === id);
+      if (idx === -1) return prev;
+      const slideToDup = prev[idx];
+      const duplicated: ImageSlide = {
+        ...slideToDup,
+        id: `dup-${slideToDup.id}-${Date.now()}`,
+        name: slideToDup.name.includes(" (Copy)") ? slideToDup.name : `${slideToDup.name} (Copy)`
+      };
+      const copy = [...prev];
+      copy.splice(idx + 1, 0, duplicated);
+      return copy;
+    });
+    triggerBeepChime();
+    setToastMessage({
+      text: "👯 Slide Duplicated",
+      sub: "Cloned slide and inserted it in the timeline track.",
+      success: true
+    });
+  };
+
+  // Split slide at playhead
+  const splitSlideAtPlayhead = () => {
+    let cumulativeTime = 0;
+    let targetIndex = -1;
+    for (let i = 0; i < slides.length; i++) {
+      if (currentTime >= cumulativeTime && currentTime < cumulativeTime + slides[i].duration) {
+        targetIndex = i;
+        break;
+      }
+      cumulativeTime += slides[i].duration;
+    }
+
+    if (targetIndex === -1) {
+      setToastMessage({
+        text: "⚠️ Split Failed",
+        sub: "The playhead must be positioned over a slide to split.",
+        success: false
+      });
+      return;
+    }
+
+    const slideToSplit = slides[targetIndex];
+    const localTime = currentTime - cumulativeTime;
+
+    if (localTime < 0.2 || localTime > slideToSplit.duration - 0.2) {
+      setToastMessage({
+        text: "⚠️ Split Failed",
+        sub: "Cannot split too close to the beginning or end of a clip.",
+        success: false
+      });
+      return;
+    }
+
+    const firstHalf: ImageSlide = {
+      ...slideToSplit,
+      duration: parseFloat(localTime.toFixed(2)),
+    };
+
+    const secondHalf: ImageSlide = {
+      ...slideToSplit,
+      id: `split-${slideToSplit.id}-${Date.now()}`,
+      name: `${slideToSplit.name} (Part 2)`,
+      duration: parseFloat((slideToSplit.duration - localTime).toFixed(2)),
+    };
+
+    setSlides((prev) => {
+      const copy = [...prev];
+      copy.splice(targetIndex, 1, firstHalf, secondHalf);
+      return copy;
+    });
+
+    triggerBeepChime();
+    setToastMessage({
+      text: "✂️ Clip Split Successfully",
+      sub: `Split clip into two parts at ${currentTime.toFixed(1)}s.`,
+      success: true
+    });
   };
 
   // Update slide property
@@ -2523,6 +2611,93 @@ export default function ImageToVideo({
     }
   };
 
+  const handleGenerateSubtitles = async () => {
+    if (slides.length === 0) {
+      setToastMessage({
+        text: "No slides in timeline",
+        sub: "Please add at least one image or scene to the timeline first.",
+        success: false
+      });
+      return;
+    }
+
+    setIsGeneratingSubtitles(true);
+    triggerBeepChime();
+
+    try {
+      // Find the visual contexts of each slide
+      const slideContexts = slides.map((slide, idx) => {
+        return `Slide #${idx + 1}: name="${slide.name || ""}", current_caption="${slide.text || ""}", visual_prompt="${slide.subjectDescription || ""}"`;
+      });
+
+      // Get information about selected soundtrack
+      let selectedTrackName = "Custom Track";
+      let selectedTrackGenre = "Ambient";
+      let selectedTrackDesc = "Atmospheric background score";
+
+      if (audioTrackMode === "synth") {
+        const found = SOUNDTRACK_LIBRARY.find(t => t.id === soundtrack);
+        if (found) {
+          selectedTrackName = found.name;
+          selectedTrackGenre = found.genre;
+          selectedTrackDesc = found.desc;
+        }
+      } else if (audioTrackMode === "custom") {
+        selectedTrackName = customAudioName || "Custom Soundtrack Upload";
+        selectedTrackGenre = "User Uploaded";
+        selectedTrackDesc = "Custom background music track";
+      }
+
+      const activePrompt = subtitleThemePrompt.trim() || userPromptText.trim() || "A beautiful scenic slideshow journey";
+
+      const response = await fetch("/api/video/generate-subtitles", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mode: subtitleGenerationMode,
+          prompt: activePrompt,
+          audioName: selectedTrackName,
+          audioGenre: selectedTrackGenre,
+          audioDescription: selectedTrackDesc,
+          numSlides: slides.length,
+          slideContexts
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Subtitle generation failed from AI");
+      }
+
+      const data = await response.json();
+      
+      if (data.subtitles && Array.isArray(data.subtitles)) {
+        setSlides(prev => prev.map((slide, idx) => ({
+          ...slide,
+          text: data.subtitles[idx] || slide.text
+        })));
+
+        setToastMessage({
+          text: "✨ AI Subtitles Generated!",
+          sub: `Successfully generated ${data.subtitles.length} thematic slide captions matching your video flow!`,
+          success: true
+        });
+        triggerBeepChime();
+      } else {
+        throw new Error("Invalid subtitles format received");
+      }
+
+    } catch (err: any) {
+      console.error("Failed to generate subtitles:", err);
+      setToastMessage({
+        text: "Subtitle generation failed",
+        sub: err.message || "Something went wrong. Please check your connection.",
+        success: false
+      });
+    } finally {
+      setIsGeneratingSubtitles(false);
+    }
+  };
+
   // Reordering helpers
   const moveSlide = (index: number, direction: "up" | "down") => {
     if (direction === "up" && index === 0) return;
@@ -2680,6 +2855,12 @@ export default function ImageToVideo({
           activeFilter = "contrast(112%) saturate(125%) hue-rotate(5deg) brightness(98%)";
         } else if (targetSlide.filter === "retro") {
           activeFilter = "sepia(42%) saturate(108%) contrast(95%)";
+        } else if (targetSlide.filter === "glitch-synth") {
+          activeFilter = "contrast(135%) saturate(220%) hue-rotate(90deg) brightness(110%)";
+        } else if (targetSlide.filter === "dreamy-pastel") {
+          activeFilter = "brightness(118%) saturate(80%) contrast(92%) sepia(12%)";
+        } else if (targetSlide.filter === "matrix-code") {
+          activeFilter = "hue-rotate(65deg) saturate(160%) contrast(125%) brightness(88%)";
         }
       }
       ctx.filter = activeFilter;
@@ -2894,6 +3075,67 @@ export default function ImageToVideo({
           ctx.fillStyle = `rgba(255, 255, 255, ${(1 - partProgress) * 0.85})`;
           ctx.fillRect(0, 0, width, height);
         }
+      }
+      else if (transitionStyle === "cross-zoom") {
+        ctx.save();
+        ctx.translate(width / 2, height / 2);
+        const prevZoom = 1.0 + transProgress * 0.5;
+        ctx.scale(prevZoom, prevZoom);
+        ctx.translate(-width / 2, -height / 2);
+        drawSlideWithTransformAndFilter(prevSlide, 1.0, 1 - transProgress);
+        ctx.restore();
+
+        ctx.save();
+        ctx.translate(width / 2, height / 2);
+        const nextZoom = 0.5 + transProgress * 0.5;
+        ctx.scale(nextZoom, nextZoom);
+        ctx.translate(-width / 2, -height / 2);
+        drawSlideWithTransformAndFilter(slide, slideProgress, transProgress);
+        ctx.restore();
+      }
+      else if (transitionStyle === "curtain-wipe") {
+        drawSlideWithTransformAndFilter(prevSlide, 1.0, 1.0);
+
+        ctx.save();
+        ctx.beginPath();
+        const curtainWidth = width * transProgress;
+        ctx.rect((width - curtainWidth) / 2, 0, curtainWidth, height);
+        ctx.clip();
+        drawSlideWithTransformAndFilter(slide, slideProgress, 1.0);
+        ctx.restore();
+      }
+      else if (transitionStyle === "blur-fade") {
+        ctx.save();
+        const oldBlur = transProgress * 15;
+        ctx.filter = `blur(${oldBlur}px)`;
+        drawSlideWithTransformAndFilter(prevSlide, 1.0, 1 - transProgress);
+        ctx.restore();
+
+        ctx.save();
+        const newBlur = (1 - transProgress) * 15;
+        ctx.filter = `blur(${newBlur}px)`;
+        drawSlideWithTransformAndFilter(slide, slideProgress, transProgress);
+        ctx.restore();
+      }
+      else if (transitionStyle === "glitch-wave") {
+        ctx.save();
+        if (transProgress < 0.5) {
+          const shift = Math.sin(transProgress * 40) * 15;
+          ctx.translate(shift, 0);
+          drawSlideWithTransformAndFilter(prevSlide, 1.0, 1 - transProgress);
+        } else {
+          const shift = Math.cos(transProgress * 40) * 15;
+          ctx.translate(shift, 0);
+          drawSlideWithTransformAndFilter(slide, slideProgress, transProgress);
+        }
+        ctx.restore();
+        
+        ctx.save();
+        ctx.fillStyle = `rgba(244, 63, 94, ${0.15 * Math.sin(transProgress * Math.PI)})`;
+        ctx.fillRect(0, (transProgress * height) % height, width, 12);
+        ctx.fillStyle = `rgba(6, 182, 212, ${0.15 * Math.cos(transProgress * Math.PI)})`;
+        ctx.fillRect(0, ((1 - transProgress) * height) % height, width, 8);
+        ctx.restore();
       }
     } else {
       // Standard static slide display
@@ -5410,6 +5652,10 @@ export default function ImageToVideo({
                 <option value="slide-right">⚡ Slide Right</option>
                 <option value="zoom">🔍 Scaling Zoom</option>
                 <option value="flash">✨ Flash Transition</option>
+                <option value="cross-zoom">🎯 Cinematic Cross Zoom</option>
+                <option value="curtain-wipe">🚪 Sliding Curtain Wipe</option>
+                <option value="blur-fade">🌫️ Dreamy Blur Fade</option>
+                <option value="glitch-wave">👾 Digital Glitch Wave</option>
                 <option value="none">❌ Cut (No Transition)</option>
               </select>
             </div>
@@ -7291,6 +7537,9 @@ export default function ImageToVideo({
                           <option value="cyberpunk">👾 Cyberpunk Neon</option>
                           <option value="vhs">📹 VHS Retro Tape</option>
                           <option value="retro">🌅 Nostalgic Glow</option>
+                          <option value="glitch-synth">👾 Cyberpunk Glitch Synth</option>
+                          <option value="dreamy-pastel">☁️ Dreamy Soft Pastel</option>
+                          <option value="matrix-code">📟 Futuristic Matrix Code</option>
                         </select>
                       </div>
                     </div>
@@ -7358,6 +7607,34 @@ export default function ImageToVideo({
                 <p className="text-xs font-bold text-slate-650 dark:text-slate-350 truncate mt-1">
                   Adjusting: {selectedSlide.name}
                 </p>
+              </div>
+
+              {/* Quick Clip Actions (Duplicate, Split) */}
+              <div className="space-y-1.5 pt-1">
+                <span className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  Quick Frame Actions:
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => duplicateSlide(selectedSlide.id)}
+                    className="flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold text-slate-700 hover:text-slate-950 bg-slate-100 hover:bg-slate-200 dark:text-slate-300 dark:hover:text-slate-100 dark:bg-slate-800 dark:hover:bg-slate-750 rounded-xl border border-slate-200/50 dark:border-slate-700/60 transition-all cursor-pointer active:scale-95"
+                    title="Clone this slide with its filters, captions, and zoom factor"
+                  >
+                    <Copy className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>Duplicate</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={splitSlideAtPlayhead}
+                    className="flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-bold text-slate-700 hover:text-slate-950 bg-slate-100 hover:bg-slate-200 dark:text-slate-300 dark:hover:text-slate-100 dark:bg-slate-800 dark:hover:bg-slate-750 rounded-xl border border-slate-200/50 dark:border-slate-700/60 transition-all cursor-pointer active:scale-95"
+                    title="Split this clip into two at the current timeline playhead"
+                  >
+                    <Scissors className="w-3.5 h-3.5 text-rose-500" />
+                    <span>Split Clip</span>
+                  </button>
+                </div>
               </div>
 
               {/* Duration slider */}
@@ -7446,6 +7723,9 @@ export default function ImageToVideo({
                     <option value="cyberpunk">👾 Cyberpunk Hue</option>
                     <option value="vhs">📼 VHS Glitch</option>
                     <option value="retro">🎞️ Retro Film</option>
+                    <option value="glitch-synth">👾 Cyberpunk Glitch Synth</option>
+                    <option value="dreamy-pastel">☁️ Dreamy Soft Pastel</option>
+                    <option value="matrix-code">📟 Futuristic Matrix Code</option>
                   </select>
                 </div>
 
@@ -9944,6 +10224,126 @@ export default function ImageToVideo({
                   );
                 })}
               </div>
+            </div>
+
+            {/* AI Subtitles Generator block */}
+            <div className="border border-indigo-100 dark:border-indigo-950/60 p-4 rounded-2xl bg-indigo-50/20 dark:bg-indigo-950/10 space-y-3 shadow-xs">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase text-indigo-500 tracking-wider flex items-center gap-1.5">
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />
+                  <span>Gemini AI Subtitles Generator</span>
+                </span>
+                <span className="text-[8px] font-bold text-indigo-600 bg-indigo-50 dark:bg-indigo-950/60 px-1.5 py-0.5 rounded uppercase font-mono tracking-wider">
+                  3.5 Flash
+                </span>
+              </div>
+
+              {/* Mode Toggle Tabs */}
+              <div className="grid grid-cols-2 gap-1.5 p-1 bg-white/60 dark:bg-slate-950 rounded-xl">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSubtitleGenerationMode("prompt");
+                    triggerBeepChime();
+                  }}
+                  className={`py-1 text-[9.5px] font-extrabold uppercase rounded-lg transition-all cursor-pointer ${
+                    subtitleGenerationMode === "prompt"
+                      ? "bg-indigo-600 text-white shadow-xs"
+                      : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                  }`}
+                >
+                  📝 Video Prompt
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSubtitleGenerationMode("audio");
+                    triggerBeepChime();
+                  }}
+                  className={`py-1 text-[9.5px] font-extrabold uppercase rounded-lg transition-all cursor-pointer ${
+                    subtitleGenerationMode === "audio"
+                      ? "bg-indigo-600 text-white shadow-xs"
+                      : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                  }`}
+                >
+                  🎙️ Audio Track
+                </button>
+              </div>
+
+              {/* Theme Prompt Input Box */}
+              {subtitleGenerationMode === "prompt" ? (
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider">
+                      Narrative Prompt Theme:
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSubtitleThemePrompt(userPromptText || "A mysterious journey through the golden mist of autumn");
+                        triggerBeepChime();
+                      }}
+                      className="text-[8.5px] text-indigo-600 hover:text-indigo-500 hover:underline font-bold cursor-pointer"
+                    >
+                      Sync Video Prompt
+                    </button>
+                  </div>
+                  <textarea
+                    rows={2}
+                    value={subtitleThemePrompt}
+                    onChange={(e) => setSubtitleThemePrompt(e.target.value)}
+                    placeholder={userPromptText || "Describe your narrative arc, lyrics, or cinematic story path..."}
+                    className="w-full text-[11px] p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-indigo-500 font-medium"
+                  />
+                  <p className="text-[8px] text-slate-400 leading-tight">
+                    Gemini will compose a perfectly matched story subtitle sequence spread sequentially across all timeline frames.
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  <div className="p-2.5 rounded-xl border border-indigo-100/50 bg-indigo-50/10 dark:bg-slate-950/40 text-[10px] space-y-1.5 leading-snug">
+                    <span className="font-extrabold block text-indigo-500 dark:text-indigo-400 text-[9px] uppercase tracking-wider">
+                      Active Background Audio:
+                    </span>
+                    <div className="flex items-center gap-1.5 font-mono text-slate-700 dark:text-slate-300 truncate">
+                      <span>🎵</span>
+                      <span className="font-bold truncate">
+                        {audioTrackMode === "synth"
+                          ? SOUNDTRACK_LIBRARY.find(t => t.id === soundtrack)?.name || "Silent"
+                          : customAudioName || "Custom Soundtrack Upload"}
+                      </span>
+                    </div>
+                    <div className="text-[8px] text-slate-450 italic leading-normal">
+                      {audioTrackMode === "synth"
+                        ? SOUNDTRACK_LIBRARY.find(t => t.id === soundtrack)?.desc || "Procedural atmospheric soundtrack"
+                        : "User-uploaded background sound track"}
+                    </div>
+                  </div>
+                  <p className="text-[8px] text-slate-400 leading-tight">
+                    Gemini will analyze the theme, bpm, and feel of this track to transcribe or generate beautiful synchronistic subtitle lyric layers.
+                  </p>
+                </div>
+              )}
+
+              {/* Generate Button */}
+              <button
+                type="button"
+                onClick={handleGenerateSubtitles}
+                disabled={isGeneratingSubtitles}
+                className="w-full py-2 px-3 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 disabled:from-slate-700 disabled:to-slate-800 disabled:opacity-50 text-white font-black uppercase tracking-wider text-[10px] rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md shadow-indigo-500/10"
+              >
+                {isGeneratingSubtitles ? (
+                  <>
+                    <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                    <span>Analyzing Flow & Generating Subtitles...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3.5 h-3.5" />
+                    <span>Generate Cinematic Subtitles</span>
+                  </>
+                )}
+              </button>
             </div>
 
             {/* Global Font Library Selector */}

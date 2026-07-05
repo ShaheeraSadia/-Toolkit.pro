@@ -298,6 +298,94 @@ Ensure all parameters are perfectly aligned with the mood, colors, and action sp
   }
 });
 
+// API route to auto-generate beautiful subtitle captions based on a prompt or audio track details
+app.post("/api/video/generate-subtitles", async (req, res) => {
+  try {
+    const activeApiKey = process.env.GEMINI_API_KEY;
+    if (!activeApiKey) {
+      return res.status(500).json({ 
+        error: "GEMINI_API_KEY is not configured in the host environment or Secrets panel." 
+      });
+    }
+
+    if (!ai) {
+      ai = new GoogleGenAI({
+        apiKey: activeApiKey,
+        httpOptions: {
+          headers: {
+            "User-Agent": "aistudio-build",
+          },
+        },
+      });
+    }
+
+    const { mode, prompt, audioName, audioGenre, audioDescription, numSlides, slideContexts } = req.body;
+    const slidesCount = numSlides || 1;
+    const slidesInfo = slideContexts && Array.isArray(slideContexts) ? slideContexts : [];
+
+    const systemInstruction = `You are an elite cinematic subtitle designer, creative copywriter, and audio transcriber.
+Your goal is to generate exactly ${slidesCount} sequential subtitle captions (one for each frame/slide of our video) that are beautiful, engaging, and highly descriptive.
+
+RULES:
+1. Provide a COMPACT JSON response.
+2. Do not include markdown code block syntax (like \`\`\`json) or any preamble or explanation. ONLY return a single valid JSON object.
+3. The response must follow this EXACT structure:
+{
+  "subtitles": [
+    string // Exactly ${slidesCount} subtitle strings. Each subtitle must be extremely punchy, creative, and strictly under 45 characters.
+  ]
+}
+4. Each subtitle must align sequentially with the provided slide context list, creating a beautiful narrative flow.
+5. Keep the vocabulary cinematic, poetic, and highly eye-catching.`;
+
+    let userPrompt = "";
+    if (mode === "audio") {
+      userPrompt = `Please transcribe or auto-generate a beautiful voiceover subtitle track matching this audio track context:
+- Track Name: "${audioName || "Custom Track"}"
+- Genre: "${audioGenre || "Ambient"}"
+- Description: "${audioDescription || "Atmospheric background score"}"
+- Total frames to caption: ${slidesCount}
+- Sequential Frame Visuals/Themes to match: ${JSON.stringify(slidesInfo)}`;
+    } else {
+      userPrompt = `Please generate beautiful, sequential video subtitle overlays based on this video prompt/theme:
+- Video Theme: "${prompt || "A cinematic journey"}"
+- Total frames to caption: ${slidesCount}
+- Sequential Frame Visuals/Themes to match: ${JSON.stringify(slidesInfo)}`;
+    }
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: userPrompt,
+      config: {
+        systemInstruction,
+        responseMimeType: "application/json",
+        temperature: 0.8,
+      },
+    });
+
+    const resText = response?.text?.trim() || "{}";
+    const parsedData = JSON.parse(resText);
+    
+    // Safety check to ensure we got an array of the right size
+    if (!parsedData.subtitles || !Array.isArray(parsedData.subtitles)) {
+      parsedData.subtitles = Array(slidesCount).fill("").map((_, i) => `Frame #${i + 1} Overlay`);
+    } else if (parsedData.subtitles.length < slidesCount) {
+      while (parsedData.subtitles.length < slidesCount) {
+        parsedData.subtitles.push(`Frame #${parsedData.subtitles.length + 1}`);
+      }
+    } else if (parsedData.subtitles.length > slidesCount) {
+      parsedData.subtitles = parsedData.subtitles.slice(0, slidesCount);
+    }
+
+    return res.json(parsedData);
+  } catch (error: any) {
+    console.error("Gemini subtitle generation error:", error);
+    return res.status(500).json({ 
+      error: error.message || "Subtitle generation failed due to a server-side error." 
+    });
+  }
+});
+
 // API route to shorten a URL utilizing high-availability failsafe providers (is.gd with tinyurl.com fallback)
 app.post("/api/url/shorten", async (req, res) => {
   try {
