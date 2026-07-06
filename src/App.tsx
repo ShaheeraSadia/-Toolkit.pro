@@ -461,7 +461,8 @@ export default function App() {
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [isLoadingDrive, setIsLoadingDrive] = useState<boolean>(false);
   
-  const [activeTab, setActiveTab] = useState<ActiveTab>(() => {
+  const [direction, setDirection] = useState<number>(0);
+  const [_activeTab, _setActiveTab] = useState<ActiveTab>(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get("tab") as ActiveTab;
@@ -471,6 +472,20 @@ export default function App() {
     }
     return "quote";
   });
+
+  const activeTab = _activeTab;
+  const setActiveTab = (newTab: ActiveTab | ((prev: ActiveTab) => ActiveTab)) => {
+    _setActiveTab((prev) => {
+      const resolvedTab = typeof newTab === "function" ? newTab(prev) : newTab;
+      const tabsList = ["quote", "compress", "qr", "palette", "video", "drive", "resources", "legal"];
+      const prevIndex = tabsList.indexOf(prev);
+      const currentIndex = tabsList.indexOf(resolvedTab);
+      if (prevIndex !== currentIndex && prevIndex !== -1 && currentIndex !== -1) {
+        setDirection(currentIndex > prevIndex ? 1 : -1);
+      }
+      return resolvedTab;
+    });
+  };
 
   const [hoveredTab, setHoveredTab] = useState<string | null>(null);
 
@@ -1658,10 +1673,10 @@ export default function App() {
           <AnimatePresence mode="wait">
             <motion.div
               key={isSitemapView ? "sitemap" : activeTab}
-              initial={{ opacity: 0, y: 15 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -15 }}
-              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              initial={{ opacity: 0, x: direction * 35 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -direction * 35 }}
+              transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
             >
               {isSitemapView ? (
                 <SitemapView

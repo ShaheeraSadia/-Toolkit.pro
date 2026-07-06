@@ -27,6 +27,8 @@ import {
   Sparkles,
   ArrowUpDown,
   Download,
+  LayoutGrid,
+  List,
 } from "lucide-react";
 
 interface DriveExplorerProps {
@@ -132,11 +134,12 @@ export default function DriveExplorer({
   // Sorting configuration states
   const [sortBy, setSortBy] = useState<"date" | "size" | "name">("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
+  const [displayMode, setDisplayMode] = useState<"grid" | "list">("grid");
 
   // Clear batch selection on navigation or search/filter parameters
   useEffect(() => {
     setSelectedFileIds([]);
-  }, [currentFolderId, search, filterType, viewMode]);
+  }, [currentFolderId, search, filterType, viewMode, displayMode]);
 
   const computeNewName = (originalName: string, index: number): string => {
     const dotIndex = originalName.lastIndexOf(".");
@@ -1242,6 +1245,36 @@ export default function DriveExplorer({
               </button>
             </div>
 
+            {/* Display Mode Switcher (Grid vs List) */}
+            <div className="bg-slate-200/65 dark:bg-slate-955 p-1 rounded-xl border border-slate-200/50 dark:border-slate-850 flex items-center text-xs gap-0.5">
+              <button
+                type="button"
+                onClick={() => setDisplayMode("grid")}
+                className={`p-1 px-2.5 rounded-lg font-bold transition-all cursor-pointer select-none flex items-center gap-1.5 ${
+                  displayMode === "grid"
+                    ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                    : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                }`}
+                title="Grid View"
+              >
+                <LayoutGrid className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Grid</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setDisplayMode("list")}
+                className={`p-1 px-2.5 rounded-lg font-bold transition-all cursor-pointer select-none flex items-center gap-1.5 ${
+                  displayMode === "list"
+                    ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
+                    : "text-slate-505 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                }`}
+                title="List View"
+              >
+                <List className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">List</span>
+              </button>
+            </div>
+
             {/* Create Folder button */}
             <button
               type="button"
@@ -1481,7 +1514,7 @@ export default function DriveExplorer({
               <div className="text-center text-xs text-slate-400 dark:text-slate-500 italic py-6">
                 No files inside this directory. Navigate to one of the folders above or upload files directly.
               </div>
-            ) : (
+            ) : displayMode === "grid" ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
                 {currentFiles.map((file) => {
                   const cat = getFileCategory(file.name);
@@ -1523,7 +1556,7 @@ export default function DriveExplorer({
                           <div className={`w-5.5 h-5.5 rounded-lg border flex items-center justify-center transition-all ${
                             isSelected
                               ? "bg-emerald-500 border-emerald-600 text-white scale-105 shadow"
-                              : "bg-slate-950/40 border-slate-700 hover:bg-slate-950/60 text-white opacity-40 group-hover:opacity-100"
+                              : "bg-slate-955/40 border-slate-700 hover:bg-slate-955/60 text-white opacity-40 group-hover:opacity-100"
                           }`}>
                             {isSelected ? (
                               <Check className="w-4 h-4 text-white stroke-[3.5]" />
@@ -1582,7 +1615,7 @@ export default function DriveExplorer({
                               setPreviewIndex(globalIndex);
                               setSelectedPreviewFile(file);
                             }}
-                            className="inline-flex items-center justify-center p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-700 dark:text-slate-300 transition-all gap-1 cursor-pointer"
+                            className="inline-flex items-center justify-center p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-707 dark:text-slate-300 transition-all gap-1 cursor-pointer"
                             title="Sleek File Preview"
                             id={`btn-preview-${file.id}`}
                           >
@@ -1596,7 +1629,7 @@ export default function DriveExplorer({
                               e.stopPropagation();
                               setMovingFile(file);
                             }}
-                            className="inline-flex items-center justify-center p-1.5 rounded-lg border border-slate-200 dark:border-slate-850 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-700 dark:text-slate-300 transition-all gap-1 cursor-pointer"
+                            className="inline-flex items-center justify-center p-1.5 rounded-lg border border-slate-200 dark:border-slate-850 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-707 dark:text-slate-300 transition-all gap-1 cursor-pointer"
                             title="Move file to another folder"
                           >
                             <Move className="w-3.5 h-3.5 text-slate-400" />
@@ -1621,7 +1654,7 @@ export default function DriveExplorer({
                               e.stopPropagation();
                               triggerRename(file, false);
                             }}
-                            className="inline-flex items-center justify-center p-1.5 rounded-lg text-slate-455 dark:text-slate-500 hover:text-indigo-650 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 border border-transparent hover:border-indigo-100 dark:hover:border-indigo-900/40 transition-all cursor-pointer"
+                            className="inline-flex items-center justify-center p-1.5 rounded-lg text-slate-455 dark:text-slate-505 hover:text-indigo-650 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-950/20 border border-transparent hover:border-indigo-100 dark:hover:border-indigo-900/40 transition-all cursor-pointer"
                             title="Rename file"
                           >
                             <Edit3 className="w-3.5 h-3.5" />
@@ -1635,7 +1668,7 @@ export default function DriveExplorer({
                               triggerDelete(file, false);
                             }}
                             disabled={isDeletingId === file.id}
-                            className="inline-flex items-center justify-center p-1.5 rounded-lg text-slate-455 dark:text-slate-500 hover:text-rose-600 dark:hover:text-rose-455 hover:bg-rose-50 dark:hover:bg-rose-955/20 border border-transparent hover:border-rose-100 dark:hover:border-rose-900/40 transition-all cursor-pointer"
+                            className="inline-flex items-center justify-center p-1.5 rounded-lg text-slate-455 dark:text-slate-505 hover:text-rose-600 dark:hover:text-rose-455 hover:bg-rose-50 dark:hover:bg-rose-955/20 border border-transparent hover:border-rose-100 dark:hover:border-rose-900/40 transition-all cursor-pointer"
                             title="Permanently remove file"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -1645,6 +1678,167 @@ export default function DriveExplorer({
                     </div>
                   );
                 })}
+              </div>
+            ) : (
+              <div className="border border-slate-150 dark:border-slate-800/80 rounded-2xl overflow-hidden bg-white dark:bg-slate-950 shadow-xs animate-fade-in text-left">
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left border-collapse">
+                    <thead>
+                      <tr className="border-b border-slate-150 dark:border-slate-850 bg-slate-50/50 dark:bg-slate-900/30 text-[10px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider">
+                        <th className="py-3 px-4 w-12 text-center select-none">Select</th>
+                        <th className="py-3 px-4">Name</th>
+                        <th className="py-3 px-4 hidden md:table-cell">Category</th>
+                        <th className="py-3 px-4 hidden sm:table-cell">Uploaded On</th>
+                        <th className="py-3 px-4 text-right pr-6 select-none">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-100 dark:divide-slate-850">
+                      {currentFiles.map((file) => {
+                        const cat = getFileCategory(file.name);
+                        const globalIndex = currentFiles.indexOf(file);
+                        const isSelected = selectedFileIds.includes(file.id);
+                        const isHighlighted = selectedPreviewFile?.id === file.id;
+                        return (
+                          <tr
+                            key={file.id}
+                            onClick={() => setSelectedPreviewFile(file)}
+                            onDoubleClick={() => {
+                              setPreviewIndex(globalIndex);
+                              setSelectedPreviewFile(file);
+                            }}
+                            className={`group hover:bg-slate-50/80 dark:hover:bg-slate-900/40 transition-colors cursor-pointer text-xs ${
+                              isHighlighted ? "bg-indigo-50/15 dark:bg-indigo-950/5" : ""
+                            }`}
+                          >
+                            {/* Checkbox */}
+                            <td className="py-3.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
+                              <div
+                                onClick={(e) => toggleSelectFile(file.id, e)}
+                                className="inline-flex cursor-pointer"
+                                title={isSelected ? "Deselect item" : "Select item"}
+                              >
+                                <div className={`w-5.5 h-5.5 rounded-lg border flex items-center justify-center transition-all ${
+                                  isSelected
+                                    ? "bg-emerald-500 border-emerald-600 text-white scale-105 shadow"
+                                    : "bg-transparent border-slate-300 dark:border-slate-700 hover:border-slate-400"
+                                }`}>
+                                  {isSelected && <Check className="w-3.5 h-3.5 text-white stroke-[3.5]" />}
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Name & Thumbnail */}
+                            <td className="py-3.5 px-4">
+                              <div className="flex items-center gap-3">
+                                <div className="w-9 h-9 rounded-lg overflow-hidden bg-slate-105 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 flex items-center justify-center shrink-0">
+                                  {file.thumbnailLink ? (
+                                    <img
+                                      src={file.thumbnailLink}
+                                      alt={file.name}
+                                      referrerPolicy="no-referrer"
+                                      className="w-full h-full object-cover"
+                                      loading="lazy"
+                                    />
+                                  ) : (
+                                    <FileImage className="w-4 h-4 text-slate-400 dark:text-slate-600" />
+                                  )}
+                                </div>
+                                <div className="min-w-0 max-w-[180px] sm:max-w-xs md:max-w-md lg:max-w-lg">
+                                  <div className="font-bold text-slate-800 dark:text-white truncate" title={file.name}>
+                                    {highlightMatch(file.name, search)}
+                                  </div>
+                                </div>
+                              </div>
+                            </td>
+
+                            {/* Category */}
+                            <td className="py-3.5 px-4 hidden md:table-cell">
+                              <span className="inline-flex items-center rounded bg-slate-100 dark:bg-slate-800 px-2 py-0.5 text-[9px] font-extrabold text-slate-600 dark:text-slate-400 uppercase tracking-wider">
+                                {cat}
+                              </span>
+                            </td>
+
+                            {/* Uploaded On */}
+                            <td className="py-3.5 px-4 hidden sm:table-cell text-slate-450 dark:text-slate-500 font-medium font-mono text-[10.5px]">
+                              {new Date(file.createdTime).toLocaleDateString()}
+                            </td>
+
+                            {/* Actions */}
+                            <td className="py-3.5 px-4 text-right pr-6" onClick={(e) => e.stopPropagation()}>
+                              <div className="inline-flex items-center gap-1">
+                                {/* Fast Preview Eye Action */}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setPreviewIndex(globalIndex);
+                                    setSelectedPreviewFile(file);
+                                  }}
+                                  className="inline-flex items-center justify-center p-1.5 rounded-lg border border-slate-250 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-707 dark:text-slate-300 transition-all cursor-pointer"
+                                  title="Sleek File Preview"
+                                  id={`list-btn-preview-${file.id}`}
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                </button>
+
+                                {/* Organize file structure location */}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setMovingFile(file);
+                                  }}
+                                  className="inline-flex items-center justify-center p-1.5 rounded-lg border border-slate-250 dark:border-slate-800 hover:bg-slate-55 dark:hover:bg-slate-900 text-slate-707 dark:text-slate-300 transition-all cursor-pointer"
+                                  title="Move file to another folder"
+                                >
+                                  <Move className="w-3.5 h-3.5 text-slate-400" />
+                                </button>
+
+                                {/* View File in Google Drive link */}
+                                <a
+                                  href={file.webViewLink}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center justify-center px-2 py-1.5 rounded-lg border border-slate-250 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-707 dark:text-slate-300 font-bold text-[10px] bg-white dark:bg-slate-900 transition-all gap-1 cursor-pointer"
+                                >
+                                  View
+                                  <ExternalLink className="w-3 h-3 text-slate-400 shrink-0" />
+                                </a>
+
+                                {/* Rename single file item */}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    triggerRename(file, false);
+                                  }}
+                                  className="inline-flex items-center justify-center p-1.5 rounded-lg text-slate-505 hover:text-indigo-650 dark:hover:text-indigo-400 hover:bg-indigo-50 dark:hover:bg-indigo-955/20 border border-transparent hover:border-indigo-100 dark:hover:border-indigo-900/40 transition-all cursor-pointer"
+                                  title="Rename file"
+                                >
+                                  <Edit3 className="w-3.5 h-3.5" />
+                                </button>
+
+                                {/* Delete item secure dispatch */}
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    triggerDelete(file, false);
+                                  }}
+                                  disabled={isDeletingId === file.id}
+                                  className="inline-flex items-center justify-center p-1.5 rounded-lg text-slate-505 hover:text-rose-605 dark:hover:text-rose-455 hover:bg-rose-50 dark:hover:bg-rose-955/20 border border-transparent hover:border-rose-100 dark:hover:border-rose-900/40 transition-all cursor-pointer"
+                                  title="Permanently remove file"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             )}
           </div>

@@ -14,6 +14,7 @@ interface SavedVariant {
   config: QuoteConfig;
   bgImage: string | null;
   typographyOffsetPageY: number;
+  typographyOffsetPageX?: number;
   pdfWatermarkX: number;
   pdfWatermarkY: number;
   pdfWatermarkEnabled: boolean;
@@ -371,6 +372,150 @@ const LAYOUT_TEMPLATES: LayoutTemplate[] = [
   }
 ];
 
+export interface PremadeTypographyTemplate {
+  id: string;
+  name: string;
+  category: string;
+  badge: string;
+  description: string;
+  fontFamily: string;
+  authorFontFamily: string;
+  fontSize: number;
+  textAlign: "left" | "center" | "right";
+  padding: number;
+  isBold: boolean;
+  isItalic: boolean;
+  fontColor: string;
+  overlayOpacity?: number;
+  overlayBlur?: number;
+  noiseOpacity?: number;
+  typographyOffsetPageX?: number;
+  typographyOffsetPageY?: number;
+}
+
+export const PREMADE_TYPOGRAPHY_TEMPLATES: PremadeTypographyTemplate[] = [
+  {
+    id: "modern_minimalist",
+    name: "Modern Minimalist",
+    category: "Minimalist",
+    badge: "Sleek & Clean",
+    description: "Centered, low-key, clean modern sans-serif typography with generous spacing and high contrast.",
+    fontFamily: "Inter",
+    authorFontFamily: "Space Grotesk",
+    fontSize: 22,
+    textAlign: "center",
+    padding: 65,
+    isBold: false,
+    isItalic: false,
+    fontColor: "#ffffff",
+    overlayOpacity: 0.12,
+    overlayBlur: 0,
+    noiseOpacity: 0.03,
+    typographyOffsetPageX: 0,
+    typographyOffsetPageY: 0
+  },
+  {
+    id: "bold_editorial",
+    name: "Bold Editorial",
+    category: "Display",
+    badge: "Editorial Cover",
+    description: "Heavy, large-impact display serif header with high drama, left alignment, and tighter line padding.",
+    fontFamily: "Cinzel",
+    authorFontFamily: "Montserrat",
+    fontSize: 32,
+    textAlign: "left",
+    padding: 35,
+    isBold: true,
+    isItalic: false,
+    fontColor: "#ffffff",
+    overlayOpacity: 0.25,
+    overlayBlur: 0,
+    noiseOpacity: 0.05,
+    typographyOffsetPageX: 0,
+    typographyOffsetPageY: 0
+  },
+  {
+    id: "vintage_serif",
+    name: "Vintage Serif",
+    category: "Classic",
+    badge: "Timeless Lit",
+    description: "Classic, highly elegant, bookish italic serif with a warm tinted overlay and comfortable centering.",
+    fontFamily: "Playfair Display",
+    authorFontFamily: "Montserrat",
+    fontSize: 26,
+    textAlign: "center",
+    padding: 55,
+    isBold: false,
+    isItalic: true,
+    fontColor: "#fef3c7", // light warm amber
+    overlayOpacity: 0.18,
+    overlayBlur: 0,
+    noiseOpacity: 0.1,
+    typographyOffsetPageX: 0,
+    typographyOffsetPageY: 0
+  },
+  {
+    id: "brutalist_mono",
+    name: "Brutalist Mono",
+    category: "Technical",
+    badge: "Cyber Deck",
+    description: "Monospaced high-contrast cybernetic coding layout featuring left-aligned neon green values.",
+    fontFamily: "JetBrains Mono",
+    authorFontFamily: "JetBrains Mono",
+    fontSize: 18,
+    textAlign: "left",
+    padding: 40,
+    isBold: true,
+    isItalic: false,
+    fontColor: "#10b981", // emerald neon green
+    overlayOpacity: 0.2,
+    overlayBlur: 0,
+    noiseOpacity: 0.15,
+    typographyOffsetPageX: 0,
+    typographyOffsetPageY: 0
+  },
+  {
+    id: "cinematic_monument",
+    name: "Cinematic Monument",
+    category: "Dramatic",
+    badge: "Widescreen Drama",
+    description: "Spacious uppercase geometric display layout optimized for clean, architectural proportions.",
+    fontFamily: "Space Grotesk",
+    authorFontFamily: "Inter",
+    fontSize: 24,
+    textAlign: "center",
+    padding: 60,
+    isBold: true,
+    isItalic: false,
+    fontColor: "#ffffff",
+    overlayOpacity: 0.3,
+    overlayBlur: 0,
+    noiseOpacity: 0.08,
+    typographyOffsetPageX: 0,
+    typographyOffsetPageY: -20
+  },
+  {
+    id: "romantic_cursive",
+    name: "Romantic Cursive",
+    category: "Artistic",
+    badge: "Fluid Poetry",
+    description: "Soft flowing cursive script lettering with relaxed layout and warm, organic aesthetic.",
+    fontFamily: "Lobster",
+    authorFontFamily: "Outfit",
+    fontSize: 30,
+    textAlign: "center",
+    padding: 45,
+    isBold: false,
+    isItalic: false,
+    fontColor: "#ffe4e6", // rose-100
+    overlayOpacity: 0.15,
+    overlayBlur: 0,
+    noiseOpacity: 0.05,
+    typographyOffsetPageX: 0,
+    typographyOffsetPageY: 10
+  }
+];
+
 interface FontPairing {
   id: string;
   name: string;
@@ -614,6 +759,19 @@ export default function QuoteDesigner({
     }
     return false;
   });
+  const [showTemplatesSidebar, setShowTemplatesSidebar] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("toolkit_pro_show_templates_sidebar") !== "false";
+    }
+    return true;
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("toolkit_pro_show_templates_sidebar", showTemplatesSidebar ? "true" : "false");
+    }
+  }, [showTemplatesSidebar]);
+
   const [gridSize, setGridSize] = useState<number>(() => {
     if (typeof window !== "undefined") {
       const stored = localStorage.getItem("toolkit_pro_quote_grid_size");
@@ -686,14 +844,32 @@ export default function QuoteDesigner({
     return 0;
   });
 
+  // Typography precision horizontal position offset state
+  const [typographyOffsetPageX, setTypographyOffsetPageX] = useState<number>(() => {
+    if (typeof window !== "undefined") {
+      const stored = localStorage.getItem("toolkit_pro_typography_offset_x");
+      return stored ? parseInt(stored) : 0;
+    }
+    return 0;
+  });
+
+  // Quote area visual padding resize drag states
+  const [activePaddingHandle, setActivePaddingHandle] = useState<"tl" | "tr" | "bl" | "br" | null>(null);
+  const [paddingDragStart, setPaddingDragStart] = useState<{ clientX: number; clientY: number; originalPadding: number }>({
+    clientX: 0,
+    clientY: 0,
+    originalPadding: 0,
+  });
+
   // Sync typography positioning and watermark coordinates with localStorage
   useEffect(() => {
     if (typeof window !== "undefined") {
       localStorage.setItem("toolkit_pro_pdf_watermark_x", pdfWatermarkX.toString());
       localStorage.setItem("toolkit_pro_pdf_watermark_y", pdfWatermarkY.toString());
       localStorage.setItem("toolkit_pro_typography_offset_y", typographyOffsetPageY.toString());
+      localStorage.setItem("toolkit_pro_typography_offset_x", typographyOffsetPageX.toString());
     }
-  }, [pdfWatermarkX, pdfWatermarkY, typographyOffsetPageY]);
+  }, [pdfWatermarkX, pdfWatermarkY, typographyOffsetPageY, typographyOffsetPageX]);
 
   // Saved Quote Session Variants state
   const [savedVariants, setSavedVariants] = useState<SavedVariant[]>(() => {
@@ -892,6 +1068,93 @@ export default function QuoteDesigner({
     setIsDragging(false);
   };
 
+  const [isAutoFitting, setIsAutoFitting] = useState<boolean>(false);
+
+  const handleAutoFitCanvas = () => {
+    if (!bgImage) return;
+    setIsAutoFitting(true);
+
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const aspectParts = config.aspectRatio.split(":");
+        const wRatio = parseFloat(aspectParts[0]) || 1;
+        const hRatio = parseFloat(aspectParts[1]) || 1;
+        const targetRatio = wRatio / hRatio;
+
+        const imgWidth = img.width;
+        const imgHeight = img.height;
+        const imageRatio = imgWidth / imgHeight;
+
+        let cropWidth = imgWidth;
+        let cropHeight = imgHeight;
+        let cropX = 0;
+        let cropY = 0;
+
+        if (imageRatio > targetRatio) {
+          cropHeight = imgHeight;
+          cropWidth = imgHeight * targetRatio;
+          cropX = (imgWidth - cropWidth) / 2;
+          cropY = 0;
+        } else {
+          cropWidth = imgWidth;
+          cropHeight = imgWidth / targetRatio;
+          cropX = 0;
+          cropY = (imgHeight - cropHeight) / 2;
+        }
+
+        const MAX_SIDE = 1800;
+        let canvasWidth = cropWidth;
+        let canvasHeight = cropHeight;
+        if (Math.max(canvasWidth, canvasHeight) > MAX_SIDE) {
+          const scale = MAX_SIDE / Math.max(canvasWidth, canvasHeight);
+          canvasWidth = Math.round(canvasWidth * scale);
+          canvasHeight = Math.round(canvasHeight * scale);
+        }
+
+        const canvas = document.createElement("canvas");
+        canvas.width = canvasWidth;
+        canvas.height = canvasHeight;
+        const ctx = canvas.getContext("2d");
+        
+        if (ctx) {
+          ctx.drawImage(
+            img,
+            cropX,
+            cropY,
+            cropWidth,
+            cropHeight,
+            0,
+            0,
+            canvasWidth,
+            canvasHeight
+          );
+          
+          const croppedDataUrl = canvas.toDataURL("image/jpeg", 0.92);
+          setBgImage(croppedDataUrl);
+          setConfig((prev) => ({
+            ...prev,
+            bgStyle: "image",
+            bgValue: croppedDataUrl,
+          }));
+        }
+      } catch (err) {
+        console.error("Failed to crop background image:", err);
+        alert("Could not crop background image due to canvas rendering or cross-origin restrictions.");
+      } finally {
+        setIsAutoFitting(false);
+      }
+    };
+
+    img.onerror = () => {
+      setIsAutoFitting(false);
+      alert("Error loading the active background image.");
+    };
+
+    img.src = bgImage;
+  };
+
   const handleImageFileProcess = (file: File) => {
     if (!file.type.startsWith("image/")) {
       alert("Please select or drop a valid image file (JPEG, PNG, WebP).");
@@ -995,6 +1258,7 @@ export default function QuoteDesigner({
         let x = baseWidth / 2; // Center default
         if (config.textAlign === "left") x = config.padding * 1.5;
         if (config.textAlign === "right") x = baseWidth - config.padding * 1.5;
+        x += typographyOffsetPageX;
 
         // Wrap text
         const maxTextWidth = baseWidth - config.padding * 3;
@@ -1185,6 +1449,7 @@ export default function QuoteDesigner({
         let x = baseWidth / 2;
         if (variant.config.textAlign === "left") x = variant.config.padding * 1.5;
         if (variant.config.textAlign === "right") x = baseWidth - variant.config.padding * 1.5;
+        x += (variant.typographyOffsetPageX || 0);
 
         const maxTextWidth = baseWidth - variant.config.padding * 3;
         const canvasFontStyle = variant.config.isItalic !== undefined ? (variant.config.isItalic ? "italic" : "normal") : (variant.config.fontStyle || "italic");
@@ -1293,6 +1558,7 @@ export default function QuoteDesigner({
       config: JSON.parse(JSON.stringify(config)),
       bgImage: bgImage,
       typographyOffsetPageY: typographyOffsetPageY,
+      typographyOffsetPageX: typographyOffsetPageX,
       pdfWatermarkX: pdfWatermarkX,
       pdfWatermarkY: pdfWatermarkY,
       pdfWatermarkEnabled: pdfWatermarkEnabled,
@@ -1323,6 +1589,7 @@ export default function QuoteDesigner({
     setConfig(JSON.parse(JSON.stringify(variant.config)));
     setBgImage(variant.bgImage);
     setTypographyOffsetPageY(variant.typographyOffsetPageY);
+    setTypographyOffsetPageX(variant.typographyOffsetPageX || 0);
     setPdfWatermarkX(variant.pdfWatermarkX);
     setPdfWatermarkY(variant.pdfWatermarkY);
     setPdfWatermarkEnabled(variant.pdfWatermarkEnabled);
@@ -1649,6 +1916,40 @@ export default function QuoteDesigner({
     }
   };
 
+  const applyPremadeTemplate = (tmpl: PremadeTypographyTemplate) => {
+    setConfig((prev) => ({
+      ...prev,
+      fontFamily: tmpl.fontFamily,
+      authorFontFamily: tmpl.authorFontFamily,
+      fontSize: tmpl.fontSize,
+      fontColor: tmpl.fontColor,
+      textAlign: tmpl.textAlign,
+      padding: tmpl.padding,
+      isBold: tmpl.isBold,
+      isItalic: tmpl.isItalic,
+      ...(tmpl.overlayOpacity !== undefined ? { overlayOpacity: tmpl.overlayOpacity } : {}),
+      ...(tmpl.overlayBlur !== undefined ? { overlayBlur: tmpl.overlayBlur } : {}),
+      ...(tmpl.noiseOpacity !== undefined ? { noiseOpacity: tmpl.noiseOpacity } : {}),
+    }));
+    if (tmpl.typographyOffsetPageX !== undefined) {
+      setTypographyOffsetPageX(tmpl.typographyOffsetPageX);
+    }
+    if (tmpl.typographyOffsetPageY !== undefined) {
+      setTypographyOffsetPageY(tmpl.typographyOffsetPageY);
+    }
+    
+    // Log user activity
+    window.dispatchEvent(new CustomEvent("toolkit-add-activity", {
+      detail: {
+        type: "style",
+        title: "Applied Layout Template",
+        detail: `Applied pre-made typography layout style "${tmpl.name}"`,
+        icon: "Sparkles",
+        tab: "quote"
+      }
+    }));
+  };
+
   const handleViewportMouseDown = (e: React.MouseEvent<HTMLDivElement>) => {
     if (activeTool === "pan") {
       setIsPanning(true);
@@ -1662,6 +1963,34 @@ export default function QuoteDesigner({
         x: e.clientX - panStart.x,
         y: e.clientY - panStart.y,
       });
+    } else if (activePaddingHandle && activeTool === "edit") {
+      const rect = previewRef.current?.getBoundingClientRect();
+      if (rect) {
+        let padX = 0;
+        let padY = 0;
+        if (activePaddingHandle === "tl") {
+          padX = (e.clientX - rect.left) / previewZoom;
+          padY = (e.clientY - rect.top) / previewZoom;
+        } else if (activePaddingHandle === "tr") {
+          padX = (rect.right - e.clientX) / previewZoom;
+          padY = (e.clientY - rect.top) / previewZoom;
+        } else if (activePaddingHandle === "bl") {
+          padX = (e.clientX - rect.left) / previewZoom;
+          padY = (rect.bottom - e.clientY) / previewZoom;
+        } else if (activePaddingHandle === "br") {
+          padX = (rect.right - e.clientX) / previewZoom;
+          padY = (rect.bottom - e.clientY) / previewZoom;
+        }
+        
+        let newPadding = Math.round((padX + padY) / 2);
+        
+        if (snapToGrid) {
+          newPadding = Math.round(newPadding / 5) * 5;
+        }
+        
+        newPadding = Math.max(10, Math.min(120, newPadding));
+        setConfig((p) => ({ ...p, padding: newPadding }));
+      }
     } else if (isDraggingWatermark && activeTool === "edit") {
       const deltaX = e.clientX - dragStart.x;
       const deltaY = e.clientY - dragStart.y;
@@ -1692,23 +2021,33 @@ export default function QuoteDesigner({
         setPdfWatermarkY(Math.min(100, Math.max(0, Math.round(targetY))));
       }
     } else if (isDraggingTypography && activeTool === "edit") {
+      const deltaX = e.clientX - dragStart.x;
       const deltaY = e.clientY - dragStart.y;
       // Adjust offset according to active zoom scale
+      const actualDeltaX = deltaX / previewZoom;
       const actualDeltaY = deltaY / previewZoom;
+      const targetX = dragStart.originalX + actualDeltaX;
       const targetY = dragStart.originalY + actualDeltaY;
+      let finalX = targetX;
       let finalY = targetY;
       
       if (snapToGrid) {
-        // Snap typography vertical offset to the nearest gridSize
-        const snapValue = Math.round(targetY / gridSize) * gridSize;
+        const snapValueX = Math.round(targetX / gridSize) * gridSize;
+        const snapValueY = Math.round(targetY / gridSize) * gridSize;
         // If close to center (0), snap exactly to 0
+        if (Math.abs(targetX) < Math.max(10, gridSize / 2)) {
+          finalX = 0;
+        } else {
+          finalX = snapValueX;
+        }
         if (Math.abs(targetY) < Math.max(10, gridSize / 2)) {
           finalY = 0;
         } else {
-          finalY = snapValue;
+          finalY = snapValueY;
         }
       }
       
+      setTypographyOffsetPageX(Math.min(250, Math.max(-250, Math.round(finalX))));
       setTypographyOffsetPageY(Math.min(250, Math.max(-250, Math.round(finalY))));
     }
   };
@@ -1717,6 +2056,7 @@ export default function QuoteDesigner({
     setIsPanning(false);
     setIsDraggingWatermark(false);
     setIsDraggingTypography(false);
+    setActivePaddingHandle(null);
   };
 
   const handleViewportTouchStart = (e: React.TouchEvent<HTMLDivElement>) => {
@@ -1734,6 +2074,35 @@ export default function QuoteDesigner({
         x: touch.clientX - panStart.x,
         y: touch.clientY - panStart.y,
       });
+    } else if (activePaddingHandle && activeTool === "edit" && e.touches.length === 1) {
+      const touch = e.touches[0];
+      const rect = previewRef.current?.getBoundingClientRect();
+      if (rect) {
+        let padX = 0;
+        let padY = 0;
+        if (activePaddingHandle === "tl") {
+          padX = (touch.clientX - rect.left) / previewZoom;
+          padY = (touch.clientY - rect.top) / previewZoom;
+        } else if (activePaddingHandle === "tr") {
+          padX = (rect.right - touch.clientX) / previewZoom;
+          padY = (touch.clientY - rect.top) / previewZoom;
+        } else if (activePaddingHandle === "bl") {
+          padX = (touch.clientX - rect.left) / previewZoom;
+          padY = (rect.bottom - touch.clientY) / previewZoom;
+        } else if (activePaddingHandle === "br") {
+          padX = (rect.right - touch.clientX) / previewZoom;
+          padY = (rect.bottom - touch.clientY) / previewZoom;
+        }
+        
+        let newPadding = Math.round((padX + padY) / 2);
+        
+        if (snapToGrid) {
+          newPadding = Math.round(newPadding / 5) * 5;
+        }
+        
+        newPadding = Math.max(10, Math.min(120, newPadding));
+        setConfig((p) => ({ ...p, padding: newPadding }));
+      }
     } else if (isDraggingWatermark && activeTool === "edit" && e.touches.length === 1) {
       const touch = e.touches[0];
       const deltaX = touch.clientX - dragStart.x;
@@ -1765,22 +2134,31 @@ export default function QuoteDesigner({
       }
     } else if (isDraggingTypography && activeTool === "edit" && e.touches.length === 1) {
       const touch = e.touches[0];
+      const deltaX = touch.clientX - dragStart.x;
       const deltaY = touch.clientY - dragStart.y;
+      const actualDeltaX = deltaX / previewZoom;
       const actualDeltaY = deltaY / previewZoom;
+      const targetX = dragStart.originalX + actualDeltaX;
       const targetY = dragStart.originalY + actualDeltaY;
+      let finalX = targetX;
       let finalY = targetY;
       
       if (snapToGrid) {
-        // Snap typography vertical offset to the nearest gridSize
-        const snapValue = Math.round(targetY / gridSize) * gridSize;
-        // If close to center (0), snap exactly to 0
+        const snapValueX = Math.round(targetX / gridSize) * gridSize;
+        const snapValueY = Math.round(targetY / gridSize) * gridSize;
+        if (Math.abs(targetX) < Math.max(10, gridSize / 2)) {
+          finalX = 0;
+        } else {
+          finalX = snapValueX;
+        }
         if (Math.abs(targetY) < Math.max(10, gridSize / 2)) {
           finalY = 0;
         } else {
-          finalY = snapValue;
+          finalY = snapValueY;
         }
       }
       
+      setTypographyOffsetPageX(Math.min(250, Math.max(-250, Math.round(finalX))));
       setTypographyOffsetPageY(Math.min(250, Math.max(-250, Math.round(finalY))));
     }
   };
@@ -1809,9 +2187,95 @@ export default function QuoteDesigner({
   };
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 font-sans">
-      {/* Editor Controls Sidebar: 5 Cols */}
-      <div className="lg:col-span-5 bg-slate-50 dark:bg-slate-900/30 rounded-2xl p-6 border border-slate-150/40 dark:border-slate-800/80 flex flex-col space-y-5 max-h-[85vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
+    <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 font-sans">
+      {/* Premade Typography Templates Sidebar */}
+      {showTemplatesSidebar && (
+        <div className="lg:col-span-3 bg-slate-50 dark:bg-slate-900/30 rounded-2xl p-5 border border-slate-150/40 dark:border-slate-800/80 flex flex-col space-y-4 max-h-[85vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-black text-indigo-950 dark:text-indigo-300 uppercase tracking-wider flex items-center gap-1.5">
+              <Sparkles className="w-4 h-4 text-indigo-650 dark:text-indigo-400" /> Layout Library
+            </h3>
+            <button
+              type="button"
+              onClick={() => setShowTemplatesSidebar(false)}
+              className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 rounded text-slate-400 hover:text-slate-700 dark:text-slate-500 dark:hover:text-slate-300 transition-all cursor-pointer"
+              title="Hide Sidebar"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+          
+          <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-normal">
+            Apply curated visual style combinations, font alignments, colors, and margins with a single click.
+          </p>
+
+          <div className="flex flex-col gap-2.5">
+            {PREMADE_TYPOGRAPHY_TEMPLATES.map((tmpl) => {
+              const isActive = 
+                config.fontFamily === tmpl.fontFamily &&
+                config.textAlign === tmpl.textAlign &&
+                config.padding === tmpl.padding &&
+                config.fontSize === tmpl.fontSize &&
+                config.fontColor === tmpl.fontColor &&
+                !!config.isBold === !!tmpl.isBold &&
+                !!config.isItalic === !!tmpl.isItalic;
+
+              return (
+                <button
+                  key={tmpl.id}
+                  type="button"
+                  onClick={() => applyPremadeTemplate(tmpl)}
+                  className={`group text-left p-3 rounded-xl border transition-all flex flex-col justify-between cursor-pointer ${
+                    isActive
+                      ? "bg-indigo-50/70 border-indigo-500 dark:bg-indigo-950/20 ring-1 ring-indigo-500/30"
+                      : "bg-white dark:bg-slate-950 hover:bg-slate-100/50 dark:hover:bg-slate-900/50 border-slate-200 dark:border-slate-850 hover:border-slate-350 dark:hover:border-slate-700"
+                  }`}
+                >
+                  <div className="w-full">
+                    <div className="flex items-center justify-between gap-1 mb-1">
+                      <span className="text-[12px] font-extrabold text-slate-900 dark:text-slate-100 group-hover:text-indigo-950 dark:group-hover:text-indigo-350 truncate">
+                        {tmpl.name}
+                      </span>
+                      <span className={`text-[8px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded ${
+                        isActive
+                          ? "bg-indigo-100 text-indigo-750 dark:bg-indigo-950/60 dark:text-indigo-300"
+                          : "bg-slate-100 dark:bg-slate-850 text-slate-500 dark:text-slate-400"
+                      }`}>
+                        {tmpl.category}
+                      </span>
+                    </div>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-snug">
+                      {tmpl.description}
+                    </p>
+                  </div>
+
+                  <div className="w-full flex items-center justify-between mt-2.5 pt-2 border-t border-slate-100 dark:border-slate-850/60 text-[9px] text-slate-450 dark:text-slate-400 font-mono">
+                    <span className="truncate max-w-[80px] font-bold">{tmpl.fontFamily}</span>
+                    <span className="uppercase font-semibold">{tmpl.textAlign}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+          
+          <div className="pt-2 border-t border-slate-200/50 dark:border-slate-850">
+            <button
+              type="button"
+              onClick={() => {
+                setTypographyOffsetPageX(0);
+                setTypographyOffsetPageY(0);
+              }}
+              className="w-full py-2 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-850 border border-slate-200 dark:border-slate-800 rounded-xl text-[11px] font-bold text-slate-600 dark:text-slate-300 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <Move className="w-3.5 h-3.5" />
+              <span>Reset Offsets to Center</span>
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Editor Controls Sidebar */}
+      <div className={`${showTemplatesSidebar ? "lg:col-span-4" : "lg:col-span-5"} bg-slate-50 dark:bg-slate-900/30 rounded-2xl p-6 border border-slate-150/40 dark:border-slate-800/80 flex flex-col space-y-5 max-h-[85vh] overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800`}>
         
         {/* Social Media Presets Panel */}
         <div className="space-y-3">
@@ -2556,27 +3020,40 @@ export default function QuoteDesigner({
               </div>
 
               {bgImage && (
-                <div className="flex items-center justify-between bg-white dark:bg-slate-950 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-850 shadow-3xs animate-fade-in">
-                  <div className="flex items-center space-x-2.5">
-                    <img src={bgImage} alt="User bg" className="w-10 h-10 object-cover rounded-lg border border-slate-205 dark:border-slate-800" />
-                    <div>
-                      <p className="text-xs font-semibold text-slate-705 dark:text-slate-200">Active Photo</p>
-                      <p className="text-[10px] text-slate-400 dark:text-slate-550">Aspect-fit center overlay</p>
+                <div className="space-y-2 animate-fade-in">
+                  <div className="flex items-center justify-between bg-white dark:bg-slate-950 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-850 shadow-3xs">
+                    <div className="flex items-center space-x-2.5">
+                      <img src={bgImage} alt="User bg" className="w-10 h-10 object-cover rounded-lg border border-slate-205 dark:border-slate-800" />
+                      <div>
+                        <p className="text-xs font-semibold text-slate-705 dark:text-slate-200">Active Photo</p>
+                        <p className="text-[10px] text-slate-400 dark:text-slate-550">Aspect-fit center overlay</p>
+                      </div>
                     </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setBgImage(null);
+                        setConfig((prev) => ({
+                          ...prev,
+                          bgStyle: "gradient",
+                          bgValue: PRESET_GRADIENTS[0].value,
+                        }));
+                      }}
+                      className="text-xs font-semibold text-rose-600 hover:text-rose-750 hover:underline transition-all border-0 bg-transparent font-sans cursor-pointer"
+                    >
+                      Remove
+                    </button>
                   </div>
+
                   <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setBgImage(null);
-                      setConfig((prev) => ({
-                        ...prev,
-                        bgStyle: "gradient",
-                        bgValue: PRESET_GRADIENTS[0].value,
-                      }));
-                    }}
-                    className="text-xs font-semibold text-rose-600 hover:text-rose-750 hover:underline transition-all border-0 bg-transparent font-sans cursor-pointer"
+                    type="button"
+                    onClick={handleAutoFitCanvas}
+                    disabled={isAutoFitting}
+                    className="w-full flex items-center justify-center gap-1.5 py-2 px-3 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/50 text-indigo-650 dark:text-indigo-400 border border-indigo-200/60 dark:border-indigo-850 rounded-xl text-xs font-bold transition-all shadow-3xs cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
+                    title="Automatically crop the uploaded background image to match the chosen aspect ratio"
                   >
-                    Remove
+                    <Scissors className={`w-3.5 h-3.5 ${isAutoFitting ? "animate-spin" : ""}`} />
+                    {isAutoFitting ? "Auto-Fitting Image..." : "Auto-Fit Canvas (Center Crop)"}
                   </button>
                 </div>
               )}
@@ -3000,8 +3477,8 @@ export default function QuoteDesigner({
         </div>
       </div>
 
-      {/* Preview and Execution Side: 7 Cols */}
-      <div className="lg:col-span-7 flex flex-col justify-between space-y-4">
+      {/* Preview and Execution Side */}
+      <div className={`${showTemplatesSidebar ? "lg:col-span-5" : "lg:col-span-7"} flex flex-col justify-between space-y-4`}>
         {/* Save Status Alert Box */}
         {saveStatus && (
           <div
@@ -3030,6 +3507,21 @@ export default function QuoteDesigner({
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setShowTemplatesSidebar(prev => !prev)}
+                className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all cursor-pointer border ${
+                  showTemplatesSidebar
+                    ? "bg-indigo-50 border-indigo-200 dark:bg-indigo-950/20 dark:border-indigo-900/50 text-indigo-650 dark:text-indigo-400 shadow-3xs"
+                    : "bg-slate-50 hover:bg-slate-100 dark:bg-slate-900 dark:hover:bg-slate-850 text-slate-500 dark:text-slate-455 border-slate-200 dark:border-slate-800"
+                }`}
+                title="Toggle the premium typography templates library sidebar"
+                id="btn-toggle-templates-sidebar"
+              >
+                <Sparkles className={`w-3 h-3 ${showTemplatesSidebar ? "animate-pulse text-indigo-550" : ""}`} />
+                <span>Layout Library: <strong className="font-black">{showTemplatesSidebar ? "ON" : "OFF"}</strong></span>
+              </button>
+
               <button
                 type="button"
                 onClick={() => setShowBleed(prev => !prev)}
@@ -3551,6 +4043,159 @@ export default function QuoteDesigner({
               </div>
             )}
 
+            {/* Draggable Padding Resize handles overlay */}
+            {activeTool === "edit" && (
+              <div className="absolute inset-0 pointer-events-none select-none z-20 print:hidden">
+                {/* Dashed boundary representing the quote padding area */}
+                <div
+                  className="absolute border border-dashed border-indigo-500/50 rounded-lg"
+                  style={{
+                    top: `${config.padding}px`,
+                    bottom: `${config.padding}px`,
+                    left: `${config.padding}px`,
+                    right: `${config.padding}px`,
+                  }}
+                />
+
+                {/* Corner Handles */}
+                {/* Top Left */}
+                <div
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    setActivePaddingHandle("tl");
+                    setPaddingDragStart({
+                      clientX: e.clientX,
+                      clientY: e.clientY,
+                      originalPadding: config.padding,
+                    });
+                  }}
+                  onTouchStart={(e) => {
+                    if (e.touches.length === 1) {
+                      e.stopPropagation();
+                      setActivePaddingHandle("tl");
+                      const touch = e.touches[0];
+                      setPaddingDragStart({
+                        clientX: touch.clientX,
+                        clientY: touch.clientY,
+                        originalPadding: config.padding,
+                      });
+                    }
+                  }}
+                  className="absolute pointer-events-auto w-5 h-5 rounded-full bg-indigo-650 dark:bg-indigo-550 border-2 border-white dark:border-slate-900 shadow-md cursor-nwse-resize flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
+                  style={{
+                    top: `${config.padding}px`,
+                    left: `${config.padding}px`,
+                    transform: "translate(-50%, -50%)",
+                  }}
+                  title="Drag to resize quote padding area"
+                >
+                  <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                </div>
+
+                {/* Top Right */}
+                <div
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    setActivePaddingHandle("tr");
+                    setPaddingDragStart({
+                      clientX: e.clientX,
+                      clientY: e.clientY,
+                      originalPadding: config.padding,
+                    });
+                  }}
+                  onTouchStart={(e) => {
+                    if (e.touches.length === 1) {
+                      e.stopPropagation();
+                      setActivePaddingHandle("tr");
+                      const touch = e.touches[0];
+                      setPaddingDragStart({
+                        clientX: touch.clientX,
+                        clientY: touch.clientY,
+                        originalPadding: config.padding,
+                      });
+                    }
+                  }}
+                  className="absolute pointer-events-auto w-5 h-5 rounded-full bg-indigo-650 dark:bg-indigo-550 border-2 border-white dark:border-slate-900 shadow-md cursor-nesw-resize flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
+                  style={{
+                    top: `${config.padding}px`,
+                    right: `${config.padding}px`,
+                    transform: "translate(50%, -50%)",
+                  }}
+                  title="Drag to resize quote padding area"
+                >
+                  <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                </div>
+
+                {/* Bottom Left */}
+                <div
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    setActivePaddingHandle("bl");
+                    setPaddingDragStart({
+                      clientX: e.clientX,
+                      clientY: e.clientY,
+                      originalPadding: config.padding,
+                    });
+                  }}
+                  onTouchStart={(e) => {
+                    if (e.touches.length === 1) {
+                      e.stopPropagation();
+                      setActivePaddingHandle("bl");
+                      const touch = e.touches[0];
+                      setPaddingDragStart({
+                        clientX: touch.clientX,
+                        clientY: touch.clientY,
+                        originalPadding: config.padding,
+                      });
+                    }
+                  }}
+                  className="absolute pointer-events-auto w-5 h-5 rounded-full bg-indigo-650 dark:bg-indigo-550 border-2 border-white dark:border-slate-900 shadow-md cursor-nesw-resize flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
+                  style={{
+                    bottom: `${config.padding}px`,
+                    left: `${config.padding}px`,
+                    transform: "translate(-50%, 50%)",
+                  }}
+                  title="Drag to resize quote padding area"
+                >
+                  <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                </div>
+
+                {/* Bottom Right */}
+                <div
+                  onMouseDown={(e) => {
+                    e.stopPropagation();
+                    setActivePaddingHandle("br");
+                    setPaddingDragStart({
+                      clientX: e.clientX,
+                      clientY: e.clientY,
+                      originalPadding: config.padding,
+                    });
+                  }}
+                  onTouchStart={(e) => {
+                    if (e.touches.length === 1) {
+                      e.stopPropagation();
+                      setActivePaddingHandle("br");
+                      const touch = e.touches[0];
+                      setPaddingDragStart({
+                        clientX: touch.clientX,
+                        clientY: touch.clientY,
+                        originalPadding: config.padding,
+                      });
+                    }
+                  }}
+                  className="absolute pointer-events-auto w-5 h-5 rounded-full bg-indigo-650 dark:bg-indigo-550 border-2 border-white dark:border-slate-900 shadow-md cursor-nwse-resize flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
+                  style={{
+                    bottom: `${config.padding}px`,
+                    right: `${config.padding}px`,
+                    transform: "translate(50%, 50%)",
+                  }}
+                  title="Drag to resize quote padding area"
+                >
+                  <div className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                </div>
+              </div>
+            )}
+
             {/* Inner Content Area */}
             <div className="flex flex-col h-full justify-center relative z-10 select-none">
               {isGeneratingQuote ? (
@@ -3571,7 +4216,7 @@ export default function QuoteDesigner({
               ) : (
                 <div
                   style={{
-                    transform: `translateY(${typographyOffsetPageY}px)`,
+                    transform: `translate(${typographyOffsetPageX}px, ${typographyOffsetPageY}px)`,
                     transition: isDraggingTypography ? "none" : "transform 0.15s ease-out",
                   }}
                   onMouseDown={(e) => {
@@ -3581,7 +4226,7 @@ export default function QuoteDesigner({
                       setDragStart({
                         x: e.clientX,
                         y: e.clientY,
-                        originalX: 0,
+                        originalX: typographyOffsetPageX,
                         originalY: typographyOffsetPageY,
                       });
                     }
@@ -3594,17 +4239,17 @@ export default function QuoteDesigner({
                       setDragStart({
                         x: touch.clientX,
                         y: touch.clientY,
-                        originalX: 0,
+                        originalX: typographyOffsetPageX,
                         originalY: typographyOffsetPageY,
                       });
                     }
                   }}
                   className={`relative p-3 rounded-xl transition-colors ${
                     activeTool === "edit"
-                      ? "cursor-ns-resize hover:bg-white/5 hover:outline hover:outline-dashed hover:outline-indigo-550/40 hover:outline-offset-2"
+                      ? "cursor-move hover:bg-white/5 hover:outline hover:outline-dashed hover:outline-indigo-550/40 hover:outline-offset-2"
                       : ""
                   }`}
-                  title="Typography Group - Drag vertically to shift positioning"
+                  title="Typography Group - Drag to reposition freely"
                 >
                   {motionEnabled ? (
                     <motion.p

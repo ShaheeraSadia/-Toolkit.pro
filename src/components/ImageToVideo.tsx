@@ -49,7 +49,8 @@ import {
   BookOpen,
   Lightbulb,
   Zap,
-  Flame
+  Flame,
+  Mic
 } from "lucide-react";
 
 interface OverlayElement {
@@ -74,7 +75,7 @@ interface ImageSlide {
   duration: number; // in seconds
   text: string;
   textAnimation: "typewriter" | "fade" | "pop" | "slide-up" | "none";
-  filter: "normal" | "noir" | "vintage" | "cinematic-warm" | "cyberpunk" | "vhs" | "retro" | "glitch-synth" | "dreamy-pastel" | "matrix-code";
+  filter: "normal" | "noir" | "vintage" | "cinematic-warm" | "cyberpunk" | "vhs" | "retro" | "glitch-synth" | "dreamy-pastel" | "matrix-code" | "grayscale" | "sepia" | "high-contrast";
   scaleStart: number;
   scaleEnd: number;
   // AI Prompt generator fields
@@ -87,6 +88,7 @@ interface ImageSlide {
   motionSpeed?: number; // motion speed / factor
   sfx?: string;
   isTextSlide?: boolean;
+  isVideo?: boolean;
   textSlideBackground?: string;
   textSlideFontSize?: number;
   textSlideColor?: string;
@@ -206,7 +208,8 @@ class RoyaltyFreeSynthManager {
     customAudioUrl?: string | null,
     startTime: number = 0,
     trimStart: number = 0,
-    trimEnd: number = 0
+    trimEnd: number = 0,
+    loopAudio: boolean = true
   ) {
     if (track === "none") {
       this.stop();
@@ -263,7 +266,7 @@ class RoyaltyFreeSynthManager {
         this.audioNode.connect(this.gainNode);
         
         const hasTrim = this.trimEnd > this.trimStart;
-        this.audioElement.loop = !hasTrim; // Native loop only if not trimmed
+        this.audioElement.loop = loopAudio && !hasTrim; // Native loop only if not trimmed and looping is enabled
         
         // Seek to correct start time
         const startOffset = this.trimStart;
@@ -273,11 +276,23 @@ class RoyaltyFreeSynthManager {
           
           this.audioElement.addEventListener("timeupdate", () => {
             if (this.audioElement && this.audioElement.currentTime >= this.trimEnd) {
-              this.audioElement.currentTime = this.trimStart;
+              if (loopAudio) {
+                this.audioElement.currentTime = this.trimStart;
+              } else {
+                this.audioElement.pause();
+              }
             }
           });
         } else {
           this.audioElement.currentTime = startOffset + startTime;
+          
+          if (!loopAudio) {
+            this.audioElement.addEventListener("ended", () => {
+              if (this.audioElement) {
+                this.audioElement.pause();
+              }
+            });
+          }
         }
 
         this.audioElement.play().catch(e => console.warn("Failed to play custom audio in Synth:", e));
@@ -804,6 +819,61 @@ export const PRESET_IMAGES_GALLERY: PresetImageItem[] = [
     sfx: "arcade-rise"
   },
   {
+    id: "adventure-mountain-camp",
+    name: "Starlit Mountain Camp",
+    url: "https://images.unsplash.com/photo-1504280390367-361c6d9f38f4?w=800&auto=format&fit=crop",
+    category: "Adventure",
+    text: "Night Under the Stars",
+    cameraMovement: "Slow Zoom",
+    subjectDescription: "cozy glowing camp fire and yellow tent under a breathtaking Milky Way night sky filled with millions of stars",
+    style: "Cinematic",
+    sfx: "cinema-impact"
+  },
+  {
+    id: "adventure-bridge",
+    name: "Mystic Forest Bridge",
+    url: "https://images.unsplash.com/photo-1527631746610-bca00a040d60?w=800&auto=format&fit=crop",
+    category: "Adventure",
+    text: "Journey to the Unknown",
+    cameraMovement: "Pan Left",
+    subjectDescription: "a solitary traveler walking across an ancient suspension bridge enveloped in dense mountain fog and ancient pine trees",
+    style: "Dreamy",
+    sfx: "none"
+  },
+  {
+    id: "adventure-highway",
+    name: "Desert Highway Roadtrip",
+    url: "https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?w=800&auto=format&fit=crop",
+    category: "Adventure",
+    text: "The Open Road Awaits",
+    cameraMovement: "Pan Right",
+    subjectDescription: "classic red retro station wagon driving on a long straight highway heading towards majestic red rock canyon formations at sunset",
+    style: "Cinematic",
+    sfx: "none"
+  },
+  {
+    id: "adventure-cappadocia",
+    name: "Cappadocia Balloons",
+    url: "https://images.unsplash.com/photo-1533105079780-92b9be482077?w=800&auto=format&fit=crop",
+    category: "Adventure",
+    text: "Floating Over Valleys",
+    cameraMovement: "Slow Zoom",
+    subjectDescription: "dozens of colorful hot air balloons rising into the golden morning sky above the unique rock valleys of Turkey",
+    style: "Realistic",
+    sfx: "celestial-chime"
+  },
+  {
+    id: "adventure-climber",
+    name: "Peak Ascent Challenge",
+    url: "https://images.unsplash.com/photo-1486915307831-2acac87a54c8?w=800&auto=format&fit=crop",
+    category: "Adventure",
+    text: "Conquering the Heights",
+    cameraMovement: "Tilt Up",
+    subjectDescription: "a climber in red gear navigating a steep snow-covered ridge with a vast panorama of sharp icy peaks behind them",
+    style: "Cinematic",
+    sfx: "cinema-impact"
+  },
+  {
     id: "garrey-deepsea-preset",
     name: "Garrey Deep Sea",
     url: garreyDeepSeaUrl,
@@ -813,17 +883,6 @@ export const PRESET_IMAGES_GALLERY: PresetImageItem[] = [
     subjectDescription: "cute fluffy deep-sea explorer Garrey wearing brass diving helmet surrounded by luminous coral reef and bubbles",
     style: "Cinematic",
     sfx: "bubble-pop"
-  },
-  {
-    id: "garrey-cyber-preset",
-    name: "Garrey Cyber Hacker",
-    url: garreyCyberHackerUrl,
-    category: "Cyberpunk",
-    text: "Garrey Cyber Security Lab",
-    cameraMovement: "Tilt Up",
-    subjectDescription: "cute fluffy hacker Garrey wearing tech hoodie and glowing goggles in cozy futuristic room surrounded by neon computer screens",
-    style: "Retro VHS 📹",
-    sfx: "laser-sweep"
   },
   {
     id: "beach-preset",
@@ -848,17 +907,6 @@ export const PRESET_IMAGES_GALLERY: PresetImageItem[] = [
     sfx: "none"
   },
   {
-    id: "cyber-city",
-    name: "Cyberpunk Neon City",
-    url: "https://images.unsplash.com/photo-1515260268569-9271009adfdb?w=800&auto=format&fit=crop",
-    category: "Cyberpunk",
-    text: "Cyberpunk Alleyway",
-    cameraMovement: "Tilt Up",
-    subjectDescription: "cyberpunk city street with towering glowing neon signs and rain puddles reflecting lights",
-    style: "Retro VHS 📹",
-    sfx: "arcade-rise"
-  },
-  {
     id: "lake-preset",
     name: "Emerald Mountain Lake",
     url: "https://images.unsplash.com/photo-1501785888041-af3ef285b470?w=800&auto=format&fit=crop",
@@ -870,6 +918,72 @@ export const PRESET_IMAGES_GALLERY: PresetImageItem[] = [
     sfx: "bubble-pop"
   },
   {
+    id: "nature-sunbeams",
+    name: "Sunbeams of Redwood",
+    url: "https://images.unsplash.com/photo-1441974231531-c6227db76b6e?w=800&auto=format&fit=crop",
+    category: "Nature",
+    text: "Sanctuary of Light",
+    cameraMovement: "Slow Zoom",
+    subjectDescription: "intense beautiful sunbeams filtering through giant redwood trees onto a lush green forest floor",
+    style: "Cinematic",
+    sfx: "celestial-chime"
+  },
+  {
+    id: "nature-aurora",
+    name: "Cosmic Aurora Nights",
+    url: "https://images.unsplash.com/photo-1418065460487-3e41a6c84dc5?w=800&auto=format&fit=crop",
+    category: "Nature",
+    text: "Celestial Light Show",
+    cameraMovement: "Pan Left",
+    subjectDescription: "vibrant glowing green and purple aurora borealis waving across a starry night sky above a snowy forest",
+    style: "Dreamy",
+    sfx: "celestial-chime"
+  },
+  {
+    id: "nature-waterfall",
+    name: "Yosemite Valley Falls",
+    url: "https://images.unsplash.com/photo-1506744038136-46273834b3fb?w=800&auto=format&fit=crop",
+    category: "Nature",
+    text: "Roar of the Falls",
+    cameraMovement: "Tilt Down",
+    subjectDescription: "powerful waterfall cascading down giant granite cliffs into a mist-filled river valley surrounded by golden trees",
+    style: "Realistic",
+    sfx: "bubble-pop"
+  },
+  {
+    id: "nature-jungle",
+    name: "Mystical Sunlit Jungle",
+    url: "https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=800&auto=format&fit=crop",
+    category: "Nature",
+    text: "Deep Jungle Canopy",
+    cameraMovement: "Slow Pan",
+    subjectDescription: "lush tropical green ferns and ancient moss-covered tree roots catching soft shafts of morning light",
+    style: "Oil Painting 🎨",
+    sfx: "bubble-pop"
+  },
+  {
+    id: "garrey-cyber-preset",
+    name: "Garrey Cyber Hacker",
+    url: garreyCyberHackerUrl,
+    category: "Cyberpunk",
+    text: "Garrey Cyber Security Lab",
+    cameraMovement: "Tilt Up",
+    subjectDescription: "cute fluffy hacker Garrey wearing tech hoodie and glowing goggles in cozy futuristic room surrounded by neon computer screens",
+    style: "Retro VHS 📹",
+    sfx: "laser-sweep"
+  },
+  {
+    id: "cyber-city",
+    name: "Cyberpunk Neon City",
+    url: "https://images.unsplash.com/photo-1515260268569-9271009adfdb?w=800&auto=format&fit=crop",
+    category: "Cyberpunk",
+    text: "Cyberpunk Alleyway",
+    cameraMovement: "Tilt Up",
+    subjectDescription: "cyberpunk city street with towering glowing neon signs and rain puddles reflecting lights",
+    style: "Retro VHS 📹",
+    sfx: "arcade-rise"
+  },
+  {
     id: "cyber-street",
     name: "Rainy Tokyo Nights",
     url: "https://images.unsplash.com/photo-1578894381163-e72c17f2d45f?w=800&auto=format&fit=crop",
@@ -878,6 +992,50 @@ export const PRESET_IMAGES_GALLERY: PresetImageItem[] = [
     cameraMovement: "Slow Pan",
     subjectDescription: "glowing neon lights of dynamic Tokyo street during heavy rain",
     style: "Retro VHS 📹",
+    sfx: "laser-sweep"
+  },
+  {
+    id: "cyber-neon-street",
+    name: "Seoul Synthwave Hub",
+    url: "https://images.unsplash.com/photo-1601042879364-f3947d3f9c16?w=800&auto=format&fit=crop",
+    category: "Cyberpunk",
+    text: "Neon Night Grid",
+    cameraMovement: "Slow Zoom",
+    subjectDescription: "a hyper-futuristic street with neon pink and blue storefront signs, high-tech flying cars passing above, and reflection puddles",
+    style: "Cinematic",
+    sfx: "laser-sweep"
+  },
+  {
+    id: "cyber-desk",
+    name: "Hacker Battlestation",
+    url: "https://images.unsplash.com/photo-1542751371-adc38448a05e?w=800&auto=format&fit=crop",
+    category: "Cyberpunk",
+    text: "Initialize Mainframe",
+    cameraMovement: "Pan Right",
+    subjectDescription: "a clean futuristic programmer room featuring multiple glowing widescreen monitors displaying complex green terminal scripts and cyan ambient lights",
+    style: "Realistic",
+    sfx: "arcade-rise"
+  },
+  {
+    id: "cyber-grid",
+    name: "Synthwave Sunset Grid",
+    url: "https://images.unsplash.com/photo-1508739773434-c26b3d09e071?w=800&auto=format&fit=crop",
+    category: "Cyberpunk",
+    text: "Outrun the Future",
+    cameraMovement: "Slow Zoom",
+    subjectDescription: "an endless glowing wireframe grid with a giant neon sun setting in a hazy 80s pink purple background",
+    style: "Retro VHS 📹",
+    sfx: "arcade-rise"
+  },
+  {
+    id: "cyber-hologram",
+    name: "Nebula Hologram Orb",
+    url: "https://images.unsplash.com/photo-1511447333015-45b65e60f6d5?w=800&auto=format&fit=crop",
+    category: "Cyberpunk",
+    text: "AI Overlord Core",
+    cameraMovement: "Tilt Up",
+    subjectDescription: "a floating complex glass holographic sphere emitting purple and magenta rays of light in a dark technological server room",
+    style: "Cinematic",
     sfx: "laser-sweep"
   },
   {
@@ -901,6 +1059,50 @@ export const PRESET_IMAGES_GALLERY: PresetImageItem[] = [
     subjectDescription: "abstract glossy futuristic monolithic geometry floating in space with orange and purple lights",
     style: "3D Render 🪐",
     sfx: "laser-sweep"
+  },
+  {
+    id: "abstract-hardware",
+    name: "Silicon Circuit Mind",
+    url: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=800&auto=format&fit=crop",
+    category: "Abstract",
+    text: "Quantum Processor",
+    cameraMovement: "Slow Zoom",
+    subjectDescription: "abstract macro photography of high-tech motherboard circuits with glowing gold pathways and microchips",
+    style: "3D Render 🪐",
+    sfx: "cinema-impact"
+  },
+  {
+    id: "abstract-paint",
+    name: "Cosmic Acrylic Swirls",
+    url: "https://images.unsplash.com/photo-1574169208507-84376144848b?w=800&auto=format&fit=crop",
+    category: "Abstract",
+    text: "Interstellar Flow",
+    cameraMovement: "Pan Left",
+    subjectDescription: "beautiful slow moving macro marble swirls of cyan blue, gold, and magenta liquid acrylic paint in absolute zero gravity",
+    style: "Oil Painting 🎨",
+    sfx: "celestial-chime"
+  },
+  {
+    id: "abstract-neon-wave",
+    name: "Neon Luminescence",
+    url: "https://images.unsplash.com/photo-1563089145-599997674d42?w=800&auto=format&fit=crop",
+    category: "Abstract",
+    text: "Pulse of the Grid",
+    cameraMovement: "Slow Zoom",
+    subjectDescription: "glowing neon wireframe glass wave curves crossing over each other in dark space with pink and blue laser gradients",
+    style: "3D Render 🪐",
+    sfx: "laser-sweep"
+  },
+  {
+    id: "abstract-gradient",
+    name: "Vibrant Dawn Horizon",
+    url: "https://images.unsplash.com/photo-1557683316-973673baf926?w=800&auto=format&fit=crop",
+    category: "Abstract",
+    text: "Ethereal Aura",
+    cameraMovement: "Slow Pan",
+    subjectDescription: "ultra soft warm orange and rich velvet violet aesthetic grainy smooth gradient mesh",
+    style: "Dreamy",
+    sfx: "celestial-chime"
   }
 ];
 
@@ -981,6 +1183,15 @@ const CURATED_MP3_LIBRARY: CuratedMusicTrack[] = [
     duration: "6:12"
   },
   {
+    id: "golden-hour-drive",
+    name: "Golden Hour Drive",
+    url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
+    genre: "Guitar Pop/Rock",
+    emoji: "🚗",
+    desc: "An upbeat, driving pop-rock track with sparkling electric guitars and steady energetic drums.",
+    duration: "7:05"
+  },
+  {
     id: "cinematic-dreams",
     name: "Nebula Cinematic Dreams",
     url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
@@ -988,6 +1199,15 @@ const CURATED_MP3_LIBRARY: CuratedMusicTrack[] = [
     emoji: "🌌",
     desc: "Ethereal string movements, swelling synth textures, and distant echoing woodwinds.",
     duration: "5:44"
+  },
+  {
+    id: "electric-flow",
+    name: "Electric Flow Synth",
+    url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
+    genre: "Upbeat Techno",
+    emoji: "⚡",
+    desc: "Pulsating electric synthesizers, driving retro drum patterns, and dynamic high-energy stabs.",
+    duration: "5:02"
   },
   {
     id: "synthwave-80s",
@@ -999,6 +1219,33 @@ const CURATED_MP3_LIBRARY: CuratedMusicTrack[] = [
     duration: "5:02"
   },
   {
+    id: "peaceful-meadow",
+    name: "Peaceful Meadow Acoustic",
+    url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3",
+    genre: "Acoustic Folk",
+    emoji: "🏡",
+    desc: "Soft warm acoustic folk guitars fingerpicking sweet, positive morning chords in a slow tempo.",
+    duration: "5:38"
+  },
+  {
+    id: "midnight-groove",
+    name: "Midnight Funk Groove",
+    url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3",
+    genre: "Funk / Groove",
+    emoji: "🕺",
+    desc: "A funky, bouncing slap-bass groove with retro Rhodes electric keys and offbeat drum hi-hats.",
+    duration: "6:18"
+  },
+  {
+    id: "cosmic-explorer",
+    name: "Cosmic Sci-Fi Ambient",
+    url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3",
+    genre: "Sci-Fi Drone",
+    emoji: "🪐",
+    desc: "Suspenseful space exploration drones, echoing solar wind noise, and mysterious deep-space bells.",
+    duration: "5:10"
+  },
+  {
     id: "acoustic-journey",
     name: "Coastal Breeze Acoustic",
     url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3",
@@ -1006,6 +1253,33 @@ const CURATED_MP3_LIBRARY: CuratedMusicTrack[] = [
     emoji: "🎸",
     desc: "Upbeat organic acoustic guitars paired with warm piano harmonies and a positive rhythm.",
     duration: "7:03"
+  },
+  {
+    id: "hacker-lounge",
+    name: "Cyber Hacker Lounge",
+    url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3",
+    genre: "Chill Electronic",
+    emoji: "💻",
+    desc: "Cool futuristic digital soundscapes, liquid sub-bass drops, and steady mid-tempo electronic beats.",
+    duration: "7:44"
+  },
+  {
+    id: "epic-symphony",
+    name: "Symphony of the Universe",
+    url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-11.mp3",
+    genre: "Orchestral Epic",
+    emoji: "🎻",
+    desc: "A powerful dramatic rising orchestral track with soaring strings, woodwinds, and colossal brass accents.",
+    duration: "6:50"
+  },
+  {
+    id: "dreamwave-odyssey",
+    name: "Dreamwave Analog Odyssey",
+    url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-12.mp3",
+    genre: "Dreamwave Chill",
+    emoji: "🕯️",
+    desc: "Cozy analogue synthesizer swells, soft nostalgic vinyl dust noises, and slow breathing snare hits.",
+    duration: "7:12"
   }
 ];
 
@@ -1064,6 +1338,104 @@ export default function ImageToVideo({
 
   const [previewingTrack, setPreviewingTrack] = useState<string | null>(null);
   const [audioVolume, setAudioVolume] = useState<number>(0.3);
+  const [originalVideoVolume, setOriginalVideoVolume] = useState<number>(0.5);
+  const [audioBalance, setAudioBalance] = useState<number>(0.5); // 0.0 Soundtrack, 0.5 Equal, 1.0 Original Video
+  const [masterVolume, setMasterVolume] = useState<number>(0.8);
+
+  const soundtrackBalanceFactor = audioBalance < 0.5 ? 1.0 : (1.0 - audioBalance) * 2;
+  const videoBalanceFactor = audioBalance > 0.5 ? 1.0 : audioBalance * 2;
+
+  const [smartAutoMix, setSmartAutoMix] = useState<boolean>(false);
+  const [isSpeechSpeaking, setIsSpeechSpeaking] = useState<boolean>(false);
+  const [isVideoAudioActive, setIsVideoAudioActive] = useState<boolean>(false);
+  const [duckingFactor, setDuckingFactor] = useState<number>(1.0);
+
+  const videoSourcesRef = useRef<Map<HTMLVideoElement, any>>(new Map());
+  const audioContextRef = useRef<AudioContext | null>(null);
+  const analyserRef = useRef<AnalyserNode | null>(null);
+
+  const [autoNormalize, setAutoNormalize] = useState<boolean>(false);
+  const [normalizationGains, setNormalizationGains] = useState<Record<string, number>>({});
+  const [isNormalizing, setIsNormalizing] = useState<boolean>(false);
+
+  const analyzeAndNormalizeTrack = async (trackUrl: string, trackId: string) => {
+    if (!trackUrl || normalizationGains[trackId] !== undefined) return;
+    setIsNormalizing(true);
+    try {
+      const response = await fetch(trackUrl, { headers: { Range: "bytes=0-1000000" } }).catch(() => fetch(trackUrl));
+      if (!response.ok) throw new Error("Network response was not OK");
+      const arrayBuffer = await response.arrayBuffer();
+      
+      const tempCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+      const decodedBuffer = await tempCtx.decodeAudioData(arrayBuffer);
+      
+      let sumOfSquares = 0;
+      let sampleCount = 0;
+      
+      const channelData = decodedBuffer.getChannelData(0);
+      const step = Math.max(1, Math.floor(channelData.length / 50000));
+      for (let i = 0; i < channelData.length; i += step) {
+        sumOfSquares += channelData[i] * channelData[i];
+        sampleCount++;
+      }
+      
+      const rms = Math.sqrt(sumOfSquares / sampleCount);
+      const targetDb = -14;
+      const targetRms = Math.pow(10, targetDb / 20);
+      
+      let gainMultiplier = targetRms / (rms || 0.0001);
+      gainMultiplier = Math.max(0.3, Math.min(2.5, gainMultiplier));
+      
+      setNormalizationGains(prev => ({
+        ...prev,
+        [trackId]: gainMultiplier
+      }));
+    } catch (err) {
+      console.warn("Audio normalization analysis failed, using fallback gain for:", trackId, err);
+      const fallbackGains: Record<string, number> = {
+        "lofi-study": 1.0,
+        "acoustic-breeze": 0.85,
+        "golden-hour-drive": 0.9,
+        "cinematic-dreams": 1.1,
+        "electric-flow": 0.75,
+        "synthwave-80s": 0.8,
+        "peaceful-meadow": 1.2,
+        "midnight-groove": 0.85,
+        "cosmic-explorer": 1.3,
+        "acoustic-journey": 0.9,
+        "hacker-lounge": 0.95,
+        "epic-symphony": 0.7,
+        "dreamwave-odyssey": 1.15
+      };
+      const fallback = fallbackGains[trackId] || 1.0;
+      setNormalizationGains(prev => ({
+        ...prev,
+        [trackId]: fallback
+      }));
+    } finally {
+      setIsNormalizing(false);
+    }
+  };
+
+  useEffect(() => {
+    if (autoNormalize) {
+      if (audioTrackMode === "custom" && customAudioUrl) {
+        analyzeAndNormalizeTrack(customAudioUrl, "custom");
+      } else {
+        const foundTrack = CURATED_MP3_LIBRARY.find(t => t.id === soundtrack);
+        if (foundTrack) {
+          analyzeAndNormalizeTrack(foundTrack.url, foundTrack.id);
+        }
+      }
+    }
+  }, [autoNormalize, soundtrack, customAudioUrl, audioTrackMode]);
+
+  const currentTrackGain = autoNormalize ? (normalizationGains[audioTrackMode === "custom" ? "custom" : soundtrack] || 1.0) : 1.0;
+  const effectiveSoundtrackVolume = audioVolume * soundtrackBalanceFactor * masterVolume * currentTrackGain * duckingFactor;
+  const effectiveOriginalVideoVolume = originalVideoVolume * videoBalanceFactor * masterVolume;
+
+  const [loopAudio, setLoopAudio] = useState<boolean>(true);
+
   const [audioFadeIn, setAudioFadeIn] = useState<boolean>(true);
   const [audioFadeOut, setAudioFadeOut] = useState<boolean>(true);
   const [transitionStyle, setTransitionStyle] = useState<"fade" | "slide-left" | "slide-right" | "zoom" | "flash" | "cross-zoom" | "curtain-wipe" | "blur-fade" | "glitch-wave" | "none">("fade");
@@ -1373,6 +1745,141 @@ export default function ImageToVideo({
     currentTimeRef.current = currentTime;
   }, [currentTime]);
 
+  // Smooth transition of ducking factor for Smart Auto-Mix
+  useEffect(() => {
+    if (!isPlaying) {
+      setDuckingFactor(1.0);
+      return;
+    }
+    let animId: number;
+    const target = (smartAutoMix && (isSpeechSpeaking || isVideoAudioActive)) ? 0.25 : 1.0;
+    
+    const update = () => {
+      setDuckingFactor(prev => {
+        const diff = target - prev;
+        if (Math.abs(diff) < 0.01) return target;
+        return prev + diff * 0.15; // smooth interpolation step
+      });
+      animId = requestAnimationFrame(update);
+    };
+    
+    animId = requestAnimationFrame(update);
+    return () => cancelAnimationFrame(animId);
+  }, [smartAutoMix, isSpeechSpeaking, isVideoAudioActive, isPlaying]);
+
+  // Speech Synthesis resilient checking for active narration
+  useEffect(() => {
+    if (!isPlaying || !voiceoverEnabled) {
+      setIsSpeechSpeaking(false);
+      return;
+    }
+    
+    const interval = setInterval(() => {
+      if (typeof window !== "undefined" && window.speechSynthesis) {
+        setIsSpeechSpeaking(window.speechSynthesis.speaking);
+      }
+    }, 150);
+    
+    return () => clearInterval(interval);
+  }, [isPlaying, voiceoverEnabled]);
+
+  // Video track Web Audio speech & volume analyzer
+  useEffect(() => {
+    if (!isPlaying || !smartAutoMix) {
+      setIsVideoAudioActive(false);
+      return;
+    }
+    
+    let cumulativeTime = 0;
+    let activeIndex = 0;
+    for (let i = 0; i < slides.length; i++) {
+      if (currentTime >= cumulativeTime && currentTime < cumulativeTime + slides[i].duration) {
+        activeIndex = i;
+        break;
+      }
+      cumulativeTime += slides[i].duration;
+    }
+    
+    const activeSlide = slides[activeIndex];
+    if (!activeSlide) {
+      setIsVideoAudioActive(false);
+      return;
+    }
+    
+    const video = imageCacheRef.current[activeSlide.id];
+    if (!(video instanceof HTMLVideoElement) || video.paused || video.muted) {
+      setIsVideoAudioActive(false);
+      return;
+    }
+    
+    let active = true;
+    let checkVolumeTimer: any;
+
+    try {
+      if (!audioContextRef.current) {
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      const ctx = audioContextRef.current;
+      if (ctx.state === "suspended") {
+        ctx.resume();
+      }
+      
+      if (!analyserRef.current) {
+        analyserRef.current = ctx.createAnalyser();
+        analyserRef.current.fftSize = 256;
+      }
+      const analyser = analyserRef.current;
+      
+      // Connect the video if not already connected
+      let source = videoSourcesRef.current.get(video);
+      if (!source) {
+        source = ctx.createMediaElementSource(video);
+        source.connect(analyser);
+        analyser.connect(ctx.destination);
+        videoSourcesRef.current.set(video, source);
+      }
+      
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      
+      const checkVolume = () => {
+        if (!active) return;
+        
+        analyser.getByteFrequencyData(dataArray);
+        
+        // Human speech is concentrated in the 85Hz - 1000Hz range.
+        // Speech frequencies fall into bins 1-6.
+        let sum = 0;
+        let count = 0;
+        for (let i = 1; i < Math.min(8, bufferLength); i++) {
+          sum += dataArray[i];
+          count++;
+        }
+        const avgSpeechVolume = count > 0 ? sum / count : 0;
+        
+        // Active human speech/audio is generally above a low threshold
+        setIsVideoAudioActive(avgSpeechVolume > 15);
+        
+        if (isPlaying && !video.paused) {
+          checkVolumeTimer = requestAnimationFrame(checkVolume);
+        } else {
+          setIsVideoAudioActive(false);
+        }
+      };
+      
+      checkVolume();
+    } catch (err) {
+      console.warn("Web Audio API not supported or video node connection failed:", err);
+      setIsVideoAudioActive(originalVideoVolume > 0.1);
+    }
+    
+    return () => {
+      active = false;
+      if (checkVolumeTimer) cancelAnimationFrame(checkVolumeTimer);
+      setIsVideoAudioActive(false);
+    };
+  }, [isPlaying, currentTime, smartAutoMix, slides, originalVideoVolume]);
+
   // Keep drawVideoFrame callback accessible in hooks declared above it via a React ref
   const drawVideoFrameRef = useRef<any>(null);
 
@@ -1414,17 +1921,17 @@ export default function ImageToVideo({
   useEffect(() => {
     if (isPlaying && !isMuted) {
       if (audioTrackMode === "custom" && customAudioUrl) {
-        synthManagerRef.current.start("custom", audioVolume, false, false, totalDuration, customAudioUrl, currentTimeRef.current, audioTrimStart, audioTrimEnd);
+        synthManagerRef.current.start("custom", effectiveSoundtrackVolume, false, false, totalDuration, customAudioUrl, currentTimeRef.current, audioTrimStart, audioTrimEnd, loopAudio);
       } else if (audioTrackMode === "sfx" && selectedSfxId) {
         synthManagerRef.current.start("none");
-        synthManagerRef.current.playSingleSfx(selectedSfxId, audioVolume);
+        synthManagerRef.current.playSingleSfx(selectedSfxId, effectiveSoundtrackVolume);
       } else {
-        synthManagerRef.current.start(soundtrack, audioVolume, audioFadeIn, audioFadeOut, totalDuration);
+        synthManagerRef.current.start(soundtrack, effectiveSoundtrackVolume, audioFadeIn, audioFadeOut, totalDuration, null, 0, 0, 0, loopAudio);
       }
     } else {
       synthManagerRef.current.stop();
     }
-  }, [isPlaying, soundtrack, audioTrackMode, selectedSfxId, customAudioUrl, isMuted, audioFadeIn, audioFadeOut, totalDuration, audioTrimStart, audioTrimEnd]);
+  }, [isPlaying, soundtrack, audioTrackMode, selectedSfxId, customAudioUrl, isMuted, audioFadeIn, audioFadeOut, totalDuration, audioTrimStart, audioTrimEnd, effectiveSoundtrackVolume, loopAudio]);
 
   // Synchronize custom audio timeline scrubbing when paused
   useEffect(() => {
@@ -1462,7 +1969,7 @@ export default function ImageToVideo({
       lastTriggeredSlideIndexRef.current = activeIndex;
       const slide = slides[activeIndex];
       if (slide && slide.sfx && slide.sfx !== "none" && !isMuted) {
-        synthManagerRef.current.playSingleSfx(slide.sfx, audioVolume);
+        synthManagerRef.current.playSingleSfx(slide.sfx, effectiveSoundtrackVolume);
       }
 
       // TTS Voiceover Narration Engine
@@ -1490,12 +1997,48 @@ export default function ImageToVideo({
         }
       }
     }
-  }, [currentTime, isPlaying, slides, isMuted, audioVolume, voiceoverVolume, voiceoverEnabled, voiceoverGender]);
+  }, [currentTime, isPlaying, slides, isMuted, effectiveSoundtrackVolume, voiceoverVolume, voiceoverEnabled, voiceoverGender]);
 
   // Dynamic live volume adjustments during playback
   useEffect(() => {
-    synthManagerRef.current.setVolume(audioVolume);
-  }, [audioVolume]);
+    synthManagerRef.current.setVolume(effectiveSoundtrackVolume);
+  }, [effectiveSoundtrackVolume]);
+
+  // Sync video elements audio & playback
+  useEffect(() => {
+    let cumulativeTime = 0;
+    slides.forEach((slide) => {
+      const img = imageCacheRef.current[slide.id];
+      if (img instanceof HTMLVideoElement) {
+        if (isPlaying) {
+          const isCurrent = currentTime >= cumulativeTime && currentTime < cumulativeTime + slide.duration;
+          if (isCurrent) {
+            const relativeTime = currentTime - cumulativeTime;
+            // Seek if there is a drift
+            if (Math.abs(img.currentTime - relativeTime) > 0.15) {
+              img.currentTime = relativeTime;
+            }
+            img.muted = isMuted;
+            img.volume = Math.min(1.0, Math.max(0, effectiveOriginalVideoVolume));
+            if (img.paused) {
+              img.play().catch(() => {});
+            }
+          } else {
+            img.pause();
+          }
+        } else {
+          img.pause();
+          const relativeTime = currentTime >= cumulativeTime && currentTime < cumulativeTime + slide.duration
+            ? currentTime - cumulativeTime
+            : 0;
+          if (Math.abs(img.currentTime - relativeTime) > 0.15) {
+            img.currentTime = relativeTime;
+          }
+        }
+      }
+      cumulativeTime += slide.duration;
+    });
+  }, [isPlaying, currentTime, isMuted, slides, effectiveOriginalVideoVolume]);
 
   // Stop sound on unmount
   useEffect(() => {
@@ -1561,12 +2104,12 @@ export default function ImageToVideo({
       
       if (!isMuted) {
         if (audioTrackMode === "custom" && customAudioUrl) {
-          synthManagerRef.current.start("custom", audioVolume, false, false, totalDuration, customAudioUrl, currentTime, audioTrimStart, audioTrimEnd);
+          synthManagerRef.current.start("custom", effectiveSoundtrackVolume, false, false, totalDuration, customAudioUrl, currentTime, audioTrimStart, audioTrimEnd, loopAudio);
         } else if (audioTrackMode === "sfx" && selectedSfxId) {
           synthManagerRef.current.start("none");
-          synthManagerRef.current.playSingleSfx(selectedSfxId, audioVolume);
+          synthManagerRef.current.playSingleSfx(selectedSfxId, effectiveSoundtrackVolume);
         } else {
-          synthManagerRef.current.start(soundtrack, audioVolume, audioFadeIn, audioFadeOut, totalDuration);
+          synthManagerRef.current.start(soundtrack, effectiveSoundtrackVolume, audioFadeIn, audioFadeOut, totalDuration, null, 0, 0, 0, loopAudio);
         }
       }
     }
@@ -1680,6 +2223,45 @@ export default function ImageToVideo({
     let loadedCount = 0;
 
     filesArray.forEach((file, index) => {
+      if (file.type.startsWith("video/")) {
+        const urlStr = URL.createObjectURL(file);
+        const slide: ImageSlide = {
+          id: `uploaded-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 6)}`,
+          url: urlStr,
+          name: file.name,
+          duration: defaultSlideDuration,
+          text: file.name.replace(/\.[^/.]+$/, "").substring(0, 24),
+          textAnimation: "typewriter",
+          filter: "normal",
+          scaleStart: 1.0,
+          scaleEnd: 1.05,
+          promptDuration: defaultSlideDuration,
+          cameraMovement: "None",
+          subjectDescription: "",
+          style: "Cinematic",
+          isVideo: true
+        };
+        uploadedSlides.push(slide);
+
+        // Preload/cache the video element instantly
+        const video = document.createElement("video");
+        video.crossOrigin = "anonymous";
+        video.src = urlStr;
+        video.muted = true;
+        video.playsInline = true;
+        video.loop = true;
+        video.onloadeddata = () => {
+          imageCacheRef.current[slide.id] = video as any;
+        };
+        video.load();
+
+        loadedCount++;
+        if (loadedCount === filesArray.length) {
+          applyUploadedSlides(uploadedSlides);
+        }
+        return;
+      }
+
       if (!file.type.startsWith("image/")) {
         loadedCount++;
         if (loadedCount === filesArray.length && uploadedSlides.length > 0) {
@@ -2861,6 +3443,12 @@ export default function ImageToVideo({
           activeFilter = "brightness(118%) saturate(80%) contrast(92%) sepia(12%)";
         } else if (targetSlide.filter === "matrix-code") {
           activeFilter = "hue-rotate(65deg) saturate(160%) contrast(125%) brightness(88%)";
+        } else if (targetSlide.filter === "grayscale") {
+          activeFilter = "grayscale(100%)";
+        } else if (targetSlide.filter === "sepia") {
+          activeFilter = "sepia(100%)";
+        } else if (targetSlide.filter === "high-contrast") {
+          activeFilter = "contrast(150%) brightness(105%)";
         }
       }
       ctx.filter = activeFilter;
@@ -2992,8 +3580,12 @@ export default function ImageToVideo({
         ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 0;
       } else if (img) {
-        // Draw Image cropped to fill / fit the aspect ratio with dynamic scale
-        const imgRatio = img.width / img.height;
+        // Draw Image/Video cropped to fill / fit the aspect ratio with dynamic scale
+        const isVid = img instanceof HTMLVideoElement;
+        const intrinsicWidth = isVid ? (img as HTMLVideoElement).videoWidth || 640 : img.width || 640;
+        const intrinsicHeight = isVid ? (img as HTMLVideoElement).videoHeight || 360 : img.height || 360;
+        
+        const imgRatio = intrinsicWidth / intrinsicHeight;
         const canvasRatio = width / height;
         
         let renderWidth = width;
@@ -3902,12 +4494,12 @@ export default function ImageToVideo({
       // Connect synthesis directly to our render stream destination node
       if (!isMuted) {
         if (audioTrackMode === "custom" && customAudioUrl) {
-          renderSynthManager.start("custom", audioVolume, false, false, totalDuration, customAudioUrl, 0, audioTrimStart, audioTrimEnd);
+          renderSynthManager.start("custom", effectiveSoundtrackVolume, false, false, totalDuration, customAudioUrl, 0, audioTrimStart, audioTrimEnd, loopAudio);
         } else if (audioTrackMode === "sfx" && selectedSfxId) {
           renderSynthManager.start("none");
-          renderSynthManager.playSingleSfx(selectedSfxId, audioVolume);
+          renderSynthManager.playSingleSfx(selectedSfxId, effectiveSoundtrackVolume);
         } else if (soundtrack !== "none") {
-          renderSynthManager.start(soundtrack, audioVolume, audioFadeIn, audioFadeOut, totalDuration);
+          renderSynthManager.start(soundtrack, effectiveSoundtrackVolume, audioFadeIn, audioFadeOut, totalDuration, null, 0, 0, 0, loopAudio);
         }
 
         // Re-route its audio destination output to our stream recorder
@@ -4047,14 +4639,14 @@ export default function ImageToVideo({
             if (currentSlideIndex !== prevSlideIndex && currentSlideIndex >= 0) {
               const slide = slides[currentSlideIndex];
               if (slide.sfx && slide.sfx !== "none") {
-                renderSynthManager.playSingleSfx(slide.sfx, audioVolume);
+                renderSynthManager.playSingleSfx(slide.sfx, effectiveSoundtrackVolume);
               }
             }
           } else {
             // Trigger first slide SFX at frame 0
             const firstSlide = slides[0];
             if (firstSlide && firstSlide.sfx && firstSlide.sfx !== "none") {
-              renderSynthManager.playSingleSfx(firstSlide.sfx, audioVolume);
+              renderSynthManager.playSingleSfx(firstSlide.sfx, effectiveSoundtrackVolume);
             }
           }
         }
@@ -4365,11 +4957,11 @@ export default function ImageToVideo({
                   <div className="flex items-center gap-2">
                     <label className="flex-1 py-2 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-950 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-850 text-slate-700 dark:text-slate-300 rounded-xl text-[10.5px] font-black uppercase tracking-wider cursor-pointer transition-all text-center select-none active:scale-97">
                       <Plus className="w-3.5 h-3.5 inline mr-1" />
-                      <span>Upload New Image</span>
+                      <span>Upload New Media</span>
                       <input
                         type="file"
                         multiple
-                        accept="image/*"
+                        accept="image/*,video/*"
                         onChange={handleImageUpload}
                         className="hidden"
                       />
@@ -4622,11 +5214,11 @@ export default function ImageToVideo({
                 {/* Custom styled File Upload Label */}
                 <label className="px-4 py-2.5 bg-indigo-650 hover:bg-indigo-500 text-white rounded-xl text-[10.5px] font-black uppercase tracking-wider cursor-pointer flex items-center gap-1.5 transition-all select-none border border-indigo-500/30 active:scale-97">
                   <Plus className="w-4 h-4" />
-                  <span>Upload Images</span>
+                  <span>Upload Images/Videos</span>
                   <input
                     type="file"
                     multiple
-                    accept="image/*"
+                    accept="image/*,video/*"
                     onChange={handleImageUpload}
                     className="hidden"
                   />
@@ -7065,11 +7657,11 @@ export default function ImageToVideo({
                 {/* Quick Add Photo Multi-uploader */}
                 <label className="px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer flex items-center gap-1 transition-all select-none border border-indigo-500/30">
                   <Plus className="w-3.5 h-3.5" />
-                  <span>Add Photos</span>
+                  <span>Add Media</span>
                   <input
                     type="file"
                     multiple
-                    accept="image/*"
+                    accept="image/*,video/*"
                     onChange={handleImageUpload}
                     className="hidden"
                   />
@@ -7717,8 +8309,11 @@ export default function ImageToVideo({
                     className="w-full px-2.5 py-2 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-xl outline-none cursor-pointer"
                   >
                     <option value="normal">🎨 Original (Normal)</option>
-                    <option value="noir">⚫ Noir (Greyscale)</option>
-                    <option value="vintage">🪵 Vintage Sepia</option>
+                    <option value="grayscale">🌑 Grayscale</option>
+                    <option value="sepia">🟫 Sepia</option>
+                    <option value="high-contrast">⚡ High-Contrast</option>
+                    <option value="vintage">📜 Vintage Sepia</option>
+                    <option value="noir">⚫ Noir (Greyscale Dark)</option>
                     <option value="cinematic-warm">☀️ Warm Cinematic</option>
                     <option value="cyberpunk">👾 Cyberpunk Hue</option>
                     <option value="vhs">📼 VHS Glitch</option>
@@ -7793,7 +8388,7 @@ export default function ImageToVideo({
                         const val = e.target.value;
                         updateSlideProp(selectedSlide.id, "sfx", val);
                         if (val !== "none") {
-                          synthManagerRef.current.playSingleSfx(val, audioVolume);
+                          synthManagerRef.current.playSingleSfx(val, effectiveSoundtrackVolume);
                         }
                       }}
                       className="flex-1 px-2.5 py-2 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-xl outline-none cursor-pointer"
@@ -7810,7 +8405,7 @@ export default function ImageToVideo({
                         type="button"
                         onClick={() => {
                           if (selectedSlide.sfx) {
-                            synthManagerRef.current.playSingleSfx(selectedSlide.sfx, audioVolume);
+                            synthManagerRef.current.playSingleSfx(selectedSlide.sfx, effectiveSoundtrackVolume);
                           }
                         }}
                         className="p-2 border border-slate-200 rounded-xl text-slate-500 hover:text-slate-800 hover:bg-slate-50 active:scale-95 transition-all text-xs"
@@ -9173,7 +9768,7 @@ export default function ImageToVideo({
                 synthManagerRef.current.stop();
                 if (isPlaying) {
                   setTimeout(() => {
-                    synthManagerRef.current.start("custom", audioVolume, false, false, totalDuration, url, currentTime, audioTrimStart, audioTrimEnd);
+                    synthManagerRef.current.start("custom", effectiveSoundtrackVolume, false, false, totalDuration, url, currentTime, audioTrimStart, audioTrimEnd, loopAudio);
                   }, 100);
                 }
                 setToastMessage({
@@ -9216,7 +9811,7 @@ export default function ImageToVideo({
                       synthManagerRef.current.stop();
                       if (isPlaying) {
                         setTimeout(() => {
-                          synthManagerRef.current.start("custom", audioVolume, false, false, totalDuration, url, currentTime, audioTrimStart, audioTrimEnd);
+                          synthManagerRef.current.start("custom", effectiveSoundtrackVolume, false, false, totalDuration, url, currentTime, audioTrimStart, audioTrimEnd, loopAudio);
                         }, 100);
                       }
                       setToastMessage({
@@ -9265,7 +9860,7 @@ export default function ImageToVideo({
                           setPreviewingTrack(null);
                         } else {
                           synthManagerRef.current.stop();
-                          synthManagerRef.current.start("custom", audioVolume, false, false, totalDuration, customAudioUrl, 0, audioTrimStart, audioTrimEnd);
+                          synthManagerRef.current.start("custom", effectiveSoundtrackVolume, false, false, totalDuration, customAudioUrl, 0, audioTrimStart, audioTrimEnd, loopAudio);
                           setPreviewingTrack("custom-local");
                         }
                         triggerBeepChime();
@@ -9393,7 +9988,7 @@ export default function ImageToVideo({
                                 synthManagerRef.current.stop();
                                 if (!isMuted) {
                                   setTimeout(() => {
-                                    synthManagerRef.current.start("custom", audioVolume, false, false, totalDuration, track.url, currentTime, audioTrimStart, audioTrimEnd);
+                                    synthManagerRef.current.start("custom", effectiveSoundtrackVolume, false, false, totalDuration, track.url, currentTime, audioTrimStart, audioTrimEnd, loopAudio);
                                   }, 100);
                                 }
                               }
@@ -9433,7 +10028,7 @@ export default function ImageToVideo({
                                 setPreviewingTrack(null);
                               } else {
                                 synthManagerRef.current.stop();
-                                synthManagerRef.current.start("custom", audioVolume, false, false, totalDuration, track.url, 0);
+                                synthManagerRef.current.start("custom", effectiveSoundtrackVolume, false, false, totalDuration, track.url, 0, 0, 0, loopAudio);
                                 setPreviewingTrack(track.id);
                               }
                               triggerBeepChime();
@@ -9493,7 +10088,7 @@ export default function ImageToVideo({
                                 synthManagerRef.current.stop();
                                 if (!isMuted && track.id !== "none") {
                                   setTimeout(() => {
-                                    synthManagerRef.current.start(track.id, audioVolume, audioFadeIn, audioFadeOut, totalDuration);
+                                    synthManagerRef.current.start(track.id, effectiveSoundtrackVolume, audioFadeIn, audioFadeOut, totalDuration, null, 0, 0, 0, loopAudio);
                                   }, 100);
                                 }
                               }
@@ -9534,7 +10129,7 @@ export default function ImageToVideo({
                                   setPreviewingTrack(null);
                                 } else {
                                   synthManagerRef.current.stop();
-                                  synthManagerRef.current.start(track.id, audioVolume, audioFadeIn, audioFadeOut, totalDuration);
+                                  synthManagerRef.current.start(track.id, effectiveSoundtrackVolume, audioFadeIn, audioFadeOut, totalDuration, null, 0, 0, 0, loopAudio);
                                   setPreviewingTrack(track.id);
                                 }
                                 triggerBeepChime();
@@ -9597,7 +10192,7 @@ export default function ImageToVideo({
                         synthManagerRef.current.stop();
                         if (isPlaying) {
                           setTimeout(() => {
-                            synthManagerRef.current.start("custom", audioVolume, false, false, totalDuration, url, currentTime, audioTrimStart, audioTrimEnd);
+                            synthManagerRef.current.start("custom", effectiveSoundtrackVolume, false, false, totalDuration, url, currentTime, audioTrimStart, audioTrimEnd, loopAudio);
                           }, 100);
                         }
                         setToastMessage({
@@ -9642,7 +10237,7 @@ export default function ImageToVideo({
                               setPreviewingTrack(null);
                             } else {
                               synthManagerRef.current.stop();
-                              synthManagerRef.current.start("custom", audioVolume, false, false, totalDuration, customAudioUrl, 0, audioTrimStart, audioTrimEnd);
+                              synthManagerRef.current.start("custom", effectiveSoundtrackVolume, false, false, totalDuration, customAudioUrl, 0, audioTrimStart, audioTrimEnd, loopAudio);
                               setPreviewingTrack("custom-local");
                             }
                             triggerBeepChime();
@@ -9850,7 +10445,7 @@ export default function ImageToVideo({
                         setPreviewingTrack(null);
                       } else {
                         // Play from start of trim to end of trim
-                        synthManagerRef.current.start("custom", audioVolume, false, false, audioTrimEnd - audioTrimStart, customAudioUrl, 0, audioTrimStart, audioTrimEnd);
+                        synthManagerRef.current.start("custom", effectiveSoundtrackVolume, false, false, audioTrimEnd - audioTrimStart, customAudioUrl, 0, audioTrimStart, audioTrimEnd, loopAudio);
                         setPreviewingTrack("trim-preview");
                         setToastMessage({
                           text: "🎧 Playing Trim Audition",
@@ -9891,40 +10486,255 @@ export default function ImageToVideo({
                 </h5>
               </div>
 
-              {/* Master Volume Slider */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 dark:text-slate-400">
-                  <span className="flex items-center gap-1">
-                    {audioVolume === 0 ? (
-                      <VolumeX className="w-3.5 h-3.5 text-slate-400" />
-                    ) : (
-                      <Volume2 className="w-3.5 h-3.5 text-indigo-500" />
-                    )}
-                    Soundtrack Volume
-                  </span>
-                  <span className="font-mono text-[10.5px] bg-slate-100 dark:bg-slate-900 px-1.5 py-0.5 rounded text-indigo-600 dark:text-indigo-400">
-                    {Math.round(audioVolume * 100)}%
-                  </span>
+              {/* Master Volume & Audio Mixer Panel */}
+              <div className="space-y-3">
+                {/* Master Volume */}
+                <div className="space-y-1 bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-100 dark:border-slate-850">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                    <span className="flex items-center gap-1">
+                      {masterVolume === 0 ? (
+                        <VolumeX className="w-3.5 h-3.5 text-slate-400" />
+                      ) : (
+                        <Volume2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                      )}
+                      🎚️ Master Volume
+                    </span>
+                    <span className="font-mono text-[10.5px] bg-indigo-100/50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded text-indigo-700 dark:text-indigo-300">
+                      {Math.round(masterVolume * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={masterVolume}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      setMasterVolume(val);
+                      if (val > 0 && isMuted) {
+                        setIsMuted(false);
+                      }
+                    }}
+                    className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                  />
                 </div>
-                <input
-                  type="range"
-                  min="0"
-                  max="1"
-                  step="0.05"
-                  value={audioVolume}
-                  onChange={(e) => {
-                    const val = parseFloat(e.target.value);
-                    setAudioVolume(val);
-                    if (val > 0 && isMuted) {
-                      setIsMuted(false);
-                    }
-                  }}
-                  className="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-600"
-                />
+
+                {/* Soundtrack Volume */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                    <span className="flex items-center gap-1">
+                      <Music className="w-3.5 h-3.5 text-emerald-500" />
+                      Soundtrack Volume
+                    </span>
+                    <span className="font-mono text-[10px] text-slate-500">
+                      {Math.round(audioVolume * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={audioVolume}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      setAudioVolume(val);
+                      if (val > 0 && isMuted) {
+                        setIsMuted(false);
+                      }
+                    }}
+                    className="w-full h-1 bg-slate-100 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                  />
+                </div>
+
+                {/* Voiceover Narration Volume */}
+                <div className="space-y-1.5 p-2.5 rounded-xl bg-indigo-50/20 dark:bg-indigo-950/10 border border-slate-150/50 dark:border-slate-850/40">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                    <span className="flex items-center gap-1.5">
+                      <Mic className={`w-3.5 h-3.5 ${voiceoverEnabled ? "text-indigo-500 animate-pulse" : "text-slate-400"}`} />
+                      <span className={voiceoverEnabled ? "text-indigo-700 dark:text-indigo-300 font-extrabold" : ""}>
+                        Voiceover Narration
+                      </span>
+                    </span>
+                    <div className="flex items-center gap-1.5 font-mono text-[10px]">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setVoiceoverEnabled(!voiceoverEnabled);
+                          triggerBeepChime();
+                        }}
+                        className={`px-1.5 py-0.5 rounded text-[8px] font-extrabold uppercase transition-all cursor-pointer ${
+                          voiceoverEnabled 
+                            ? "bg-indigo-600 text-white" 
+                            : "bg-slate-100 dark:bg-slate-800 text-slate-400 dark:text-slate-500 hover:bg-slate-200"
+                        }`}
+                      >
+                        {voiceoverEnabled ? "Active" : "Disabled"}
+                      </button>
+                      <span className="text-slate-500">
+                        {Math.round(voiceoverVolume * 100)}%
+                      </span>
+                    </div>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    disabled={!voiceoverEnabled}
+                    value={voiceoverVolume}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      setVoiceoverVolume(val);
+                    }}
+                    className={`w-full h-1 rounded-lg appearance-none cursor-pointer accent-indigo-500 ${
+                      voiceoverEnabled ? "bg-slate-100 dark:bg-slate-800" : "bg-slate-100/50 dark:bg-slate-850 opacity-40 cursor-not-allowed"
+                    }`}
+                  />
+                  {!voiceoverEnabled && (
+                    <p className="text-[8.5px] text-slate-400/80 leading-none">
+                      Enable Voiceover to activate and adjust relative voice mixing volume.
+                    </p>
+                  )}
+                </div>
+
+                {/* Original Video Volume */}
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                    <span className="flex items-center gap-1">
+                      <Video className="w-3.5 h-3.5 text-blue-500" />
+                      Original Video Audio
+                    </span>
+                    <span className="font-mono text-[10px] text-slate-500">
+                      {Math.round(originalVideoVolume * 100)}%
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={originalVideoVolume}
+                    onChange={(e) => {
+                      setOriginalVideoVolume(parseFloat(e.target.value));
+                    }}
+                    className="w-full h-1 bg-slate-100 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-blue-500"
+                  />
+                </div>
+
+                {/* Balance Slider */}
+                <div className="space-y-1.5 pt-1 border-t border-slate-100 dark:border-slate-850">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 dark:text-slate-400">
+                    <span className="flex items-center gap-1">
+                      ⚖️ Mix Balance
+                    </span>
+                    <span className="font-mono text-[10px] text-indigo-600 dark:text-indigo-400">
+                      {audioBalance === 0.5 ? "Equal Mix" : audioBalance < 0.5 ? `${Math.round((1 - audioBalance) * 105)}% Soundtrack` : `${Math.round(audioBalance * 100)}% Video`}
+                    </span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={audioBalance}
+                    onChange={(e) => {
+                      setAudioBalance(parseFloat(e.target.value));
+                    }}
+                    className="w-full h-1.5 bg-gradient-to-r from-emerald-500 via-indigo-500 to-blue-500 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                  />
+                  <div className="flex justify-between text-[9px] text-slate-400 px-0.5">
+                    <span>🎵 Soundtrack Only</span>
+                    <span>Equal</span>
+                    <span>📹 Video Only</span>
+                  </div>
+                </div>
               </div>
 
-              {/* Fade Controls */}
+              {/* Fade & Loop Controls */}
               <div className="grid grid-cols-2 gap-3 pt-1">
+                {/* Loop Audio */}
+                <label className="col-span-2 flex items-start gap-2.5 p-2.5 rounded-xl border border-slate-150 dark:border-slate-850 hover:bg-slate-50/50 dark:hover:bg-slate-900/30 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={loopAudio}
+                    onChange={(e) => {
+                      setLoopAudio(e.target.checked);
+                      triggerBeepChime();
+                    }}
+                    className="mt-0.5 rounded border-slate-300 dark:border-slate-800 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5 cursor-pointer"
+                  />
+                  <div className="flex flex-col">
+                    <span className="text-[11px] font-black text-slate-700 dark:text-slate-200">
+                      🔄 Loop Background Soundtrack
+                    </span>
+                    <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">
+                      Automatically restart the track if it is shorter than your video duration
+                    </span>
+                  </div>
+                </label>
+
+                {/* Auto-Normalize Volume */}
+                <label className="col-span-2 flex items-start gap-2.5 p-2.5 rounded-xl border border-slate-150 dark:border-slate-850 hover:bg-slate-50/50 dark:hover:bg-slate-900/30 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={autoNormalize}
+                    onChange={(e) => {
+                      setAutoNormalize(e.target.checked);
+                      triggerBeepChime();
+                    }}
+                    className="mt-0.5 rounded border-slate-300 dark:border-slate-800 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5 cursor-pointer"
+                  />
+                  <div className="flex flex-col flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-black text-slate-700 dark:text-slate-200">
+                        🔊 Auto-Normalize Volume
+                      </span>
+                      {isNormalizing && (
+                        <span className="text-[8.5px] font-bold text-indigo-600 dark:text-indigo-400 animate-pulse bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded">
+                          Analyzing...
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">
+                      Dynamically process and balance track waveforms to maintain a consistent target loudness (-14 dBFS)
+                    </span>
+                  </div>
+                </label>
+
+                {/* Smart Auto-Mix */}
+                <label className="col-span-2 flex items-start gap-2.5 p-2.5 rounded-xl border border-slate-150 dark:border-slate-850 hover:bg-slate-50/50 dark:hover:bg-slate-900/30 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={smartAutoMix}
+                    onChange={(e) => {
+                      setSmartAutoMix(e.target.checked);
+                      triggerBeepChime();
+                    }}
+                    className="mt-0.5 rounded border-slate-300 dark:border-slate-800 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5 cursor-pointer"
+                  />
+                  <div className="flex flex-col flex-1">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] font-black text-slate-700 dark:text-slate-200">
+                        🧠 Smart Auto-Mix (Audio Ducking)
+                      </span>
+                      {smartAutoMix && (isSpeechSpeaking || isVideoAudioActive) ? (
+                        <span className="text-[8.5px] font-bold text-amber-600 dark:text-amber-400 animate-pulse bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded flex items-center gap-1">
+                          <span className="h-1 w-1 bg-amber-500 rounded-full animate-ping"></span>
+                          Ducking Active
+                        </span>
+                      ) : smartAutoMix ? (
+                        <span className="text-[8.5px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-1.5 py-0.5 rounded">
+                          Ready
+                        </span>
+                      ) : null}
+                    </div>
+                    <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">
+                      Intelligently lower soundtrack volume (-12dB) during active voiceover TTS narration or speech segments in video slides
+                    </span>
+                  </div>
+                </label>
                 {/* Fade In */}
                 <label className="flex items-start gap-2.5 p-2.5 rounded-xl border border-slate-150 dark:border-slate-850 hover:bg-slate-50/50 dark:hover:bg-slate-900/30 cursor-pointer select-none">
                   <input
