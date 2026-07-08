@@ -50,7 +50,9 @@ import {
   Lightbulb,
   Zap,
   Flame,
-  Mic
+  Mic,
+  ListChecks,
+  Grid
 } from "lucide-react";
 
 interface OverlayElement {
@@ -127,10 +129,53 @@ class RoyaltyFreeSynthManager {
   private trimStart: number = 0;
   private trimEnd: number = 0;
 
+  // Real-time audio node properties
+  private filterNode: BiquadFilterNode | null = null;
+  private delayNode: DelayNode | null = null;
+  private delayGainNode: GainNode | null = null;
+  private tempoFactor = 1.0;
+  private filterCutoff = 8000;
+  private delayFeedback = 0.15;
+
   constructor() {}
 
   public getAnalyser(): AnalyserNode | null {
     return this.analyser;
+  }
+
+  public setTempoFactor(factor: number) {
+    this.tempoFactor = factor;
+    if (this.audioElement) {
+      try {
+        this.audioElement.playbackRate = factor;
+      } catch (e) {
+        console.warn("Could not set playbackRate on audio element:", e);
+      }
+    }
+  }
+
+  public setFilterCutoff(cutoff: number) {
+    this.filterCutoff = cutoff;
+    if (this.filterNode && this.ctx) {
+      try {
+        const now = this.ctx.currentTime;
+        this.filterNode.frequency.setValueAtTime(cutoff, now);
+      } catch (e) {
+        this.filterNode.frequency.value = cutoff;
+      }
+    }
+  }
+
+  public setDelayFeedback(feedback: number) {
+    this.delayFeedback = feedback;
+    if (this.delayGainNode && this.ctx) {
+      try {
+        const now = this.ctx.currentTime;
+        this.delayGainNode.gain.setValueAtTime(feedback, now);
+      } catch (e) {
+        this.delayGainNode.gain.value = feedback;
+      }
+    }
   }
 
   public setVolume(vol: number) {
@@ -210,10 +255,10 @@ class RoyaltyFreeSynthManager {
     trimStart: number = 0,
     trimEnd: number = 0,
     loopAudio: boolean = true
-  ) {
+  ): Promise<void> {
     if (track === "none") {
       this.stop();
-      return;
+      return Promise.resolve();
     }
     
     this.track = track;
@@ -230,7 +275,7 @@ class RoyaltyFreeSynthManager {
 
     try {
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
-      if (!AudioContextClass) return;
+      if (!AudioContextClass) return Promise.resolve();
       this.ctx = new AudioContextClass();
       
       this.gainNode = this.ctx.createGain();
@@ -252,6 +297,31 @@ class RoyaltyFreeSynthManager {
       this.analyser = this.ctx.createAnalyser();
       this.analyser.fftSize = 64;
 
+      // Instantiate Filter Node (Lowpass)
+      this.filterNode = this.ctx.createBiquadFilter();
+      this.filterNode.type = "lowpass";
+      this.filterNode.frequency.setValueAtTime(this.filterCutoff, now);
+
+      // Instantiate Feedback Delay Node
+      this.delayNode = this.ctx.createDelay(1.0);
+      this.delayNode.delayTime.setValueAtTime(0.35, now); // 350ms echo time
+      
+      this.delayGainNode = this.ctx.createGain();
+      this.delayGainNode.gain.setValueAtTime(this.delayFeedback, now);
+
+      // Create Delay feedback loop
+      this.delayNode.connect(this.delayGainNode);
+      this.delayGainNode.connect(this.delayNode);
+
+      // Connect dry/wet main chain:
+      // Sources -> filterNode
+      // filterNode -> gainNode (dry)
+      // filterNode -> delayNode -> gainNode (wet echo)
+      this.filterNode.connect(this.gainNode);
+      this.filterNode.connect(this.delayNode);
+      this.delayNode.connect(this.gainNode);
+
+      // Master output: gainNode -> analyser -> destination
       this.gainNode.connect(this.analyser);
       this.analyser.connect(this.ctx.destination);
 
@@ -263,8 +333,15 @@ class RoyaltyFreeSynthManager {
         this.audioElement.volume = volume;
         this.audioElement.crossOrigin = "anonymous";
         this.audioNode = this.ctx.createMediaElementSource(this.audioElement);
-        this.audioNode.connect(this.gainNode);
+        this.audioNode.connect(this.filterNode || this.gainNode);
         
+        // Apply playbackRate based on tempoFactor
+        try {
+          this.audioElement.playbackRate = this.tempoFactor;
+        } catch (e) {
+          console.warn("Could not set playbackRate:", e);
+        }
+
         const hasTrim = this.trimEnd > this.trimStart;
         this.audioElement.loop = loopAudio && !hasTrim; // Native loop only if not trimmed and looping is enabled
         
@@ -295,8 +372,48 @@ class RoyaltyFreeSynthManager {
           }
         }
 
-        this.audioElement.play().catch(e => console.warn("Failed to play custom audio in Synth:", e));
-        return;
+        return new Promise<void>((resolve) => {
+          if (!this.audioElement) {
+            resolve();
+            return;
+          }
+
+          const onCanPlay = () => {
+            if (this.audioElement) {
+              this.audioElement.removeEventListener("canplaythrough", onCanPlay);
+              this.audioElement.removeEventListener("error", onError);
+              this.audioElement.play()
+                .then(() => resolve())
+                .catch(e => {
+                  console.warn("Failed to play custom audio in Synth:", e);
+                  resolve();
+                });
+            } else {
+              resolve();
+            }
+          };
+
+          const onError = () => {
+            if (this.audioElement) {
+              this.audioElement.removeEventListener("canplaythrough", onCanPlay);
+              this.audioElement.removeEventListener("error", onError);
+            }
+            resolve();
+          };
+
+          if (this.audioElement.readyState >= 3) {
+            this.audioElement.play()
+              .then(() => resolve())
+              .catch(e => {
+                console.warn("Failed to play custom audio:", e);
+                resolve();
+              });
+          } else {
+            this.audioElement.addEventListener("canplaythrough", onCanPlay);
+            this.audioElement.addEventListener("error", onError);
+            setTimeout(onCanPlay, 3000); // 3 seconds fallback
+          }
+        });
       }
 
       // Existing synthesizers
@@ -320,20 +437,23 @@ class RoyaltyFreeSynthManager {
         this.bpm = 75;
       } else {
         // Unknown or custom play sfx
-        return;
+        return Promise.resolve();
       }
 
-      const beatInterval = 60000 / this.bpm / 2; // Eighth notes
       const scheduleNextBeats = () => {
         if (!this.isPlaying) return;
         this.playBeat();
         this.beatCount++;
-        this.timer = setTimeout(scheduleNextBeats, beatInterval);
+        const currentBpm = this.bpm * this.tempoFactor;
+        const currentInterval = 60000 / (currentBpm || 120) / 2;
+        this.timer = setTimeout(scheduleNextBeats, currentInterval);
       };
 
       scheduleNextBeats();
+      return Promise.resolve();
     } catch (e) {
       console.warn("Failed to initialize synth soundtrack:", e);
+      return Promise.resolve();
     }
   }
 
@@ -591,7 +711,7 @@ class RoyaltyFreeSynthManager {
     g.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
 
     osc.connect(g);
-    g.connect(this.gainNode);
+    g.connect(this.filterNode || this.gainNode);
 
     osc.start(this.ctx.currentTime);
     osc.stop(this.ctx.currentTime + duration);
@@ -611,7 +731,7 @@ class RoyaltyFreeSynthManager {
     g.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
 
     osc.connect(g);
-    g.connect(this.gainNode);
+    g.connect(this.filterNode || this.gainNode);
 
     osc.start(this.ctx.currentTime);
     osc.stop(this.ctx.currentTime + duration);
@@ -641,7 +761,7 @@ class RoyaltyFreeSynthManager {
 
     noise.connect(filter);
     filter.connect(g);
-    g.connect(this.gainNode);
+    g.connect(this.filterNode || this.gainNode);
 
     noise.start(this.ctx.currentTime);
     noise.stop(this.ctx.currentTime + duration);
@@ -661,7 +781,7 @@ class RoyaltyFreeSynthManager {
     g.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
 
     osc.connect(g);
-    g.connect(this.gainNode);
+    g.connect(this.filterNode || this.gainNode);
 
     osc.start(this.ctx.currentTime);
     osc.stop(this.ctx.currentTime + duration);
@@ -682,7 +802,7 @@ class RoyaltyFreeSynthManager {
     g.gain.exponentialRampToValueAtTime(0.0001, this.ctx.currentTime + duration);
 
     osc.connect(g);
-    g.connect(this.gainNode);
+    g.connect(this.filterNode || this.gainNode);
 
     osc.start(this.ctx.currentTime);
     osc.stop(this.ctx.currentTime + duration);
@@ -1283,6 +1403,16 @@ const CURATED_MP3_LIBRARY: CuratedMusicTrack[] = [
   }
 ];
 
+interface BatchItem {
+  id: string;
+  url: string;
+  name: string;
+  status: "pending" | "processing" | "completed" | "failed";
+  progress: number;
+  resultUrl?: string;
+  slide?: ImageSlide;
+}
+
 export default function ImageToVideo({
   user,
   accessToken,
@@ -1299,6 +1429,10 @@ export default function ImageToVideo({
     } catch (e) {}
     return SAMPLE_SLIDES;
   });
+
+  const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
+  const [isBatchProcessing, setIsBatchProcessing] = useState<boolean>(false);
+  const [batchGenerationMode, setBatchGenerationMode] = useState<"individual" | "sequence">("individual");
 
   const [soundtrack, setSoundtrack] = useState<string>("retro-lofi");
   const [musicTab, setMusicTab] = useState<"mp3" | "synth" | "custom">("mp3");
@@ -1438,10 +1572,11 @@ export default function ImageToVideo({
 
   const [audioFadeIn, setAudioFadeIn] = useState<boolean>(true);
   const [audioFadeOut, setAudioFadeOut] = useState<boolean>(true);
-  const [transitionStyle, setTransitionStyle] = useState<"fade" | "slide-left" | "slide-right" | "zoom" | "flash" | "cross-zoom" | "curtain-wipe" | "blur-fade" | "glitch-wave" | "none">("fade");
+  const [transitionStyle, setTransitionStyle] = useState<"fade" | "slide-left" | "slide-right" | "zoom" | "flash" | "cross-zoom" | "curtain-wipe" | "blur-fade" | "glitch-wave" | "spiral-spin" | "pixelate-fade" | "radial-wipe" | "none">("fade");
   const [transitionDuration, setTransitionDuration] = useState<number>(0.6);
   const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16" | "1:1">("16:9");
   const [videoPlaybackSpeed, setVideoPlaybackSpeed] = useState<number>(1.0);
+  const [canvasGuideGrid, setCanvasGuideGrid] = useState<"none" | "thirds" | "safe-zone" | "all">("none");
   
   // Cinematic visual & subtitle effects states
   const [subtitleStyle, setSubtitleStyle] = useState<"netflix" | "neon" | "karaoke" | "minimal" | "classical">("netflix");
@@ -1494,6 +1629,10 @@ export default function ImageToVideo({
   const [aiMotionIntensity, setAiMotionIntensity] = useState<number>(5);
   const [aiCameraDirection, setAiCameraDirection] = useState<"auto" | "zoom-in" | "zoom-out" | "pan-left" | "pan-right" | "tilt-up" | "tilt-down" | "orbit">("auto");
   const [aiStylePreset, setAiStylePreset] = useState<"auto" | "cinematic" | "cyberpunk" | "anime" | "vhs" | "realistic-3d" | "minimalist">("auto");
+  const [aiSceneImageSource, setAiSceneImageSource] = useState<"gemini" | "unsplash">("gemini");
+  const [synthTempoFactor, setSynthTempoFactor] = useState<number>(1.0);
+  const [synthFilterCutoff, setSynthFilterCutoff] = useState<number>(8000);
+  const [synthDelayFeedback, setSynthDelayFeedback] = useState<number>(0.15);
   const [aiSceneDuration, setAiSceneDuration] = useState<number>(4);
   const [aiGenerationProgress, setAiGenerationProgress] = useState<number>(0);
   const [aiGenerationLogs, setAiGenerationLogs] = useState<string[]>([]);
@@ -1513,8 +1652,15 @@ export default function ImageToVideo({
 
   // AI Subtitle Generator states
   const [isGeneratingSubtitles, setIsGeneratingSubtitles] = useState<boolean>(false);
-  const [subtitleGenerationMode, setSubtitleGenerationMode] = useState<"prompt" | "audio">("prompt");
+  const [subtitleGenerationMode, setSubtitleGenerationMode] = useState<"prompt" | "audio" | "stt">("prompt");
   const [subtitleThemePrompt, setSubtitleThemePrompt] = useState<string>("");
+
+  // New Speech-to-Text (STT) Auto-Captioning States
+  const [sttIsListening, setSttIsListening] = useState<boolean>(false);
+  const [sttTranscript, setSttTranscript] = useState<string>("");
+  const [sttLanguage, setSttLanguage] = useState<string>("en-US");
+  const [sttIndividualSlideId, setSttIndividualSlideId] = useState<string | null>(null);
+  const sttRecognitionRef = useRef<any>(null);
 
   useEffect(() => {
     const active = slides.find(s => s.id === selectedSlideId);
@@ -1557,6 +1703,13 @@ export default function ImageToVideo({
   const [exportFormat, setExportFormat] = useState<"webm" | "mp4" | "gif">("webm");
   const [exportResolution, setExportResolution] = useState<"720p" | "1080p" | "4K">("1080p");
   const [subtitleManualOffset, setSubtitleManualOffset] = useState<number>(0);
+  const [subtitleVerticalAlign, setSubtitleVerticalAlign] = useState<"top" | "middle" | "bottom">("bottom");
+  const [subtitleFontSizeFactor, setSubtitleFontSizeFactor] = useState<number>(1.0);
+  const [subtitleTextColor, setSubtitleTextColor] = useState<string>("#ffffff");
+  const [subtitleBgColor, setSubtitleBgColor] = useState<string>("#000000");
+  const [subtitleBgOpacity, setSubtitleBgOpacity] = useState<number>(0.65);
+  const [subtitleStrokeColor, setSubtitleStrokeColor] = useState<string>("#000000");
+  const [subtitleStrokeWidth, setSubtitleStrokeWidth] = useState<number>(4);
 
   // Premium Audio Visualizer & Voiceover state variables
   const [visualizerStyle, setVisualizerStyle] = useState<"none" | "bars" | "wave" | "pulse">("wave");
@@ -1574,6 +1727,16 @@ export default function ImageToVideo({
 
   // Real-time CSS filter to apply instantly to the created/exported video/GIF in the player
   const [createdVideoPlayerFilter, setCreatedVideoPlayerFilter] = useState<string>("none");
+
+  // AI Image Generator State Variables
+  const [activeImageTab, setActiveImageTab] = useState<"presets" | "ai_create">("presets");
+  const [aiImagePrompt, setAiImagePrompt] = useState<string>("");
+  const [aiImageAspectRatio, setAiImageAspectRatio] = useState<"1:1" | "16:9" | "9:16" | "4:3" | "3:4">("1:1");
+  const [aiImageStyle, setAiImageStyle] = useState<string>("none");
+  const [isGeneratingAiImage, setIsGeneratingAiImage] = useState<boolean>(false);
+  const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
+  const [aiImageError, setAiImageError] = useState<string | null>(null);
+  const [aiImageProgressStage, setAiImageProgressStage] = useState<string>("");
 
   // For the custom integrated video player
   const previewVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -1940,6 +2103,15 @@ export default function ImageToVideo({
     }
   }, [currentTime, isPlaying, audioTrackMode]);
 
+  // Synchronize real-time synth and playback parameter modifications
+  useEffect(() => {
+    if (synthManagerRef.current) {
+      synthManagerRef.current.setTempoFactor(synthTempoFactor);
+      synthManagerRef.current.setFilterCutoff(synthFilterCutoff);
+      synthManagerRef.current.setDelayFeedback(synthDelayFeedback);
+    }
+  }, [synthTempoFactor, synthFilterCutoff, synthDelayFeedback]);
+
   // Synchronize slide entry transition SFX
   const lastTriggeredSlideIndexRef = useRef<number | null>(null);
 
@@ -2128,6 +2300,46 @@ export default function ImageToVideo({
     synthManagerRef.current.stop();
   };
 
+  const stepBackward = () => {
+    setCurrentTime((prev) => Math.max(0, prev - 0.1));
+    triggerBeepChime();
+  };
+
+  const stepForward = () => {
+    setCurrentTime((prev) => Math.min(totalDuration, prev + 0.1));
+    triggerBeepChime();
+  };
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const activeEl = document.activeElement;
+      if (
+        activeEl &&
+        (activeEl.tagName === "INPUT" ||
+          activeEl.tagName === "TEXTAREA" ||
+          activeEl.getAttribute("contenteditable") === "true")
+      ) {
+        return;
+      }
+
+      if (e.code === "Space") {
+        e.preventDefault();
+        togglePlay();
+      } else if (e.code === "ArrowLeft") {
+        e.preventDefault();
+        setCurrentTime((prev) => Math.max(0, prev - 0.5));
+      } else if (e.code === "ArrowRight") {
+        e.preventDefault();
+        setCurrentTime((prev) => Math.min(totalDuration, prev + 0.5));
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [togglePlay, totalDuration]);
+
   // Pre-seed sample list
   const loadDefaultSampleSlides = () => {
     setSlides(SAMPLE_SLIDES);
@@ -2174,6 +2386,137 @@ export default function ImageToVideo({
       sub: replaceOnUpload 
         ? `Timeline replaced with ${preset.name}. Click 'Create Video Now' to generate!`
         : `Appended ${preset.name} to the end of the timeline track.`,
+      success: true
+    });
+    triggerBeepChime();
+  };
+
+  const handleGenerateAiImage = async () => {
+    if (!aiImagePrompt.trim()) return;
+    setIsGeneratingAiImage(true);
+    setAiImageError(null);
+    setAiImageProgressStage("Connecting to Google Gemini Cloud...");
+    triggerBeepChime();
+
+    // Stage updates
+    const stages = [
+      "Contacting Gemini Imagen Server...",
+      "Analyzing and enhancing prompt structures...",
+      "Configuring aspect ratio and aesthetic dimensions...",
+      "Running diffusion noise loops (Step 1/4)...",
+      "Refining high-res pixel parameters (Step 2/4)...",
+      "Harmonizing lighting and shadows (Step 3/4)...",
+      "Polishing final color gradient masks (Step 4/4)...",
+      "Converting raw tensors to high-fidelity PNG stream..."
+    ];
+
+    let currentStageIndex = 0;
+    const stageTimer = setInterval(() => {
+      if (currentStageIndex < stages.length - 1) {
+        currentStageIndex++;
+        setAiImageProgressStage(stages[currentStageIndex]);
+      }
+    }, 1200);
+
+    try {
+      const response = await fetch("/api/image/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          prompt: aiImagePrompt,
+          aspectRatio: aiImageAspectRatio,
+          style: aiImageStyle
+        })
+      });
+
+      clearInterval(stageTimer);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: "Image generation timed out. Please try again." }));
+        throw new Error(errorData.error || `HTTP error! Status: ${response.status}`);
+      }
+
+      const data = await response.json();
+      if (data.imageUrl) {
+        setGeneratedImageUrl(data.imageUrl);
+        setToastMessage({
+          text: "✨ Image Created successfully!",
+          sub: "Your custom AI creation is ready. Add it to your timeline!",
+          success: true
+        });
+      } else {
+        throw new Error("No image data returned from the server.");
+      }
+    } catch (err: any) {
+      clearInterval(stageTimer);
+      console.error("AI Image Generation Error:", err);
+      setAiImageError(err.message || "An unexpected error occurred during generation.");
+      setToastMessage({
+        text: "❌ Image Generation Failed",
+        sub: err.message || "An unexpected error occurred during generation.",
+        success: false
+      });
+    } finally {
+      setIsGeneratingAiImage(false);
+      setAiImageProgressStage("");
+    }
+  };
+
+  const handleAddGeneratedImageToTimeline = () => {
+    if (!generatedImageUrl) return;
+
+    const styleNameMap: Record<string, string> = {
+      none: "Raw Prompt",
+      cinematic: "Cinematic",
+      anime: "Anime style",
+      oil_painting: "Oil Painting style",
+      sketch: "Graphite Sketch style",
+      render_3d: "3D Octane Render",
+      retro_vhs: "Retro VHS look"
+    };
+
+    const styleName = styleNameMap[aiImageStyle] || "Custom style";
+
+    const slide: ImageSlide = {
+      id: `generated-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+      url: generatedImageUrl,
+      name: `Gemini AI Image - ${styleName}.png`,
+      duration: defaultSlideDuration,
+      text: aiImagePrompt.substring(0, 30) + (aiImagePrompt.length > 30 ? "..." : ""),
+      textAnimation: "typewriter",
+      filter: "normal",
+      scaleStart: 1.0,
+      scaleEnd: 1.15,
+      promptDuration: defaultSlideDuration,
+      cameraMovement: "Slow Zoom",
+      subjectDescription: aiImagePrompt,
+      style: "Cinematic",
+      sfx: "none"
+    };
+
+    // Cache the image
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.src = generatedImageUrl;
+    img.onload = () => {
+      imageCacheRef.current[slide.id] = img;
+    };
+
+    if (replaceOnUpload) {
+      setSlides([slide]);
+      setSelectedSlideId(slide.id);
+      setCurrentTime(0);
+    } else {
+      setSlides((prev) => [...prev, slide]);
+    }
+
+    setToastMessage({
+      text: "📸 AI Image added to Timeline!",
+      sub: replaceOnUpload
+        ? `Timeline replaced with generated frame. Click 'Create Video Now' to export!`
+        : `Appended generated AI image to the end of the timeline.`,
       success: true
     });
     triggerBeepChime();
@@ -2428,6 +2771,12 @@ export default function ImageToVideo({
   const updateSlideProp = (id: string, prop: keyof ImageSlide, value: any) => {
     setSlides((prev) =>
       prev.map((s) => (s.id === id ? { ...s, [prop]: value } : s))
+    );
+  };
+
+  const updateSlideMultipleProps = (id: string, props: Partial<ImageSlide>) => {
+    setSlides((prev) =>
+      prev.map((s) => (s.id === id ? { ...s, ...props } : s))
     );
   };
 
@@ -2785,8 +3134,40 @@ export default function ImageToVideo({
         }
 
         const data = await response.json();
-        const unsplashKeywords = data.keywords || "nature";
-        const imageUrl = `https://images.unsplash.com/featured/800x450/?${encodeURIComponent(unsplashKeywords)}&sig=${Date.now()}-${i}`;
+        let imageUrl = "";
+        if (aiSceneImageSource === "gemini") {
+          try {
+            let imgStyle = "none";
+            if (aiStylePreset === "cinematic") imgStyle = "cinematic";
+            else if (aiStylePreset === "anime") imgStyle = "anime";
+            else if (aiStylePreset === "vhs") imgStyle = "retro_vhs";
+            else if (aiStylePreset === "realistic-3d") imgStyle = "render_3d";
+
+            const imgResponse = await fetch("/api/image/generate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                prompt: currentLinePrompt,
+                aspectRatio: "16:9",
+                style: imgStyle
+              })
+            });
+
+            if (imgResponse.ok) {
+              const imgData = await imgResponse.json();
+              imageUrl = imgData.imageUrl;
+            } else {
+              throw new Error("AI Image Generation model error");
+            }
+          } catch (imgErr) {
+            console.warn("Imagen generation failed in script, falling back to Unsplash stock:", imgErr);
+            const unsplashKeywords = data.keywords || "nature";
+            imageUrl = `https://images.unsplash.com/featured/800x450/?${encodeURIComponent(unsplashKeywords)}&sig=${Date.now()}-${i}`;
+          }
+        } else {
+          const unsplashKeywords = data.keywords || "nature";
+          imageUrl = `https://images.unsplash.com/featured/800x450/?${encodeURIComponent(unsplashKeywords)}&sig=${Date.now()}-${i}`;
+        }
         
         const intensityScale = 1.0 + (aiMotionIntensity * 0.035);
         let finalCamera = aiCameraDirection === "auto" ? (data.camera || "Slow Zoom") : aiCameraDirection;
@@ -2989,9 +3370,44 @@ export default function ImageToVideo({
       await new Promise((r) => setTimeout(r, 700));
       appendLog(`[3/5] Visualizing scene geometry: "${data.caption || "Synthesized visual text"}"`, 70);
 
-      // Use Unsplash Featured Image based on the generated keywords
-      const unsplashKeywords = data.keywords || "nature,beautiful";
-      const imageUrl = `https://images.unsplash.com/featured/800x450/?${encodeURIComponent(unsplashKeywords)}&sig=${Date.now()}`;
+      let imageUrl = "";
+      if (aiSceneImageSource === "gemini") {
+        appendLog(`[3/5] Querying Gemini Imagen 3 engine for a custom high-fidelity image canvas...`, 60);
+        try {
+          let imgStyle = "none";
+          if (aiStylePreset === "cinematic") imgStyle = "cinematic";
+          else if (aiStylePreset === "anime") imgStyle = "anime";
+          else if (aiStylePreset === "vhs") imgStyle = "retro_vhs";
+          else if (aiStylePreset === "realistic-3d") imgStyle = "render_3d";
+
+          const imgResponse = await fetch("/api/image/generate", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              prompt: userPromptText,
+              aspectRatio: "16:9",
+              style: imgStyle
+            })
+          });
+
+          if (imgResponse.ok) {
+            const imgData = await imgResponse.json();
+            imageUrl = imgData.imageUrl;
+            appendLog(`[3/5] Success! Authentic custom AI canvas generated at 16:9 widescreen.`, 75);
+          } else {
+            throw new Error("AI Image Generation model error");
+          }
+        } catch (imgErr) {
+          console.warn("Imagen generation failed, falling back to Unsplash stock:", imgErr);
+          appendLog(`[3/5] ⚠️ Gemini Imagen busy. Seamlessly falling back to high-res Unsplash stock library...`, 65);
+          const unsplashKeywords = data.keywords || "nature,beautiful";
+          imageUrl = `https://images.unsplash.com/featured/800x450/?${encodeURIComponent(unsplashKeywords)}&sig=${Date.now()}`;
+        }
+      } else {
+        const unsplashKeywords = data.keywords || "nature,beautiful";
+        imageUrl = `https://images.unsplash.com/featured/800x450/?${encodeURIComponent(unsplashKeywords)}&sig=${Date.now()}`;
+        appendLog(`[3/5] Selected stock scene geometry from Unsplash: "${unsplashKeywords}"`, 75);
+      }
 
       // Adjust scales based on motion intensity slider
       const intensityScale = 1.0 + (aiMotionIntensity * 0.035); // e.g., Intensity 5 = ~1.17 scale end
@@ -3193,6 +3609,89 @@ export default function ImageToVideo({
     }
   };
 
+  // Helper functions for Speech-to-Text (STT) Auto-Captioning
+  const startStt = (slideId: string | null = null) => {
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setToastMessage({
+        text: "Speech-to-Text Unsupported",
+        sub: "Your browser does not support standard Speech Recognition. Try Google Chrome.",
+        success: false
+      });
+      return;
+    }
+
+    // Stop existing if any
+    if (sttRecognitionRef.current) {
+      try {
+        sttRecognitionRef.current.stop();
+      } catch (e) {}
+    }
+
+    setSttIndividualSlideId(slideId);
+    setSttIsListening(true);
+    setSttTranscript("");
+
+    const rec = new SpeechRecognition();
+    rec.continuous = true;
+    rec.interimResults = true;
+    rec.lang = sttLanguage;
+
+    rec.onstart = () => {
+      triggerBeepChime();
+    };
+
+    rec.onresult = (event: any) => {
+      let interim = "";
+      let final = "";
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          final += event.results[i][0].transcript;
+        } else {
+          interim += event.results[i][0].transcript;
+        }
+      }
+      const currentText = final || interim;
+      setSttTranscript(currentText);
+
+      if (slideId) {
+        setSlides(prev => prev.map(s => s.id === slideId ? { ...s, text: currentText } : s));
+      }
+    };
+
+    rec.onerror = (e: any) => {
+      console.error("Speech Recognition Error:", e);
+      if (e.error !== "no-speech") {
+        setToastMessage({
+          text: "Speech Recognition Error",
+          sub: `An error occurred: ${e.error}. Check browser microphone permissions.`,
+          success: false
+        });
+      }
+      setSttIsListening(false);
+    };
+
+    rec.onend = () => {
+      setSttIsListening(false);
+    };
+
+    sttRecognitionRef.current = rec;
+    try {
+      rec.start();
+    } catch (e) {
+      console.error("Failed to start speech recognition:", e);
+    }
+  };
+
+  const stopStt = () => {
+    if (sttRecognitionRef.current) {
+      try {
+        sttRecognitionRef.current.stop();
+      } catch (e) {}
+    }
+    setSttIsListening(false);
+  };
+
   const handleGenerateSubtitles = async () => {
     if (slides.length === 0) {
       setToastMessage({
@@ -3377,9 +3876,32 @@ export default function ImageToVideo({
     const slideLocalTime = time - cumulativeTime;
     const slideProgress = slideLocalTime / slide.duration;
 
+    // Use slide's individual transition if set, otherwise fallback to global transitionStyle
+    const getActiveTransitionStyle = (targetSlide: ImageSlide): string => {
+      const effect = targetSlide.transitionEffect;
+      if (!effect || effect === "Inherit") return transitionStyle;
+      
+      const lower = effect.toLowerCase();
+      if (lower === "fade" || lower === "cross-dissolve") return "fade";
+      if (lower === "slide" || lower === "slide-left") return "slide-left";
+      if (lower === "slide-right") return "slide-right";
+      if (lower === "zoom" || lower === "camera zoom transition") return "zoom";
+      if (lower === "blur" || lower === "blur-fade" || lower === "dreamy blur fade") return "blur-fade";
+      if (lower === "wipe" || lower === "curtain-wipe" || lower === "sliding curtain wipe") return "curtain-wipe";
+      if (lower === "flash") return "flash";
+      if (lower === "glitch" || lower === "glitch-wave") return "glitch-wave";
+      if (lower === "spiral-spin" || lower === "spiral") return "spiral-spin";
+      if (lower === "pixelate-fade" || lower === "pixelate") return "pixelate-fade";
+      if (lower === "radial-wipe" || lower === "radial") return "radial-wipe";
+      if (lower === "none") return "none";
+      return transitionStyle;
+    };
+
+    const activeTransStyle = currentSlideIndex > 0 ? getActiveTransitionStyle(slide) : "none";
+
     // Check if we are inside a transition boundary
     // Transition happens in the first `transitionDuration` seconds of Slide N
-    const isTransitioning = currentSlideIndex > 0 && slideLocalTime < transitionDuration && transitionStyle !== "none";
+    const isTransitioning = currentSlideIndex > 0 && slideLocalTime < transitionDuration && activeTransStyle !== "none";
     
     const drawSlideWithTransformAndFilter = (
       targetSlide: ImageSlide,
@@ -3457,7 +3979,7 @@ export default function ImageToVideo({
       let slideX = 0;
       let slideY = 0;
       if (isTransitioning) {
-        if (transitionStyle === "slide-left") {
+        if (activeTransStyle === "slide-left") {
           // Slide in from right (offsetProgress is progress, 0 means previous slide, 1 means current slide)
           // current slide slides from width to 0, previous slides from 0 to -width
           if (targetSlide.id === slide.id) {
@@ -3465,7 +3987,7 @@ export default function ImageToVideo({
           } else {
             slideX = -width * offsetProgress;
           }
-        } else if (transitionStyle === "slide-right") {
+        } else if (activeTransStyle === "slide-right") {
           if (targetSlide.id === slide.id) {
             slideX = -width * (1 - offsetProgress);
           } else {
@@ -3633,16 +4155,16 @@ export default function ImageToVideo({
       const prevSlide = slides[currentSlideIndex - 1];
       const transProgress = slideLocalTime / transitionDuration;
 
-      if (transitionStyle === "fade") {
+      if (activeTransStyle === "fade") {
         // Double rendering blend
         drawSlideWithTransformAndFilter(prevSlide, 1.0, 1 - transProgress);
         drawSlideWithTransformAndFilter(slide, slideProgress, transProgress);
       } 
-      else if (transitionStyle === "slide-left" || transitionStyle === "slide-right") {
+      else if (activeTransStyle === "slide-left" || activeTransStyle === "slide-right") {
         drawSlideWithTransformAndFilter(prevSlide, 1.0, 1.0, transProgress);
         drawSlideWithTransformAndFilter(slide, slideProgress, 1.0, transProgress);
       } 
-      else if (transitionStyle === "zoom") {
+      else if (activeTransStyle === "zoom") {
         drawSlideWithTransformAndFilter(prevSlide, 1.0, 1 - transProgress);
         
         ctx.save();
@@ -3654,7 +4176,7 @@ export default function ImageToVideo({
         drawSlideWithTransformAndFilter(slide, slideProgress, transProgress);
         ctx.restore();
       } 
-      else if (transitionStyle === "flash") {
+      else if (activeTransStyle === "flash") {
         // Blend to white first half, blend from white second half
         if (transProgress < 0.5) {
           const partProgress = transProgress * 2;
@@ -3668,7 +4190,7 @@ export default function ImageToVideo({
           ctx.fillRect(0, 0, width, height);
         }
       }
-      else if (transitionStyle === "cross-zoom") {
+      else if (activeTransStyle === "cross-zoom") {
         ctx.save();
         ctx.translate(width / 2, height / 2);
         const prevZoom = 1.0 + transProgress * 0.5;
@@ -3685,7 +4207,7 @@ export default function ImageToVideo({
         drawSlideWithTransformAndFilter(slide, slideProgress, transProgress);
         ctx.restore();
       }
-      else if (transitionStyle === "curtain-wipe") {
+      else if (activeTransStyle === "curtain-wipe") {
         drawSlideWithTransformAndFilter(prevSlide, 1.0, 1.0);
 
         ctx.save();
@@ -3696,7 +4218,7 @@ export default function ImageToVideo({
         drawSlideWithTransformAndFilter(slide, slideProgress, 1.0);
         ctx.restore();
       }
-      else if (transitionStyle === "blur-fade") {
+      else if (activeTransStyle === "blur-fade") {
         ctx.save();
         const oldBlur = transProgress * 15;
         ctx.filter = `blur(${oldBlur}px)`;
@@ -3709,7 +4231,7 @@ export default function ImageToVideo({
         drawSlideWithTransformAndFilter(slide, slideProgress, transProgress);
         ctx.restore();
       }
-      else if (transitionStyle === "glitch-wave") {
+      else if (activeTransStyle === "glitch-wave") {
         ctx.save();
         if (transProgress < 0.5) {
           const shift = Math.sin(transProgress * 40) * 15;
@@ -3727,6 +4249,67 @@ export default function ImageToVideo({
         ctx.fillRect(0, (transProgress * height) % height, width, 12);
         ctx.fillStyle = `rgba(6, 182, 212, ${0.15 * Math.cos(transProgress * Math.PI)})`;
         ctx.fillRect(0, ((1 - transProgress) * height) % height, width, 8);
+        ctx.restore();
+      }
+      else if (activeTransStyle === "spiral-spin") {
+        // Draw previous slide spinning and scaling up
+        ctx.save();
+        ctx.translate(width / 2, height / 2);
+        ctx.rotate(transProgress * Math.PI * 1.5);
+        const spinScalePrev = 1.0 + transProgress * 0.8;
+        ctx.scale(spinScalePrev, spinScalePrev);
+        ctx.translate(-width / 2, -height / 2);
+        drawSlideWithTransformAndFilter(prevSlide, 1.0, 1 - transProgress);
+        ctx.restore();
+
+        // Draw current slide spinning in from small scale
+        ctx.save();
+        ctx.translate(width / 2, height / 2);
+        ctx.rotate((1 - transProgress) * -Math.PI * 1.5);
+        const spinScaleCur = 0.2 + transProgress * 0.8;
+        ctx.scale(spinScaleCur, spinScaleCur);
+        ctx.translate(-width / 2, -height / 2);
+        drawSlideWithTransformAndFilter(slide, slideProgress, transProgress);
+        ctx.restore();
+      }
+      else if (activeTransStyle === "pixelate-fade") {
+        // Render previous slide
+        drawSlideWithTransformAndFilter(prevSlide, 1.0, 1.0);
+
+        // Overlay current slide revealed via a retro digital grid blocks transition
+        ctx.save();
+        const cols = 24;
+        const rows = Math.round(cols * (height / width));
+        const cellW = width / cols;
+        const cellH = height / rows;
+
+        ctx.beginPath();
+        for (let c = 0; c < cols; c++) {
+          for (let r = 0; r < rows; r++) {
+            // Seeded diagonal wave random formula
+            const threshold = (c + r) / (cols + rows);
+            const cellRand = (Math.sin(c * 12.9 + r * 78.2) + 1) / 2;
+            const blockProgress = transProgress * 1.4;
+
+            if (blockProgress > threshold * 0.7 + cellRand * 0.3) {
+              ctx.rect(c * cellW, r * cellH, cellW + 0.5, cellH + 0.5);
+            }
+          }
+        }
+        ctx.clip();
+        drawSlideWithTransformAndFilter(slide, slideProgress, 1.0);
+        ctx.restore();
+      }
+      else if (activeTransStyle === "radial-wipe") {
+        drawSlideWithTransformAndFilter(prevSlide, 1.0, 1.0);
+
+        ctx.save();
+        ctx.beginPath();
+        const maxRadius = Math.sqrt(width * width + height * height) / 2;
+        const currentRadius = maxRadius * transProgress;
+        ctx.arc(width / 2, height / 2, currentRadius, 0, Math.PI * 2);
+        ctx.clip();
+        drawSlideWithTransformAndFilter(slide, slideProgress, 1.0);
         ctx.restore();
       }
     } else {
@@ -4134,18 +4717,29 @@ export default function ImageToVideo({
     if (slide.text.trim()) {
       ctx.save();
 
+      const hexToRgba = (hex: string, alpha: number) => {
+        let cleanHex = hex.replace("#", "");
+        if (cleanHex.length === 3) {
+          cleanHex = cleanHex[0] + cleanHex[0] + cleanHex[1] + cleanHex[1] + cleanHex[2] + cleanHex[2];
+        }
+        const r = parseInt(cleanHex.slice(0, 2), 16) || 0;
+        const g = parseInt(cleanHex.slice(2, 4), 16) || 0;
+        const b = parseInt(cleanHex.slice(4, 6), 16) || 0;
+        return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+      };
+
       // Configure font based on aspect ratio sizing & subtitleStyle selection
       const textRatioScale = width / 800;
-      const fontSize = Math.round(28 * textRatioScale);
+      const fontSize = Math.round(28 * textRatioScale * subtitleFontSizeFactor);
       
       const fontId = slide.fontFamily || subtitleFont || "space-grotesk";
       const fontObj = CURATED_FONTS.find((f) => f.id === fontId) || CURATED_FONTS[0];
       const selectedFontFamily = fontObj.family;
 
       if (subtitleStyle === "classical" && fontId === "space-grotesk") {
-        ctx.font = `italic 500 ${Math.round(26 * textRatioScale)}px "Playfair Display", "Georgia", serif`;
+        ctx.font = `italic 500 ${Math.round(26 * textRatioScale * subtitleFontSizeFactor)}px "Playfair Display", "Georgia", serif`;
       } else if (subtitleStyle === "classical") {
-        ctx.font = `italic 500 ${Math.round(26 * textRatioScale)}px ${selectedFontFamily}`;
+        ctx.font = `italic 500 ${Math.round(26 * textRatioScale * subtitleFontSizeFactor)}px ${selectedFontFamily}`;
       } else {
         ctx.font = `bold ${fontSize}px ${selectedFontFamily}`;
       }
@@ -4194,12 +4788,21 @@ export default function ImageToVideo({
       if (cinematicLetterbox && aspectRatio === "16:9") {
         extraOffsetY = -Math.round(height * 0.10); // shift subtitles up to avoid the letterbox
       }
-      const rectY = height - rectHeight - Math.round(45 * textRatioScale) + offsetY + extraOffsetY - subtitleManualOffset;
 
-      // Draw Subtitle Styles (netflix, neon, karaoke, minimal, classical)
+      // Calculate rectY based on alignment (top, middle, bottom)
+      let rectY = 0;
+      if (subtitleVerticalAlign === "top") {
+        rectY = Math.round(45 * textRatioScale) + offsetY + extraOffsetY + subtitleManualOffset;
+      } else if (subtitleVerticalAlign === "middle") {
+        rectY = (height - rectHeight) / 2 + offsetY + subtitleManualOffset;
+      } else { // bottom
+        rectY = height - rectHeight - Math.round(45 * textRatioScale) + offsetY + extraOffsetY - subtitleManualOffset;
+      }
+
+      // Draw Subtitle Styles (netflix, neon, karaoke, minimal, classical) using customizable colors and metrics
       if (subtitleStyle === "netflix") {
         // Draw stylized backdrop pill (accessibility friendly)
-        ctx.fillStyle = "rgba(0, 0, 0, 0.65)";
+        ctx.fillStyle = hexToRgba(subtitleBgColor, subtitleBgOpacity);
         ctx.beginPath();
         const radius = 12;
         ctx.roundRect(rectX, rectY, rectWidth, rectHeight, radius);
@@ -4210,25 +4813,40 @@ export default function ImageToVideo({
         ctx.lineWidth = 1;
         ctx.stroke();
 
-        ctx.fillStyle = "#ffffff";
+        ctx.fillStyle = subtitleTextColor;
         ctx.shadowColor = "rgba(0,0,0,0.4)";
         ctx.shadowBlur = 4;
         ctx.shadowOffsetX = 1;
         ctx.shadowOffsetY = 1;
 
+        if (subtitleStrokeWidth > 0) {
+          ctx.strokeStyle = subtitleStrokeColor;
+          ctx.lineWidth = subtitleStrokeWidth * textRatioScale;
+          ctx.lineJoin = "round";
+          if (textScale !== 1.0) {
+            ctx.save();
+            ctx.translate(width / 2, rectY + rectHeight / 2);
+            ctx.scale(textScale, textScale);
+            ctx.strokeText(textToShow, 0, rectHeight / 2 - paddingY - 2);
+            ctx.restore();
+          } else {
+            ctx.strokeText(textToShow, width / 2, rectY + rectHeight - paddingY - 2);
+          }
+        }
+
         if (textScale !== 1.0) {
           ctx.translate(width / 2, rectY + rectHeight / 2);
           ctx.scale(textScale, textScale);
-          ctx.fillText(textToShow, 0, rectHeight / 2 - paddingY / 2);
+          ctx.fillText(textToShow, 0, rectHeight / 2 - paddingY - 2);
         } else {
           ctx.fillText(textToShow, width / 2, rectY + rectHeight - paddingY - 2);
         }
       } 
       else if (subtitleStyle === "neon") {
         // Neon Glow Style (No backing pill)
-        ctx.fillStyle = "#ffffff";
-        ctx.shadowColor = "#6366f1"; // Neon indigo highlight glow
-        ctx.shadowBlur = 12 * textRatioScale;
+        ctx.fillStyle = subtitleTextColor;
+        ctx.shadowColor = subtitleStrokeColor; // Neon highlight glow
+        ctx.shadowBlur = (subtitleStrokeWidth || 12) * textRatioScale;
         ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 0;
 
@@ -4241,15 +4859,15 @@ export default function ImageToVideo({
         }
       } 
       else if (subtitleStyle === "karaoke") {
-        // Karaoke Style (Bright yellow text with solid black outline contour)
+        // Karaoke Style (Outline contour + customizable text & outline colors)
         ctx.shadowColor = "transparent";
         ctx.shadowBlur = 0;
         ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 0;
 
         // Render outline stroke
-        ctx.strokeStyle = "#000000";
-        ctx.lineWidth = Math.round(5 * textRatioScale);
+        ctx.strokeStyle = subtitleStrokeColor;
+        ctx.lineWidth = Math.round(subtitleStrokeWidth * textRatioScale);
         ctx.lineJoin = "round";
 
         if (textScale !== 1.0) {
@@ -4257,22 +4875,37 @@ export default function ImageToVideo({
           ctx.translate(width / 2, rectY + rectHeight / 2);
           ctx.scale(textScale, textScale);
           ctx.strokeText(textToShow, 0, rectHeight / 2 - paddingY / 2);
-          ctx.fillStyle = "#facc15"; // Yellow
+          ctx.fillStyle = subtitleTextColor;
           ctx.fillText(textToShow, 0, rectHeight / 2 - paddingY / 2);
           ctx.restore();
         } else {
           ctx.strokeText(textToShow, width / 2, rectY + rectHeight - paddingY - 2);
-          ctx.fillStyle = "#facc15"; // Yellow
+          ctx.fillStyle = subtitleTextColor;
           ctx.fillText(textToShow, width / 2, rectY + rectHeight - paddingY - 2);
         }
       } 
       else if (subtitleStyle === "minimal") {
         // Soft Elegant Drop Shadow
-        ctx.fillStyle = "#ffffff";
-        ctx.shadowColor = "rgba(0, 0, 0, 0.75)";
+        ctx.fillStyle = subtitleTextColor;
+        ctx.shadowColor = hexToRgba(subtitleBgColor, subtitleBgOpacity);
         ctx.shadowBlur = 6;
         ctx.shadowOffsetX = 1;
         ctx.shadowOffsetY = 2;
+
+        if (subtitleStrokeWidth > 0) {
+          ctx.strokeStyle = subtitleStrokeColor;
+          ctx.lineWidth = subtitleStrokeWidth * textRatioScale;
+          ctx.lineJoin = "round";
+          if (textScale !== 1.0) {
+            ctx.save();
+            ctx.translate(width / 2, rectY + rectHeight / 2);
+            ctx.scale(textScale, textScale);
+            ctx.strokeText(textToShow, 0, rectHeight / 2 - paddingY / 2);
+            ctx.restore();
+          } else {
+            ctx.strokeText(textToShow, width / 2, rectY + rectHeight - paddingY - 2);
+          }
+        }
 
         if (textScale !== 1.0) {
           ctx.translate(width / 2, rectY + rectHeight / 2);
@@ -4284,11 +4917,26 @@ export default function ImageToVideo({
       } 
       else if (subtitleStyle === "classical") {
         // TIMELITE INDIE Film Style (Porcelain white serif with very soft dark reflection)
-        ctx.fillStyle = "#f8fafc";
-        ctx.shadowColor = "rgba(0, 0, 0, 0.5)";
+        ctx.fillStyle = subtitleTextColor;
+        ctx.shadowColor = hexToRgba(subtitleBgColor, subtitleBgOpacity);
         ctx.shadowBlur = 4;
         ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 1;
+
+        if (subtitleStrokeWidth > 0) {
+          ctx.strokeStyle = subtitleStrokeColor;
+          ctx.lineWidth = subtitleStrokeWidth * textRatioScale;
+          ctx.lineJoin = "round";
+          if (textScale !== 1.0) {
+            ctx.save();
+            ctx.translate(width / 2, rectY + rectHeight / 2);
+            ctx.scale(textScale, textScale);
+            ctx.strokeText(textToShow, 0, rectHeight / 2 - paddingY / 2);
+            ctx.restore();
+          } else {
+            ctx.strokeText(textToShow, width / 2, rectY + rectHeight - paddingY - 2);
+          }
+        }
 
         if (textScale !== 1.0) {
           ctx.translate(width / 2, rectY + rectHeight / 2);
@@ -4297,6 +4945,56 @@ export default function ImageToVideo({
         } else {
           ctx.fillText(textToShow, width / 2, rectY + rectHeight - paddingY - 2);
         }
+      }
+
+      ctx.restore();
+    }
+
+    // Draw Safe Area & Guidelines Overlay on the canvas
+    if (canvasGuideGrid && canvasGuideGrid !== "none") {
+      ctx.save();
+      ctx.strokeStyle = "rgba(255, 255, 255, 0.35)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+
+      // 1. Draw Rule of Thirds Grid lines
+      if (canvasGuideGrid === "thirds" || canvasGuideGrid === "all") {
+        ctx.beginPath();
+        ctx.moveTo(width / 3, 0); ctx.lineTo(width / 3, height);
+        ctx.moveTo((width * 2) / 3, 0); ctx.lineTo((width * 2) / 3, height);
+        ctx.moveTo(0, height / 3); ctx.lineTo(width, height / 3);
+        ctx.moveTo(0, (height * 2) / 3); ctx.lineTo(width, (height * 2) / 3);
+        ctx.stroke();
+      }
+
+      // 2. Draw Safe-Zone borders (10% action safe margin, 20% title safe margin)
+      if (canvasGuideGrid === "safe-zone" || canvasGuideGrid === "all") {
+        ctx.strokeStyle = "rgba(234, 179, 8, 0.45)"; // yellow safe area
+        
+        // Action Safe (10% inward margin)
+        const asmX = width * 0.1;
+        const asmY = height * 0.1;
+        ctx.beginPath();
+        ctx.rect(asmX, asmY, width * 0.8, height * 0.8);
+        ctx.stroke();
+
+        // Title Safe (20% inward margin)
+        ctx.strokeStyle = "rgba(239, 68, 68, 0.4)"; // red title-safe bounds
+        const tsmX = width * 0.2;
+        const tsmY = height * 0.2;
+        ctx.beginPath();
+        ctx.rect(tsmX, tsmY, width * 0.6, height * 0.6);
+        ctx.stroke();
+
+        // Center crosshairs
+        ctx.strokeStyle = "rgba(255, 255, 255, 0.4)";
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.moveTo(width / 2 - 10, height / 2);
+        ctx.lineTo(width / 2 + 10, height / 2);
+        ctx.moveTo(width / 2, height / 2 - 10);
+        ctx.lineTo(width / 2, height / 2 + 10);
+        ctx.stroke();
       }
 
       ctx.restore();
@@ -4413,7 +5111,7 @@ export default function ImageToVideo({
         ctx.restore();
       }
     }
-  }, [slides, transitionStyle, transitionDuration, subtitleStyle, subtitleFont, cinematicLetterbox, vignetteOverlay, aspectRatio, subtitleManualOffset, visualizerStyle, masterVideoFilter]);
+  }, [slides, transitionStyle, transitionDuration, subtitleStyle, subtitleFont, cinematicLetterbox, vignetteOverlay, aspectRatio, subtitleManualOffset, visualizerStyle, masterVideoFilter, subtitleVerticalAlign, subtitleFontSizeFactor, subtitleTextColor, subtitleBgColor, subtitleBgOpacity, subtitleStrokeColor, subtitleStrokeWidth, canvasGuideGrid]);
 
   // Hook rendering logic to active timeline time changes
   useEffect(() => {
@@ -4434,12 +5132,355 @@ export default function ImageToVideo({
     canvas.height = height;
 
     drawVideoFrame(ctx, canvasWidth, height, currentTime);
-  }, [currentTime, aspectRatio, slides, transitionStyle, transitionDuration, drawVideoFrame, subtitleStyle, subtitleFont, cinematicLetterbox, vignetteOverlay, subtitleManualOffset, masterVideoFilter]);
+  }, [currentTime, aspectRatio, slides, transitionStyle, transitionDuration, drawVideoFrame, subtitleStyle, subtitleFont, cinematicLetterbox, vignetteOverlay, subtitleManualOffset, masterVideoFilter, subtitleVerticalAlign, subtitleFontSizeFactor, subtitleTextColor, subtitleBgColor, subtitleBgOpacity, subtitleStrokeColor, subtitleStrokeWidth, canvasGuideGrid]);
 
   // Sync the ref with the latest drawVideoFrame callback on each change
   useEffect(() => {
     drawVideoFrameRef.current = drawVideoFrame;
   }, [drawVideoFrame]);
+
+  // Batch Queue Handlers
+  const handleBatchAddFiles = (filesList: FileList) => {
+    const filesArray = Array.from(filesList) as File[];
+    const itemsToAdd: BatchItem[] = [];
+
+    filesArray.forEach((file, index) => {
+      if (!file.type.startsWith("image/")) return;
+
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          const urlStr = event.target.result as string;
+          const slide: ImageSlide = {
+            id: `batch-slide-${Date.now()}-${index}-${Math.random().toString(36).substring(2, 6)}`,
+            url: urlStr,
+            name: file.name,
+            duration: defaultSlideDuration,
+            text: file.name.replace(/\.[^/.]+$/, "").substring(0, 24),
+            textAnimation: "typewriter",
+            filter: "normal",
+            scaleStart: 1.0,
+            scaleEnd: 1.15,
+            promptDuration: defaultSlideDuration,
+            cameraMovement: "Slow Zoom",
+            subjectDescription: "",
+            style: "Cinematic"
+          };
+
+          const newItem: BatchItem = {
+            id: slide.id,
+            url: urlStr,
+            name: file.name,
+            status: "pending",
+            progress: 0,
+            slide
+          };
+
+          // Cache the image immediately to avoid blank frame previews
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          img.src = urlStr;
+          img.onload = () => {
+            imageCacheRef.current[slide.id] = img;
+          };
+
+          setBatchItems((prev) => [...prev, newItem]);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
+
+    setToastMessage({
+      text: "📋 Added to Batch Queue",
+      sub: `Successfully loaded image(s) into the Batch Processing Queue!`,
+      success: true
+    });
+    triggerBeepChime();
+  };
+
+  const handleBatchRemoveItem = (itemId: string) => {
+    setBatchItems((prev) => prev.filter((item) => item.id !== itemId));
+    triggerBeepChime();
+  };
+
+  const handleBatchClear = () => {
+    setBatchItems([]);
+    triggerBeepChime();
+  };
+
+  const processBatchItem = async (item: BatchItem) => {
+    // 1. Set status to processing
+    setBatchItems((prev) =>
+      prev.map((bi) => (bi.id === item.id ? { ...bi, status: "processing", progress: 10 } : bi))
+    );
+
+    const slide = item.slide!;
+
+    // Wait until cached
+    if (!imageCacheRef.current[slide.id]) {
+      await new Promise<void>((resolve) => {
+        const img = new Image();
+        img.crossOrigin = "anonymous";
+        img.src = slide.url;
+        img.onload = () => {
+          imageCacheRef.current[slide.id] = img;
+          resolve();
+        };
+        img.onerror = () => resolve();
+      });
+    }
+
+    // Canvas sizes
+    const renderCanvas = document.createElement("canvas");
+    let exportWidth = 1280;
+    if (exportResolution === "720p") {
+      exportWidth = aspectRatio === "9:16" ? 720 : 1280;
+    } else if (exportResolution === "1080p") {
+      exportWidth = aspectRatio === "9:16" ? 1080 : 1920;
+    } else if (exportResolution === "4K") {
+      exportWidth = aspectRatio === "9:16" ? 2160 : 3840;
+    }
+    let exportHeight = Math.round(exportWidth * (9 / 16));
+    if (aspectRatio === "9:16") {
+      exportHeight = Math.round(exportWidth * (16 / 9));
+    } else if (aspectRatio === "1:1") {
+      exportHeight = exportWidth;
+    }
+
+    renderCanvas.width = exportWidth;
+    renderCanvas.height = exportHeight;
+    const renderCtx = renderCanvas.getContext("2d");
+    if (!renderCtx) throw new Error("Could not initialize 2D context");
+
+    // Audio setup
+    const renderSynthManager = new RoyaltyFreeSynthManager();
+    let renderAudioStream: MediaStream | null = null;
+    const hasAudio = !isMuted && (
+      (audioTrackMode === "custom" && customAudioUrl) ||
+      (audioTrackMode === "sfx" && selectedSfxId) ||
+      (audioTrackMode === "synth" && soundtrack !== "none")
+    );
+
+    if (hasAudio) {
+      if (audioTrackMode === "custom" && customAudioUrl) {
+        await renderSynthManager.start("custom", effectiveSoundtrackVolume, false, false, slide.duration, customAudioUrl, 0, audioTrimStart, audioTrimEnd, loopAudio);
+      } else if (audioTrackMode === "sfx" && selectedSfxId) {
+        await renderSynthManager.start("none");
+        renderSynthManager.playSingleSfx(selectedSfxId, effectiveSoundtrackVolume);
+      } else if (soundtrack !== "none") {
+        await renderSynthManager.start(soundtrack, effectiveSoundtrackVolume, audioFadeIn, audioFadeOut, slide.duration, null, 0, 0, 0, loopAudio);
+      }
+      const renderDest = renderSynthManager.getDestination();
+      if (renderDest) {
+        renderAudioStream = renderDest.stream;
+      }
+    }
+
+    const canvasStream = renderCanvas.captureStream(30);
+    const combinedTracks = [...canvasStream.getVideoTracks()];
+    if (hasAudio && renderAudioStream) {
+      combinedTracks.push(...renderAudioStream.getAudioTracks());
+    }
+    const combinedStream = new MediaStream(combinedTracks);
+
+    let options: any = { 
+      mimeType: "video/webm;codecs=vp8,opus",
+      videoBitsPerSecond: 8000000
+    };
+    if (exportFormat === "mp4") {
+      if (MediaRecorder.isTypeSupported("video/mp4;codecs=h264")) {
+        options = { mimeType: "video/mp4;codecs=h264", videoBitsPerSecond: 8000000 };
+      } else if (MediaRecorder.isTypeSupported("video/mp4")) {
+        options = { mimeType: "video/mp4", videoBitsPerSecond: 8000000 };
+      }
+    } else {
+      if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options = { mimeType: "video/webm", videoBitsPerSecond: 8000000 };
+      }
+    }
+
+    const mediaRecorder = new MediaRecorder(combinedStream, options);
+    const chunks: Blob[] = [];
+    mediaRecorder.ondataavailable = (e) => {
+      if (e.data && e.data.size > 0) chunks.push(e.data);
+    };
+
+    const fps = 30;
+    const totalFrames = Math.round((slide.duration / videoPlaybackSpeed) * fps);
+    let currentFrame = 0;
+
+    return new Promise<void>((resolve, reject) => {
+      mediaRecorder.start();
+
+      const renderNextFrame = () => {
+        if (currentFrame >= totalFrames) {
+          setBatchItems((prev) =>
+            prev.map((bi) => (bi.id === item.id ? { ...bi, progress: 95 } : bi))
+          );
+          setTimeout(() => {
+            mediaRecorder.stop();
+          }, 400);
+          return;
+        }
+
+        const renderTime = (currentFrame / fps) * videoPlaybackSpeed;
+
+        // Draw image frame
+        renderCtx.clearRect(0, 0, exportWidth, exportHeight);
+        const img = imageCacheRef.current[slide.id];
+        if (img) {
+          renderCtx.save();
+          let activeFilter = "none";
+          if (masterVideoFilter !== "none") {
+            if (masterVideoFilter === "grayscale") activeFilter = "grayscale(100%)";
+            else if (masterVideoFilter === "sepia") activeFilter = "sepia(100%)";
+            else if (masterVideoFilter === "vintage") activeFilter = "sepia(60%) contrast(90%) brightness(105%) saturate(110%)";
+            else if (masterVideoFilter === "high-contrast") activeFilter = "contrast(150%) brightness(105%)";
+            else if (masterVideoFilter === "cyberpunk") activeFilter = "hue-rotate(180deg) saturate(185%) contrast(125%)";
+            else if (masterVideoFilter === "noir") activeFilter = "grayscale(100%) contrast(140%) brightness(90%)";
+            else if (masterVideoFilter === "cool") activeFilter = "hue-rotate(30deg) saturate(115%) brightness(95%) contrast(105%)";
+            else if (masterVideoFilter === "warm") activeFilter = "sepia(30%) saturate(130%) hue-rotate(-10deg) brightness(105%)";
+          } else if (slide.filter && slide.filter !== "normal") {
+            if (slide.filter === "noir") activeFilter = "grayscale(100%) contrast(120%)";
+            else if (slide.filter === "vintage") activeFilter = "sepia(80%) contrast(95%)";
+            else if (slide.filter === "cinematic-warm") activeFilter = "sepia(25%) saturate(120%) contrast(105%)";
+            else if (slide.filter === "cyberpunk") activeFilter = "hue-rotate(150deg) saturate(150%)";
+          }
+          if (activeFilter !== "none") renderCtx.filter = activeFilter;
+
+          const progress = renderTime / slide.duration;
+          const scaleStart = slide.scaleStart ?? 1.0;
+          const scaleEnd = slide.scaleEnd ?? 1.15;
+          const scale = scaleStart + (scaleEnd - scaleStart) * progress;
+
+          const iw = img.width;
+          const ih = img.height;
+          const r = Math.min(exportWidth / iw, exportHeight / ih);
+          const nw = iw * r * scale;
+          const nh = ih * r * scale;
+          const cx = (exportWidth - nw) / 2;
+          const cy = (exportHeight - nh) / 2;
+          renderCtx.drawImage(img, cx, cy, nw, nh);
+          renderCtx.restore();
+        } else {
+          renderCtx.fillStyle = "#1e293b";
+          renderCtx.fillRect(0, 0, exportWidth, exportHeight);
+        }
+
+        // Draw subtitle text
+        if (slide.text) {
+          renderCtx.save();
+          renderCtx.shadowColor = "rgba(0, 0, 0, 0.8)";
+          renderCtx.shadowBlur = 8;
+          renderCtx.fillStyle = subtitleTextColor || "#ffffff";
+          renderCtx.font = `bold ${Math.round(40 * (subtitleFontSizeFactor || 1))}px sans-serif`;
+          renderCtx.textAlign = "center";
+          
+          let yPos = exportHeight - 80;
+          if (subtitleVerticalAlign === "top") yPos = 80;
+          else if (subtitleVerticalAlign === "middle") yPos = exportHeight / 2;
+
+          renderCtx.fillText(slide.text, exportWidth / 2, yPos);
+          renderCtx.restore();
+        }
+
+        currentFrame++;
+        const percent = Math.round((currentFrame / totalFrames) * 80) + 10;
+        setBatchItems((prev) =>
+          prev.map((bi) => (bi.id === item.id ? { ...bi, progress: percent } : bi))
+        );
+
+        requestAnimationFrame(renderNextFrame);
+      };
+
+      requestAnimationFrame(renderNextFrame);
+
+      mediaRecorder.onstop = () => {
+        renderSynthManager.stop();
+        const finalBlob = new Blob(chunks, { type: options.mimeType });
+        const resultUrl = URL.createObjectURL(finalBlob);
+
+        // Auto-download file
+        const ext = exportFormat === "gif" ? "gif" : (exportFormat === "webm" ? "webm" : "mp4");
+        const cleanName = `${slide.name.replace(/\.[^/.]+$/, "").replace(/\s+/g, "_")}_clip.${ext}`;
+        triggerFileDownload(finalBlob, cleanName);
+
+        setBatchItems((prev) =>
+          prev.map((bi) =>
+            bi.id === item.id ? { ...bi, status: "completed", progress: 100, resultUrl } : bi
+          )
+        );
+        resolve();
+      };
+
+      mediaRecorder.onerror = (e) => {
+        renderSynthManager.stop();
+        setBatchItems((prev) =>
+          prev.map((bi) => (bi.id === item.id ? { ...bi, status: "failed" } : bi))
+        );
+        reject(e);
+      };
+    });
+  };
+
+  const handleStartBatchGeneration = async () => {
+    if (batchItems.length === 0) return;
+    setIsBatchProcessing(true);
+
+    if (batchGenerationMode === "sequence") {
+      // 1. Build a sequenced timeline using the batch queue slides
+      const newSlides = batchItems.map((item) => item.slide!);
+      setSlides(newSlides);
+      setSelectedSlideId(newSlides[0].id);
+      setCurrentTime(0);
+
+      setToastMessage({
+        text: "⚡ Queue Loaded into Timeline!",
+        sub: `Timeline populated with all ${batchItems.length} images. Starting standard render...`,
+        success: true
+      });
+      triggerBeepChime();
+
+      // Start main export sequence
+      setTimeout(() => {
+        handleCreateVideo();
+        setIsBatchProcessing(false);
+      }, 500);
+
+    } else {
+      // 2. Individual clips sequence
+      setToastMessage({
+        text: "⚙️ Starting Batch Queue Processing...",
+        sub: `Rendering ${batchItems.length} individual clips sequentially in background.`,
+        success: true
+      });
+      triggerBeepChime();
+
+      // Reset statuses
+      setBatchItems((prev) => prev.map((bi) => ({ ...bi, status: "pending", progress: 0 })));
+
+      try {
+        for (let i = 0; i < batchItems.length; i++) {
+          await processBatchItem(batchItems[i]);
+        }
+        setToastMessage({
+          text: "🎉 Batch Rendering Completed!",
+          sub: `Successfully generated and downloaded all ${batchItems.length} individual clips.`,
+          success: true
+        });
+        triggerBeepChime();
+      } catch (err) {
+        console.error("Batch processing error:", err);
+        setToastMessage({
+          text: "❌ Batch Render Interrupted",
+          sub: `An error occurred during queue rendering: ${err instanceof Error ? err.message : String(err)}`,
+          success: false
+        });
+      } finally {
+        setIsBatchProcessing(false);
+      }
+    }
+  };
 
   // Canvas MediaRecorder video render engine
   const handleCreateVideo = async () => {
@@ -4494,12 +5535,12 @@ export default function ImageToVideo({
       // Connect synthesis directly to our render stream destination node
       if (!isMuted) {
         if (audioTrackMode === "custom" && customAudioUrl) {
-          renderSynthManager.start("custom", effectiveSoundtrackVolume, false, false, totalDuration, customAudioUrl, 0, audioTrimStart, audioTrimEnd, loopAudio);
+          await renderSynthManager.start("custom", effectiveSoundtrackVolume, false, false, totalDuration, customAudioUrl, 0, audioTrimStart, audioTrimEnd, loopAudio);
         } else if (audioTrackMode === "sfx" && selectedSfxId) {
-          renderSynthManager.start("none");
+          await renderSynthManager.start("none");
           renderSynthManager.playSingleSfx(selectedSfxId, effectiveSoundtrackVolume);
         } else if (soundtrack !== "none") {
-          renderSynthManager.start(soundtrack, effectiveSoundtrackVolume, audioFadeIn, audioFadeOut, totalDuration, null, 0, 0, 0, loopAudio);
+          await renderSynthManager.start(soundtrack, effectiveSoundtrackVolume, audioFadeIn, audioFadeOut, totalDuration, null, 0, 0, 0, loopAudio);
         }
 
         // Re-route its audio destination output to our stream recorder
@@ -4955,9 +5996,9 @@ export default function ImageToVideo({
 
                   {/* Actions for image */}
                   <div className="flex items-center gap-2">
-                    <label className="flex-1 py-2 px-3 bg-slate-100 hover:bg-slate-200 dark:bg-slate-950 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-850 text-slate-700 dark:text-slate-300 rounded-xl text-[10.5px] font-black uppercase tracking-wider cursor-pointer transition-all text-center select-none active:scale-97">
-                      <Plus className="w-3.5 h-3.5 inline mr-1" />
-                      <span>Upload New Media</span>
+                    <label className="flex-1 py-2 px-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-950 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-850 text-slate-700 dark:text-slate-300 rounded-xl text-[10.5px] font-black uppercase tracking-wider cursor-pointer transition-all text-center select-none active:scale-97 flex items-center justify-center gap-1">
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Upload</span>
                       <input
                         type="file"
                         multiple
@@ -4966,6 +6007,23 @@ export default function ImageToVideo({
                         className="hidden"
                       />
                     </label>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setActiveImageTab("ai_create");
+                        triggerBeepChime();
+                        const el = document.getElementById("ai-image-generator-section");
+                        if (el) {
+                          el.scrollIntoView({ behavior: "smooth" });
+                        }
+                      }}
+                      className="flex-1 py-2 px-2.5 bg-gradient-to-r from-violet-600 to-indigo-700 hover:from-violet-500 hover:to-indigo-650 text-white border border-violet-500/30 rounded-xl text-[10.5px] font-black uppercase tracking-wider cursor-pointer transition-all text-center select-none active:scale-97 flex items-center justify-center gap-1 shadow-sm"
+                      title="Generate a brand new image using Gemini AI"
+                    >
+                      <Sparkles className="w-3.5 h-3.5 animate-pulse" />
+                      <span>AI Generate</span>
+                    </button>
 
                     <button
                       type="button"
@@ -5210,7 +6268,7 @@ export default function ImageToVideo({
                 </p>
               </div>
 
-              <div className="flex flex-col sm:flex-row items-center gap-3 w-full max-w-md pt-1.5 justify-center">
+              <div className="flex flex-col sm:flex-row items-center gap-3 w-full max-w-lg pt-1.5 justify-center">
                 {/* Custom styled File Upload Label */}
                 <label className="px-4 py-2.5 bg-indigo-650 hover:bg-indigo-500 text-white rounded-xl text-[10.5px] font-black uppercase tracking-wider cursor-pointer flex items-center gap-1.5 transition-all select-none border border-indigo-500/30 active:scale-97">
                   <Plus className="w-4 h-4" />
@@ -5223,6 +6281,24 @@ export default function ImageToVideo({
                     className="hidden"
                   />
                 </label>
+
+                {/* Generate with Gemini AI Button */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveImageTab("ai_create");
+                    triggerBeepChime();
+                    const el = document.getElementById("ai-image-generator-section");
+                    if (el) {
+                      el.scrollIntoView({ behavior: "smooth" });
+                    }
+                  }}
+                  className="px-4 py-2.5 bg-gradient-to-r from-violet-600 to-indigo-700 hover:from-violet-500 hover:to-indigo-650 text-white rounded-xl text-[10.5px] font-black uppercase tracking-wider cursor-pointer flex items-center gap-1.5 transition-all select-none border border-violet-500/30 active:scale-97 shadow-sm"
+                  title="Generate a brand new image using Gemini AI"
+                >
+                  <Sparkles className="w-4 h-4 animate-pulse" />
+                  <span>Generate with Gemini AI</span>
+                </button>
 
                 {/* Instant Compile Button (if slides are loaded) */}
                 {slides.length > 0 && (
@@ -5276,85 +6352,308 @@ export default function ImageToVideo({
             </div>
           )}
 
-          {/* Curated Preset Image Gallery (Featuring Garrey) */}
-          <div className="bg-white/60 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 flex flex-col gap-4">
-            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
-              <div className="space-y-0.5">
-                <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-indigo-500 animate-pulse" />
-                  <span>Curated Image Presets Gallery</span>
-                </h4>
-                <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-normal">
-                  Select a gorgeous high-fidelity preset to instantly load it as an active video slide.
-                </p>
-              </div>
-              
-              {/* Category tabs */}
-              <div className="flex flex-wrap items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200/50 dark:border-slate-850/60">
-                {(["All", "Adventure", "Nature", "Cyberpunk", "Abstract"] as const).map((cat) => {
-                  const isActive = activeGalleryCategory === cat;
-                  return (
-                    <button
-                      key={cat}
-                      type="button"
-                      onClick={() => {
-                        setActiveGalleryCategory(cat);
-                        triggerBeepChime();
-                      }}
-                      className={`px-2.5 py-1 text-[9.5px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
-                        isActive
-                          ? "bg-indigo-650 text-white shadow-xs"
-                          : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-900/50"
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  );
-                })}
-              </div>
+          {/* Dual-Tab Selector: Presets vs AI Image Creator */}
+          <div id="ai-image-generator-section" className="bg-white/60 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-3xl p-5 flex flex-col gap-5">
+            <div className="flex border-b border-slate-150 dark:border-slate-850 pb-2.5">
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveImageTab("presets");
+                  triggerBeepChime();
+                }}
+                className={`flex-1 py-1.5 text-xs font-black uppercase tracking-wider text-center border-b-2 transition-all cursor-pointer ${
+                  activeImageTab === "presets"
+                    ? "border-indigo-650 text-indigo-650 dark:text-indigo-400 font-extrabold"
+                    : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 font-bold"
+                }`}
+              >
+                📚 Curated Presets Library
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setActiveImageTab("ai_create");
+                  triggerBeepChime();
+                }}
+                className={`flex-1 py-1.5 text-xs font-black uppercase tracking-wider text-center border-b-2 transition-all cursor-pointer ${
+                  activeImageTab === "ai_create"
+                    ? "border-indigo-650 text-indigo-650 dark:text-indigo-400 font-extrabold"
+                    : "border-transparent text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 font-bold"
+                }`}
+              >
+                ✨ Create AI Image with Gemini
+              </button>
             </div>
 
-            {/* Gallery Grid */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {PRESET_IMAGES_GALLERY.filter(
-                (item) => activeGalleryCategory === "All" || item.category === activeGalleryCategory
-              ).map((item) => (
-                <div
-                  key={item.id}
-                  onClick={() => handleAddPresetImage(item)}
-                  className="group relative rounded-2xl overflow-hidden aspect-[4/3] bg-slate-100 dark:bg-slate-950 border border-slate-250/30 dark:border-slate-800/40 cursor-pointer shadow-xs transition-all hover:scale-102 hover:shadow-md hover:border-indigo-500/40"
-                  title={`Add "${item.name}" to your video clips`}
-                >
-                  <img
-                    src={item.url}
-                    alt={item.name}
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
-                  />
-                  {/* Category overlay label */}
-                  <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-slate-950/70 text-slate-200 font-mono text-[7.5px] font-bold uppercase tracking-widest backdrop-blur-xs">
-                    {item.category}
-                  </span>
+            {activeImageTab === "presets" ? (
+              <div className="flex flex-col gap-4">
+                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5">
+                  <div className="space-y-0.5 text-left">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-100 flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4 text-indigo-500 animate-pulse" />
+                      <span>Curated Image Presets Gallery</span>
+                    </h4>
+                    <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-normal">
+                      Select a gorgeous high-fidelity preset to instantly load it as an active video slide.
+                    </p>
+                  </div>
                   
-                  {/* Subtle glass hover banner with plus icon */}
-                  <div className="absolute inset-0 bg-slate-950/45 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-between p-2">
-                    <div className="flex justify-end">
-                      <div className="p-1 rounded-full bg-indigo-600 text-white shadow-sm">
-                        <Plus className="w-3.5 h-3.5" />
-                      </div>
-                    </div>
-                    <div className="space-y-0.5 text-left">
-                      <p className="text-[10px] font-black text-white leading-tight truncate">
-                        {item.name}
-                      </p>
-                      <p className="text-[7.5px] font-bold text-slate-300 uppercase tracking-wider truncate font-mono">
-                        {item.style}
-                      </p>
-                    </div>
+                  {/* Category tabs */}
+                  <div className="flex flex-wrap items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200/50 dark:border-slate-850/60">
+                    {(["All", "Adventure", "Nature", "Cyberpunk", "Abstract"] as const).map((cat) => {
+                      const isActive = activeGalleryCategory === cat;
+                      return (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => {
+                            setActiveGalleryCategory(cat);
+                            triggerBeepChime();
+                          }}
+                          className={`px-2.5 py-1 text-[9.5px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer ${
+                            isActive
+                              ? "bg-indigo-650 text-white shadow-xs font-bold"
+                              : "text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-900/50"
+                          }`}
+                        >
+                          {cat}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
-              ))}
-            </div>
+
+                {/* Gallery Grid */}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                  {PRESET_IMAGES_GALLERY.filter(
+                    (item) => activeGalleryCategory === "All" || item.category === activeGalleryCategory
+                  ).map((item) => (
+                    <div
+                      key={item.id}
+                      onClick={() => handleAddPresetImage(item)}
+                      className="group relative rounded-2xl overflow-hidden aspect-[4/3] bg-slate-100 dark:bg-slate-950 border border-slate-250/30 dark:border-slate-800/40 cursor-pointer shadow-xs transition-all hover:scale-102 hover:shadow-md hover:border-indigo-500/40"
+                      title={`Add "${item.name}" to your video clips`}
+                    >
+                      <img
+                        src={item.url}
+                        alt={item.name}
+                        referrerPolicy="no-referrer"
+                        className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110"
+                      />
+                      {/* Category overlay label */}
+                      <span className="absolute top-1.5 left-1.5 px-1.5 py-0.5 rounded-md bg-slate-950/70 text-slate-200 font-mono text-[7.5px] font-bold uppercase tracking-widest backdrop-blur-xs">
+                        {item.category}
+                      </span>
+                      
+                      {/* Subtle glass hover banner with plus icon */}
+                      <div className="absolute inset-0 bg-slate-950/45 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col justify-between p-2">
+                        <div className="flex justify-end">
+                          <div className="p-1 rounded-full bg-indigo-600 text-white shadow-sm">
+                            <Plus className="w-3.5 h-3.5" />
+                          </div>
+                        </div>
+                        <div className="space-y-0.5 text-left">
+                          <p className="text-[10px] font-black text-white leading-tight truncate">
+                            {item.name}
+                          </p>
+                          <p className="text-[7.5px] font-bold text-slate-300 uppercase tracking-wider truncate font-mono">
+                            {item.style}
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-col gap-5">
+                <div className="flex flex-col gap-1.5">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                      Describe the image you want to create:
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const suggestions = [
+                          "A futuristic sports car speeding on a cyberpunk neon-lit wet highway at night, sunset background",
+                          "A cozy wooden cabin deep in an autumn forest with warm light shining from windows and river reflecting",
+                          "An astronaut fluffy red panda floating in cosmic colorful nebulas with a glowing helmet",
+                          "A serene tropical beach with golden sunbeams, gentle turquoise waves, and tall palm trees",
+                          "A magnificent medieval castle on top of a mist-covered mountain during golden hour, cinematic lighting"
+                        ];
+                        setAiImagePrompt(suggestions[Math.floor(Math.random() * suggestions.length)]);
+                        triggerBeepChime();
+                      }}
+                      className="text-[10px] font-bold text-indigo-650 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                      title="Get a creative prompt idea"
+                    >
+                      <Lightbulb className="w-3 h-3 text-amber-500 animate-bounce" />
+                      <span>Suggest Idea</span>
+                    </button>
+                  </div>
+                  
+                  <textarea
+                    value={aiImagePrompt}
+                    onChange={(e) => setAiImagePrompt(e.target.value)}
+                    placeholder="e.g., A futuristic sports car speeding on a cyberpunk neon-lit highway..."
+                    className="w-full min-h-[80px] p-3 rounded-2xl bg-slate-100/70 hover:bg-slate-100 focus:bg-white dark:bg-slate-950/60 dark:hover:bg-slate-950/90 dark:focus:bg-slate-950 border border-slate-200 dark:border-slate-850 focus:border-indigo-500 dark:focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 outline-none text-xs text-slate-850 dark:text-slate-150 transition-all font-medium leading-relaxed resize-y"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-left">
+                  {/* Aspect Ratio Selector */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      Aspect Ratio:
+                    </label>
+                    <div className="grid grid-cols-5 gap-1 bg-slate-100/80 dark:bg-slate-950 p-1 rounded-xl border border-slate-200/50 dark:border-slate-850/60">
+                      {(["1:1", "16:9", "9:16", "4:3", "3:4"] as const).map((ratio) => (
+                        <button
+                          key={ratio}
+                          type="button"
+                          onClick={() => {
+                            setAiImageAspectRatio(ratio);
+                            triggerBeepChime();
+                          }}
+                          className={`py-1.5 text-[9px] font-black rounded-md cursor-pointer transition-all ${
+                            aiImageAspectRatio === ratio
+                              ? "bg-white dark:bg-slate-850 text-indigo-650 dark:text-indigo-450 shadow-3xs"
+                              : "text-slate-500 hover:text-slate-750 dark:hover:text-slate-300"
+                          }`}
+                        >
+                          {ratio}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Style Preset Selector */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      Aesthetic Style:
+                    </label>
+                    <select
+                      value={aiImageStyle}
+                      onChange={(e) => {
+                        setAiImageStyle(e.target.value);
+                        triggerBeepChime();
+                      }}
+                      className="w-full p-2 text-xs font-bold rounded-xl bg-slate-100/80 hover:bg-slate-100 focus:bg-white dark:bg-slate-950/60 dark:hover:bg-slate-950/90 dark:focus:bg-slate-950 border border-slate-200 dark:border-slate-850 text-slate-700 dark:text-slate-300 outline-none cursor-pointer focus:border-indigo-500 transition-all"
+                    >
+                      <option value="none">None (Raw Prompt)</option>
+                      <option value="cinematic">Cinematic 🎬</option>
+                      <option value="anime">Anime 🌸</option>
+                      <option value="oil_painting">Oil Painting 🎨</option>
+                      <option value="sketch">Sketch ✏️</option>
+                      <option value="render_3d">3D Render 🪐</option>
+                      <option value="retro_vhs">Retro VHS 📹</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Generate Button & Progress */}
+                <div className="pt-1 flex flex-col gap-3">
+                  {aiImageError && (
+                    <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/20 border border-rose-150 dark:border-rose-900/40 text-[11px] font-medium text-rose-750 dark:text-rose-400 text-left">
+                      ⚠️ {aiImageError}
+                    </div>
+                  )}
+
+                  {isGeneratingAiImage ? (
+                    <div className="p-4.5 rounded-2xl bg-indigo-50/40 dark:bg-indigo-950/10 border border-indigo-100 dark:border-indigo-950/50 flex flex-col items-center justify-center gap-3">
+                      <div className="relative flex items-center justify-center">
+                        <div className="w-9 h-9 border-3 border-indigo-200 border-t-indigo-600 rounded-full animate-spin" />
+                        <Sparkles className="w-4 h-4 text-indigo-500 absolute animate-pulse" />
+                      </div>
+                      <div className="space-y-1 text-center">
+                        <p className="text-xs font-black text-indigo-900 dark:text-indigo-400 uppercase tracking-wider animate-pulse">
+                          Generating custom canvas image...
+                        </p>
+                        <p className="text-[10px] text-slate-550 dark:text-slate-400 font-mono font-medium">
+                          {aiImageProgressStage || "Contacting Gemini Imagen Server..."}
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={handleGenerateAiImage}
+                      disabled={!aiImagePrompt.trim()}
+                      className={`w-full py-2.5 rounded-xl text-[11px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                        aiImagePrompt.trim()
+                          ? "bg-gradient-to-r from-indigo-650 to-violet-700 hover:from-indigo-600 hover:to-violet-650 text-white shadow-md hover:shadow-lg active:scale-98"
+                          : "bg-slate-100 dark:bg-slate-900 text-slate-400 border border-slate-200 dark:border-slate-800 cursor-not-allowed"
+                      }`}
+                    >
+                      <Sparkles className="w-4 h-4 animate-pulse" />
+                      <span>Create AI Image with Gemini</span>
+                    </button>
+                  )}
+
+                  {/* Resulting Image Preview card */}
+                  {generatedImageUrl && !isGeneratingAiImage && (
+                    <div className="mt-2 border border-indigo-150 dark:border-slate-850 bg-white/40 dark:bg-slate-950/20 p-4 rounded-2xl space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-300">
+                      <div className="space-y-1 text-left">
+                        <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-emerald-50 dark:bg-emerald-950/40 text-[9px] font-black text-emerald-700 dark:text-emerald-400 uppercase tracking-widest border border-emerald-150/40">
+                          <Check className="w-2.5 h-2.5" />
+                          <span>AI Masterpiece Created</span>
+                        </span>
+                        <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium leading-normal italic truncate">
+                          &ldquo;{aiImagePrompt}&rdquo;
+                        </p>
+                      </div>
+
+                      <div className="relative rounded-xl overflow-hidden aspect-video bg-slate-950 border border-slate-200 dark:border-slate-850 group/result shadow-sm">
+                        <img
+                          src={generatedImageUrl}
+                          alt="AI Generated Masterpiece"
+                          className="w-full h-full object-cover"
+                          referrerPolicy="no-referrer"
+                        />
+                        <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover/result:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              triggerFileDownload(generatedImageUrl, `gemini-ai-image-${Date.now()}.png`);
+                              triggerBeepChime();
+                            }}
+                            className="p-2 bg-white/90 hover:bg-white text-slate-800 rounded-full shadow-lg hover:scale-110 transition-transform cursor-pointer"
+                            title="Download generated image as PNG"
+                          >
+                            <Download className="w-4 h-4 text-slate-700" />
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2">
+                        <button
+                          type="button"
+                          onClick={handleAddGeneratedImageToTimeline}
+                          className="flex items-center justify-center gap-1.5 py-2 px-3 text-[10.5px] font-extrabold text-white bg-indigo-650 hover:bg-indigo-600 rounded-xl transition-all cursor-pointer shadow-sm active:scale-95"
+                          title="Load this brand new AI creation into your video timeline"
+                        >
+                          <Plus className="w-3.5 h-3.5" />
+                          <span>Add to Timeline</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            triggerFileDownload(generatedImageUrl, `gemini-ai-image-${Date.now()}.png`);
+                            triggerBeepChime();
+                          }}
+                          className="flex items-center justify-center gap-1.5 py-2 px-3 text-[10.5px] font-extrabold text-slate-700 hover:text-slate-950 bg-slate-100 hover:bg-slate-200 dark:text-slate-300 dark:hover:text-slate-100 dark:bg-slate-800 dark:hover:bg-slate-750 rounded-xl border border-slate-200/50 dark:border-slate-700/60 transition-all cursor-pointer active:scale-95"
+                          title="Save PNG locally"
+                        >
+                          <Download className="w-3.5 h-3.5 text-indigo-500" />
+                          <span>Download PNG</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Preview Player Mode Select Tabs */}
@@ -5809,6 +7108,7 @@ export default function ImageToVideo({
                         src={exportedVideoUrl}
                         alt="Exported Animated GIF"
                         className="w-full h-full max-h-[220px] object-contain transition-all duration-300"
+                        referrerPolicy="no-referrer"
                         style={{
                           filter:
                             createdVideoPlayerFilter === "grayscale" ? "grayscale(100%)" :
@@ -6188,6 +7488,15 @@ export default function ImageToVideo({
               }}
               className="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-ew-resize accent-indigo-600 dark:accent-indigo-500 outline-none"
             />
+            
+            <div className="flex items-center gap-2 text-[8px] font-bold text-slate-400 dark:text-slate-500 font-mono mt-1 select-none">
+              <span>⌨️ Shortcuts:</span>
+              <span className="bg-slate-100 dark:bg-slate-850 border border-slate-200/50 dark:border-slate-800 px-1 py-0.5 rounded text-[7.5px]">Space</span>
+              <span>Play/Pause</span>
+              <span className="bg-slate-100 dark:bg-slate-850 border border-slate-200/50 dark:border-slate-800 px-1 py-0.5 rounded text-[7.5px]">←</span>
+              <span className="bg-slate-100 dark:bg-slate-850 border border-slate-200/50 dark:border-slate-800 px-1 py-0.5 rounded text-[7.5px]">→</span>
+              <span>Seek 0.5s</span>
+            </div>
           </div>
 
           {/* Timeline control row */}
@@ -6196,15 +7505,33 @@ export default function ImageToVideo({
             <div className="flex items-center gap-2">
               <button
                 type="button"
+                onClick={stepBackward}
+                className="p-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-all cursor-pointer text-slate-500 dark:text-slate-350 shrink-0"
+                title="Previous Frame (Left Arrow)"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+
+              <button
+                type="button"
                 onClick={togglePlay}
                 className={`p-3 rounded-xl shadow-xs transition-all cursor-pointer flex items-center justify-center shrink-0 ${
                   isPlaying
                     ? "bg-amber-500 text-white hover:bg-amber-600"
                     : "bg-indigo-600 hover:bg-indigo-700 text-white"
                 }`}
-                title={isPlaying ? "Pause timeline preview" : "Play timeline preview"}
+                title={isPlaying ? "Pause timeline preview (Space)" : "Play timeline preview (Space)"}
               >
                 {isPlaying ? <Pause className="w-4 h-4 fill-current" /> : <Play className="w-4 h-4 fill-current ml-0.5" />}
+              </button>
+
+              <button
+                type="button"
+                onClick={stepForward}
+                className="p-3 bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-xl transition-all cursor-pointer text-slate-500 dark:text-slate-350 shrink-0"
+                title="Next Frame (Right Arrow)"
+              >
+                <ChevronRight className="w-4 h-4" />
               </button>
 
               <button
@@ -6228,28 +7555,79 @@ export default function ImageToVideo({
               >
                 {isMuted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
               </button>
+
+              {/* Pro Safe Area Grid Guides Switcher */}
+              <button
+                type="button"
+                onClick={() => {
+                  const sequence: ("none" | "thirds" | "safe-zone" | "all")[] = ["none", "thirds", "safe-zone", "all"];
+                  const nextIndex = (sequence.indexOf(canvasGuideGrid) + 1) % sequence.length;
+                  setCanvasGuideGrid(sequence[nextIndex]);
+                  triggerBeepChime();
+                  setToastMessage({
+                    text: `📐 Alignment Grid: ${sequence[nextIndex].toUpperCase()}`,
+                    sub: "Safe-zone alignment overlays loaded on player viewport.",
+                    success: true
+                  });
+                }}
+                className={`p-3 rounded-xl transition-all cursor-pointer shrink-0 flex items-center gap-1.5 text-[10px] font-black border ${
+                  canvasGuideGrid !== "none"
+                    ? "bg-amber-500/10 text-amber-500 border-amber-500/30"
+                    : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-350 border-transparent"
+                }`}
+                title="Toggle Rule of Thirds grid, Action-Safe boundaries, and Title-Safe templates on the canvas"
+              >
+                <Grid className="w-4 h-4" />
+                <span className="hidden sm:inline uppercase tracking-wider text-[8.5px]">
+                  Guides: {canvasGuideGrid === "none" ? "OFF" : canvasGuideGrid.toUpperCase()}
+                </span>
+              </button>
             </div>
 
-            <div className="flex items-center gap-3">
-              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 font-mono">
-                Transitions:
-              </span>
-              <select
-                value={transitionStyle}
-                onChange={(e) => setTransitionStyle(e.target.value as any)}
-                className="px-3 py-2 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-xl shadow-3xs cursor-pointer outline-none"
-              >
-                <option value="fade">🎬 Cross Dissolve (Fade)</option>
-                <option value="slide-left">⚡ Slide Left</option>
-                <option value="slide-right">⚡ Slide Right</option>
-                <option value="zoom">🔍 Scaling Zoom</option>
-                <option value="flash">✨ Flash Transition</option>
-                <option value="cross-zoom">🎯 Cinematic Cross Zoom</option>
-                <option value="curtain-wipe">🚪 Sliding Curtain Wipe</option>
-                <option value="blur-fade">🌫️ Dreamy Blur Fade</option>
-                <option value="glitch-wave">👾 Digital Glitch Wave</option>
-                <option value="none">❌ Cut (No Transition)</option>
-              </select>
+            <div className="flex flex-wrap items-center gap-4">
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 font-mono">
+                  Transitions:
+                </span>
+                <select
+                  id="transition-style-dropdown"
+                  value={transitionStyle}
+                  onChange={(e) => setTransitionStyle(e.target.value as any)}
+                  className="px-3 py-2 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-xl shadow-3xs cursor-pointer outline-none"
+                >
+                  <option value="fade">🎬 Cross Dissolve (Fade)</option>
+                  <option value="slide-left">⚡ Slide Left</option>
+                  <option value="slide-right">⚡ Slide Right</option>
+                  <option value="zoom">🔍 Scaling Zoom</option>
+                  <option value="flash">✨ Flash Transition</option>
+                  <option value="cross-zoom">🎯 Cinematic Cross Zoom</option>
+                  <option value="curtain-wipe">🚪 Sliding Curtain Wipe</option>
+                  <option value="blur-fade">🌫️ Dreamy Blur Fade</option>
+                  <option value="glitch-wave">👾 Digital Glitch Wave</option>
+                  <option value="spiral-spin">🌀 Spiral Vortex Spin</option>
+                  <option value="pixelate-fade">👾 Retro Pixelate Reveal</option>
+                  <option value="radial-wipe">⭕ Radial Expanding Wipe</option>
+                  <option value="none">❌ Cut (No Transition)</option>
+                </select>
+              </div>
+
+              {transitionStyle !== "none" && (
+                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800/60 py-1 px-2.5 rounded-xl border border-slate-200/50 dark:border-slate-700/50">
+                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 font-mono">
+                    Duration:
+                  </span>
+                  <input
+                    type="range"
+                    min={0.2}
+                    max={2.0}
+                    step={0.1}
+                    value={transitionDuration}
+                    onChange={(e) => setTransitionDuration(parseFloat(e.target.value))}
+                    className="w-20 sm:w-24 h-1.5 bg-slate-200 dark:bg-slate-750 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                  />
+                  <span className="text-[10.5px] font-bold text-slate-700 dark:text-slate-350 font-mono w-8">{transitionDuration.toFixed(1)}s</span>
+                </div>
+              )}
             </div>
           </div>
 
@@ -7107,6 +8485,52 @@ export default function ImageToVideo({
                     {renderPromptValidationInfo(userPromptText)}
                   </div>
 
+                  {/* Image Generation Source Selector */}
+                  <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-200 dark:border-slate-850/70 space-y-2">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
+                      🎨 Scene Base Canvas Source:
+                    </span>
+                    <div className="grid grid-cols-2 gap-2 bg-slate-100 dark:bg-slate-900/60 p-1 rounded-xl border border-slate-250/20 dark:border-slate-800">
+                      <button
+                        type="button"
+                        disabled={isGeneratingScene}
+                        onClick={() => {
+                          setAiSceneImageSource("gemini");
+                          triggerBeepChime();
+                        }}
+                        className={`py-1.5 px-1 rounded-lg transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer text-[9px] font-black uppercase tracking-wider ${
+                          aiSceneImageSource === "gemini"
+                            ? "bg-white dark:bg-slate-950 text-indigo-600 dark:text-indigo-400 shadow-3xs border border-slate-200/10"
+                            : "text-slate-500 dark:text-slate-400 hover:text-slate-850 dark:hover:text-slate-250"
+                        }`}
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+                        <span>🌌 Gemini AI Model</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isGeneratingScene}
+                        onClick={() => {
+                          setAiSceneImageSource("unsplash");
+                          triggerBeepChime();
+                        }}
+                        className={`py-1.5 px-1 rounded-lg transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer text-[9px] font-black uppercase tracking-wider ${
+                          aiSceneImageSource === "unsplash"
+                            ? "bg-white dark:bg-slate-950 text-indigo-650 dark:text-indigo-400 shadow-3xs border border-slate-200/10"
+                            : "text-slate-500 dark:text-slate-400 hover:text-slate-850 dark:hover:text-slate-250"
+                        }`}
+                      >
+                        <Video className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>📸 Stock Photo (Fast)</span>
+                      </button>
+                    </div>
+                    <p className="text-[8px] text-slate-450 dark:text-slate-500 font-bold leading-normal italic pl-1">
+                      {aiSceneImageSource === "gemini" 
+                        ? "🌌 Text-To-Video: Gemini Imagen 3 generates a fully custom, unique high-fidelity 16:9 widescreen canvas." 
+                        : "📸 Speed Mode: Auto-retrieves beautifully-curated photography assets directly from Unsplash."}
+                    </p>
+                  </div>
+
                   {/* Suggested Styles Selector */}
                   <div className="space-y-1">
                     <span className="text-[8.5px] font-black uppercase tracking-widest text-slate-400">
@@ -7244,6 +8668,52 @@ export default function ImageToVideo({
                     className="w-full p-4 text-xs font-mono font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-2xl outline-none focus:ring-2 focus:ring-indigo-500/40 text-slate-800 dark:text-slate-100 resize-none leading-relaxed shadow-3xs"
                     disabled={isGeneratingScript}
                   />
+
+                  {/* Image Generation Source Selector for Script-to-Video */}
+                  <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-200 dark:border-slate-850/70 space-y-2">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
+                      🎨 Scene Base Canvas Source:
+                    </span>
+                    <div className="grid grid-cols-2 gap-2 bg-slate-100 dark:bg-slate-900/60 p-1 rounded-xl border border-slate-250/20 dark:border-slate-800">
+                      <button
+                        type="button"
+                        disabled={isGeneratingScript}
+                        onClick={() => {
+                          setAiSceneImageSource("gemini");
+                          triggerBeepChime();
+                        }}
+                        className={`py-1.5 px-1 rounded-lg transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer text-[9px] font-black uppercase tracking-wider ${
+                          aiSceneImageSource === "gemini"
+                            ? "bg-white dark:bg-slate-950 text-indigo-600 dark:text-indigo-400 shadow-3xs border border-slate-200/10"
+                            : "text-slate-500 dark:text-slate-400 hover:text-slate-850 dark:hover:text-slate-250"
+                        }`}
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+                        <span>🌌 Gemini AI Model</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isGeneratingScript}
+                        onClick={() => {
+                          setAiSceneImageSource("unsplash");
+                          triggerBeepChime();
+                        }}
+                        className={`py-1.5 px-1 rounded-lg transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer text-[9px] font-black uppercase tracking-wider ${
+                          aiSceneImageSource === "unsplash"
+                            ? "bg-white dark:bg-slate-950 text-indigo-650 dark:text-indigo-400 shadow-3xs border border-slate-200/10"
+                            : "text-slate-500 dark:text-slate-400 hover:text-slate-850 dark:hover:text-slate-250"
+                        }`}
+                      >
+                        <Video className="w-3.5 h-3.5 text-emerald-500" />
+                        <span>📸 Stock Photo (Fast)</span>
+                      </button>
+                    </div>
+                    <p className="text-[8px] text-slate-450 dark:text-slate-500 font-bold leading-normal italic pl-1">
+                      {aiSceneImageSource === "gemini" 
+                        ? "🌌 Text-To-Video: Gemini Imagen 3 generates a fully custom, unique high-fidelity 16:9 widescreen canvas." 
+                        : "📸 Speed Mode: Auto-retrieves beautifully-curated photography assets directly from Unsplash."}
+                    </p>
+                  </div>
 
                   <div className="pt-1.5">
                     <button
@@ -7921,9 +9391,134 @@ export default function ImageToVideo({
 
                 {/* 4. AUDIO / SOUNDTRACK TRACK CONTAINER */}
                 <div className="space-y-1 relative z-10 mb-2 text-left">
-                  <span className="block text-[9px] font-black uppercase text-slate-500 tracking-wider flex items-center gap-1 mb-1">
-                    🎵 Audio Track (Soundtrack & Beats)
-                  </span>
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-1.5">
+                    <span className="block text-[10px] font-black uppercase text-slate-400 tracking-wider flex items-center gap-1.5">
+                      <Music className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                      Audio Track (Soundtrack & Beats)
+                    </span>
+                    <div className="flex items-center gap-2">
+                      {/* Quick Select Dropdown */}
+                      <div className="relative">
+                        <select
+                          id="quick-timeline-audio-select"
+                          value={
+                            audioTrackMode === "synth" 
+                              ? `synth:${soundtrack}` 
+                              : audioTrackMode === "custom" && customAudioUrl 
+                                ? `custom:${customAudioUrl}` 
+                                : "silent"
+                          }
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            if (val === "silent") {
+                              setAudioTrackMode("synth");
+                              setSoundtrack("none");
+                              setCustomAudioUrl(null);
+                              setCustomAudioName(null);
+                              synthManagerRef.current.stop();
+                              setToastMessage({
+                                text: "🔇 Sound muted",
+                                sub: "Reverted back to silent.",
+                                success: true
+                              });
+                            } else if (val.startsWith("synth:")) {
+                              const trackId = val.split(":")[1];
+                              setAudioTrackMode("synth");
+                              setSoundtrack(trackId);
+                              triggerBeepChime();
+                              if (isPlaying) {
+                                synthManagerRef.current.stop();
+                                if (!isMuted && trackId !== "none") {
+                                  setTimeout(() => {
+                                    synthManagerRef.current.start(trackId, effectiveSoundtrackVolume, audioFadeIn, audioFadeOut, totalDuration, null, 0, 0, 0, loopAudio);
+                                  }, 100);
+                                }
+                              }
+                            } else if (val.startsWith("custom:")) {
+                              const audioUrl = val.replace("custom:", "");
+                              const isMp3Track = CURATED_MP3_LIBRARY.find(t => t.url === audioUrl);
+                              setAudioTrackMode("custom");
+                              setCustomAudioUrl(audioUrl);
+                              if (isMp3Track) {
+                                setCustomAudioName(isMp3Track.name);
+                              }
+                              triggerBeepChime();
+                              if (isPlaying) {
+                                synthManagerRef.current.stop();
+                                if (!isMuted) {
+                                  setTimeout(() => {
+                                    synthManagerRef.current.start("custom", effectiveSoundtrackVolume, false, false, totalDuration, audioUrl, currentTime, audioTrimStart, audioTrimEnd, loopAudio);
+                                  }, 100);
+                                }
+                              }
+                            }
+                          }}
+                          className="px-2.5 py-1 text-[10px] font-black bg-slate-900 border border-slate-800 rounded-lg text-slate-200 outline-none cursor-pointer focus:border-indigo-500 max-w-[150px] sm:max-w-[200px]"
+                        >
+                          <option value="silent">🔇 Silent (None)</option>
+                          <optgroup label="🎵 Music Library (MP3s)">
+                            {CURATED_MP3_LIBRARY.map((track) => (
+                              <option key={track.id} value={`custom:${track.url}`}>
+                                {track.emoji} {track.name} ({track.duration})
+                              </option>
+                            ))}
+                          </optgroup>
+                          <optgroup label="🎹 Synth Loops">
+                            {SOUNDTRACK_LIBRARY.filter(t => t.id !== "none").map((track) => (
+                              <option key={track.id} value={`synth:${track.id}`}>
+                                {track.emoji} {track.name} ({track.bpm} BPM)
+                              </option>
+                            ))}
+                          </optgroup>
+                          {customAudioUrl && !CURATED_MP3_LIBRARY.some(t => t.url === customAudioUrl) && (
+                            <optgroup label="📂 Your Uploaded File">
+                              <option value={`custom:${customAudioUrl}`}>
+                                🎧 {customAudioName || "Custom Track"}
+                              </option>
+                            </optgroup>
+                          )}
+                        </select>
+                      </div>
+
+                      {/* Quick Upload Button */}
+                      <div className="relative">
+                        <input
+                          type="file"
+                          accept="audio/*"
+                          id="timeline-audio-uploader"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0];
+                            if (!file) return;
+                            const url = URL.createObjectURL(file);
+                            setCustomAudioUrl(url);
+                            setCustomAudioName(file.name);
+                            setAudioTrackMode("custom");
+                            setMusicTab("custom");
+                            synthManagerRef.current.stop();
+                            if (isPlaying) {
+                              setTimeout(() => {
+                                synthManagerRef.current.start("custom", effectiveSoundtrackVolume, false, false, totalDuration, url, currentTime, audioTrimStart, audioTrimEnd, loopAudio);
+                              }, 100);
+                            }
+                            setToastMessage({
+                              text: "🎵 Background Audio Loaded",
+                              sub: `"${file.name}" is now the active background track.`,
+                              success: true
+                            });
+                            triggerBeepChime();
+                          }}
+                        />
+                        <label
+                          htmlFor="timeline-audio-uploader"
+                          className="flex items-center gap-1 px-2.5 py-1 bg-indigo-650 hover:bg-indigo-600 text-white text-[10px] font-black rounded-lg cursor-pointer transition-all uppercase tracking-wider shadow-sm select-none"
+                        >
+                          <Upload className="w-3 h-3" />
+                          <span>Upload File</span>
+                        </label>
+                      </div>
+                    </div>
+                  </div>
 
                   <div className="bg-slate-900/60 p-2.5 rounded-xl border border-slate-850 flex items-center overflow-hidden min-h-[46px] relative">
                     {/* Animated soundwaves when playing */}
@@ -8081,13 +9676,38 @@ export default function ImageToVideo({
 
                     {/* Subtitle Input Textbox */}
                     <div className="space-y-1.5">
-                      <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
-                        Caption / Subtitle Text Overlay:
-                      </label>
+                      <div className="flex items-center justify-between">
+                        <label className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                          Caption / Subtitle Text Overlay:
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            if (sttIsListening && sttIndividualSlideId === editingSlide.id) {
+                              stopStt();
+                            } else {
+                              startStt(editingSlide.id);
+                            }
+                          }}
+                          className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                            sttIsListening && sttIndividualSlideId === editingSlide.id
+                              ? "bg-rose-600 text-white animate-pulse shadow-sm"
+                              : "bg-slate-850 text-slate-305 hover:bg-slate-800 hover:text-white border border-slate-800"
+                          }`}
+                          title="Speak to dictate subtitles using Speech-to-Text"
+                        >
+                          <Mic className="w-2.5 h-2.5" />
+                          <span>
+                            {sttIsListening && sttIndividualSlideId === editingSlide.id
+                              ? "Listening..."
+                              : "STT Dictate"}
+                          </span>
+                        </button>
+                      </div>
                       <textarea
                         value={editingSlide.text}
                         onChange={(e) => updateSlideProp(editingSlide.id, "text", e.target.value)}
-                        placeholder="Type your caption overlays here..."
+                        placeholder="Type your caption overlays here or click STT Dictate to speak..."
                         rows={2}
                         className="w-full text-xs p-3 rounded-xl border border-slate-800 bg-slate-950 text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500 font-medium leading-relaxed"
                       />
@@ -8186,9 +9806,216 @@ export default function ImageToVideo({
 
       {/* Right column: Slide Options & Studio Presets Config */}
       <div className="lg:col-span-5 space-y-6">
-        
+
+        {/* Section: Batch Processing Studio Queue */}
+        <div className="border border-slate-150 dark:border-slate-850 p-5 rounded-3xl bg-slate-50/50 dark:bg-slate-900/10 space-y-4">
+          <div className="border-b border-slate-150 dark:border-slate-800/80 pb-3 flex items-center justify-between">
+            <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
+              <ListChecks className="w-4 h-4 text-emerald-500 animate-pulse" />
+              <span>Batch Processing Studio Queue</span>
+            </h4>
+            <span className="text-[10px] font-black uppercase tracking-widest bg-emerald-100/80 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-400 px-2 py-0.5 rounded-full leading-none">
+              Batch Mode
+            </span>
+          </div>
+
+          <p className="text-[11px] font-medium text-slate-550 dark:text-slate-400">
+            Upload multiple photos to generate a compiled video sequence or render individual clips for each photo with a single click.
+          </p>
+
+          {/* 1. File Upload Dropzone for Batch Queue */}
+          <div className="relative border-2 border-dashed border-slate-200 dark:border-slate-800 hover:border-indigo-500 dark:hover:border-indigo-500/80 rounded-2xl p-4 text-center transition-all bg-slate-100/40 dark:bg-slate-950/10">
+            <input
+              type="file"
+              multiple
+              accept="image/*"
+              className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+              onChange={(e) => {
+                if (e.target.files && e.target.files.length > 0) {
+                  handleBatchAddFiles(e.target.files);
+                }
+              }}
+              disabled={isBatchProcessing}
+            />
+            <Upload className="w-6 h-6 text-indigo-500 mx-auto mb-1 animate-bounce" />
+            <span className="block text-xs font-bold text-slate-700 dark:text-slate-300">Drag & drop multiple images here</span>
+            <span className="block text-[10px] text-slate-400 mt-0.5">or click to browse from device</span>
+          </div>
+
+          {/* 2. Generation Mode Selector */}
+          <div className="space-y-1.5">
+            <span className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+              Queue Processing Mode:
+            </span>
+            <div className="grid grid-cols-2 gap-2 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-200/50 dark:border-slate-850">
+              <button
+                type="button"
+                onClick={() => setBatchGenerationMode("individual")}
+                className={`py-1.5 px-3 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  batchGenerationMode === "individual"
+                    ? "bg-indigo-600 text-white shadow-sm"
+                    : "text-slate-600 dark:text-slate-450 hover:text-slate-950 dark:hover:text-slate-200"
+                }`}
+                disabled={isBatchProcessing}
+              >
+                <span>🎞️ Individual Clips</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setBatchGenerationMode("sequence")}
+                className={`py-1.5 px-3 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                  batchGenerationMode === "sequence"
+                    ? "bg-indigo-600 text-white shadow-sm"
+                    : "text-slate-600 dark:text-slate-450 hover:text-slate-950 dark:hover:text-slate-200"
+                }`}
+                disabled={isBatchProcessing}
+              >
+                <span>📹 Sequence (Stitched)</span>
+              </button>
+            </div>
+            <p className="text-[10px] text-slate-400 italic">
+              {batchGenerationMode === "individual"
+                ? "💡 Renders and downloads a separate video/GIF clip for each image one after the other."
+                : "💡 Stitches all queued images into a single cinematic timeline for immediate exporting."}
+            </p>
+          </div>
+
+          {/* 3. Queue List */}
+          {batchItems.length > 0 && (
+            <div className="space-y-2">
+              <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-wider text-slate-400">
+                <span>Queued Items ({batchItems.length})</span>
+                <button
+                  type="button"
+                  onClick={handleBatchClear}
+                  className="text-rose-500 hover:text-rose-600 cursor-pointer uppercase text-[9px] font-black tracking-widest bg-rose-500/10 dark:bg-rose-500/5 px-2 py-0.5 rounded-md"
+                  disabled={isBatchProcessing}
+                >
+                  Clear All
+                </button>
+              </div>
+
+              <div className="max-h-[180px] overflow-y-auto space-y-1.5 pr-1 custom-scrollbar animate-fadeIn">
+                {batchItems.map((item, idx) => (
+                  <div
+                    key={item.id}
+                    className="flex items-center justify-between p-2 rounded-xl border border-slate-200/50 dark:border-slate-850/80 bg-slate-100/50 dark:bg-slate-950/20"
+                  >
+                    <div className="flex items-center gap-2 min-w-0 flex-1">
+                      <div className="relative w-8 h-8 rounded-lg overflow-hidden border border-slate-200 dark:border-slate-800 shrink-0 bg-slate-900">
+                        <img
+                          src={item.url}
+                          alt={item.name}
+                          className="w-full h-full object-cover"
+                        />
+                        <span className="absolute bottom-0 right-0 bg-black/60 text-white text-[8px] px-0.5 font-bold rounded-tl">
+                          {idx + 1}
+                        </span>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <span className="block text-[11px] font-bold text-slate-700 dark:text-slate-300 truncate">
+                          {item.name}
+                        </span>
+                        {item.status === "processing" && (
+                          <div className="w-full bg-slate-200 dark:bg-slate-800 h-1 rounded-full overflow-hidden mt-1">
+                            <div
+                              className="bg-indigo-500 h-1 rounded-full transition-all duration-300"
+                              style={{ width: `${item.progress}%` }}
+                            />
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-1.5 shrink-0 ml-2">
+                      {item.status === "pending" && (
+                        <span className="text-[9px] font-extrabold text-amber-600 dark:text-amber-400 uppercase tracking-wide bg-amber-500/10 dark:bg-amber-500/5 px-1.5 py-0.5 rounded-full select-none">
+                          Pending ⏳
+                        </span>
+                      )}
+                      {item.status === "processing" && (
+                        <span className="text-[9px] font-extrabold text-blue-500 dark:text-blue-450 uppercase tracking-wide bg-blue-500/10 dark:bg-blue-450/5 px-1.5 py-0.5 rounded-full animate-pulse select-none">
+                          {item.progress}% ⚙️
+                        </span>
+                      )}
+                      {item.status === "completed" && (
+                        <div className="flex items-center gap-1">
+                          <span className="text-[9px] font-extrabold text-emerald-500 dark:text-emerald-450 uppercase tracking-wide bg-emerald-500/10 dark:bg-emerald-450/5 px-1.5 py-0.5 rounded-full select-none">
+                            Ready! ✅
+                          </span>
+                          {item.resultUrl && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const a = document.createElement("a");
+                                a.href = item.resultUrl!;
+                                a.download = `${item.name.replace(/\.[^/.]+$/, "")}_clip.${exportFormat === "gif" ? "gif" : (exportFormat === "webm" ? "webm" : "mp4")}`;
+                                a.click();
+                              }}
+                              className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 rounded-lg cursor-pointer"
+                              title="Redownload Clip"
+                            >
+                              <Download className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                      )}
+                      {item.status === "failed" && (
+                        <span className="text-[9px] font-extrabold text-rose-500 dark:text-rose-450 uppercase tracking-wide bg-rose-500/10 dark:bg-rose-450/5 px-1.5 py-0.5 rounded-full select-none">
+                          Failed ❌
+                        </span>
+                      )}
+
+                      {!isBatchProcessing && (
+                        <button
+                          type="button"
+                          onClick={() => handleBatchRemoveItem(item.id)}
+                          className="p-1 text-slate-400 hover:text-rose-500 hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-all cursor-pointer"
+                          title="Remove from queue"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* 4. Process Action Button */}
+          <button
+            type="button"
+            onClick={handleStartBatchGeneration}
+            disabled={batchItems.length === 0 || isBatchProcessing}
+            className={`w-full py-3 px-4 rounded-xl text-xs font-black uppercase tracking-wider transition-all shadow-sm select-none flex items-center justify-center gap-2 cursor-pointer ${
+              batchItems.length === 0
+                ? "bg-slate-100 dark:bg-slate-850 text-slate-400 border border-slate-200 dark:border-slate-800 cursor-not-allowed"
+                : isBatchProcessing
+                  ? "bg-indigo-600/50 text-slate-200 cursor-wait animate-pulse"
+                  : "bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white hover:shadow-md hover:scale-[1.01] active:scale-95"
+            }`}
+          >
+            {isBatchProcessing ? (
+              <>
+                <RefreshCw className="w-4 h-4 animate-spin" />
+                <span>Processing Queue...</span>
+              </>
+            ) : (
+              <>
+                <Zap className="w-4 h-4 animate-bounce" />
+                <span>
+                  {batchGenerationMode === "individual"
+                    ? `Start Batch Rendering (${batchItems.length} Clips)`
+                    : `Compile Single Video (${batchItems.length} Slides)`}
+                </span>
+              </>
+            )}
+          </button>
+        </div>
+
         {/* Section: Slide Settings */}
-          {selectedSlide ? (
+        {selectedSlide ? (
             <div className="space-y-6">
               <div className="border border-slate-150 dark:border-slate-850 p-5 rounded-3xl bg-slate-50/50 dark:bg-slate-900/10 space-y-4">
               <div className="border-b border-slate-150 dark:border-slate-800/80 pb-3">
@@ -8267,14 +10094,39 @@ export default function ImageToVideo({
                     <Type className="w-3.5 h-3.5 text-indigo-500" />
                     <span>Overlay Caption Text:</span>
                   </label>
-                  <span className="text-[10px] text-slate-405 font-mono">{selectedSlide.text.length}/24 chars</span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (sttIsListening && sttIndividualSlideId === selectedSlide.id) {
+                          stopStt();
+                        } else {
+                          startStt(selectedSlide.id);
+                        }
+                      }}
+                      className={`flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                        sttIsListening && sttIndividualSlideId === selectedSlide.id
+                          ? "bg-rose-600 text-white animate-pulse"
+                          : "bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-indigo-50 dark:hover:bg-slate-700 border border-slate-200 dark:border-slate-700"
+                      }`}
+                      title="Speak to dictate subtitles using Speech-to-Text"
+                    >
+                      <Mic className="w-2.5 h-2.5 text-indigo-500" />
+                      <span>
+                        {sttIsListening && sttIndividualSlideId === selectedSlide.id
+                          ? "Listening..."
+                          : "Speak Caption"}
+                      </span>
+                    </button>
+                    <span className="text-[10px] text-slate-405 font-mono">{selectedSlide.text.length}/24 chars</span>
+                  </div>
                 </div>
                 <input
                   type="text"
                   maxLength={24}
                   value={selectedSlide.text}
                   onChange={(e) => updateSlideProp(selectedSlide.id, "text", e.target.value)}
-                  placeholder="Type overlay subtitles..."
+                  placeholder="Type overlay subtitles or click Speak Caption..."
                   className="w-full px-3.5 py-2 text-xs font-semibold bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl outline-none focus:ring-2 focus:ring-indigo-500/40"
                 />
               </div>
@@ -8448,6 +10300,72 @@ export default function ImageToVideo({
                       onChange={(e) => updateSlideProp(selectedSlide.id, "scaleEnd", parseFloat(e.target.value))}
                       className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
                     />
+                  </div>
+                  <div className="space-y-1 col-span-2 border-t border-slate-100 dark:border-slate-850/50 pt-2.5">
+                    <div className="flex items-center justify-between text-[10px] text-slate-400 font-mono">
+                      <span>Camera Drift Speed:</span>
+                      <span className="text-indigo-500 font-bold">{((selectedSlide.motionSpeed !== undefined ? selectedSlide.motionSpeed : 1.0)).toFixed(1)}x</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0.2}
+                      max={3.0}
+                      step={0.1}
+                      value={selectedSlide.motionSpeed !== undefined ? selectedSlide.motionSpeed : 1.0}
+                      onChange={(e) => updateSlideProp(selectedSlide.id, "motionSpeed", parseFloat(e.target.value))}
+                      className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                    />
+                  </div>
+
+                  {/* Quick Preset Buttons */}
+                  <div className="col-span-2 space-y-1.5 bg-slate-50 dark:bg-slate-900/50 p-2.5 rounded-xl border border-slate-100 dark:border-slate-850">
+                    <span className="block text-[9px] font-black text-slate-450 uppercase tracking-wider">
+                      ⚡ Quick Ken Burns Presets:
+                    </span>
+                    <div className="grid grid-cols-2 gap-1.5">
+                      {[
+                        { label: "🔍 Slow Zoom In", scaleStart: 1.0, scaleEnd: 1.25, motionSpeed: 1.0, cameraMovement: "Slow Zoom" },
+                        { label: "🔎 Slow Zoom Out", scaleStart: 1.25, scaleEnd: 1.0, motionSpeed: 1.0, cameraMovement: "Slow Zoom" },
+                        { label: "◀️ Steady Pan Left", scaleStart: 1.15, scaleEnd: 1.15, motionSpeed: 1.2, cameraMovement: "Pan Left" },
+                        { label: "▶️ Steady Pan Right", scaleStart: 1.15, scaleEnd: 1.15, motionSpeed: 1.2, cameraMovement: "Pan Right" },
+                        { label: "🛸 Epic Drone Glide", scaleStart: 1.0, scaleEnd: 1.3, motionSpeed: 1.6, cameraMovement: "Cinematic drone shot moving forward" },
+                        { label: "✨ Surreal 3D Drift", scaleStart: 1.1, scaleEnd: 1.25, motionSpeed: 1.4, cameraMovement: "Surreal motion graphics, smooth 3D animation" }
+                      ].map((preset) => {
+                        const isMatching = 
+                          selectedSlide.scaleStart === preset.scaleStart && 
+                          selectedSlide.scaleEnd === preset.scaleEnd && 
+                          selectedSlide.cameraMovement === preset.cameraMovement &&
+                          (selectedSlide.motionSpeed ?? 1.0) === preset.motionSpeed;
+
+                        return (
+                          <button
+                            key={preset.label}
+                            type="button"
+                            onClick={() => {
+                              updateSlideMultipleProps(selectedSlide.id, {
+                                scaleStart: preset.scaleStart,
+                                scaleEnd: preset.scaleEnd,
+                                cameraMovement: preset.cameraMovement,
+                                motionSpeed: preset.motionSpeed
+                              });
+                              triggerBeepChime();
+                              setToastMessage({
+                                text: `🎬 Applied Preset: ${preset.label.substring(3)}`,
+                                sub: "Ken Burns dynamic scale and camera parameters updated.",
+                                success: true
+                              });
+                            }}
+                            className={`px-2 py-1.5 rounded-lg text-[9px] font-bold text-left border transition-all cursor-pointer ${
+                              isMatching
+                                ? "bg-indigo-600 border-indigo-600 text-white shadow-xs"
+                                : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-850 hover:border-slate-350 dark:hover:border-slate-700 text-slate-700 dark:text-slate-300"
+                            }`}
+                          >
+                            {preset.label}
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
               </div>
@@ -9472,15 +11390,20 @@ export default function ImageToVideo({
                     4. Transition Effect:
                   </label>
                   <select
-                    value={selectedSlide.transitionEffect ?? "Fade"}
+                    value={selectedSlide.transitionEffect ?? "Inherit"}
                     onChange={(e) => updateSlideProp(selectedSlide.id, "transitionEffect", e.target.value)}
                     className="w-full px-2.5 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl outline-none cursor-pointer"
                   >
+                    <option value="Inherit">🎬 Use Global Setting</option>
                     <option value="Fade">🎬 Fade Dissolve</option>
                     <option value="Slide">🎬 Slide Motion</option>
-                    <option value="Cross-dissolve">🎬 Cross-Dissolve</option>
-                    <option value="Wipe">🎬 Wipe Clean</option>
                     <option value="Zoom">🎬 Camera Zoom Transition</option>
+                    <option value="Blur">🎬 Dreamy Blur Fade</option>
+                    <option value="Cross-dissolve">🎬 Cross-Dissolve</option>
+                    <option value="Wipe">🎬 Sliding Curtain Wipe</option>
+                    <option value="Flash">🎬 Flash Transition</option>
+                    <option value="Glitch">🎬 Digital Glitch Wave</option>
+                    <option value="None">❌ Cut (No Transition)</option>
                   </select>
                 </div>
               </div>
@@ -10548,6 +12471,121 @@ export default function ImageToVideo({
                   />
                 </div>
 
+                {/* 🎛️ Live Effects & Synth Customizers Panel */}
+                <div className="p-3 bg-emerald-50/20 dark:bg-emerald-950/10 border border-emerald-100 dark:border-emerald-950/40 rounded-2xl space-y-3.5">
+                  <div className="flex items-center justify-between border-b border-emerald-100/50 dark:border-emerald-950/30 pb-2">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                      <Sliders className="w-3.5 h-3.5" />
+                      🎛️ Live Synth & Effects Deck
+                    </span>
+                    <span className="text-[9px] bg-emerald-100 dark:bg-emerald-900/40 text-emerald-800 dark:text-emerald-300 px-1.5 py-0.5 rounded-full font-bold uppercase">
+                      Real-time
+                    </span>
+                  </div>
+
+                  {/* 1. Live Tempo Speed Scale */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[10.5px] font-bold text-slate-600 dark:text-slate-400">
+                      <span className="flex items-center gap-1.5">
+                        <Clock className="w-3 h-3 text-emerald-500" />
+                        Tempo Speed Multiplier
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-[10px] bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded text-emerald-600 dark:text-emerald-400">
+                          {synthTempoFactor.toFixed(2)}x
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSynthTempoFactor(1.0)}
+                          className="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
+                          title="Reset to 1.0x"
+                        >
+                          <RotateCcw className="w-2.5 h-2.5" />
+                        </button>
+                      </div>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.5"
+                      max="2.0"
+                      step="0.05"
+                      value={synthTempoFactor}
+                      onChange={(e) => setSynthTempoFactor(parseFloat(e.target.value))}
+                      className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                    />
+                  </div>
+
+                  {/* 2. Resonant Lowpass Filter Cutoff */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[10.5px] font-bold text-slate-600 dark:text-slate-400">
+                      <span className="flex items-center gap-1.5">
+                        <Gauge className="w-3 h-3 text-emerald-500" />
+                        Lowpass Filter Cutoff
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-[10px] bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded text-emerald-600 dark:text-emerald-400">
+                          {synthFilterCutoff >= 12000 ? "Bypass" : `${synthFilterCutoff} Hz`}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSynthFilterCutoff(8000)}
+                          className="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
+                          title="Reset to 8000Hz"
+                        >
+                          <RotateCcw className="w-2.5 h-2.5" />
+                        </button>
+                      </div>
+                    </div>
+                    <input
+                      type="range"
+                      min="200"
+                      max="12000"
+                      step="100"
+                      value={synthFilterCutoff}
+                      onChange={(e) => setSynthFilterCutoff(parseInt(e.target.value))}
+                      className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                    />
+                    <p className="text-[9px] text-slate-400 dark:text-slate-500 leading-normal">
+                      Muffle the background audio with a smooth, warm filter sweep.
+                    </p>
+                  </div>
+
+                  {/* 3. Canyon Space Echo Feedback */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[10.5px] font-bold text-slate-600 dark:text-slate-400">
+                      <span className="flex items-center gap-1.5">
+                        <Sliders className="w-3 h-3 text-emerald-500" />
+                        Spatial Echo Feedback
+                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-[10px] bg-slate-100 dark:bg-slate-900 px-1 py-0.5 rounded text-emerald-600 dark:text-emerald-400">
+                          {synthDelayFeedback === 0 ? "Dry" : `${Math.round(synthDelayFeedback * 100)}%`}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setSynthDelayFeedback(0.15)}
+                          className="p-0.5 rounded hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-600 transition-all cursor-pointer"
+                          title="Reset to 15%"
+                        >
+                          <RotateCcw className="w-2.5 h-2.5" />
+                        </button>
+                      </div>
+                    </div>
+                    <input
+                      type="range"
+                      min="0.0"
+                      max="0.85"
+                      step="0.05"
+                      value={synthDelayFeedback}
+                      onChange={(e) => setSynthDelayFeedback(parseFloat(e.target.value))}
+                      className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-emerald-500"
+                    />
+                    <p className="text-[9px] text-slate-400 dark:text-slate-500 leading-normal">
+                      Add a massive 3D ambient delay feedback echo loop.
+                    </p>
+                  </div>
+                </div>
+
                 {/* Voiceover Narration Volume */}
                 <div className="space-y-1.5 p-2.5 rounded-xl bg-indigo-50/20 dark:bg-indigo-950/10 border border-slate-150/50 dark:border-slate-850/40">
                   <div className="flex items-center justify-between text-[11px] font-bold text-slate-600 dark:text-slate-400">
@@ -11049,20 +13087,20 @@ export default function ImageToVideo({
               </div>
 
               {/* Mode Toggle Tabs */}
-              <div className="grid grid-cols-2 gap-1.5 p-1 bg-white/60 dark:bg-slate-950 rounded-xl">
+              <div className="grid grid-cols-3 gap-1 p-1 bg-white/60 dark:bg-slate-950 rounded-xl">
                 <button
                   type="button"
                   onClick={() => {
                     setSubtitleGenerationMode("prompt");
                     triggerBeepChime();
                   }}
-                  className={`py-1 text-[9.5px] font-extrabold uppercase rounded-lg transition-all cursor-pointer ${
+                  className={`py-1 text-[8.5px] font-extrabold uppercase rounded-lg transition-all cursor-pointer text-center ${
                     subtitleGenerationMode === "prompt"
                       ? "bg-indigo-600 text-white shadow-xs"
                       : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
                   }`}
                 >
-                  📝 Video Prompt
+                  📝 Prompt
                 </button>
                 <button
                   type="button"
@@ -11070,18 +13108,32 @@ export default function ImageToVideo({
                     setSubtitleGenerationMode("audio");
                     triggerBeepChime();
                   }}
-                  className={`py-1 text-[9.5px] font-extrabold uppercase rounded-lg transition-all cursor-pointer ${
+                  className={`py-1 text-[8.5px] font-extrabold uppercase rounded-lg transition-all cursor-pointer text-center ${
                     subtitleGenerationMode === "audio"
                       ? "bg-indigo-600 text-white shadow-xs"
                       : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
                   }`}
                 >
-                  🎙️ Audio Track
+                  🎵 Audio
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSubtitleGenerationMode("stt");
+                    triggerBeepChime();
+                  }}
+                  className={`py-1 text-[8.5px] font-extrabold uppercase rounded-lg transition-all cursor-pointer text-center ${
+                    subtitleGenerationMode === "stt"
+                      ? "bg-indigo-600 text-white shadow-xs"
+                      : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                  }`}
+                >
+                  🎙️ STT Mic
                 </button>
               </div>
 
               {/* Theme Prompt Input Box */}
-              {subtitleGenerationMode === "prompt" ? (
+              {subtitleGenerationMode === "prompt" && (
                 <div className="space-y-1">
                   <div className="flex items-center justify-between">
                     <label className="text-[9.5px] font-black text-slate-500 uppercase tracking-wider">
@@ -11109,7 +13161,9 @@ export default function ImageToVideo({
                     Gemini will compose a perfectly matched story subtitle sequence spread sequentially across all timeline frames.
                   </p>
                 </div>
-              ) : (
+              )}
+
+              {subtitleGenerationMode === "audio" && (
                 <div className="space-y-2">
                   <div className="p-2.5 rounded-xl border border-indigo-100/50 bg-indigo-50/10 dark:bg-slate-950/40 text-[10px] space-y-1.5 leading-snug">
                     <span className="font-extrabold block text-indigo-500 dark:text-indigo-400 text-[9px] uppercase tracking-wider">
@@ -11135,25 +13189,136 @@ export default function ImageToVideo({
                 </div>
               )}
 
+              {subtitleGenerationMode === "stt" && (
+                <div className="space-y-3 pt-1">
+                  <div className="flex items-center justify-between">
+                    <label className="text-[9.5px] font-black text-slate-550 dark:text-slate-450 uppercase tracking-wider">
+                      STT Dictation Language:
+                    </label>
+                    <select
+                      value={sttLanguage}
+                      onChange={(e) => setSttLanguage(e.target.value)}
+                      className="text-[9px] bg-white dark:bg-slate-950 text-indigo-600 dark:text-indigo-400 font-bold px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-800 cursor-pointer focus:outline-none"
+                    >
+                      <option value="en-US">🇺🇸 English (US)</option>
+                      <option value="es-ES">🇪🇸 Spanish (Spain)</option>
+                      <option value="fr-FR">🇫🇷 French (France)</option>
+                      <option value="de-DE">🇩🇪 German (Germany)</option>
+                      <option value="ja-JP">🇯🇵 Japanese (Japan)</option>
+                      <option value="zh-CN">🇨🇳 Chinese (Simplified)</option>
+                    </select>
+                  </div>
+
+                  {/* Real-time transcription box */}
+                  <div className="p-3 rounded-xl border border-dashed border-slate-205 dark:border-slate-850 bg-white/40 dark:bg-slate-950/40 space-y-2">
+                    <div className="flex items-center justify-between text-[9px] font-bold text-slate-500 uppercase tracking-wide">
+                      <span>Real-time Transcription:</span>
+                      {sttIsListening && !sttIndividualSlideId && (
+                        <span className="flex items-center gap-1 text-rose-500 animate-pulse font-black text-[8px]">
+                          <span className="w-1.5 h-1.5 bg-rose-550 rounded-full" />
+                          LISTENING...
+                        </span>
+                      )}
+                    </div>
+                    <div className="text-[11px] font-semibold text-slate-800 dark:text-slate-200 min-h-[55px] leading-relaxed max-h-[120px] overflow-y-auto pr-1">
+                      {sttTranscript ? (
+                        <span>"{sttTranscript}"</span>
+                      ) : (
+                        <span className="text-slate-400 dark:text-slate-500 italic">Click "Start Dictating" below and speak clearly...</span>
+                      )}
+                    </div>
+                  </div>
+
+                  <p className="text-[8px] text-slate-400 leading-tight">
+                    Our Speech-to-Text service listens and transcribes. Click "Apply Subtitles" to divide your sentences across timeline frames!
+                  </p>
+
+                  {/* Action Buttons */}
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (sttIsListening) {
+                          stopStt();
+                        } else {
+                          startStt(null); // start global STT
+                        }
+                      }}
+                      className={`flex-1 py-1.5 px-2 rounded-xl text-[9px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                        sttIsListening && !sttIndividualSlideId
+                          ? "bg-rose-600 text-white animate-pulse shadow-sm"
+                          : "bg-slate-100 dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800"
+                      }`}
+                    >
+                      <Mic className="w-3 h-3 text-rose-500" />
+                      <span>
+                        {sttIsListening && !sttIndividualSlideId
+                          ? "Stop Mic"
+                          : "Start Dictating"}
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      disabled={!sttTranscript}
+                      onClick={() => {
+                        const sentences = sttTranscript.split(/[.!?]+/).map(s => s.trim()).filter(Boolean);
+                        const words = sttTranscript.split(/\s+/).filter(Boolean);
+                        let captions: string[] = [];
+
+                        if (sentences.length > 0) {
+                          captions = sentences;
+                        } else if (words.length > 0) {
+                          const wordsPerSlide = Math.max(3, Math.ceil(words.length / slides.length));
+                          for (let i = 0; i < slides.length; i++) {
+                            const chunk = words.slice(i * wordsPerSlide, (i + 1) * wordsPerSlide).join(" ");
+                            if (chunk) captions.push(chunk);
+                          }
+                        }
+
+                        if (captions.length > 0) {
+                          setSlides(prev => prev.map((slide, idx) => ({
+                            ...slide,
+                            text: captions[idx] || slide.text || `Scene #${idx + 1}`
+                          })));
+
+                          setToastMessage({
+                            text: "✨ Subtitles Applied!",
+                            sub: `Successfully generated ${Math.min(captions.length, slides.length)} subtitles across your timeline!`,
+                            success: true
+                          });
+                          triggerBeepChime();
+                        }
+                      }}
+                      className="flex-1 py-1.5 px-2 bg-indigo-600 hover:bg-indigo-500 disabled:bg-slate-200 dark:disabled:bg-slate-900 disabled:text-slate-400 dark:disabled:text-slate-600 disabled:opacity-40 text-white font-black uppercase tracking-wider text-[9px] rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1 shadow-sm"
+                    >
+                      <span>Apply Subtitles</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Generate Button */}
-              <button
-                type="button"
-                onClick={handleGenerateSubtitles}
-                disabled={isGeneratingSubtitles}
-                className="w-full py-2 px-3 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 disabled:from-slate-700 disabled:to-slate-800 disabled:opacity-50 text-white font-black uppercase tracking-wider text-[10px] rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md shadow-indigo-500/10"
-              >
-                {isGeneratingSubtitles ? (
-                  <>
-                    <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Analyzing Flow & Generating Subtitles...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>Generate Cinematic Subtitles</span>
-                  </>
-                )}
-              </button>
+              {subtitleGenerationMode !== "stt" && (
+                <button
+                  type="button"
+                  onClick={handleGenerateSubtitles}
+                  disabled={isGeneratingSubtitles}
+                  className="w-full py-2 px-3 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-500 hover:to-indigo-600 disabled:from-slate-700 disabled:to-slate-800 disabled:opacity-50 text-white font-black uppercase tracking-wider text-[10px] rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-md shadow-indigo-500/10"
+                >
+                  {isGeneratingSubtitles ? (
+                    <>
+                      <span className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                      <span>Analyzing Flow & Generating Subtitles...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>Generate Cinematic Subtitles</span>
+                    </>
+                  )}
+                </button>
+              )}
             </div>
 
             {/* Global Font Library Selector */}
@@ -11206,6 +13371,176 @@ export default function ImageToVideo({
                     </button>
                   );
                 })}
+              </div>
+            </div>
+
+            {/* Quick Style Presets & Advanced Caption Controls */}
+            <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-800">
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-black text-slate-700 dark:text-slate-300 uppercase tracking-wider">
+                  Presets & Advanced Subtitle Styling:
+                </label>
+              </div>
+
+              {/* Presets Grid */}
+              <div className="grid grid-cols-5 gap-1 select-none">
+                {[
+                  { id: "netflix-preset", name: "🎬 Netflix", style: "netflix", font: "space-grotesk", size: 1.0, text: "#ffffff", bg: "#000000", bgOp: 0.65, stroke: "#000000", strokeW: 0 },
+                  { id: "tiktok-preset", name: "📱 Reels", style: "karaoke", font: "bebas-neue", size: 1.3, text: "#facc15", bg: "#000000", bgOp: 0.0, stroke: "#000000", strokeW: 6 },
+                  { id: "indie-preset", name: "🌾 Indie", style: "classical", font: "playfair", size: 0.9, text: "#f8fafc", bg: "#000000", bgOp: 0.0, stroke: "#000000", strokeW: 2 },
+                  { id: "cyber-preset", name: "👾 Cyber", style: "neon", font: "jetbrains-mono", size: 1.1, text: "#00f0ff", bg: "#1e1b4b", bgOp: 0.8, stroke: "#8b5cf6", strokeW: 4 },
+                  { id: "retro-preset", name: "🕹️ Retro", style: "minimal", font: "outfit", size: 1.15, text: "#ec4899", bg: "#000000", bgOp: 0.0, stroke: "#ffffff", strokeW: 4 }
+                ].map((preset) => (
+                  <button
+                    key={preset.id}
+                    type="button"
+                    onClick={() => {
+                      setSubtitleStyle(preset.style as any);
+                      setSubtitleFont(preset.font);
+                      setSubtitleFontSizeFactor(preset.size);
+                      setSubtitleTextColor(preset.text);
+                      setSubtitleBgColor(preset.bg);
+                      setSubtitleBgOpacity(preset.bgOp);
+                      setSubtitleStrokeColor(preset.stroke);
+                      setSubtitleStrokeWidth(preset.strokeW);
+                      triggerBeepChime();
+                    }}
+                    className="py-1 px-0.5 rounded-lg border border-slate-150 dark:border-slate-800 bg-slate-55/50 dark:bg-slate-900 text-[8.5px] font-black text-center hover:bg-indigo-50 hover:border-indigo-200 hover:text-indigo-650 dark:hover:bg-indigo-950 dark:hover:text-indigo-400 transition-all cursor-pointer truncate"
+                    title={`Apply ${preset.name} styling preset`}
+                  >
+                    {preset.name}
+                  </button>
+                ))}
+              </div>
+
+              {/* Subtitle Vertical Align Selector */}
+              <div className="space-y-1 pt-1">
+                <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400">Vertical Alignment position:</span>
+                <div className="grid grid-cols-3 gap-1.5 select-none">
+                  {[
+                    { id: "top", label: "⬆️ Top" },
+                    { id: "middle", label: "↕️ Center" },
+                    { id: "bottom", label: "⬇️ Bottom" }
+                  ].map((align) => {
+                    const isSelected = subtitleVerticalAlign === align.id;
+                    return (
+                      <button
+                        key={align.id}
+                        type="button"
+                        onClick={() => {
+                          setSubtitleVerticalAlign(align.id as any);
+                          triggerBeepChime();
+                        }}
+                        className={`py-1 rounded-lg border text-center transition-all cursor-pointer select-none ${
+                          isSelected
+                            ? "bg-indigo-600 border-indigo-650 text-white shadow-xs font-black text-[9.5px]"
+                            : "bg-white dark:bg-slate-950 border-slate-150 hover:border-slate-300 text-slate-700 text-[9px] font-bold"
+                        }`}
+                      >
+                        {align.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Sliders Block */}
+              <div className="grid grid-cols-2 gap-2.5 pt-1">
+                {/* Font Size slider */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-450">Font Size scale:</span>
+                    <span className="text-[9.5px] font-mono font-bold text-slate-500">{subtitleFontSizeFactor.toFixed(2)}x</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0.5}
+                    max={2.0}
+                    step={0.05}
+                    value={subtitleFontSizeFactor}
+                    onChange={(e) => setSubtitleFontSizeFactor(parseFloat(e.target.value))}
+                    className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                  />
+                </div>
+
+                {/* Stroke Width slider */}
+                <div className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-450">Stroke thickness:</span>
+                    <span className="text-[9.5px] font-mono font-bold text-slate-500">{subtitleStrokeWidth}px</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0}
+                    max={10}
+                    step={1}
+                    value={subtitleStrokeWidth}
+                    onChange={(e) => setSubtitleStrokeWidth(parseInt(e.target.value))}
+                    className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                  />
+                </div>
+
+                {/* Backdrop Opacity slider */}
+                <div className="col-span-2 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-450">Backdrop/Shadow opacity:</span>
+                    <span className="text-[9.5px] font-mono font-bold text-slate-500">{Math.round(subtitleBgOpacity * 100)}%</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0.0}
+                    max={1.0}
+                    step={0.05}
+                    value={subtitleBgOpacity}
+                    onChange={(e) => setSubtitleBgOpacity(parseFloat(e.target.value))}
+                    className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                  />
+                </div>
+              </div>
+
+              {/* Color Pickers Block */}
+              <div className="grid grid-cols-3 gap-1.5 pt-1">
+                {/* Text Color */}
+                <div className="flex flex-col items-center p-1 bg-slate-50/50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 select-none">
+                  <span className="text-[8px] font-extrabold text-slate-400 dark:text-slate-500 mb-0.5">Text color</span>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="color"
+                      value={subtitleTextColor}
+                      onChange={(e) => setSubtitleTextColor(e.target.value)}
+                      className="w-4 h-4 rounded cursor-pointer border-0 p-0 overflow-hidden bg-transparent"
+                    />
+                    <span className="text-[8px] font-mono font-bold uppercase text-slate-500">{subtitleTextColor}</span>
+                  </div>
+                </div>
+
+                {/* Backdrop Color */}
+                <div className="flex flex-col items-center p-1 bg-slate-50/50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 select-none">
+                  <span className="text-[8px] font-extrabold text-slate-400 dark:text-slate-500 mb-0.5">Backdrop color</span>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="color"
+                      value={subtitleBgColor}
+                      onChange={(e) => setSubtitleBgColor(e.target.value)}
+                      className="w-4 h-4 rounded cursor-pointer border-0 p-0 overflow-hidden bg-transparent"
+                    />
+                    <span className="text-[8px] font-mono font-bold uppercase text-slate-500">{subtitleBgColor}</span>
+                  </div>
+                </div>
+
+                {/* Stroke/Glow Color */}
+                <div className="flex flex-col items-center p-1 bg-slate-50/50 dark:bg-slate-900 rounded-xl border border-slate-100 dark:border-slate-800 select-none">
+                  <span className="text-[8px] font-extrabold text-slate-400 dark:text-slate-500 mb-0.5">Stroke/Glow</span>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="color"
+                      value={subtitleStrokeColor}
+                      onChange={(e) => setSubtitleStrokeColor(e.target.value)}
+                      className="w-4 h-4 rounded cursor-pointer border-0 p-0 overflow-hidden bg-transparent"
+                    />
+                    <span className="text-[8px] font-mono font-bold uppercase text-slate-500">{subtitleStrokeColor}</span>
+                  </div>
+                </div>
               </div>
             </div>
 

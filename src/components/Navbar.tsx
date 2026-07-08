@@ -23,10 +23,25 @@ import {
   Smartphone,
   Search,
   Sparkles,
-  ExternalLink
+  ExternalLink,
+  Settings,
+  Volume2,
+  VolumeX,
+  Coffee,
+  CloudRain,
+  Radio,
+  RotateCcw,
+  Sliders,
+  Play,
+  Pause,
+  CloudLightning,
+  Trees,
+  Flame
 } from "lucide-react";
 
 import { ActiveTab } from "../types";
+import { ambientSynth, AmbientSoundType } from "../lib/ambientSynth";
+import { AmbientVisualizer } from "./AmbientVisualizer";
 
 
 interface NavbarProps {
@@ -57,6 +72,90 @@ export default function Navbar({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showToolsDropdown, setShowToolsDropdown] = useState(false);
   const [showRecentDropdown, setShowRecentDropdown] = useState(false);
+  
+  // Ambient Soundscape state declarations
+  const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
+  const [autoPlayEnabled, setAutoPlayEnabled] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("ambient-autoplay") === "true";
+    }
+    return false;
+  });
+  const [selectedAmbientSound, setSelectedAmbientSound] = useState<AmbientSoundType>(() => {
+    if (typeof window !== "undefined" && localStorage.getItem("ambient-autoplay") === "true") {
+      return (localStorage.getItem("ambient-preferred-sound") as AmbientSoundType) || "rain";
+    }
+    return ambientSynth.getActiveSound();
+  });
+  const [ambientVolume, setAmbientVolume] = useState(() => {
+    return ambientSynth.getVolume();
+  });
+
+  const handleSelectSound = (sound: AmbientSoundType) => {
+    if (sound === "none") {
+      ambientSynth.stop();
+    } else {
+      ambientSynth.play(sound);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("ambient-preferred-sound", sound);
+      }
+    }
+    setSelectedAmbientSound(sound);
+  };
+
+  const handleToggleAutoplay = () => {
+    const nextVal = !autoPlayEnabled;
+    setAutoPlayEnabled(nextVal);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("ambient-autoplay", String(nextVal));
+      if (nextVal) {
+        if (selectedAmbientSound === "none") {
+          const pref = (localStorage.getItem("ambient-preferred-sound") as AmbientSoundType) || "rain";
+          ambientSynth.play(pref);
+          setSelectedAmbientSound(pref);
+        } else {
+          localStorage.setItem("ambient-preferred-sound", selectedAmbientSound);
+        }
+      }
+    }
+  };
+
+  const handleVolumeChange = (vol: number) => {
+    ambientSynth.setVolume(vol);
+    setAmbientVolume(vol);
+    if (typeof window !== "undefined") {
+      localStorage.setItem("ambient-volume", String(vol));
+    }
+  };
+
+  // Handle Autoplay on Startup
+  useEffect(() => {
+    if (typeof window !== "undefined" && autoPlayEnabled && selectedAmbientSound !== "none") {
+      const startAutoplay = () => {
+        ambientSynth.play(selectedAmbientSound);
+        // Clean up listeners once played
+        window.removeEventListener("click", startAutoplay);
+        window.removeEventListener("keydown", startAutoplay);
+        window.removeEventListener("pointerdown", startAutoplay);
+      };
+
+      try {
+        ambientSynth.play(selectedAmbientSound);
+      } catch (e) {
+        console.log("Autoplay blocked by browser. Awaiting interaction.", e);
+      }
+
+      window.addEventListener("click", startAutoplay);
+      window.addEventListener("keydown", startAutoplay);
+      window.addEventListener("pointerdown", startAutoplay);
+
+      return () => {
+        window.removeEventListener("click", startAutoplay);
+        window.removeEventListener("keydown", startAutoplay);
+        window.removeEventListener("pointerdown", startAutoplay);
+      };
+    }
+  }, []);
   const [installPrompt, setInstallPrompt] = useState<any>(
     typeof window !== "undefined" ? window.deferredInstallPrompt || null : null
   );
@@ -539,6 +638,174 @@ export default function Navbar({
                 <Moon className="w-3.5 h-3.5" />
               )}
             </button>
+
+            {/* Elegant Global Settings & Focus Soundscapes Popover */}
+            <div className="relative">
+              <button
+                onClick={() => {
+                  setShowSettingsDropdown(!showSettingsDropdown);
+                  setShowToolsDropdown(false);
+                  setShowRecentDropdown(false);
+                }}
+                className={`p-2 rounded-xl border transition-all cursor-pointer select-none relative ${
+                  showSettingsDropdown || selectedAmbientSound !== "none"
+                    ? theme === "dark"
+                      ? "bg-indigo-950/45 border-indigo-800 text-indigo-400"
+                      : "bg-indigo-50 border-indigo-200 text-indigo-700"
+                    : theme === "dark"
+                      ? "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800/80"
+                      : "bg-slate-100/50 border-slate-200/60 text-indigo-650 hover:text-indigo-805 hover:bg-slate-100"
+                }`}
+                title="Workspace Settings & Ambient Focus Audio"
+                id="btn-global-settings"
+              >
+                <Settings className={`w-3.5 h-3.5 ${selectedAmbientSound !== "none" ? "animate-spin" : ""}`} style={{ animationDuration: "12s" }} />
+                {selectedAmbientSound !== "none" && (
+                  <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+                  </span>
+                )}
+              </button>
+
+              {showSettingsDropdown && (
+                <div
+                  className={`absolute right-0 mt-2.5 w-80 rounded-2xl border p-4 shadow-2xl z-50 animate-in fade-in slide-in-from-top-3 duration-200 ${
+                    theme === "dark"
+                      ? "bg-slate-950 border-slate-800 text-slate-100 shadow-slate-950/50"
+                      : "bg-white border-slate-200 text-slate-800 shadow-slate-100/30"
+                  }`}
+                  onMouseLeave={() => setShowSettingsDropdown(false)}
+                >
+                  {/* Header Title */}
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-850 pb-2.5 mb-3 select-none">
+                    <div className="flex items-center gap-2">
+                      <Settings className="w-4 h-4 text-indigo-505 animate-spin-slow" />
+                      <span className="text-xs font-black uppercase tracking-wider">
+                        Settings & Ambience
+                      </span>
+                    </div>
+                    <span className="text-[9px] bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded-md font-extrabold uppercase font-mono">
+                      v1.2.0
+                    </span>
+                  </div>
+
+                  {/* Quick Info/Brief */}
+                  <p className="text-[10.5px] text-slate-400 dark:text-slate-500 leading-relaxed mb-3.5 font-medium">
+                    Activate browser-synthesized focus sounds powered by standard procedural AudioContext oscillators and custom wave sweeps.
+                  </p>
+
+                  {/* Sound Profiles Selection List */}
+                  <div className="space-y-1.5 mb-4">
+                    <span className="text-[9px] font-black uppercase tracking-widest text-slate-400 dark:text-slate-505 block mb-1 font-mono">
+                      Select Audio Atmosphere
+                    </span>
+                    
+                    {[
+                      { id: "rain", name: "Cozy Rain", icon: CloudRain, desc: "Gentle drop crackles & pink wash" },
+                      { id: "thunderstorm", name: "Thunderstorm", icon: CloudLightning, desc: "Distant rumbles & crisp storm drops" },
+                      { id: "forest", name: "Deep Forest", icon: Trees, desc: "Breeze leaf rustles & organic birds" },
+                      { id: "fireplace", name: "Fireplace", icon: Flame, desc: "Warm wood pops & glowing embers" },
+                      { id: "cafe", name: "Café Chatter", icon: Coffee, desc: "Background hum & spoon clinks" },
+                      { id: "ocean", name: "Deep Ocean", icon: Radio, desc: "Slower rumbles & tidal swells" },
+                      { id: "white", name: "Calm Spectrum", icon: Sliders, desc: "Soft white noise focus bands" }
+                    ].map((sound) => {
+                      const Icon = sound.icon;
+                      const isActive = selectedAmbientSound === sound.id;
+                      return (
+                        <button
+                          key={sound.id}
+                          onClick={() => handleSelectSound(sound.id as AmbientSoundType)}
+                          className={`w-full flex items-center justify-between p-2 rounded-xl text-left border transition-all cursor-pointer ${
+                            isActive
+                              ? "bg-indigo-50/70 dark:bg-indigo-950/40 border-indigo-200 dark:border-indigo-900/60 font-bold"
+                              : "bg-transparent border-transparent hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-650 dark:text-slate-350"
+                          }`}
+                        >
+                          <div className="flex items-center gap-2.5">
+                            <div className={`p-1.5 rounded-lg ${isActive ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400" : "bg-slate-100 text-slate-500 dark:bg-slate-850 dark:text-slate-400"}`}>
+                              <Icon className="w-3.5 h-3.5" />
+                            </div>
+                            <div>
+                              <p className="text-xs font-bold leading-tight">{sound.name}</p>
+                              <p className="text-[9.5px] text-slate-400 dark:text-slate-550 leading-none mt-1 font-medium">{sound.desc}</p>
+                            </div>
+                          </div>
+                          {isActive && (
+                            <span className="flex h-1.5 w-1.5 rounded-full bg-emerald-500 mr-1 animate-pulse" />
+                          )}
+                        </button>
+                      );
+                    })}
+
+                    {/* Mute button */}
+                    {selectedAmbientSound !== "none" && (
+                      <button
+                        onClick={() => handleSelectSound("none")}
+                        className="w-full mt-1.5 py-1.5 px-2 bg-rose-50 dark:bg-rose-950/25 border border-rose-100 dark:border-rose-900/40 text-rose-700 dark:text-rose-450 rounded-xl text-[10px] font-black uppercase tracking-wider flex items-center justify-center gap-1.5 hover:bg-rose-100 dark:hover:bg-rose-950/50 transition-all cursor-pointer"
+                      >
+                        <VolumeX className="w-3 h-3" />
+                        <span>Mute Ambient Noise</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Master Volume Control Slider */}
+                  <div className="space-y-1.5 pt-2 border-t border-slate-100 dark:border-slate-850 select-none">
+                    <div className="flex items-center justify-between text-[10.5px] font-bold text-slate-600 dark:text-slate-400">
+                      <span className="flex items-center gap-1">
+                        <Volume2 className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />
+                        Ambient Master Volume
+                      </span>
+                      <span className="font-mono text-[10px] bg-slate-100 dark:bg-slate-900 px-1.5 py-0.5 rounded text-indigo-600 dark:text-indigo-400 font-black">
+                        {Math.round(ambientVolume * 100)}%
+                      </span>
+                    </div>
+                    <input
+                      id="ambient-master-volume"
+                      type="range"
+                      min="0.0"
+                      max="1.0"
+                      step="0.05"
+                      value={ambientVolume}
+                      onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
+                      className="w-full h-1 bg-slate-150 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                    />
+                  </div>
+
+                  {/* Auto-Play on Startup */}
+                  <div className="pt-2.5 mt-2.5 border-t border-slate-100 dark:border-slate-850 flex items-center justify-between text-[11px] select-none">
+                    <div className="flex flex-col text-left">
+                      <span className="font-bold text-slate-750 dark:text-slate-300 flex items-center gap-1">
+                        <Sparkles className="w-3 h-3 text-indigo-505 shrink-0" />
+                        Auto-Play on Startup
+                      </span>
+                      <span className="text-[9.5px] text-slate-400 dark:text-slate-505 font-medium leading-tight mt-0.5">
+                        Start preferred sound on load
+                      </span>
+                    </div>
+                    <button
+                      id="toggle-ambient-autoplay"
+                      onClick={handleToggleAutoplay}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        autoPlayEnabled ? "bg-indigo-600" : "bg-slate-200 dark:bg-slate-800"
+                      }`}
+                      role="switch"
+                      aria-checked={autoPlayEnabled}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                          autoPlayEnabled ? "translate-x-4" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Real-time D3 frequency visualizer */}
+                  <AmbientVisualizer />
+                </div>
+              )}
+            </div>
 
             {/* Account Credentials / Session Authenticator */}
             {user ? (

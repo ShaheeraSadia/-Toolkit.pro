@@ -148,6 +148,22 @@ const copyExif = (originalBuffer: ArrayBuffer, compressedBase64: string): string
   return compressedBase64;
 };
 
+export const getFilterCSS = (filterName?: string): string => {
+  if (!filterName || filterName === "none") return "none";
+  switch (filterName) {
+    case "grayscale": return "grayscale(100%)";
+    case "sepia": return "sepia(100%)";
+    case "invert": return "invert(100%)";
+    case "blur": return "blur(4px)";
+    case "high-contrast": return "contrast(180%) brightness(105%)";
+    case "vintage": return "sepia(40%) contrast(120%) saturate(130%)";
+    case "cool": return "saturate(95%) hue-rotate(15deg) brightness(102%)";
+    case "warm": return "saturate(115%) sepia(15%) hue-rotate(-8deg)";
+    case "noir": return "grayscale(100%) contrast(140%) brightness(95%)";
+    default: return "none";
+  }
+};
+
 export interface QueueItem {
   id: string;
   file: File;
@@ -167,7 +183,7 @@ export interface QueueItem {
   cropWidth?: number;
   cropHeight?: number;
   rotation?: number;
-  filter?: "none" | "grayscale" | "sepia" | "invert" | "blur";
+  filter?: "none" | "grayscale" | "sepia" | "invert" | "blur" | "high-contrast" | "vintage" | "cool" | "warm" | "noir";
 }
 
 export interface CompressionSession {
@@ -346,7 +362,7 @@ export default function ImageCompressor({
     cropWidth: number;
     cropHeight: number;
     rotation: number;
-    filter?: "none" | "grayscale" | "sepia" | "invert" | "blur";
+    filter?: "none" | "grayscale" | "sepia" | "invert" | "blur" | "high-contrast" | "vintage" | "cool" | "warm" | "noir";
   }>>>({});
   const [isGlobalDragging, setIsGlobalDragging] = useState<boolean>(false);
   const [isBatchCompressing, setIsBatchCompressing] = useState<boolean>(false);
@@ -1209,7 +1225,7 @@ export default function ImageCompressor({
   const [aspectRatio, setAspectRatio] = useState<string>("original");
   const [customAspectW, setCustomAspectW] = useState<string>("4");
   const [customAspectH, setCustomAspectH] = useState<string>("3");
-  const [imgFilter, setImgFilter] = useState<"none" | "grayscale" | "sepia" | "invert" | "blur">("none");
+  const [imgFilter, setImgFilter] = useState<"none" | "grayscale" | "sepia" | "invert" | "blur" | "high-contrast" | "vintage" | "cool" | "warm" | "noir">("none");
   
   // Drag-to-crop visual interaction states
   const [dragMode, setDragMode] = useState<"none" | "move" | "resize">("none");
@@ -2047,7 +2063,7 @@ export default function ImageCompressor({
   };
 
   // Visual filter sync for the currently selected item
-  const handleFilterChange = (val: "none" | "grayscale" | "sepia" | "invert" | "blur") => {
+  const handleFilterChange = (val: "none" | "grayscale" | "sepia" | "invert" | "blur" | "high-contrast" | "vintage" | "cool" | "warm" | "noir") => {
     saveToUndoActiveItem();
     setImgFilter(val);
     if (selectedId) {
@@ -2599,6 +2615,11 @@ export default function ImageCompressor({
           else if (item.filter === "sepia") ctx.filter = "sepia(100%)";
           else if (item.filter === "invert") ctx.filter = "invert(100%)";
           else if (item.filter === "blur") ctx.filter = "blur(4px)";
+          else if (item.filter === "high-contrast") ctx.filter = "contrast(180%) brightness(105%)";
+          else if (item.filter === "vintage") ctx.filter = "sepia(40%) contrast(120%) saturate(130%)";
+          else if (item.filter === "cool") ctx.filter = "saturate(95%) hue-rotate(15deg) brightness(102%)";
+          else if (item.filter === "warm") ctx.filter = "saturate(115%) sepia(15%) hue-rotate(-8deg)";
+          else if (item.filter === "noir") ctx.filter = "grayscale(100%) contrast(140%) brightness(95%)";
         }
         
         ctx.drawImage(img, sx, sy, sWidth, sHeight, -sWidth / 2, -sHeight / 2, sWidth, sHeight);
@@ -5997,10 +6018,7 @@ export default function ImageCompressor({
                                 className="absolute inset-0 w-full h-full object-contain"
                                 style={{
                                   transform: `rotate(${activeItem?.rotation || 0}deg)`,
-                                  filter: imgFilter === "grayscale" ? "grayscale(100%)" :
-                                          imgFilter === "sepia" ? "sepia(100%)" :
-                                          imgFilter === "invert" ? "invert(100%)" :
-                                          imgFilter === "blur" ? "blur(4px)" : "none"
+                                  filter: getFilterCSS(imgFilter)
                                 }}
                                 referrerPolicy="no-referrer"
                               />
@@ -6056,10 +6074,7 @@ export default function ImageCompressor({
                                 className="max-h-full max-w-full object-contain"
                                 style={{
                                   transform: `rotate(${activeItem?.rotation || 0}deg)`,
-                                  filter: imgFilter === "grayscale" ? "grayscale(100%)" :
-                                          imgFilter === "sepia" ? "sepia(100%)" :
-                                          imgFilter === "invert" ? "invert(100%)" :
-                                          imgFilter === "blur" ? "blur(4px)" : "none"
+                                  filter: getFilterCSS(imgFilter)
                                 }}
                                 referrerPolicy="no-referrer"
                               />
@@ -6194,10 +6209,7 @@ export default function ImageCompressor({
                               src={originalUrl || undefined} 
                               alt="Original" 
                               style={{
-                                filter: imgFilter === "grayscale" ? "grayscale(100%)" :
-                                        imgFilter === "sepia" ? "sepia(100%)" :
-                                        imgFilter === "invert" ? "invert(100%)" :
-                                        imgFilter === "blur" ? "blur(4px)" : "none"
+                                filter: getFilterCSS(imgFilter)
                               }}
                               className="object-contain max-h-40 font-semibold group-hover/img:scale-105 transition-transform duration-300" 
                               referrerPolicy="no-referrer"
@@ -6258,10 +6270,7 @@ export default function ImageCompressor({
                               className="absolute inset-0 w-full h-full object-contain"
                               style={{
                                 transform: `rotate(${activeItem?.rotation || 0}deg)`,
-                                filter: imgFilter === "grayscale" ? "grayscale(100%)" :
-                                        imgFilter === "sepia" ? "sepia(100%)" :
-                                        imgFilter === "invert" ? "invert(100%)" :
-                                        imgFilter === "blur" ? "blur(4px)" : "none"
+                                filter: getFilterCSS(imgFilter)
                               }}
                               referrerPolicy="no-referrer"
                             />
@@ -6315,10 +6324,7 @@ export default function ImageCompressor({
                             src={showOriginalInAB ? (originalUrl || undefined) : compressedResult.dataUrl} 
                             alt="A/B Quick Switch in Dashboard" 
                             style={showOriginalInAB ? {
-                              filter: imgFilter === "grayscale" ? "grayscale(100%)" :
-                                      imgFilter === "sepia" ? "sepia(100%)" :
-                                      imgFilter === "invert" ? "invert(100%)" :
-                                      imgFilter === "blur" ? "blur(4px)" : "none"
+                              filter: getFilterCSS(imgFilter)
                             } : undefined}
                             className="object-contain max-h-40 group-hover:scale-102 transition-transform duration-150" 
                             referrerPolicy="no-referrer"
@@ -6348,10 +6354,7 @@ export default function ImageCompressor({
                             src={originalUrl || undefined} 
                             alt="Original Perspective View" 
                             style={{
-                              filter: imgFilter === "grayscale" ? "grayscale(100%)" :
-                                      imgFilter === "sepia" ? "sepia(100%)" :
-                                      imgFilter === "invert" ? "invert(100%)" :
-                                      imgFilter === "blur" ? "blur(4px)" : "none"
+                              filter: getFilterCSS(imgFilter)
                             }}
                             className="object-contain max-h-40 group-hover:scale-102 transition-transform duration-150" 
                             referrerPolicy="no-referrer"
@@ -6485,10 +6488,7 @@ export default function ImageCompressor({
                         src={originalUrl || activeItem.thumbnailUrl || undefined} 
                         alt="Cropping dynamic source" 
                         style={{
-                          filter: imgFilter === "grayscale" ? "grayscale(100%)" :
-                                  imgFilter === "sepia" ? "sepia(100%)" :
-                                  imgFilter === "invert" ? "invert(100%)" :
-                                  imgFilter === "blur" ? "blur(4px)" : "none"
+                          filter: getFilterCSS(imgFilter)
                         }}
                         className="max-h-[280px] sm:max-h-[320px] max-w-full block select-none pointer-events-none rounded-xl"
                         referrerPolicy="no-referrer"
@@ -6603,6 +6603,11 @@ export default function ImageCompressor({
                         { id: "sepia", label: "Sepia", filterStyle: "sepia(100%)" },
                         { id: "invert", label: "Invert", filterStyle: "invert(100%)" },
                         { id: "blur", label: "Blur", filterStyle: "blur(2px)" },
+                        { id: "high-contrast", label: "High Contrast", filterStyle: "contrast(180%) brightness(105%)" },
+                        { id: "vintage", label: "Vintage Retro", filterStyle: "sepia(40%) contrast(120%) saturate(130%)" },
+                        { id: "cool", label: "Cool Cyan", filterStyle: "saturate(95%) hue-rotate(15deg) brightness(102%)" },
+                        { id: "warm", label: "Warm Golden", filterStyle: "saturate(115%) sepia(15%) hue-rotate(-8deg)" },
+                        { id: "noir", label: "Cinematic Noir", filterStyle: "grayscale(100%) contrast(140%) brightness(95%)" },
                       ].map((item) => {
                         const isActive = imgFilter === item.id;
                         return (
@@ -6964,10 +6969,7 @@ export default function ImageCompressor({
                       alt="Original full quality" 
                       style={{ 
                         transform: `rotate(${activeItem?.rotation || 0}deg)`,
-                        filter: imgFilter === "grayscale" ? "grayscale(100%)" :
-                                imgFilter === "sepia" ? "sepia(100%)" :
-                                imgFilter === "invert" ? "invert(100%)" :
-                                imgFilter === "blur" ? "blur(4px)" : "none"
+                        filter: getFilterCSS(imgFilter)
                       }}
                       className="max-h-[50vh] object-contain transition-transform"
                       referrerPolicy="no-referrer"
@@ -7015,10 +7017,7 @@ export default function ImageCompressor({
                     className="absolute inset-0 w-full h-full object-contain"
                     style={{
                       transform: `rotate(${activeItem?.rotation || 0}deg)`,
-                      filter: imgFilter === "grayscale" ? "grayscale(100%)" :
-                              imgFilter === "sepia" ? "sepia(100%)" :
-                              imgFilter === "invert" ? "invert(100%)" :
-                              imgFilter === "blur" ? "blur(4px)" : "none"
+                      filter: getFilterCSS(imgFilter)
                     }}
                     referrerPolicy="no-referrer"
                   />
@@ -7067,10 +7066,7 @@ export default function ImageCompressor({
                   alt="A/B toggle element"
                   style={showOriginalInAB ? { 
                     transform: `rotate(${activeItem?.rotation || 0}deg)`,
-                    filter: imgFilter === "grayscale" ? "grayscale(100%)" :
-                            imgFilter === "sepia" ? "sepia(100%)" :
-                            imgFilter === "invert" ? "invert(100%)" :
-                            imgFilter === "blur" ? "blur(4px)" : "none"
+                    filter: getFilterCSS(imgFilter)
                   } : undefined}
                   className="max-w-full max-h-full object-contain transition-all duration-150"
                   referrerPolicy="no-referrer"
@@ -7659,6 +7655,50 @@ export default function ImageCompressor({
                       <div
                         className={`w-4.5 h-4.5 rounded-full bg-white shadow-sm transform transition-transform duration-300 ${
                           autoClearOnNavigate ? "translate-x-4.5" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Strip EXIF Data Security Toggle Switch */}
+                <div 
+                  className={`p-3.5 rounded-2xl border transition-all cursor-pointer text-left ${
+                    stripExifMetadata 
+                      ? "border-rose-250 bg-rose-50/10 dark:bg-rose-950/10" 
+                      : "border-slate-100 dark:border-slate-900 bg-slate-50/50 dark:bg-slate-900/10"
+                  }`}
+                  onClick={() => {
+                    setStripExifMetadata(prev => {
+                      const next = !prev;
+                      localStorage.setItem("toolkit_image_strip_exif", String(next));
+                      return next;
+                    });
+                  }}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-bold text-slate-850 dark:text-slate-250 uppercase tracking-wide">
+                          Strip EXIF Metadata
+                        </span>
+                        <span className="text-[8px] bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-450 font-extrabold px-1.5 py-0.5 rounded uppercase tracking-wider">
+                          Privacy Guard
+                        </span>
+                      </div>
+                      <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-0.5 leading-snug">
+                        Strip metadata (GPS tags, camera model, lens specs) from all compressed images to enforce robust privacy protection
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className={`w-10 h-5.5 rounded-full p-0.5 transition-colors duration-300 focus:outline-none cursor-pointer relative shrink-0 ${
+                        stripExifMetadata ? "bg-rose-500" : "bg-slate-200 dark:bg-slate-800"
+                      }`}
+                    >
+                      <div
+                        className={`w-4.5 h-4.5 rounded-full bg-white shadow-sm transform transition-transform duration-300 ${
+                          stripExifMetadata ? "translate-x-4.5" : "translate-x-0"
                         }`}
                       />
                     </button>

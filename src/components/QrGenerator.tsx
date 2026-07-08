@@ -1482,6 +1482,54 @@ export default function QrGenerator({
 
   const [activeHistoryTab, setActiveHistoryTab] = useState<"saved" | "scan_history">("scan_history");
 
+  const [historySortBy, setHistorySortBy] = useState<"date-desc" | "date-asc" | "name-asc" | "name-desc" | "length-desc" | "length-asc">("date-desc");
+
+  const sortedScanHistory = React.useMemo(() => {
+    const sorted = [...scanHistory];
+    sorted.sort((a, b) => {
+      switch (historySortBy) {
+        case "date-desc":
+          return Number(b.id) - Number(a.id);
+        case "date-asc":
+          return Number(a.id) - Number(b.id);
+        case "name-asc":
+          return (a.text || "").localeCompare(b.text || "");
+        case "name-desc":
+          return (b.text || "").localeCompare(a.text || "");
+        case "length-desc":
+          return (b.text || "").length - (a.text || "").length;
+        case "length-asc":
+          return (a.text || "").length - (b.text || "").length;
+        default:
+          return 0;
+      }
+    });
+    return sorted;
+  }, [scanHistory, historySortBy]);
+
+  const sortedSavedQrs = React.useMemo(() => {
+    const sorted = [...savedQrs];
+    sorted.sort((a, b) => {
+      switch (historySortBy) {
+        case "date-desc":
+          return Number(b.id) - Number(a.id);
+        case "date-asc":
+          return Number(a.id) - Number(b.id);
+        case "name-asc":
+          return (a.text || "").localeCompare(b.text || "");
+        case "name-desc":
+          return (b.text || "").localeCompare(a.text || "");
+        case "length-desc":
+          return (b.text || "").length - (a.text || "").length;
+        case "length-asc":
+          return (a.text || "").length - (b.text || "").length;
+        default:
+          return 0;
+      }
+    });
+    return sorted;
+  }, [savedQrs, historySortBy]);
+
   // Batch Mode states
   const [inputMode, setInputMode] = useState<"single" | "batch">("single");
   const [csvFile, setCsvFile] = useState<File | null>(null);
@@ -5048,9 +5096,16 @@ export default function QrGenerator({
                       key={qrCodeDataUrl}
                       initial={{ opacity: 0, scale: 0.9, y: 8 }}
                       animate={{ opacity: 1, scale: 1, y: 0 }}
-                      transition={{ duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
+                      whileHover={{
+                        scale: [1, 1.03, 1],
+                        transition: {
+                          repeat: Infinity,
+                          duration: 1.6,
+                          ease: "easeInOut"
+                        }
+                      }}
                       id="qr-code-preview-card" 
-                      className="relative print-ready-qr-card bg-white shadow-xl rounded-2xl border border-slate-200 flex items-center justify-center overflow-hidden transition-all duration-250 select-none"
+                      className="relative print-ready-qr-card bg-white shadow-xl hover:shadow-2xl hover:border-indigo-400/50 rounded-2xl border border-slate-200 flex items-center justify-center overflow-hidden transition-all duration-300 select-none cursor-pointer"
                       style={{
                         padding: `${Math.round(16 * (previewScale / 100))}px`,
                         width: `${Math.round((Math.min(260, size) + 32) * (previewScale / 100))}px`,
@@ -5940,7 +5995,7 @@ export default function QrGenerator({
 
         {/* QR Codes Offline History & Scan Table Section */}
         <div className="bg-white rounded-2xl p-5 border border-slate-200/60 shadow-2xs space-y-4 mt-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-2.5">
+          <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-2.5">
             {/* Elegant Segmented Tabs */}
             <div className="flex bg-slate-100/80 p-0.5 rounded-lg border border-slate-200/40 shrink-0 self-start">
               <button
@@ -5969,55 +6024,78 @@ export default function QrGenerator({
               </button>
             </div>
 
-            {/* Export and Clear buttons in a compact row */}
-            <div className="flex items-center gap-2.5">
-              {activeHistoryTab === "scan_history" ? (
-                scanHistory.length > 0 && (
-                  <>
-                    <button
-                      onClick={() => handleExportCSV(scanHistory, "qr_scan_history.csv")}
-                      className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:underline transition-colors cursor-pointer bg-transparent border-0"
-                    >
-                      <Download className="w-3 h-3" /> Export CSV
-                    </button>
-                    <span className="text-slate-200 dark:text-slate-800 text-[10px]" aria-hidden="true">|</span>
-                    <button
-                      onClick={() => {
-                        if (window.confirm("Are you sure you want to clear your local auto-saved scan/generation history?")) {
-                          setScanHistory([]);
-                          localStorage.removeItem("toolkit_pro_qr_scan_history");
-                        }
-                      }}
-                      className="text-[10px] font-bold text-rose-600 hover:text-rose-700 hover:underline transition-colors cursor-pointer bg-transparent border-0"
-                    >
-                      Clear Auto-History
-                    </button>
-                  </>
-                )
-              ) : (
-                savedQrs.length > 0 && (
-                  <>
-                    <button
-                      onClick={() => handleExportCSV(savedQrs, "qr_saved_gallery.csv")}
-                      className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:underline transition-colors cursor-pointer bg-transparent border-0"
-                    >
-                      <Download className="w-3 h-3" /> Export CSV
-                    </button>
-                    <span className="text-slate-200 dark:text-slate-800 text-[10px]" aria-hidden="true">|</span>
-                    <button
-                      onClick={() => {
-                        if (window.confirm("Are you sure you want to clear your saved local QR favorites gallery?")) {
-                          setSavedQrs([]);
-                          localStorage.removeItem("toolkit_pro_saved_qrs");
-                        }
-                      }}
-                      className="text-[10px] font-bold text-rose-600 hover:text-rose-700 hover:underline transition-colors cursor-pointer bg-transparent border-0"
-                    >
-                      Clear Saved Gallery
-                    </button>
-                  </>
-                )
+            {/* Controls (Sort Selector and Action Buttons) */}
+            <div className="flex flex-wrap items-center gap-3 md:gap-4 self-start md:self-auto w-full md:w-auto justify-between md:justify-end">
+              {/* Sort Dropdown */}
+              {(scanHistory.length > 0 || savedQrs.length > 0) && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-[10px] font-extrabold uppercase tracking-wider text-slate-400">Sort By:</span>
+                  <select
+                    id="qr-history-sort"
+                    value={historySortBy}
+                    onChange={(e) => setHistorySortBy(e.target.value as any)}
+                    className="px-2 py-1 text-xs font-bold text-slate-700 bg-slate-50 hover:bg-slate-100 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 border border-slate-200 rounded-lg shadow-3xs cursor-pointer outline-none transition-all focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+                  >
+                    <option value="date-desc">🕒 Date Created (Newest First)</option>
+                    <option value="date-asc">🕒 Date Created (Oldest First)</option>
+                    <option value="name-asc">🔠 Name (A to Z)</option>
+                    <option value="name-desc">🔠 Name (Z to A)</option>
+                    <option value="length-desc">📏 URL Length (Longest First)</option>
+                    <option value="length-asc">📏 URL Length (Shortest First)</option>
+                  </select>
+                </div>
               )}
+
+              {/* Export and Clear buttons in a compact row */}
+              <div className="flex items-center gap-2.5">
+                {activeHistoryTab === "scan_history" ? (
+                  scanHistory.length > 0 && (
+                    <>
+                      <button
+                        onClick={() => handleExportCSV(scanHistory, "qr_scan_history.csv")}
+                        className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:underline transition-colors cursor-pointer bg-transparent border-0"
+                      >
+                        <Download className="w-3 h-3" /> Export CSV
+                      </button>
+                      <span className="text-slate-200 dark:text-slate-800 text-[10px]" aria-hidden="true">|</span>
+                      <button
+                        onClick={() => {
+                          if (window.confirm("Are you sure you want to clear your local auto-saved scan/generation history?")) {
+                            setScanHistory([]);
+                            localStorage.removeItem("toolkit_pro_qr_scan_history");
+                          }
+                        }}
+                        className="text-[10px] font-bold text-rose-600 hover:text-rose-700 hover:underline transition-colors cursor-pointer bg-transparent border-0"
+                      >
+                        Clear Auto-History
+                      </button>
+                    </>
+                  )
+                ) : (
+                  savedQrs.length > 0 && (
+                    <>
+                      <button
+                        onClick={() => handleExportCSV(savedQrs, "qr_saved_gallery.csv")}
+                        className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 hover:underline transition-colors cursor-pointer bg-transparent border-0"
+                      >
+                        <Download className="w-3 h-3" /> Export CSV
+                      </button>
+                      <span className="text-slate-200 dark:text-slate-800 text-[10px]" aria-hidden="true">|</span>
+                      <button
+                        onClick={() => {
+                          if (window.confirm("Are you sure you want to clear your saved local QR favorites gallery?")) {
+                            setSavedQrs([]);
+                            localStorage.removeItem("toolkit_pro_saved_qrs");
+                          }
+                        }}
+                        className="text-[10px] font-bold text-rose-600 hover:text-rose-700 hover:underline transition-colors cursor-pointer bg-transparent border-0"
+                      >
+                        Clear Saved Gallery
+                      </button>
+                    </>
+                  )
+                )}
+              </div>
             </div>
           </div>
 
@@ -6033,7 +6111,7 @@ export default function QrGenerator({
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-1">
-                {scanHistory.map((item) => (
+                {sortedScanHistory.map((item) => (
                   <SwipeableHistoryItem
                     key={item.id}
                     item={item}
@@ -6055,7 +6133,7 @@ export default function QrGenerator({
               </div>
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-[300px] overflow-y-auto pr-1">
-                {savedQrs.map((item) => (
+                {sortedSavedQrs.map((item) => (
                   <div
                     key={item.id}
                     onClick={() => handleLoadSaved(item)}
