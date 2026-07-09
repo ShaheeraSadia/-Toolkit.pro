@@ -36,7 +36,8 @@ import {
   Pause,
   CloudLightning,
   Trees,
-  Flame
+  Flame,
+  Home
 } from "lucide-react";
 
 import { ActiveTab } from "../types";
@@ -55,6 +56,7 @@ interface NavbarProps {
   theme: "light" | "dark";
   onToggleTheme: () => void;
   onOpenCommandPalette?: () => void;
+  onToggleSidebar?: () => void;
 }
 
 export default function Navbar({
@@ -68,6 +70,7 @@ export default function Navbar({
   theme,
   onToggleTheme,
   onOpenCommandPalette,
+  onToggleSidebar,
 }: NavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showToolsDropdown, setShowToolsDropdown] = useState(false);
@@ -229,6 +232,7 @@ export default function Navbar({
   }, []);
 
   const tabDetails: Record<ActiveTab, { label: string; icon: React.ComponentType<any>; color: string; desc: string }> = {
+    home: { label: "Dashboard Home", icon: Home, color: "text-blue-600 dark:text-blue-400 bg-blue-55/60 dark:bg-blue-950/40 border border-blue-100/50 dark:border-blue-900/30", desc: "Overview, charts & recent statistics" },
     quote: { label: "Quote Designer", icon: Quote, color: "text-indigo-600 dark:text-indigo-400 bg-indigo-55/60 dark:bg-indigo-950/40 border border-indigo-100/50 dark:border-indigo-900/30", desc: "Aesthetic graphic visuals" },
     compress: { label: "Image Compressor", icon: FileImage, color: "text-emerald-600 dark:text-emerald-400 bg-emerald-55/60 dark:bg-emerald-950/40 border border-emerald-100/50 dark:border-emerald-900/30", desc: "Ultra-fast size reduction" },
     qr: { label: "QR Code Generator", icon: QrCode, color: "text-amber-600 dark:text-amber-400 bg-amber-55/60 dark:bg-amber-950/40 border border-amber-100/50 dark:border-amber-900/30", desc: "Scan metrics with Reed-Solomon" },
@@ -246,7 +250,7 @@ export default function Navbar({
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
           return parsed.filter((t): t is ActiveTab => 
-            ["quote", "compress", "qr", "palette", "video", "drive", "resources", "legal"].includes(t)
+            ["home", "quote", "compress", "qr", "palette", "video", "drive", "resources", "legal"].includes(t)
           );
         }
       }
@@ -309,26 +313,43 @@ export default function Navbar({
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="min-h-16 py-3 lg:py-0 flex items-center justify-between gap-5 flex-wrap lg:flex-nowrap">
           
-          {/* Logo Brand Title */}
-          <div 
-            onClick={() => handleTabClick("quote")}
-            className="flex items-center space-x-2.5 cursor-pointer group shrink-0 select-none animate-in fade-in slide-in-from-left-4 duration-300"
-          >
-            <div className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-violet-600 text-white font-sans font-black text-sm sm:text-base shadow-md transform group-hover:scale-105 transition-all">
-              TP
-            </div>
-            <div className="text-left leading-none font-sans">
-              <div className="flex items-center space-x-2">
-                <span className="text-sm sm:text-lg font-black tracking-tight tracking-wide uppercase">
-                  Toolkit<span className="text-indigo-600 dark:text-indigo-400">Pro</span>
-                </span>
-                <span className="hidden sm:inline-flex items-center rounded-full bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 text-[9px] font-extrabold text-emerald-800 dark:text-emerald-405 border border-emerald-100 dark:border-emerald-900/40 uppercase tracking-wider">
-                  AdSense ID
-                </span>
+          {/* Sidebar Toggle and Logo Brand Title */}
+          <div className="flex items-center space-x-2.5 select-none animate-in fade-in slide-in-from-left-4 duration-300 shrink-0">
+            {onToggleSidebar && (
+              <button
+                onClick={onToggleSidebar}
+                className={`p-2 rounded-xl border cursor-pointer hover:scale-105 active:scale-95 transition-all ${
+                  theme === "dark"
+                    ? "bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-850"
+                    : "bg-slate-50 border-slate-200/80 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                }`}
+                title="Toggle Sidebar Menu"
+                aria-label="Toggle Navigation Sidebar"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+            )}
+
+            <div 
+              onClick={() => handleTabClick("home")}
+              className="flex items-center space-x-2.5 cursor-pointer group"
+            >
+              <div className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-violet-600 text-white font-sans font-black text-sm sm:text-base shadow-md transform group-hover:scale-105 transition-all">
+                TP
               </div>
-              <p className="hidden xs:block text-[9px] sm:text-[10px] text-slate-450 dark:text-slate-505 font-bold uppercase tracking-wider mt-1.5 font-mono">
-                Ultimate Creator Hub
-              </p>
+              <div className="text-left leading-none font-sans">
+                <div className="flex items-center space-x-2">
+                  <span className="text-sm sm:text-lg font-black tracking-tight tracking-wide uppercase">
+                    Toolkit<span className="text-indigo-600 dark:text-indigo-400">Pro</span>
+                  </span>
+                  <span className="hidden sm:inline-flex items-center rounded-full bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 text-[9px] font-extrabold text-emerald-800 dark:text-emerald-405 border border-emerald-100 dark:border-emerald-900/40 uppercase tracking-wider">
+                    AdSense ID
+                  </span>
+                </div>
+                <p className="hidden xs:block text-[9px] sm:text-[10px] text-slate-450 dark:text-slate-505 font-bold uppercase tracking-wider mt-1.5 font-mono">
+                  Ultimate Creator Hub
+                </p>
+              </div>
             </div>
           </div>
 

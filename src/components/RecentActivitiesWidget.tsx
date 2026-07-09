@@ -39,6 +39,7 @@ const iconMap: Record<RecentActivity["icon"], React.ComponentType<any>> = {
 };
 
 const tabLabelMap: Record<ActiveTab, string> = {
+  home: "Dashboard Home",
   quote: "Quote Designer",
   compress: "Image Compressor",
   qr: "QR Generator",

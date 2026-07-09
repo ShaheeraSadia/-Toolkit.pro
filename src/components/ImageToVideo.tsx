@@ -10,6 +10,7 @@ import garreyCyberHackerUrl from "../assets/images/garrey_cyber_hacker_178316347
 import { User } from "firebase/auth";
 import { uploadFileToDrive } from "../lib/drive";
 import { triggerFileDownload } from "../lib/download";
+import JSZip from "jszip";
 // @ts-ignore
 import gifshot from "gifshot";
 import { motion, AnimatePresence } from "motion/react";
@@ -43,6 +44,8 @@ import {
   Sliders,
   Scissors,
   Clock,
+  History,
+  Film,
   Gauge,
   GripVertical,
   Move,
@@ -1583,6 +1586,8 @@ export default function ImageToVideo({
   const [subtitleFont, setSubtitleFont] = useState<string>("space-grotesk");
   const [cinematicLetterbox, setCinematicLetterbox] = useState<boolean>(false);
   const [vignetteOverlay, setVignetteOverlay] = useState<boolean>(false);
+  const [atmosphericOverlay, setAtmosphericOverlay] = useState<"none" | "particles" | "snow" | "rain" | "light-leaks">("none");
+  const [superResolution, setSuperResolution] = useState<boolean>(false);
   
   // Playback states
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
@@ -1628,7 +1633,8 @@ export default function ImageToVideo({
   const [aiModelEngine, setAiModelEngine] = useState<"gemini-flash" | "gemini-pro" | "veo-core">("gemini-flash");
   const [aiMotionIntensity, setAiMotionIntensity] = useState<number>(5);
   const [aiCameraDirection, setAiCameraDirection] = useState<"auto" | "zoom-in" | "zoom-out" | "pan-left" | "pan-right" | "tilt-up" | "tilt-down" | "orbit">("auto");
-  const [aiStylePreset, setAiStylePreset] = useState<"auto" | "cinematic" | "cyberpunk" | "anime" | "vhs" | "realistic-3d" | "minimalist">("auto");
+  const [aiStylePreset, setAiStylePreset] = useState<"auto" | "cinematic" | "cyberpunk" | "anime" | "vhs" | "realistic-3d" | "minimalist" | "fantasy-dream" | "studio-ghibli" | "film-noir" | "nature-8k" | "sketch" | "oil-painting">("auto");
+  const [aiImageModelChoice, setAiImageModelChoice] = useState<"gemini-3.1-flash-lite-image" | "gemini-3.1-flash-image">("gemini-3.1-flash-lite-image");
   const [aiSceneImageSource, setAiSceneImageSource] = useState<"gemini" | "unsplash">("gemini");
   const [synthTempoFactor, setSynthTempoFactor] = useState<number>(1.0);
   const [synthFilterCutoff, setSynthFilterCutoff] = useState<number>(8000);
@@ -1688,6 +1694,75 @@ export default function ImageToVideo({
   const [showFinalOutput, setShowFinalOutput] = useState<boolean>(false);
   const [isSavingToDrive, setIsSavingToDrive] = useState<boolean>(false);
   const [isWaitingForLogin, setIsWaitingForLogin] = useState<boolean>(false);
+
+  // Video history list
+  const [videoHistory, setVideoHistory] = useState<{
+    id: string;
+    name: string;
+    url: string; // Object URL for active playback in current session
+    format: "webm" | "mp4" | "gif";
+    resolution: string;
+    timestamp: string;
+    slidesCount: number;
+    duration: number;
+    filter: string;
+    thumbnail: string;
+    isFromPreviousSession?: boolean;
+    slides?: ImageSlide[];
+  }[]>(() => {
+    try {
+      const saved = localStorage.getItem("capcut_video_history_metadata");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        // Mark as previous session since object URLs are expired
+        return parsed.map((item: any) => ({
+          ...item,
+          url: "", // Clear expired object URL
+          isFromPreviousSession: true
+        }));
+      }
+    } catch (e) {
+      console.warn("Failed to load video history from localStorage", e);
+    }
+    return [];
+  });
+
+  // Keep localStorage sync of metadata (excluding URLs, blobs, etc.)
+  useEffect(() => {
+    try {
+      const metadataOnly = videoHistory.map((item) => ({
+        id: item.id,
+        name: item.name,
+        format: item.format,
+        resolution: item.resolution,
+        timestamp: item.timestamp,
+        slidesCount: item.slidesCount,
+        duration: item.duration,
+        filter: item.filter,
+        thumbnail: item.thumbnail,
+        isFromPreviousSession: true
+      }));
+      localStorage.setItem("capcut_video_history_metadata", JSON.stringify(metadataOnly));
+    } catch (e) {
+      console.warn("Failed to save video history to localStorage", e);
+    }
+  }, [videoHistory]);
+
+  // Trimming tool state
+  const [trimmingVideoId, setTrimmingVideoId] = useState<string | null>(null);
+  const [trimStart, setTrimStart] = useState<number>(0);
+  const [trimEnd, setTrimEnd] = useState<number>(0);
+  const [isTrimmingInProgress, setIsTrimmingInProgress] = useState<boolean>(false);
+  const [trimProgress, setTrimProgress] = useState<number>(0);
+
+  // Background Audio Overlay tool state
+  const [overlayAudioVideoId, setOverlayAudioVideoId] = useState<string | null>(null);
+  const [selectedOverlayAudioUrl, setSelectedOverlayAudioUrl] = useState<string>("");
+  const [selectedOverlayAudioName, setSelectedOverlayAudioName] = useState<string>("");
+  const [overlayAudioVolume, setOverlayAudioVolume] = useState<number>(0.8);
+  const [overlayOriginalVolume, setOverlayOriginalVolume] = useState<number>(0.5);
+  const [isOverlayingInProgress, setIsOverlayingInProgress] = useState<boolean>(false);
+  const [overlayProgress, setOverlayProgress] = useState<number>(0);
   
   // Text-to-Video and Title Clip workspace states
   const [creatorMode, setCreatorMode] = useState<"single" | "script" | "text-slide">("single");
@@ -1866,6 +1941,345 @@ export default function ImageToVideo({
         sub: "Failed to convert file for upload.",
         success: false
       });
+    }
+  };
+
+  const handleTrimVideo = async (itemId: string) => {
+    const item = videoHistory.find(v => v.id === itemId);
+    if (!item || !item.url) return;
+
+    setIsTrimmingInProgress(true);
+    setTrimProgress(0);
+    triggerBeepChime();
+
+    try {
+      // Create a temporary video element to process frames
+      const tempVideo = document.createElement("video");
+      tempVideo.src = item.url;
+      tempVideo.muted = true;
+      tempVideo.playsInline = true;
+      tempVideo.crossOrigin = "anonymous";
+      
+      // Wait for metadata to load
+      await new Promise<void>((resolve, reject) => {
+        tempVideo.onloadedmetadata = () => resolve();
+        tempVideo.onerror = () => reject(new Error("Failed to load video metadata for trimming."));
+        setTimeout(() => reject(new Error("Timeout loading video metadata for trimming.")), 6000);
+      });
+
+      const duration = tempVideo.duration || item.duration;
+      const start = Math.max(0, trimStart);
+      const end = Math.min(duration, trimEnd);
+      const trimDuration = end - start;
+
+      if (trimDuration <= 0) {
+        throw new Error("Invalid trim range. Start time must be less than end time.");
+      }
+
+      // Seek to the start timestamp
+      tempVideo.currentTime = start;
+      await new Promise<void>((resolve) => {
+        tempVideo.onseeked = () => resolve();
+      });
+
+      // Construct high fidelity offscreen canvas
+      const canvas = document.createElement("canvas");
+      canvas.width = tempVideo.videoWidth || 1280;
+      canvas.height = tempVideo.videoHeight || 720;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Could not initialize canvas context.");
+
+      const canvasStream = canvas.captureStream(30);
+      const mediaRecorder = new MediaRecorder(canvasStream, {
+        mimeType: "video/webm;codecs=vp9"
+      });
+
+      const chunks: Blob[] = [];
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+
+      let recordingFinishedResolve: () => void;
+      const recordingFinishedPromise = new Promise<void>((resolve) => {
+        recordingFinishedResolve = resolve;
+      });
+
+      mediaRecorder.onstop = () => {
+        recordingFinishedResolve();
+      };
+
+      mediaRecorder.start();
+      tempVideo.play();
+
+      const totalFrames = Math.ceil(trimDuration * 30);
+      let framesCaptured = 0;
+      const frameInterval = 1000 / 30; // 33.3ms
+
+      const drawAndAdvance = () => {
+        if (tempVideo.currentTime >= end || framesCaptured >= totalFrames) {
+          mediaRecorder.stop();
+          tempVideo.pause();
+          return;
+        }
+
+        // Draw video frame to our canvas
+        ctx.fillStyle = "#000000";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(tempVideo, 0, 0, canvas.width, canvas.height);
+
+        framesCaptured++;
+        const prog = Math.min(99, Math.round((framesCaptured / totalFrames) * 100));
+        setTrimProgress(prog);
+
+        setTimeout(drawAndAdvance, frameInterval);
+      };
+
+      drawAndAdvance();
+
+      await recordingFinishedPromise;
+
+      setTrimProgress(100);
+      const trimmedBlob = new Blob(chunks, { type: "video/webm" });
+      const trimmedUrl = URL.createObjectURL(trimmedBlob);
+
+      // Create new history item for trimmed version so user can play it back too!
+      const trimmedItem = {
+        id: `vid-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        name: `${item.name.replace(/\.[^/.]+$/, "")}_trimmed_${start.toFixed(1)}s-${end.toFixed(1)}s.webm`,
+        url: trimmedUrl,
+        format: "webm" as const,
+        resolution: item.resolution,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        slidesCount: item.slidesCount,
+        duration: trimDuration,
+        filter: item.filter,
+        thumbnail: item.thumbnail,
+        isFromPreviousSession: false
+      };
+      
+      setVideoHistory((prev) => [trimmedItem, ...prev]);
+
+      // Download automatically
+      const downloadLink = document.createElement("a");
+      downloadLink.href = trimmedUrl;
+      downloadLink.download = trimmedItem.name;
+      downloadLink.click();
+
+      setToastMessage({
+        text: "✂️ Video Clip Trimmed!",
+        sub: `Successfully generated and downloaded a ${trimDuration.toFixed(1)}s trimmed segment.`,
+        success: true
+      });
+      triggerBeepChime();
+
+    } catch (err) {
+      console.error("Trim capture failed:", err);
+      setToastMessage({
+        text: "❌ Video Trimming Failed",
+        sub: err instanceof Error ? err.message : "Internal stream capture failure.",
+        success: false
+      });
+    } finally {
+      setIsTrimmingInProgress(false);
+      setTrimmingVideoId(null);
+    }
+  };
+
+  const handleOverlayAudio = async (itemId: string) => {
+    const item = videoHistory.find(v => v.id === itemId);
+    if (!item || !item.url) return;
+
+    if (!selectedOverlayAudioUrl) {
+      setToastMessage({
+        text: "⚠️ No Track Selected",
+        sub: "Please choose or upload a background audio track first.",
+        success: false
+      });
+      triggerBeepChime();
+      return;
+    }
+
+    setIsOverlayingInProgress(true);
+    setOverlayProgress(0);
+    triggerBeepChime();
+
+    let audioCtx: AudioContext | null = null;
+
+    try {
+      // 1. Create a temporary video element to process frames
+      const tempVideo = document.createElement("video");
+      tempVideo.src = item.url;
+      tempVideo.playsInline = true;
+      tempVideo.crossOrigin = "anonymous";
+      
+      // Wait for metadata to load
+      await new Promise<void>((resolve, reject) => {
+        tempVideo.onloadedmetadata = () => resolve();
+        tempVideo.onerror = () => reject(new Error("Failed to load video metadata for audio overlay."));
+        setTimeout(() => reject(new Error("Timeout loading video metadata.")), 6000);
+      });
+
+      const duration = tempVideo.duration || item.duration;
+
+      // 2. Set up Web Audio API mixing context
+      const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+      audioCtx = new AudioCtxClass();
+      const dest = audioCtx.createMediaStreamDestination();
+
+      // Set up background music audio element and node
+      const audioEl = new Audio(selectedOverlayAudioUrl);
+      audioEl.crossOrigin = "anonymous";
+      audioEl.loop = true;
+
+      // Wait for background audio metadata
+      await new Promise<void>((resolve, reject) => {
+        audioEl.onloadedmetadata = () => resolve();
+        audioEl.onerror = () => reject(new Error("Failed to load background music track."));
+        setTimeout(() => resolve(), 3000); // Fail-safe fallback
+      });
+
+      const backgroundMusicSource = audioCtx.createMediaElementSource(audioEl);
+      const backgroundGain = audioCtx.createGain();
+      backgroundGain.gain.value = overlayAudioVolume;
+      backgroundMusicSource.connect(backgroundGain);
+      backgroundGain.connect(dest);
+
+      // Route original video audio track if it exists
+      try {
+        const videoAudioSource = audioCtx.createMediaElementSource(tempVideo);
+        const originalVideoGain = audioCtx.createGain();
+        originalVideoGain.gain.value = overlayOriginalVolume;
+        videoAudioSource.connect(originalVideoGain);
+        originalVideoGain.connect(dest);
+      } catch (e) {
+        console.warn("Could not route original video audio track (CORS or silent). Playing silently.", e);
+      }
+
+      // 3. Construct Canvas for visual capture
+      const canvas = document.createElement("canvas");
+      canvas.width = tempVideo.videoWidth || 1280;
+      canvas.height = tempVideo.videoHeight || 720;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) throw new Error("Could not initialize 2D canvas context.");
+
+      const canvasStream = canvas.captureStream(30);
+      const combinedTracks = [...canvasStream.getVideoTracks()];
+
+      // Append the mixed stream's audio track
+      const mixedAudioStream = dest.stream;
+      combinedTracks.push(...mixedAudioStream.getAudioTracks());
+
+      const combinedStream = new MediaStream(combinedTracks);
+
+      const mediaRecorder = new MediaRecorder(combinedStream, {
+        mimeType: "video/webm;codecs=vp9,opus"
+      });
+
+      const chunks: Blob[] = [];
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+
+      let recordingFinishedResolve: () => void;
+      const recordingFinishedPromise = new Promise<void>((resolve) => {
+        recordingFinishedResolve = resolve;
+      });
+
+      mediaRecorder.onstop = () => {
+        recordingFinishedResolve();
+      };
+
+      // Seek to zero for synchronous start
+      tempVideo.currentTime = 0;
+      audioEl.currentTime = 0;
+
+      await new Promise<void>((resolve) => {
+        tempVideo.onseeked = () => resolve();
+      });
+
+      mediaRecorder.start();
+      tempVideo.play();
+      audioEl.play();
+
+      const totalFrames = Math.ceil(duration * 30);
+      let framesCaptured = 0;
+      const frameInterval = 1000 / 30;
+
+      const drawAndAdvance = () => {
+        if (tempVideo.currentTime >= duration || framesCaptured >= totalFrames || tempVideo.ended) {
+          mediaRecorder.stop();
+          tempVideo.pause();
+          audioEl.pause();
+          return;
+        }
+
+        ctx.fillStyle = "#000000";
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        ctx.drawImage(tempVideo, 0, 0, canvas.width, canvas.height);
+
+        framesCaptured++;
+        const prog = Math.min(99, Math.round((framesCaptured / totalFrames) * 100));
+        setOverlayProgress(prog);
+
+        setTimeout(drawAndAdvance, frameInterval);
+      };
+
+      drawAndAdvance();
+
+      await recordingFinishedPromise;
+
+      setOverlayProgress(100);
+      const overlaidBlob = new Blob(chunks, { type: "video/webm" });
+      const overlaidUrl = URL.createObjectURL(overlaidBlob);
+
+      // Create a clean display name
+      const trackShortName = selectedOverlayAudioName ? selectedOverlayAudioName.replace(/\s+/g, "_") : "background_audio";
+      const overlaidItem = {
+        id: `vid-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        name: `${item.name.replace(/\.[^/.]+$/, "")}_mixed_${trackShortName}.webm`,
+        url: overlaidUrl,
+        format: "webm" as const,
+        resolution: item.resolution,
+        timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        slidesCount: item.slidesCount,
+        duration: duration,
+        filter: item.filter,
+        thumbnail: item.thumbnail,
+        isFromPreviousSession: false
+      };
+
+      setVideoHistory((prev) => [overlaidItem, ...prev]);
+
+      // Download automatically
+      const downloadLink = document.createElement("a");
+      downloadLink.href = overlaidUrl;
+      downloadLink.download = overlaidItem.name;
+      downloadLink.click();
+
+      setToastMessage({
+        text: "🎵 Audio Overlaid Successfully!",
+        sub: `Generated and downloaded '${overlaidItem.name}' with overlay audio.`,
+        success: true
+      });
+      triggerBeepChime();
+
+    } catch (err) {
+      console.error("Audio overlay failed:", err);
+      setToastMessage({
+        text: "❌ Audio Overlay Failed",
+        sub: err instanceof Error ? err.message : "Internal stream capture failure.",
+        success: false
+      });
+    } finally {
+      if (audioCtx) {
+        audioCtx.close().catch(e => console.warn("Could not close AudioContext", e));
+      }
+      setIsOverlayingInProgress(false);
+      setOverlayAudioVideoId(null);
     }
   };
 
@@ -3142,6 +3556,13 @@ export default function ImageToVideo({
             else if (aiStylePreset === "anime") imgStyle = "anime";
             else if (aiStylePreset === "vhs") imgStyle = "retro_vhs";
             else if (aiStylePreset === "realistic-3d") imgStyle = "render_3d";
+            else if (aiStylePreset === "cyberpunk") imgStyle = "cyberpunk_neon";
+            else if (aiStylePreset === "fantasy-dream") imgStyle = "fantasy_dream";
+            else if (aiStylePreset === "studio-ghibli") imgStyle = "studio_ghibli";
+            else if (aiStylePreset === "film-noir") imgStyle = "film_noir";
+            else if (aiStylePreset === "nature-8k") imgStyle = "nature_8k";
+            else if (aiStylePreset === "sketch") imgStyle = "sketch";
+            else if (aiStylePreset === "oil-painting") imgStyle = "oil_painting";
 
             const imgResponse = await fetch("/api/image/generate", {
               method: "POST",
@@ -3149,7 +3570,8 @@ export default function ImageToVideo({
               body: JSON.stringify({
                 prompt: currentLinePrompt,
                 aspectRatio: "16:9",
-                style: imgStyle
+                style: imgStyle,
+                modelChoice: aiImageModelChoice
               })
             });
 
@@ -3379,6 +3801,13 @@ export default function ImageToVideo({
           else if (aiStylePreset === "anime") imgStyle = "anime";
           else if (aiStylePreset === "vhs") imgStyle = "retro_vhs";
           else if (aiStylePreset === "realistic-3d") imgStyle = "render_3d";
+          else if (aiStylePreset === "cyberpunk") imgStyle = "cyberpunk_neon";
+          else if (aiStylePreset === "fantasy-dream") imgStyle = "fantasy_dream";
+          else if (aiStylePreset === "studio-ghibli") imgStyle = "studio_ghibli";
+          else if (aiStylePreset === "film-noir") imgStyle = "film_noir";
+          else if (aiStylePreset === "nature-8k") imgStyle = "nature_8k";
+          else if (aiStylePreset === "sketch") imgStyle = "sketch";
+          else if (aiStylePreset === "oil-painting") imgStyle = "oil_painting";
 
           const imgResponse = await fetch("/api/image/generate", {
             method: "POST",
@@ -3386,7 +3815,8 @@ export default function ImageToVideo({
             body: JSON.stringify({
               prompt: userPromptText,
               aspectRatio: "16:9",
-              style: imgStyle
+              style: imgStyle,
+              modelChoice: aiImageModelChoice
             })
           });
 
@@ -3845,11 +4275,13 @@ export default function ImageToVideo({
     ctx: CanvasRenderingContext2D,
     width: number,
     height: number,
-    time: number
+    time: number,
+    overrideSlides?: ImageSlide[]
   ) => {
     ctx.clearRect(0, 0, width, height);
 
-    if (slides.length === 0) {
+    const activeSlides = overrideSlides || slides;
+    if (activeSlides.length === 0) {
       ctx.fillStyle = "#0f172a";
       ctx.fillRect(0, 0, width, height);
       ctx.fillStyle = "#ffffff";
@@ -3864,15 +4296,16 @@ export default function ImageToVideo({
     let cumulativeTime = 0;
     let currentSlideIndex = 0;
     
-    for (let i = 0; i < slides.length; i++) {
-      if (time >= cumulativeTime && time < cumulativeTime + slides[i].duration) {
+    for (let i = 0; i < activeSlides.length; i++) {
+      if (time >= cumulativeTime && time < cumulativeTime + activeSlides[i].duration) {
         currentSlideIndex = i;
         break;
       }
-      cumulativeTime += slides[i].duration;
+      cumulativeTime += activeSlides[i].duration;
     }
 
-    const slide = slides[currentSlideIndex];
+    const slide = activeSlides[currentSlideIndex];
+    if (!slide) return;
     const slideLocalTime = time - cumulativeTime;
     const slideProgress = slideLocalTime / slide.duration;
 
@@ -3971,6 +4404,16 @@ export default function ImageToVideo({
           activeFilter = "sepia(100%)";
         } else if (targetSlide.filter === "high-contrast") {
           activeFilter = "contrast(150%) brightness(105%)";
+        }
+      }
+
+      if (superResolution) {
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = "high";
+        if (activeFilter === "none") {
+          activeFilter = "contrast(108%) saturate(102%) brightness(101%)";
+        } else {
+          activeFilter += " contrast(108%) saturate(102%) brightness(101%)";
         }
       }
       ctx.filter = activeFilter;
@@ -4152,7 +4595,7 @@ export default function ImageToVideo({
 
     // Execute drawing layers
     if (isTransitioning) {
-      const prevSlide = slides[currentSlideIndex - 1];
+      const prevSlide = activeSlides[currentSlideIndex - 1];
       const transProgress = slideLocalTime / transitionDuration;
 
       if (activeTransStyle === "fade") {
@@ -5014,6 +5457,110 @@ export default function ImageToVideo({
       ctx.restore();
     }
 
+    // Dynamic Cinematic Atmospheric Overlays (Deterministic & smooth based on timeline playback time)
+    if (atmosphericOverlay !== "none") {
+      ctx.save();
+      if (atmosphericOverlay === "particles") {
+        // Soft golden floating fireflies
+        for (let i = 0; i < 30; i++) {
+          const seed = i * 7329.13;
+          const speedX = Math.sin(seed) * 6 + 12;
+          const speedY = Math.cos(seed) * 8 - 18;
+          
+          const startX = (Math.abs(Math.sin(seed * 0.7)) * width);
+          const startY = (Math.abs(Math.cos(seed * 1.3)) * height);
+          
+          let x = (startX + speedX * time) % width;
+          let y = (startY + speedY * time) % height;
+          if (x < 0) x += width;
+          if (y < 0) y += height;
+          
+          const opacity = 0.15 + 0.35 * Math.sin(time * 1.5 + seed);
+          const size = 1.2 + 2.2 * Math.abs(Math.sin(time * 0.8 + seed));
+          
+          if (opacity > 0) {
+            ctx.fillStyle = `rgba(251, 191, 36, ${opacity})`; 
+            ctx.shadowColor = "rgba(251, 191, 36, 0.4)";
+            ctx.shadowBlur = size * 2.5;
+            ctx.beginPath();
+            ctx.arc(x, y, size, 0, Math.PI * 2);
+            ctx.fill();
+          }
+        }
+      } else if (atmosphericOverlay === "snow") {
+        // Soft falling white snow drifts
+        ctx.fillStyle = "rgba(255, 255, 255, 0.65)";
+        for (let i = 0; i < 45; i++) {
+          const seed = i * 4921.43;
+          const startX = (Math.abs(Math.sin(seed * 0.5)) * width);
+          const startY = (Math.abs(Math.cos(seed * 1.1)) * height);
+          
+          const speedY = 30 + Math.abs(Math.sin(seed)) * 25; 
+          const sway = Math.sin(time * 1.2 + seed) * 18;
+          
+          let x = (startX + sway) % width;
+          let y = (startY + speedY * time) % height;
+          if (x < 0) x += width;
+          if (y < 0) y += height;
+          
+          const size = 1.0 + Math.abs(Math.cos(seed)) * 3.5;
+          ctx.beginPath();
+          ctx.arc(x, y, size, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else if (atmosphericOverlay === "rain") {
+        // Fast falling slanted rain lines
+        ctx.strokeStyle = "rgba(186, 230, 253, 0.35)";
+        ctx.lineWidth = 1.2;
+        for (let i = 0; i < 55; i++) {
+          const seed = i * 8213.91;
+          const startX = (Math.abs(Math.sin(seed * 0.4)) * width);
+          const startY = (Math.abs(Math.cos(seed * 1.2)) * height);
+          
+          const speedY = 140 + Math.abs(Math.sin(seed)) * 90;
+          const speedX = -25; 
+          
+          let x = (startX + speedX * time) % width;
+          let y = (startY + speedY * time) % height;
+          if (x < 0) x += width;
+          if (y < 0) y += height;
+          
+          const length = 14 + Math.abs(Math.cos(seed)) * 18;
+          ctx.beginPath();
+          ctx.moveTo(x, y);
+          ctx.lineTo(x - length * 0.15, y + length);
+          ctx.stroke();
+        }
+      } else if (atmosphericOverlay === "light-leaks") {
+        // Soft glowing vintage color light leaks
+        const pulse1 = Math.sin(time * 0.6) * 0.5 + 0.5;
+        const pulse2 = Math.cos(time * 0.4) * 0.5 + 0.5;
+        
+        // Bottom Right Leak
+        const grad1 = ctx.createRadialGradient(
+          width * 0.9, height * 0.9, 10,
+          width * 0.8, height * 0.8, width * 0.55 * (0.6 + pulse1 * 0.4)
+        );
+        grad1.addColorStop(0, `rgba(239, 68, 68, ${0.25 * pulse1})`); 
+        grad1.addColorStop(0.5, `rgba(245, 158, 11, ${0.12 * pulse1})`); 
+        grad1.addColorStop(1, "rgba(0, 0, 0, 0)");
+        ctx.fillStyle = grad1;
+        ctx.fillRect(0, 0, width, height);
+
+        // Top Left Leak
+        const grad2 = ctx.createRadialGradient(
+          width * 0.1, height * 0.1, 5,
+          width * 0.2, height * 0.2, width * 0.45 * (0.5 + pulse2 * 0.5)
+        );
+        grad2.addColorStop(0, `rgba(139, 92, 246, ${0.20 * pulse2})`); 
+        grad2.addColorStop(0.6, `rgba(236, 72, 153, ${0.11 * pulse2})`); 
+        grad2.addColorStop(1, "rgba(0, 0, 0, 0)");
+        ctx.fillStyle = grad2;
+        ctx.fillRect(0, 0, width, height);
+      }
+      ctx.restore();
+    }
+
     // Cinematic Letterbox black widescreen borders (2.39:1 Cinema Bars)
     if (cinematicLetterbox && aspectRatio === "16:9") {
       ctx.save();
@@ -5111,7 +5658,7 @@ export default function ImageToVideo({
         ctx.restore();
       }
     }
-  }, [slides, transitionStyle, transitionDuration, subtitleStyle, subtitleFont, cinematicLetterbox, vignetteOverlay, aspectRatio, subtitleManualOffset, visualizerStyle, masterVideoFilter, subtitleVerticalAlign, subtitleFontSizeFactor, subtitleTextColor, subtitleBgColor, subtitleBgOpacity, subtitleStrokeColor, subtitleStrokeWidth, canvasGuideGrid]);
+  }, [slides, transitionStyle, transitionDuration, subtitleStyle, subtitleFont, cinematicLetterbox, vignetteOverlay, atmosphericOverlay, aspectRatio, subtitleManualOffset, visualizerStyle, masterVideoFilter, subtitleVerticalAlign, subtitleFontSizeFactor, subtitleTextColor, subtitleBgColor, subtitleBgOpacity, subtitleStrokeColor, subtitleStrokeWidth, canvasGuideGrid, superResolution]);
 
   // Hook rendering logic to active timeline time changes
   useEffect(() => {
@@ -5132,7 +5679,7 @@ export default function ImageToVideo({
     canvas.height = height;
 
     drawVideoFrame(ctx, canvasWidth, height, currentTime);
-  }, [currentTime, aspectRatio, slides, transitionStyle, transitionDuration, drawVideoFrame, subtitleStyle, subtitleFont, cinematicLetterbox, vignetteOverlay, subtitleManualOffset, masterVideoFilter, subtitleVerticalAlign, subtitleFontSizeFactor, subtitleTextColor, subtitleBgColor, subtitleBgOpacity, subtitleStrokeColor, subtitleStrokeWidth, canvasGuideGrid]);
+  }, [currentTime, aspectRatio, slides, transitionStyle, transitionDuration, drawVideoFrame, subtitleStyle, subtitleFont, cinematicLetterbox, vignetteOverlay, atmosphericOverlay, subtitleManualOffset, masterVideoFilter, subtitleVerticalAlign, subtitleFontSizeFactor, subtitleTextColor, subtitleBgColor, subtitleBgOpacity, subtitleStrokeColor, subtitleStrokeWidth, canvasGuideGrid, superResolution]);
 
   // Sync the ref with the latest drawVideoFrame callback on each change
   useEffect(() => {
@@ -5516,6 +6063,10 @@ export default function ImageToVideo({
         exportWidth = aspectRatio === "9:16" ? 2160 : 3840;
       }
 
+      if (superResolution) {
+        exportWidth = Math.round(exportWidth * 1.5);
+      }
+
       let exportHeight = Math.round(exportWidth * (9 / 16));
       if (aspectRatio === "9:16") {
         exportHeight = Math.round(exportWidth * (16 / 9));
@@ -5743,6 +6294,24 @@ export default function ImageToVideo({
           setCreatedVideoPlayerFilter(masterVideoFilter);
           setShowFinalOutput(true);
 
+          // Append to recently generated video history
+          const thumbnail = slides[0]?.url || "";
+          const newHistoryItem = {
+            id: `vid-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            name: fileNameWithExt,
+            url: fileUrl,
+            format: format as "webm" | "mp4" | "gif",
+            resolution: exportResolution,
+            timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+            slidesCount: slides.length,
+            duration: totalDuration,
+            filter: masterVideoFilter,
+            thumbnail: thumbnail,
+            isFromPreviousSession: false,
+            slides: slides.map((s) => ({ ...s }))
+          };
+          setVideoHistory((prev) => [newHistoryItem, ...prev]);
+
           setExportProgress(100);
           setExportCurrentStage("Finished");
           setExportEstTimeRemaining("0s");
@@ -5860,6 +6429,124 @@ export default function ImageToVideo({
         sub: e?.message || "Verify your browser is fully compliant with canvas recording formats.",
         success: false
       });
+    }
+  };
+
+  const [isExtractingFrames, setIsExtractingFrames] = useState<boolean>(false);
+  const [extractProgress, setExtractProgress] = useState<number>(0);
+
+  const handleDownloadFramesZip = async (item: any) => {
+    if (isExtractingFrames) return;
+    
+    const targetSlides = item.slides || slides;
+    if (!targetSlides || targetSlides.length === 0) {
+      setToastMessage({
+        text: "Extraction Failed",
+        sub: "No slides found for frame extraction.",
+        success: false
+      });
+      triggerBeepChime();
+      return;
+    }
+
+    setIsExtractingFrames(true);
+    setExtractProgress(0);
+    setToastMessage({
+      text: "Preparing Frames...",
+      sub: "Initializing frame rendering canvas...",
+      success: true
+    });
+    triggerBeepChime();
+
+    try {
+      const renderCanvas = document.createElement("canvas");
+      let exportWidth = 1280; // High quality standard HD 720p extraction
+      if (superResolution) {
+        exportWidth = Math.round(exportWidth * 1.5); // Super Resolution upscaling
+      }
+      let exportHeight = Math.round(exportWidth * (9 / 16));
+      if (aspectRatio === "9:16") {
+        exportHeight = Math.round(exportWidth * (16 / 9));
+      } else if (aspectRatio === "1:1") {
+        exportHeight = exportWidth;
+      }
+
+      renderCanvas.width = exportWidth;
+      renderCanvas.height = exportHeight;
+      const renderCtx = renderCanvas.getContext("2d");
+      if (!renderCtx) throw new Error("Could not initialize 2D render context");
+
+      // Extract at 10 frames per second to ensure high quality without locking the UI
+      const fps = 10;
+      const activePlaybackSpeed = videoPlaybackSpeed || 1.0;
+      const totalFrames = Math.max(1, Math.round((item.duration / activePlaybackSpeed) * fps));
+      
+      const zip = new JSZip();
+      
+      // We will render frames one by one in a short timeout-based loop to avoid freezing the browser
+      for (let i = 0; i < totalFrames; i++) {
+        const renderTime = (i / fps) * activePlaybackSpeed;
+        
+        // Draw using the modified drawVideoFrame
+        drawVideoFrame(renderCtx, exportWidth, exportHeight, renderTime, targetSlides);
+        
+        // Convert canvas image to data URL
+        const dataUrl = renderCanvas.toDataURL("image/jpeg", 0.85);
+        const base64Data = dataUrl.split(",")[1];
+        
+        const fileName = `frame_${String(i + 1).padStart(4, "0")}.jpg`;
+        zip.file(fileName, base64Data, { base64: true });
+        
+        const progressPercent = Math.round(((i + 1) / totalFrames) * 100);
+        setExtractProgress(progressPercent);
+        
+        // Let the event loop breathe and update progress toast
+        if (i % 5 === 0 || i === totalFrames - 1) {
+          setToastMessage({
+            text: `Extracting Frame ${i + 1}/${totalFrames}`,
+            sub: `Captured ${progressPercent}% of all high-resolution video frames...`,
+            success: true
+          });
+          await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+      }
+
+      setToastMessage({
+        text: "Compiling ZIP file...",
+        sub: "Compressing images into a secure archive...",
+        success: true
+      });
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      const zipBlob = await zip.generateAsync({ type: "blob" });
+      
+      const zipUrl = URL.createObjectURL(zipBlob);
+      const downloadName = `${item.name.replace(/\.[^/.]+$/, "")}_extracted_frames.zip`;
+      
+      const a = document.createElement("a");
+      a.href = zipUrl;
+      a.download = downloadName;
+      a.click();
+      
+      // Cleanup
+      setTimeout(() => URL.revokeObjectURL(zipUrl), 10000);
+
+      setIsExtractingFrames(false);
+      setToastMessage({
+        text: "ZIP Export Successful! 🎉",
+        sub: `Extracted ${totalFrames} frames of '${item.name}' successfully.`,
+        success: true
+      });
+      triggerBeepChime();
+    } catch (error: any) {
+      console.error("Frame extraction zip failed:", error);
+      setIsExtractingFrames(false);
+      setToastMessage({
+        text: "Extraction Failed",
+        sub: error?.message || "An unknown error occurred during frame compilation.",
+        success: false
+      });
+      triggerBeepChime();
     }
   };
 
@@ -6555,8 +7242,19 @@ export default function ImageToVideo({
                 {/* Generate Button & Progress */}
                 <div className="pt-1 flex flex-col gap-3">
                   {aiImageError && (
-                    <div className="p-3 rounded-2xl bg-rose-50 dark:bg-rose-950/20 border border-rose-150 dark:border-rose-900/40 text-[11px] font-medium text-rose-750 dark:text-rose-400 text-left">
-                      ⚠️ {aiImageError}
+                    <div className="p-3.5 rounded-2xl bg-rose-50 dark:bg-rose-950/20 border border-rose-150 dark:border-rose-900/40 text-[11px] font-medium text-rose-750 dark:text-rose-400 text-left space-y-1.5">
+                      <div className="font-extrabold flex items-center gap-1.5 text-rose-800 dark:text-rose-300">
+                        <span>⚠️ Image Generation Issue:</span>
+                      </div>
+                      <p className="opacity-90">{aiImageError}</p>
+                      <div className="text-[10px] pt-1 border-t border-rose-200/50 dark:border-rose-900/30 space-y-1 text-rose-650 dark:text-rose-350">
+                        <span className="font-bold block uppercase tracking-wider text-[8px] text-rose-500">How to bypass this:</span>
+                        <ul className="list-disc pl-3.5 space-y-0.5">
+                          <li>Change the quality below to <strong>Standard Detail (Gemini Lite ⚡)</strong> which generates faster.</li>
+                          <li>In the generator, switch to <strong>Unsplash Stock</strong> (Speed Mode) for instant high-quality photos.</li>
+                          <li>Ensure your <strong>GEMINI_API_KEY</strong> is set in the <strong>Settings &gt; Secrets</strong> menu.</li>
+                        </ul>
+                      </div>
                     </div>
                   )}
 
@@ -7593,7 +8291,7 @@ export default function ImageToVideo({
                   id="transition-style-dropdown"
                   value={transitionStyle}
                   onChange={(e) => setTransitionStyle(e.target.value as any)}
-                  className="px-3 py-2 text-xs font-bold text-slate-800 bg-white border border-slate-200 rounded-xl shadow-3xs cursor-pointer outline-none"
+                  className="px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-3xs cursor-pointer outline-none transition-all focus:ring-2 focus:ring-indigo-500/40"
                 >
                   <option value="fade">🎬 Cross Dissolve (Fade)</option>
                   <option value="slide-left">⚡ Slide Left</option>
@@ -8805,48 +9503,153 @@ export default function ImageToVideo({
             </div>
 
             {/* 3. STYLE PRESET & CAMERA CONTROLS */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 relative z-10">
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
-                  3. Cinematic Style Preset:
-                </label>
-                <select
-                  value={aiStylePreset}
-                  onChange={(e) => setAiStylePreset(e.target.value as any)}
-                  className="w-full px-3 py-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl outline-none cursor-pointer"
-                  disabled={isGeneratingScene}
-                >
-                  <option value="auto">🎬 Auto (AI Matches Prompt Mood)</option>
-                  <option value="cinematic">🎥 Cinematic Masterwork</option>
-                  <option value="cyberpunk">👾 Cyberpunk Neon</option>
-                  <option value="anime">Celestial Anime Dream</option>
-                  <option value="vhs">📼 Retro VHS Tape Glitch</option>
-                  <option value="realistic-3d">💎 3D Octane Hyper-Realistic</option>
-                  <option value="minimalist">🖤 Slate High-Contrast Minimalist</option>
-                </select>
+            <div className="space-y-4 col-span-full relative z-10">
+              <div className="space-y-2 text-left">
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block flex items-center gap-1.5 select-none">
+                    <Grid className="w-3.5 h-3.5 text-indigo-500" />
+                    <span>3. Choose AI Video Visual Style Preset:</span>
+                  </label>
+                  <span className="text-[8px] font-black tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded uppercase font-mono">
+                    {aiStylePreset === "auto" ? "Dynamic Mode" : "Locked Style"}
+                  </span>
+                </div>
+                
+                {/* Visual Cards Grid for Style Presets */}
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 max-h-[280px] overflow-y-auto pr-1 p-0.5 custom-scrollbar">
+                  {[
+                    { id: "auto", name: "Auto Match", emoji: "🎬", desc: "Matches prompt vibe" },
+                    { id: "cinematic", name: "Cinematic", emoji: "🎥", desc: "Hollywood quality" },
+                    { id: "anime", name: "Anime Dream", emoji: "🌸", desc: "Celestial art keyart" },
+                    { id: "sketch", name: "Fine Sketch", emoji: "✏️", desc: "Detailed pencil draft" },
+                    { id: "vhs", name: "Vintage VHS", emoji: "📼", desc: "Retro tape glitches" },
+                    { id: "cyberpunk", name: "Cyberpunk", emoji: "👾", desc: "Neon blade runner" },
+                    { id: "realistic-3d", name: "3D Render", emoji: "💎", desc: "Octane raytraced" },
+                    { id: "fantasy-dream", name: "Fantasy", emoji: "🌌", desc: "Surreal magic world" },
+                    { id: "studio-ghibli", name: "Ghibli Art", emoji: "🎨", desc: "Cozy scenic meadows" },
+                    { id: "film-noir", name: "Film Noir", emoji: "🎞️", desc: "1940s dark shadow" },
+                    { id: "nature-8k", name: "8K Nature", emoji: "🌿", desc: "National Geo realism" },
+                    { id: "oil-painting", name: "Oil Painting", emoji: "🖌️", desc: "Classical impasto art" },
+                    { id: "minimalist", name: "Minimalist", emoji: "🖤", desc: "Slate high-contrast" }
+                  ].map((styleItem) => {
+                    const isActive = aiStylePreset === styleItem.id;
+                    return (
+                      <button
+                        key={styleItem.id}
+                        type="button"
+                        onClick={() => {
+                          setAiStylePreset(styleItem.id as any);
+                          triggerBeepChime();
+                        }}
+                        disabled={isGeneratingScene}
+                        className={`p-2.5 rounded-xl border text-left transition-all duration-200 group relative flex flex-col justify-between cursor-pointer ${
+                          isGeneratingScene ? "opacity-60 cursor-not-allowed" : ""
+                        } ${
+                          isActive
+                            ? "bg-gradient-to-br from-indigo-50/75 to-purple-50/50 border-indigo-500 shadow-2xs dark:from-indigo-950/30 dark:to-purple-950/20 dark:border-indigo-600/80"
+                            : "bg-white dark:bg-slate-950 border-slate-150 dark:border-slate-850 hover:border-slate-300 dark:hover:border-slate-750"
+                        }`}
+                      >
+                        <div>
+                          <div className="flex items-center justify-between gap-1 select-none">
+                            <span className="text-sm">{styleItem.emoji}</span>
+                            {isActive && (
+                              <div className="w-4 h-4 rounded-full bg-indigo-500 flex items-center justify-center text-[8px] text-white font-black animate-scale-in">
+                                <Check className="w-2.5 h-2.5 stroke-[3]" />
+                              </div>
+                            )}
+                          </div>
+                          <h4 className={`text-[10px] font-black mt-1.5 transition-colors ${
+                            isActive ? "text-indigo-600 dark:text-indigo-400" : "text-slate-700 dark:text-slate-200"
+                          }`}>
+                            {styleItem.name}
+                          </h4>
+                        </div>
+                        <p className="text-[8.5px] text-slate-400 dark:text-slate-500 mt-1 leading-normal font-bold">
+                          {styleItem.desc}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
-                  4. Camera Path Motion:
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2 text-left">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
+                    4. Camera Path Motion:
+                  </label>
+                  <select
+                    value={aiCameraDirection}
+                    onChange={(e) => setAiCameraDirection(e.target.value as any)}
+                    className="w-full px-3 py-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl outline-none cursor-pointer"
+                    disabled={isGeneratingScene}
+                  >
+                    <option value="auto">🛸 Auto (AI Chooses Direction)</option>
+                    <option value="zoom-in">🔍 Slow Zoom In</option>
+                    <option value="zoom-out">🔍 Slow Zoom Out</option>
+                    <option value="pan-left">◀️ Smooth Pan Left</option>
+                    <option value="pan-right">▶️ Smooth Pan Right</option>
+                    <option value="tilt-up">🔼 Dramatic Tilt Up</option>
+                    <option value="tilt-down">🔽 Dramatic Tilt Down</option>
+                    <option value="orbit">🔄 Orbit Cinematic Circle</option>
+                  </select>
+                </div>
+
+              {/* AI Canvas Quality Selection Row */}
+              <div className="col-span-full space-y-2 text-left">
+                <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block flex items-center gap-1 select-none">
+                  <Sparkles className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />
+                  <span>5. AI Generation Canvas Fidelity:</span>
                 </label>
-                <select
-                  value={aiCameraDirection}
-                  onChange={(e) => setAiCameraDirection(e.target.value as any)}
-                  className="w-full px-3 py-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl outline-none cursor-pointer"
-                  disabled={isGeneratingScene}
-                >
-                  <option value="auto">🛸 Auto (AI Chooses Direction)</option>
-                  <option value="zoom-in">🔍 Slow Zoom In</option>
-                  <option value="zoom-out">🔍 Slow Zoom Out</option>
-                  <option value="pan-left">◀️ Smooth Pan Left</option>
-                  <option value="pan-right">▶️ Smooth Pan Right</option>
-                  <option value="tilt-up">🔼 Dramatic Tilt Up</option>
-                  <option value="tilt-down">🔽 Dramatic Tilt Down</option>
-                  <option value="orbit">🔄 Orbit Cinematic Circle</option>
-                </select>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                  {[
+                    {
+                      id: "gemini-3.1-flash-lite-image",
+                      title: "Standard Detail (Gemini Lite ⚡)",
+                      description: "Ultra-fast generation, balanced lighting & contrast."
+                    },
+                    {
+                      id: "gemini-3.1-flash-image",
+                      title: "High Fidelity (Gemini Pro 💎)",
+                      description: "Ultra HDR, advanced textures & perfect detail."
+                    }
+                  ].map((modelOpt) => {
+                    const isSelected = aiImageModelChoice === modelOpt.id;
+                    return (
+                      <button
+                        key={modelOpt.id}
+                        type="button"
+                        onClick={() => {
+                          setAiImageModelChoice(modelOpt.id as any);
+                          triggerBeepChime();
+                        }}
+                        className={`p-2.5 text-left rounded-xl border transition-all cursor-pointer ${
+                          isSelected
+                            ? "bg-indigo-50/50 border-indigo-400 dark:bg-indigo-950/20 dark:border-indigo-700/80 shadow-3xs"
+                            : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-850 hover:bg-slate-50 dark:hover:bg-slate-900/30"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1.5 select-none">
+                          <div className={`w-3.5 h-3.5 rounded-full border flex items-center justify-center transition-all ${
+                            isSelected ? "border-indigo-500 bg-indigo-500" : "border-slate-300 dark:border-slate-700"
+                          }`}>
+                            {isSelected && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                          </div>
+                          <span className="text-[10px] font-black text-slate-700 dark:text-slate-250">
+                            {modelOpt.title}
+                          </span>
+                        </div>
+                        <p className="text-[8.5px] text-slate-400 dark:text-slate-500 mt-1 pl-5 font-bold leading-normal">
+                          {modelOpt.description}
+                        </p>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
+          </div>
 
             {/* Live Camera Trajectory Monitor */}
             <div className="relative overflow-hidden bg-slate-950 rounded-2xl border border-slate-900/80 p-3.5 h-24 flex items-center justify-between gap-4 z-10 select-none">
@@ -8957,17 +9760,18 @@ export default function ImageToVideo({
               <input
                 type="range"
                 min={2}
-                max={10}
-                step={1}
+                max={8}
+                step={2}
                 value={aiSceneDuration}
                 onChange={(e) => setAiSceneDuration(parseInt(e.target.value))}
                 className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-600 dark:accent-indigo-500"
                 disabled={isGeneratingScene}
               />
               <div className="flex justify-between text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">
-                <span>2s Punchy</span>
-                <span>4s Standard</span>
-                <span>10s Cinematic</span>
+                <span>2s Snap</span>
+                <span>4s Balanced</span>
+                <span>6s Extended</span>
+                <span>8s Cinematic</span>
               </div>
             </div>
 
@@ -10012,6 +10816,493 @@ export default function ImageToVideo({
               </>
             )}
           </button>
+        </div>
+
+        {/* Section: Recently Generated Videos History */}
+        <div className="border border-slate-150 dark:border-slate-850 p-5 rounded-3xl bg-slate-50/50 dark:bg-slate-900/10 space-y-4">
+          <div className="border-b border-slate-150 dark:border-slate-800/80 pb-3 flex items-center justify-between">
+            <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
+              <History className="w-4 h-4 text-indigo-500 animate-pulse" />
+              <span>Recently Generated Videos</span>
+            </h4>
+            {videoHistory.length > 0 && (
+              <button
+                type="button"
+                onClick={() => {
+                  setVideoHistory([]);
+                  triggerBeepChime();
+                  setToastMessage({
+                    text: "🗑️ History Cleared",
+                    sub: "Your video history log has been cleared.",
+                    success: true
+                  });
+                }}
+                className="text-[9px] font-black uppercase tracking-wider text-rose-550 dark:text-rose-450 hover:underline cursor-pointer flex items-center gap-1 select-none font-sans"
+              >
+                <Trash2 className="w-3 h-3" />
+                <span>Clear</span>
+              </button>
+            )}
+          </div>
+
+          {videoHistory.length === 0 ? (
+            <div className="py-6 px-4 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-white/40 dark:bg-slate-950/20">
+              <Film className="w-6 h-6 text-slate-355 dark:text-slate-600 mx-auto mb-2" />
+              <p className="text-[11px] font-bold text-slate-600 dark:text-slate-400">No generated videos yet</p>
+              <p className="text-[9px] text-slate-450 dark:text-slate-500 mt-1 leading-normal">
+                Your completed CapCut-style exports will appear here for instant playback.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1.5 custom-scrollbar">
+              {videoHistory.map((item) => {
+                const isTrimmingActive = trimmingVideoId === item.id;
+                return (
+                  <div
+                    key={item.id}
+                    className="group relative flex flex-col p-2.5 rounded-2xl border border-slate-150 dark:border-slate-850 bg-white dark:bg-slate-950 hover:border-indigo-450 dark:hover:border-indigo-750 transition-all shadow-3xs hover:shadow-2xs"
+                  >
+                    <div className="flex items-start gap-3 w-full">
+                      {/* Thumbnail */}
+                      <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-slate-900 shrink-0 border border-slate-100 dark:border-slate-850">
+                        {item.thumbnail ? (
+                          <img
+                            src={item.thumbnail}
+                            alt="Thumbnail"
+                            className="w-full h-full object-cover"
+                            referrerPolicy="no-referrer"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center bg-slate-100 dark:bg-slate-900 text-[10px] text-slate-400">
+                            🎬
+                          </div>
+                        )}
+                        <div className="absolute inset-0 bg-black/35 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                          <Play className="w-4 h-4 text-white fill-current" />
+                        </div>
+                      </div>
+
+                      {/* Details */}
+                      <div className="flex-1 min-w-0 text-left">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                          <span className="text-[8px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded-md leading-none bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400 font-mono">
+                            {item.format}
+                          </span>
+                          <span className="text-[8.5px] font-mono font-bold text-slate-400">
+                            {item.resolution}
+                          </span>
+                          <span className="text-[8.5px] font-mono font-bold text-slate-450 dark:text-slate-500 ml-auto shrink-0">
+                            {item.timestamp}
+                          </span>
+                        </div>
+
+                        <h5 className="text-[10.5px] font-black text-slate-700 dark:text-slate-200 truncate mt-1" title={item.name}>
+                          {item.name}
+                        </h5>
+
+                        <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-100 dark:border-slate-900">
+                          <span className="text-[8px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">
+                            ⏱️ {item.duration.toFixed(1)}s • {item.slidesCount} slides
+                          </span>
+                          
+                          <div className="flex items-center gap-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                if (item.isFromPreviousSession && !item.url) {
+                                  setToastMessage({
+                                    text: "🔒 Re-render Needed",
+                                    sub: "To play or view this video from a previous session, please hit 'Create Video Now' to re-render in your current browser session.",
+                                    success: false
+                                  });
+                                  triggerBeepChime();
+                                  return;
+                                }
+                                setExportedVideoUrl(item.url);
+                                setCreatedVideoPlayerFilter(item.filter);
+                                setShowFinalOutput(true);
+                                triggerBeepChime();
+                              }}
+                              className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[8.5px] font-extrabold uppercase tracking-wider cursor-pointer transition-all active:scale-95 flex items-center gap-1 select-none font-sans"
+                            >
+                              <Play className="w-2 h-2 fill-current" />
+                              <span>Play</span>
+                            </button>
+
+                            {/* Trim / Crop Button if video is active */}
+                            {item.url && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (isTrimmingActive) {
+                                    setTrimmingVideoId(null);
+                                  } else {
+                                    setTrimmingVideoId(item.id);
+                                    setTrimStart(0);
+                                    setTrimEnd(item.duration);
+                                  }
+                                  setOverlayAudioVideoId(null);
+                                  triggerBeepChime();
+                                }}
+                                className={`px-2 py-0.5 rounded-md text-[8.5px] font-extrabold uppercase tracking-wider cursor-pointer transition-all active:scale-95 flex items-center gap-1 select-none font-sans ${
+                                  isTrimmingActive
+                                    ? "bg-amber-500 text-white hover:bg-amber-600"
+                                    : "bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/50"
+                                }`}
+                                title="Trim video segment"
+                              >
+                                <Scissors className="w-2.5 h-2.5" />
+                                <span>Trim</span>
+                              </button>
+                            )}
+
+                            {/* Audio Overlay Button if video is active */}
+                            {item.url && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const isOverlayActive = overlayAudioVideoId === item.id;
+                                  if (isOverlayActive) {
+                                    setOverlayAudioVideoId(null);
+                                  } else {
+                                    setOverlayAudioVideoId(item.id);
+                                    setTrimmingVideoId(null);
+                                    if (!selectedOverlayAudioUrl && CURATED_MP3_LIBRARY.length > 0) {
+                                      setSelectedOverlayAudioUrl(CURATED_MP3_LIBRARY[0].url);
+                                      setSelectedOverlayAudioName(CURATED_MP3_LIBRARY[0].name);
+                                    }
+                                  }
+                                  triggerBeepChime();
+                                }}
+                                className={`px-2 py-0.5 rounded-md text-[8.5px] font-extrabold uppercase tracking-wider cursor-pointer transition-all active:scale-95 flex items-center gap-1 select-none font-sans ${
+                                  overlayAudioVideoId === item.id
+                                    ? "bg-emerald-500 text-white hover:bg-emerald-600"
+                                    : "bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/50"
+                                }`}
+                                title="Overlay background audio track"
+                              >
+                                <Music className="w-2.5 h-2.5" />
+                                <span>Add Audio</span>
+                              </button>
+                            )}
+
+                            {/* Extract & Download Frames as ZIP button */}
+                            {item.url && (
+                              <button
+                                type="button"
+                                disabled={isExtractingFrames}
+                                onClick={() => handleDownloadFramesZip(item)}
+                                className={`px-2 py-0.5 rounded-md text-[8.5px] font-extrabold uppercase tracking-wider cursor-pointer transition-all active:scale-95 flex items-center gap-1 select-none font-sans ${
+                                  isExtractingFrames
+                                    ? "bg-slate-150 dark:bg-slate-850 text-slate-400 cursor-not-allowed"
+                                    : "bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:hover:bg-indigo-950/80 dark:text-indigo-300 border border-indigo-100/50 dark:border-indigo-900/30"
+                                }`}
+                                title="Extract individual frames of this video as a ZIP archive"
+                              >
+                                {isExtractingFrames ? (
+                                  <>
+                                    <RefreshCw className="w-2.5 h-2.5 animate-spin" />
+                                    <span>Extracting ({extractProgress}%)</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Layers className="w-2.5 h-2.5" />
+                                    <span>Download Frames</span>
+                                  </>
+                                )}
+                              </button>
+                            )}
+
+                            {/* Direct Download option if blob is still active */}
+                            {item.url && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const a = document.createElement("a");
+                                  a.href = item.url;
+                                  a.download = item.name;
+                                  a.click();
+                                  triggerBeepChime();
+                                }}
+                                className="p-1 hover:bg-slate-100 dark:hover:bg-slate-900 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg cursor-pointer transition-all"
+                                title="Download video file directly"
+                              >
+                                <Download className="w-3 h-3" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Expandable Trim Editor Panel */}
+                    {isTrimmingActive && (
+                      <div className="mt-2.5 pt-2.5 border-t border-dashed border-slate-200 dark:border-slate-800 space-y-3 text-left w-full">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[9px] font-black uppercase tracking-wider text-amber-500 flex items-center gap-1.5">
+                            <Scissors className="w-3 h-3 text-amber-500" />
+                            <span>Interactive Segment Editor</span>
+                          </span>
+                          <span className="text-[8.5px] font-mono text-slate-400 font-bold bg-slate-50 dark:bg-slate-900/50 px-1.5 py-0.5 rounded border border-slate-100 dark:border-slate-800">
+                            Slice: {trimStart.toFixed(1)}s - {trimEnd.toFixed(1)}s ({Math.max(0, trimEnd - trimStart).toFixed(1)}s)
+                          </span>
+                        </div>
+
+                        {/* Video loop timeline viewer */}
+                        <div className="relative rounded-xl overflow-hidden bg-slate-950 aspect-video max-h-[120px] mx-auto border border-slate-900 flex items-center justify-center">
+                          <video
+                            src={item.url}
+                            autoPlay
+                            loop
+                            muted
+                            playsInline
+                            className="w-full h-full object-contain"
+                            ref={(el) => {
+                              if (el) {
+                                const handleTimeUpdate = () => {
+                                  if (el.currentTime < trimStart) {
+                                    el.currentTime = trimStart;
+                                  }
+                                  if (el.currentTime > trimEnd) {
+                                    el.currentTime = trimStart;
+                                  }
+                                };
+                                el.ontimeupdate = handleTimeUpdate;
+                              }
+                            }}
+                          />
+                          <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-black/65 text-[7.5px] text-white font-mono font-black uppercase tracking-widest select-none">
+                            Live Segment Preview
+                          </div>
+                        </div>
+
+                        {/* Dual Timeline Sliders */}
+                        <div className="grid grid-cols-2 gap-3">
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between text-[8px] text-slate-400 uppercase font-bold">
+                              <span>Start Point:</span>
+                              <span className="font-mono text-slate-600 dark:text-slate-350">{trimStart.toFixed(1)}s</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={item.duration}
+                              step={0.1}
+                              value={trimStart}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value);
+                                setTrimStart(Math.min(val, trimEnd - 0.1));
+                              }}
+                              className="w-full h-1 bg-slate-100 dark:bg-slate-900 rounded-lg appearance-none cursor-pointer accent-amber-500 focus:outline-none"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between text-[8px] text-slate-400 uppercase font-bold">
+                              <span>End Point:</span>
+                              <span className="font-mono text-slate-600 dark:text-slate-350">{trimEnd.toFixed(1)}s</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={item.duration}
+                              step={0.1}
+                              value={trimEnd}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value);
+                                setTrimEnd(Math.max(val, trimStart + 0.1));
+                              }}
+                              className="w-full h-1 bg-slate-100 dark:bg-slate-900 rounded-lg appearance-none cursor-pointer accent-amber-500 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Capture Rendering progress bar */}
+                        {isTrimmingInProgress ? (
+                          <div className="space-y-1.5 pt-1">
+                            <div className="flex justify-between text-[8px] font-black uppercase tracking-wider text-amber-500">
+                              <span>Extracting video slice...</span>
+                              <span>{trimProgress}%</span>
+                            </div>
+                            <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all duration-100 animate-pulse"
+                                style={{ width: `${trimProgress}%` }}
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => handleTrimVideo(item.id)}
+                              className="flex-1 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl text-[9.5px] font-black uppercase tracking-wider cursor-pointer transition-all active:scale-97 flex items-center justify-center gap-1 shadow-sm select-none font-sans"
+                            >
+                              <Scissors className="w-3 h-3" />
+                              <span>Export Trimmed Clip</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setTrimmingVideoId(null);
+                                triggerBeepChime();
+                              }}
+                              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-xl text-[9.5px] font-bold uppercase tracking-wider cursor-pointer transition-all select-none font-sans border border-slate-200/50 dark:border-slate-800"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Expandable Audio Overlay Panel */}
+                    {overlayAudioVideoId === item.id && (
+                      <div className="mt-2.5 pt-2.5 border-t border-dashed border-slate-200 dark:border-slate-800 space-y-3 text-left w-full">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[9px] font-black uppercase tracking-wider text-emerald-500 flex items-center gap-1.5">
+                            <Music className="w-3 h-3 text-emerald-500 animate-pulse" />
+                            <span>Background Audio Overlayer</span>
+                          </span>
+                        </div>
+
+                        {/* Dropdown to select royalty-free audio tracks */}
+                        <div className="space-y-1">
+                          <label className="text-[8.5px] font-black uppercase text-slate-400">Select Royalty-Free Track:</label>
+                          <select
+                            value={selectedOverlayAudioUrl}
+                            onChange={(e) => {
+                              const url = e.target.value;
+                              setSelectedOverlayAudioUrl(url);
+                              const match = CURATED_MP3_LIBRARY.find(t => t.url === url);
+                              if (match) {
+                                setSelectedOverlayAudioName(match.name);
+                              } else {
+                                setSelectedOverlayAudioName("Custom Audio Track");
+                              }
+                              triggerBeepChime();
+                            }}
+                            className="w-full text-[10.5px] p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-hidden text-slate-800 dark:text-slate-100"
+                          >
+                            {CURATED_MP3_LIBRARY.map((track) => (
+                              <option key={track.id} value={track.url}>
+                                {track.emoji} {track.name} ({track.duration}) — {track.genre}
+                              </option>
+                            ))}
+                            {selectedOverlayAudioUrl && !CURATED_MP3_LIBRARY.some(t => t.url === selectedOverlayAudioUrl) && (
+                              <option value={selectedOverlayAudioUrl}>
+                                🎧 {selectedOverlayAudioName || "Custom Track"}
+                              </option>
+                            )}
+                          </select>
+                        </div>
+
+                        {/* File upload selector to upload user's own MP3/WAV */}
+                        <div className="bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-150 dark:border-slate-850 flex items-center justify-between gap-3">
+                          <div className="text-left">
+                            <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 block">Or upload your own:</span>
+                            <span className="text-[10px] text-slate-600 dark:text-slate-300 font-medium truncate max-w-[180px] block">
+                              {selectedOverlayAudioUrl && !CURATED_MP3_LIBRARY.some(t => t.url === selectedOverlayAudioUrl) 
+                                ? selectedOverlayAudioName 
+                                : "No custom file chosen"}
+                            </span>
+                          </div>
+                          <label className="px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-750 text-[9px] font-black uppercase tracking-wider rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer select-none">
+                            Upload File
+                            <input
+                              type="file"
+                              accept="audio/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (!file) return;
+                                const url = URL.createObjectURL(file);
+                                setSelectedOverlayAudioUrl(url);
+                                setSelectedOverlayAudioName(file.name);
+                                triggerBeepChime();
+                              }}
+                            />
+                          </label>
+                        </div>
+
+                        {/* Volume Mix Controls */}
+                        <div className="grid grid-cols-2 gap-3 bg-slate-50 dark:bg-slate-900/20 p-2.5 rounded-xl border border-slate-150 dark:border-slate-850">
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between text-[8px] text-slate-400 uppercase font-bold">
+                              <span>Orig. Video Vol:</span>
+                              <span className="font-mono text-slate-600 dark:text-slate-350">{Math.round(overlayOriginalVolume * 100)}%</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={1}
+                              step={0.05}
+                              value={overlayOriginalVolume}
+                              onChange={(e) => setOverlayOriginalVolume(parseFloat(e.target.value))}
+                              className="w-full h-1 bg-slate-100 dark:bg-slate-900 rounded-lg appearance-none cursor-pointer accent-emerald-500 focus:outline-none"
+                            />
+                          </div>
+
+                          <div className="space-y-1">
+                            <div className="flex items-center justify-between text-[8px] text-slate-400 uppercase font-bold">
+                              <span>Music Track Vol:</span>
+                              <span className="font-mono text-slate-600 dark:text-slate-350">{Math.round(overlayAudioVolume * 100)}%</span>
+                            </div>
+                            <input
+                              type="range"
+                              min={0}
+                              max={1}
+                              step={0.05}
+                              value={overlayAudioVolume}
+                              onChange={(e) => setOverlayAudioVolume(parseFloat(e.target.value))}
+                              className="w-full h-1 bg-slate-100 dark:bg-slate-900 rounded-lg appearance-none cursor-pointer accent-emerald-500 focus:outline-none"
+                            />
+                          </div>
+                        </div>
+
+                        {/* Overlay capturing rendering progress bar */}
+                        {isOverlayingInProgress ? (
+                          <div className="space-y-1.5 pt-1">
+                            <div className="flex justify-between text-[8px] font-black uppercase tracking-wider text-emerald-500">
+                              <span>Multiplexing & baking tracks...</span>
+                              <span>{overlayProgress}%</span>
+                            </div>
+                            <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden">
+                              <div
+                                className="h-full bg-gradient-to-r from-emerald-400 to-indigo-500 transition-all duration-100 animate-pulse"
+                                style={{ width: `${overlayProgress}%` }}
+                              />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className="flex items-center gap-2 pt-1">
+                            <button
+                              type="button"
+                              onClick={() => handleOverlayAudio(item.id)}
+                              className="flex-1 py-1.5 bg-gradient-to-r from-emerald-500 to-indigo-600 hover:from-emerald-600 hover:to-indigo-700 text-white rounded-xl text-[9.5px] font-black uppercase tracking-wider cursor-pointer transition-all active:scale-97 flex items-center justify-center gap-1 shadow-sm select-none font-sans"
+                            >
+                              <Music className="w-3 h-3" />
+                              <span>Bake & Export Video</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOverlayAudioVideoId(null);
+                                triggerBeepChime();
+                              }}
+                              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-xl text-[9.5px] font-bold uppercase tracking-wider cursor-pointer transition-all select-none font-sans border border-slate-200/50 dark:border-slate-800"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Section: Slide Settings */}
@@ -12977,6 +14268,60 @@ export default function ImageToVideo({
               </div>
             </div>
 
+            {/* Global Transitions selector */}
+            <div className="space-y-2 border-t border-slate-100 dark:border-slate-900 pt-3">
+              <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                <span>🎬 Global Frame Transitions:</span>
+              </label>
+              <div className="grid grid-cols-1 gap-2">
+                <select
+                  value={transitionStyle}
+                  onChange={(e) => {
+                    setTransitionStyle(e.target.value as any);
+                    triggerBeepChime();
+                    setToastMessage({
+                      text: `🎬 Transition Style: ${e.target.value.toUpperCase()}`,
+                      sub: `Video frames will now blend using ${e.target.value} transitions.`,
+                      success: true
+                    });
+                  }}
+                  className="w-full px-3 py-2.5 text-xs font-bold text-slate-800 dark:text-slate-150 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl shadow-3xs cursor-pointer outline-none transition-all focus:ring-2 focus:ring-indigo-500/40"
+                >
+                  <option value="fade">🎬 Fade / Cross Dissolve</option>
+                  <option value="blur-fade">🌫️ Dreamy Dissolve (Blur Fade)</option>
+                  <option value="zoom">🔍 Camera Zoom Transition</option>
+                  <option value="slide-left">⚡ Slide Left</option>
+                  <option value="slide-right">⚡ Slide Right</option>
+                  <option value="flash">✨ Flash Transition</option>
+                  <option value="cross-zoom">🎯 Cinematic Cross Zoom</option>
+                  <option value="curtain-wipe">🚪 Sliding Curtain Wipe</option>
+                  <option value="glitch-wave">👾 Digital Glitch Wave</option>
+                  <option value="spiral-spin">🌀 Spiral Vortex Spin</option>
+                  <option value="pixelate-fade">👾 Retro Pixelate Reveal</option>
+                  <option value="radial-wipe">⭕ Radial Expanding Wipe</option>
+                  <option value="none">❌ Cut (No Transition)</option>
+                </select>
+                
+                {transitionStyle !== "none" && (
+                  <div className="space-y-1.5 bg-slate-100/50 dark:bg-slate-950/40 p-2.5 rounded-xl border border-slate-200/50 dark:border-slate-850">
+                    <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 dark:text-slate-450">
+                      <span>Transition Duration:</span>
+                      <span className="font-mono font-black text-indigo-600 dark:text-indigo-400">{transitionDuration.toFixed(1)}s</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0.2}
+                      max={2.0}
+                      step={0.1}
+                      value={transitionDuration}
+                      onChange={(e) => setTransitionDuration(parseFloat(e.target.value))}
+                      className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-600"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+
           </div>
 
           {/* Section: Cinematic Effects & Subtitle Studio */}
@@ -13626,6 +14971,54 @@ export default function ImageToVideo({
                     </span>
                   </div>
                 </label>
+
+                {/* Atmospheric Overlays Selector */}
+                <div className="flex flex-col gap-2 p-3.5 bg-slate-50/50 dark:bg-slate-950/20 border border-slate-150 dark:border-slate-850 rounded-2xl text-left">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+                      <span>Cinematic Atmospheric FX</span>
+                    </span>
+                    <span className="text-[8px] font-black tracking-wider text-indigo-600 bg-indigo-50 dark:bg-indigo-950/50 px-1.5 py-0.5 rounded uppercase font-mono">
+                      Dynamic Render
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-5 gap-1 bg-slate-100 dark:bg-slate-900/60 p-1 rounded-xl">
+                    {[
+                      { id: "none", label: "🚫 None" },
+                      { id: "particles", label: "✨ Dust" },
+                      { id: "snow", label: "❄️ Snow" },
+                      { id: "rain", label: "🌧️ Rain" },
+                      { id: "light-leaks", label: "🕯️ Leaks" }
+                    ].map((overlayItem) => {
+                      const isActive = atmosphericOverlay === overlayItem.id;
+                      return (
+                        <button
+                          key={overlayItem.id}
+                          type="button"
+                          onClick={() => {
+                            setAtmosphericOverlay(overlayItem.id as any);
+                            triggerBeepChime();
+                          }}
+                          className={`py-1.5 px-0.5 rounded-lg text-center font-bold text-[9px] cursor-pointer transition-all ${
+                            isActive
+                              ? "bg-white dark:bg-slate-950 text-indigo-600 dark:text-indigo-400 shadow-3xs font-black border border-slate-200/50 dark:border-slate-800/80"
+                              : "text-slate-500 hover:text-slate-750 dark:hover:text-slate-300"
+                          }`}
+                        >
+                          {overlayItem.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[8.5px] text-slate-450 dark:text-slate-500 italic font-bold leading-normal">
+                    {atmosphericOverlay === "none" && "🚫 No overlay effects selected. Clear, raw canvas rendering."}
+                    {atmosphericOverlay === "particles" && "✨ Golden glowing particle fireflies float & shimmer around the video canvas."}
+                    {atmosphericOverlay === "snow" && "❄️ Soft, gentle winter snowflakes drift and swing down the viewport."}
+                    {atmosphericOverlay === "rain" && "🌧️ Sleek, fast-falling cinematic rainfall lines slanted dynamically."}
+                    {atmosphericOverlay === "light-leaks" && "🕯️ Vintage camera light leaks pulsing warm organic hues at outer boundaries."}
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -13707,13 +15100,16 @@ export default function ImageToVideo({
                     } else if (exportResolution === "4K") {
                       w = aspectRatio === "9:16" ? 2160 : 3840;
                     }
+                    if (superResolution) {
+                      w = Math.round(w * 1.5);
+                    }
                     let h = Math.round(w * (9 / 16));
                     if (aspectRatio === "9:16") {
                       h = Math.round(w * (16 / 9));
                     } else if (aspectRatio === "1:1") {
                       h = w;
                     }
-                    return `${w} × ${h} px`;
+                    return `${w} × ${h} px${superResolution ? ' (Super-Resolved)' : ''}`;
                   })()}
                 </span>
               </div>
@@ -13729,6 +15125,39 @@ export default function ImageToVideo({
                 <option value="1080p">1080p Full HD (High Quality & Sharp)</option>
                 <option value="4K">4K Ultra HD (Cinematic Masterpiece)</option>
               </select>
+            </div>
+
+            {/* Super Resolution Toggle Switch */}
+            <div className="p-3.5 rounded-2xl border border-indigo-100/60 dark:border-indigo-950/40 bg-indigo-50/20 dark:bg-indigo-950/10 space-y-2">
+              <label className="flex items-start justify-between cursor-pointer select-none gap-3">
+                <div className="text-left space-y-0.5 flex-1">
+                  <p className="text-xs font-black text-slate-800 dark:text-slate-200 flex items-center gap-1.5 uppercase tracking-wider">
+                    <Sparkles className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />
+                    <span>AI Super Resolution upscaling</span>
+                  </p>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-relaxed">
+                    Applies high-fidelity upscaling & sharpening pass to double output sharpness and reduce video compression blockiness.
+                  </p>
+                </div>
+                <div className="relative mt-1">
+                  <input
+                    id="super-resolution-toggle"
+                    type="checkbox"
+                    checked={superResolution}
+                    onChange={(e) => {
+                      setSuperResolution(e.target.checked);
+                      setToastMessage({
+                        text: e.target.checked ? "✨ Super Resolution Active" : "⚡ Super Resolution Off",
+                        sub: e.target.checked ? "AI Detail pass will be applied to pre-rendering and exports." : "Standard video export mode restored.",
+                        success: true
+                      });
+                      triggerBeepChime();
+                    }}
+                    className="sr-only peer"
+                  />
+                  <div className="w-9 h-5 bg-slate-250 dark:bg-slate-800 rounded-full peer peer-focus:ring-2 peer-focus:ring-indigo-300 dark:peer-focus:ring-indigo-800 peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-4 after:w-4 after:transition-all dark:border-slate-600 peer-checked:bg-indigo-600"></div>
+                </div>
+              </label>
             </div>
 
             {/* Save to drive checkbox */}

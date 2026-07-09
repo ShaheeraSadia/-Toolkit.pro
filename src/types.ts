@@ -48,7 +48,7 @@ export interface CompressionResult {
   dataUrl: string;
 }
 
-export type ActiveTab = "quote" | "compress" | "qr" | "palette" | "video" | "drive" | "resources" | "legal";
+export type ActiveTab = "home" | "quote" | "compress" | "qr" | "palette" | "video" | "drive" | "resources" | "legal";
 
 export interface RecentActivity {
   id: string;

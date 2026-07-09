@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { 
   FileText, 
   ChevronRight, 
+  ChevronDown,
   BookOpen, 
   CheckCircle, 
   HelpCircle,
@@ -345,6 +346,7 @@ export default function ResourcesHub({
   const [seoFocusKeyword, setSeoFocusKeyword] = useState<string>("free image compressor");
   const [seoPrimaryGoal, setSeoPrimaryGoal] = useState<string>("compress JPEG, PNG, and WebP format without losing quality");
   const [copiedSeoField, setCopiedSeoField] = useState<string | null>(null);
+  const [showSeoTutorial, setShowSeoTutorial] = useState<boolean>(true);
 
   // Gemini-Powered SEO AI States
   const [aiGeneratedSeo, setAiGeneratedSeo] = useState<{
@@ -805,6 +807,26 @@ export default function ResourcesHub({
         "Leverage the free edition of DaVinci Resolve for heavy color grading and noise isolation tasks.",
         "Use Descript's transcript editor to trim audio speech blocks, automatically clone and fix mistalked words, correct eye-gaze tracking, and auto-detect chapters."
       ]
+    },
+    {
+      id: "seo-tools-step-by-step-guide",
+      title: "How to Use the SEO Generator & Sitemap Tools: A Step-by-Step Playbook",
+      excerpt: "A comprehensive developer and creator guide explaining step-by-step how to utilize our built-in SEO tools to optimize metadata, crawl sitemaps, and rise to Google's position tiers.",
+      category: "SEO",
+      readTime: "7 min read",
+      icon: Settings,
+      content: [
+        "Unlocking natural visual and text search authority begins with having the right tools. Our comprehensive Guides & SEO Hub features state-of-the-art utility tools designed specifically for digital content creators, designers, and developers. By combining the XML Sitemap Search Indexer with the SEO Title & Meta Tag Template Generator, you can map, optimize, and deploy complete crawler-friendly architectures in under five minutes.",
+        "Step 1: Map Your Content with the XML Sitemap Search Indexer. Navigate to the 'XML Sitemap Search Indexer' sub-tab. Enter your canonical production domain name (e.g., https://your-brand-domain.com). The tool will dynamically re-evaluate and compile a complete XML schema containing critical creator paths, priority weights, update frequencies, and detailed editorial descriptions. Review the live index table to verify pathways, click 'Copy Sitemap XML', and paste the payload into a sitemap.xml file at the root of your public web host. Finally, submit this URL to Google Search Console (under indexing/sitemaps) to prompt instant, automated crawling.",
+        "Step 2: Generate High-Fidelity Metadata with the SEO Meta Template Generator. Switch to the 'SEO Meta Template Generator' sub-tab. Under '1. Choose Layout Context', select your target webpage (e.g., Home Page, Video Maker, Image Compressor). Under '2. Customize Parameters', specify your customized Brand Identification, primary search Keywords, a compelling custom Page Description, and a parent Category. To elevate your copywriting, toggle the '🔮 Optimize with Gemini AI' button. This sends your parameters to a server-side Gemini model that polishes the titles and description lines into eye-catching, click-maximizing summaries that conform to Google's strict editorial character length boundaries.",
+        "Step 3: Review and Deploy High-Ranking Header Markup. Examine the 'Live Google Search Snippet Mockup' panel. This shows exactly how your webpage will appear to real users on desktop and mobile SERPs. Monitor the Title and Description length progress indicators—green meters guarantee that search engines won't truncate your titles (best under 60 characters) or descriptions (best under 160 characters). Once you are satisfied, scroll to the generated code blocks. Click 'Copy HTML block' to copy the complete HTML meta headers (including title, description, keywords, and OpenGraph social tags), and paste them directly into the <head> tag of your HTML documents. Then, click 'Copy Schema JSON' to copy the structured JSON-LD WebApplication schema, and paste it into a <script type='application/ld+json'> tag to qualify for Google's rich visual snippets.",
+        "Step 4: Continuous Optimization & Verification. Good SEO is not a static milestone; it is an active iteration process. Re-visit our Articles & Educational Guides regularly to master WebP compression, EXIF metadata pruning, variable webfont preloading, and Cumulative Layout Shift (CLS) reduction techniques. Use our companion Image-to-Video and Frame Extractor tools to generate viral vertical content (2:3 Pinterest SEO ratio) with sharp, super-resolution details that capture high organic CTR and referral engagement curves."
+      ],
+      tips: [
+        "Use the '🔮 Optimize with Gemini AI' button to automatically weave high-intent search keywords into your titles and descriptions naturally.",
+        "Submit your generated sitemap.xml to both Google Search Console and Bing Webmaster Tools to capture 99% of organic desktop and mobile search traffic.",
+        "Test your finalized webpage on Google's Rich Results Test and PageSpeed Insights to verify structured schema compliance and Core Web Vitals rankings."
+      ]
     }
   ];
 
@@ -949,6 +971,21 @@ export default function ResourcesHub({
           {
             q: "Which traditional video editor offers the best AI tools?",
             a: "DaVinci Resolve is highly recommended for its color grading and AI tools like Magic Mask and voice isolation. Adobe Premiere Pro offers Auto Reframe and text-based editing, while Descript is revolutionary for editing video via transcripts."
+          }
+        ];
+      case "seo-tools-step-by-step-guide":
+        return [
+          {
+            q: "How can I submit my generated sitemap to search networks?",
+            a: "Copy the XML code generated by the XML Sitemap Search Indexer, save it as sitemap.xml in your webroot folder, and input the URL in Google Search Console's Sitemaps tab."
+          },
+          {
+            q: "Why is structured JSON-LD data important?",
+            a: "JSON-LD structured data provides machine-readable information about your application or articles, qualifying your site for Google Rich Snippets, rating stars, and higher visual CTR."
+          },
+          {
+            q: "Does Gemini AI really help with keyword density?",
+            a: "Yes. Our Gemini SEO integration automatically balances title and description characters while naturally weaving relevant target search keywords to maximize click-through ratios."
           }
         ];
       default:
@@ -1393,6 +1430,85 @@ export default function ResourcesHub({
                 <p className="text-[11.5px] text-slate-500 dark:text-slate-400 leading-normal max-w-4xl">
                   Construct high-ranking SEO tags and structured JSON-LD schemas instantly. Perfect for Google crawlers and compliant with strict **Google AdSense Editorial guidelines**. Having optimized title tags tells review robots that your utility offers solid functional value.
                 </p>
+              </div>
+
+              {/* Step-by-Step User Guide (Interactive Accordion) */}
+              <div className="bg-gradient-to-r from-indigo-55/30 to-sky-55/20 dark:from-indigo-950/15 dark:to-sky-950/5 border border-indigo-100/50 dark:border-indigo-900/20 rounded-3xl p-5 space-y-4">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between cursor-pointer select-none gap-3" onClick={() => setShowSeoTutorial(!showSeoTutorial)}>
+                  <div className="flex items-center gap-2.5">
+                    <div className="p-1.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/60 border border-indigo-100/60 dark:border-indigo-900/40 text-indigo-600 dark:text-indigo-400">
+                      <HelpCircle className="w-4 h-4 animate-bounce-slow" />
+                    </div>
+                    <div>
+                      <h4 className="text-[12.5px] font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                        Step-by-Step SEO & Sitemap Playbook
+                      </h4>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                        Follow this detailed tutorial to learn how to use these tools to boost your web authority and rankings.
+                      </p>
+                    </div>
+                  </div>
+                  <button className="text-[11px] font-bold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 self-start sm:self-auto shrink-0">
+                    {showSeoTutorial ? "Hide Setup Steps" : "Show Setup Steps"}
+                    <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${showSeoTutorial ? "rotate-180" : ""}`} />
+                  </button>
+                </div>
+
+                {showSeoTutorial && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 pt-2 animate-fade-in text-[11px] leading-relaxed">
+                    <div className="p-4 bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-850/80 rounded-2xl space-y-2.5 shadow-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="flex items-center justify-center w-5.5 h-5.5 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-[10px] font-black text-indigo-600 dark:text-indigo-400 font-mono border border-indigo-100/50 dark:border-indigo-900/40">01</span>
+                        <h5 className="font-extrabold text-slate-850 dark:text-slate-200 uppercase tracking-wide">Map & Index sitemap</h5>
+                      </div>
+                      <p className="text-slate-500 dark:text-slate-400">
+                        First, go to the <strong className="text-indigo-600 dark:text-indigo-400">XML Sitemap Search Indexer</strong> sub-tab. Enter your canonical production domain name (e.g. <code>https://yourdomain.com</code>). Click <strong className="text-indigo-600 dark:text-indigo-400">"Generate & Fetch Sitemap"</strong> to inspect sitemap records.
+                      </p>
+                      <div className="text-[9.5px] bg-indigo-50/40 dark:bg-indigo-950/20 p-2 rounded-lg border border-indigo-100/30 dark:border-indigo-900/20 text-indigo-650 dark:text-indigo-400 leading-normal">
+                        <strong>Action Item:</strong> Click the "Copy Sitemap XML" button and paste it into a file named <code>sitemap.xml</code> on your site's root directory, then submit this URL to Google Search Console.
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-white dark:bg-slate-955 border border-slate-100 dark:border-slate-850/80 rounded-2xl space-y-2.5 shadow-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="flex items-center justify-center w-5.5 h-5.5 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-[10px] font-black text-indigo-600 dark:text-indigo-400 font-mono border border-indigo-100/50 dark:border-indigo-900/40">02</span>
+                        <h5 className="font-extrabold text-slate-850 dark:text-slate-200 uppercase tracking-wide">Select Template Page</h5>
+                      </div>
+                      <p className="text-slate-500 dark:text-slate-400">
+                        Switch to the <strong className="text-indigo-600 dark:text-indigo-400">SEO Meta Template Generator</strong> sub-tab. Select your target viewport (e.g. <em>Home Page</em>, <em>Video Maker</em>, <em>Guides Hub</em>) under <strong className="text-slate-600 dark:text-slate-400">"1. Choose Layout Context"</strong>.
+                      </p>
+                      <div className="text-[9.5px] bg-sky-50/40 dark:bg-sky-955/25 p-2 rounded-lg border border-sky-100/30 dark:border-sky-900/20 text-sky-650 dark:text-sky-400 leading-normal">
+                        <strong>Default Setup:</strong> Presets default to highly optimized titles matching Google publisher and strict <strong>Google AdSense Editorial policies</strong> out of the box.
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-white dark:bg-slate-950 border border-slate-100 dark:border-slate-850/80 rounded-2xl space-y-2.5 shadow-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="flex items-center justify-center w-5.5 h-5.5 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-[10px] font-black text-indigo-600 dark:text-indigo-400 font-mono border border-indigo-100/50 dark:border-indigo-900/40">03</span>
+                        <h5 className="font-extrabold text-slate-850 dark:text-slate-200 uppercase tracking-wide">AI Copywriting Pass</h5>
+                      </div>
+                      <p className="text-slate-500 dark:text-slate-400">
+                        Under <strong className="text-slate-600 dark:text-slate-400">"2. Customize Parameters"</strong>, customize your brand name, target search keywords, and descriptive context. Then, click <strong className="text-indigo-600 dark:text-indigo-400">"🔮 Optimize with Gemini AI"</strong>.
+                      </p>
+                      <div className="text-[9.5px] bg-purple-50/40 dark:bg-purple-955/20 p-2 rounded-lg border border-purple-100/30 dark:border-purple-900/20 text-purple-650 dark:text-purple-400 leading-normal">
+                        <strong>AI Power:</strong> Gemini will analyze your input parameters and generate a compelling, click-maximizing copy fitting optimal metadata lengths.
+                      </div>
+                    </div>
+
+                    <div className="p-4 bg-white dark:bg-slate-955 border border-slate-100 dark:border-slate-850/80 rounded-2xl space-y-2.5 shadow-xs">
+                      <div className="flex items-center gap-2">
+                        <span className="flex items-center justify-center w-5.5 h-5.5 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-[10px] font-black text-indigo-600 dark:text-indigo-400 font-mono border border-indigo-100/50 dark:border-indigo-900/40">04</span>
+                        <h5 className="font-extrabold text-slate-850 dark:text-slate-200 uppercase tracking-wide">Validate & Deploy</h5>
+                      </div>
+                      <p className="text-slate-500 dark:text-slate-400">
+                        Check counts on the <strong className="text-slate-600 dark:text-slate-400">Live Google Search Snippet Mockup</strong> (green length indicators represent optimal length). Finally, copy the code and deploy it to your site's codebase!
+                      </p>
+                      <div className="text-[9.5px] bg-emerald-50/40 dark:bg-emerald-955/25 p-2 rounded-lg border border-emerald-100/30 dark:border-emerald-900/20 text-emerald-650 dark:text-emerald-400 leading-normal">
+                        <strong>Instant Copy:</strong> Copy buttons let you duplicate code instantly. OpenGraph tags are included to ensure your social links look beautiful on Discord, X, and Facebook.
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">

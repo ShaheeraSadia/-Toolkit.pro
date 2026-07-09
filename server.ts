@@ -267,16 +267,24 @@ app.post("/api/image/generate", async (req, res) => {
       oil_painting: "textured oil painting brushstrokes, classical fine art canvas, rich moody impasto technique, warm lighting",
       sketch: "highly detailed graphite pencil sketch, fine paper texture, clean hand-drawn monochrome shading",
       render_3d: "hyperrealistic octane 3D render, raytraced ambient occlusion, unreal engine 5 fidelity, neon glow, detailed materials",
-      retro_vhs: "retro 1980s vhs camcorder look, vintage analog noise, nostalgic warm neon chromatic glow, tape scanlines"
+      retro_vhs: "retro 1980s vhs camcorder look, vintage analog noise, nostalgic warm neon chromatic glow, tape scanlines",
+      cyberpunk_neon: "futuristic cyberpunk neon cityscape, highly detailed octane render, volumetric lighting, rich vivid colors, blade runner style",
+      fantasy_dream: "dreamy surrealist landscape, levitating islands, sparkling cosmic particles, hyper-detailed magical fantasy art, bioluminescent plants",
+      studio_ghibli: "gorgeous hand-drawn anime background, Studio Ghibli vibes, soft pastoral lighting, lush green meadows, nostalgic clouds",
+      film_noir: "classic 1940s film noir, dark moody shadows, high-contrast black and white, volumetric rain mist, smoke haze, dramatic silhouette lighting",
+      nature_8k: "photorealistic national geographic photography, high dynamic range, breathtaking outdoor scenic view, extreme details, morning mist, 8k resolution"
     };
 
     if (style !== "none" && stylePhrases[style]) {
       fullPrompt = `${prompt}, in style of ${stylePhrases[style]}`;
     }
 
-    // Call gemini-3.1-flash-lite-image model
+    const { modelChoice } = req.body;
+    const targetModel = modelChoice === "gemini-3.1-flash-image" ? "gemini-3.1-flash-image" : "gemini-3.1-flash-lite-image";
+
+    // Call selected image generation model
     const response = await ai.models.generateContent({
-      model: "gemini-3.1-flash-lite-image",
+      model: targetModel,
       contents: {
         parts: [
           {

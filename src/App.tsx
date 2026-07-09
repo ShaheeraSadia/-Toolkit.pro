@@ -50,6 +50,10 @@ import {
   Loader2,
   Crop,
   Eye,
+  Home,
+  Menu,
+  X,
+  ChevronLeft,
 } from "lucide-react";
 
 function renderTabPreview(tabId: string) {
@@ -457,6 +461,13 @@ export default function App() {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
   };
 
+  const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return window.innerWidth >= 1024;
+    }
+    return false;
+  });
+
   // Drive synchronization
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [isLoadingDrive, setIsLoadingDrive] = useState<boolean>(false);
@@ -466,18 +477,18 @@ export default function App() {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get("tab") as ActiveTab;
-      if (tabParam && ["quote", "compress", "qr", "palette", "video", "drive", "resources", "legal"].includes(tabParam)) {
+      if (tabParam && ["home", "quote", "compress", "qr", "palette", "video", "drive", "resources", "legal"].includes(tabParam)) {
         return tabParam;
       }
     }
-    return "quote";
+    return "home";
   });
 
   const activeTab = _activeTab;
   const setActiveTab = (newTab: ActiveTab | ((prev: ActiveTab) => ActiveTab)) => {
     _setActiveTab((prev) => {
       const resolvedTab = typeof newTab === "function" ? newTab(prev) : newTab;
-      const tabsList = ["quote", "compress", "qr", "palette", "video", "drive", "resources", "legal"];
+      const tabsList = ["home", "quote", "compress", "qr", "palette", "video", "drive", "resources", "legal"];
       const prevIndex = tabsList.indexOf(prev);
       const currentIndex = tabsList.indexOf(resolvedTab);
       if (prevIndex !== currentIndex && prevIndex !== -1 && currentIndex !== -1) {
@@ -934,6 +945,7 @@ export default function App() {
 
   const getUsageInsightsData = () => {
     const labels: Record<ActiveTab, string> = {
+      home: "Home",
       quote: "Quote",
       compress: "Compress",
       qr: "QR Gen",
@@ -945,6 +957,7 @@ export default function App() {
     };
 
     const colors: Record<ActiveTab, string> = {
+      home: "rgba(59, 130, 246, 0.85)",       // Blue
       quote: "rgba(99, 102, 241, 0.85)",     // Indigo
       compress: "rgba(168, 85, 247, 0.85)",  // Purple
       qr: "rgba(16, 185, 129, 0.85)",       // Emerald
@@ -1022,6 +1035,7 @@ export default function App() {
 
   useEffect(() => {
     const tabNames: Record<ActiveTab, string> = {
+      home: "Dashboard Home",
       quote: "Quote Designer",
       compress: "Image Compressor",
       qr: "QR Generator",
@@ -1033,6 +1047,7 @@ export default function App() {
     };
 
     const tabIcons: Record<ActiveTab, RecentActivity["icon"]> = {
+      home: "Sparkles",
       quote: "Quote",
       compress: "FileImage",
       qr: "QrCode",
@@ -1042,6 +1057,8 @@ export default function App() {
       resources: "BookOpen",
       legal: "ShieldCheck"
     };
+
+    if (activeTab === "home") return;
 
     logSessionActivity({
       type: "tool",
@@ -1064,10 +1081,10 @@ export default function App() {
 
       const params = new URLSearchParams(window.location.search);
       const tabParam = params.get("tab") as ActiveTab;
-      if (tabParam && ["quote", "compress", "qr", "palette", "video", "drive", "resources", "legal"].includes(tabParam)) {
+      if (tabParam && ["home", "quote", "compress", "qr", "palette", "video", "drive", "resources", "legal"].includes(tabParam)) {
         setActiveTab(tabParam);
       } else if (!isSitemapPath) {
-        setActiveTab("quote");
+        setActiveTab("home");
       }
 
       const subParam = params.get("sub") as any;
@@ -1182,6 +1199,7 @@ export default function App() {
           setActiveTab(targetTab);
           setIsSitemapView(false);
           const tabLabelMap: Record<ActiveTab, string> = {
+            home: "Dashboard Home",
             quote: "Quote Designer",
             compress: "Image Compressor",
             qr: "QR Generator",
@@ -1315,480 +1333,584 @@ export default function App() {
         theme={theme}
         onToggleTheme={handleToggleTheme}
         onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+        onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
       />
 
-      {/* Hero Welcome banner */}
-      <section className={`border-b transition-colors duration-200 py-10 ${
-        theme === "dark"
-          ? "bg-gradient-to-b from-slate-900 to-transparent border-slate-900"
-          : "bg-gradient-to-b from-white to-transparent border-slate-100"
-      }`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-3 select-none">
-          <div className="flex flex-wrap items-center justify-center gap-2 pb-1">
-            <div className="inline-flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-955 px-3.5 py-1.5 rounded-full text-[11px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-widest leading-none shadow-sm shadow-emerald-500/5">
-              <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-spin" /> Toolkit Pro Drive Sync
-            </div>
+      {/* Main Layout Row with Left Collapsible Sidebar */}
+      <div className="flex-1 flex relative overflow-hidden">
+        {/* Animated Left Sidebar */}
+        <AnimatePresence initial={false}>
+          {isSidebarOpen && (
+            <>
+              {/* Backdrop on mobile devices */}
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 0.5 }}
+                exit={{ opacity: 0 }}
+                className="fixed inset-0 bg-slate-950/40 backdrop-blur-xs z-40 lg:hidden"
+                onClick={() => setIsSidebarOpen(false)}
+              />
 
-            {/* Installable PWA Badge with Tooltip */}
-            <div className="relative group inline-block">
-              <button
-                disabled={pwaChecking}
-                onClick={async () => {
-                  const promptToUse = typeof window !== "undefined" ? window.deferredInstallPrompt : null;
-                  if (promptToUse) {
-                    try {
-                      await promptToUse.prompt();
-                      const { outcome } = await promptToUse.userChoice;
-                      console.log(`User response to native installation: ${outcome}`);
-                      if (typeof window !== "undefined") {
-                        window.deferredInstallPrompt = null;
-                      }
-                      setHasDeferredPrompt(false);
-                    } catch (err) {
-                      console.error("Native install prompt trigger error:", err);
-                    }
-                  } else {
-                    setActiveTab("resources");
-                    setResourcesSubTab("installation");
-                    // Smoothly scroll to the content
-                    setTimeout(() => {
-                      const el = document.getElementById("resources-panel-installation");
-                      if (el) {
-                        el.scrollIntoView({ behavior: "smooth", block: "start" });
-                      }
-                    }, 100);
-                  }
-                }}
-                className={`relative overflow-hidden inline-flex items-center gap-1.5 bg-blue-50/80 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/40 border border-blue-150/40 dark:border-blue-900/30 px-3.5 py-1.5 pb-[7px] rounded-full text-[11px] font-extrabold text-blue-700 dark:text-blue-350 uppercase tracking-widest leading-none shadow-sm shadow-blue-500/5 cursor-pointer select-none transition-all hover:scale-102 hover:shadow-md ${
-                  hasDeferredPrompt ? "animate-pulse ring-2 ring-emerald-500/40 dark:ring-emerald-400/40" : ""
-                } ${pwaChecking ? "opacity-90 cursor-wait" : ""}`}
-                title={pwaChecking ? pwaStatusText : (hasDeferredPrompt ? "Install Toolkit Pro directly to your device now!" : "PWA Installable Software Utility")}
-              >
-                {pwaChecking ? (
-                  <>
-                    <Loader2 className="w-3 h-3 text-blue-500 animate-spin shrink-0" />
-                    <span className="flex items-center gap-1 text-[10px] text-blue-600 dark:text-blue-400">
-                      Checking PWA ({pwaProgress}%)
-                    </span>
-                  </>
-                ) : (
-                  <>
-                    <Monitor className="w-3 h-3 text-blue-500" />
-                    <span className="flex items-center gap-1">
-                      {hasDeferredPrompt ? "Install App Now" : "Installable PWA"}
-                      <span className={`inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 ${hasDeferredPrompt ? "animate-ping" : "animate-pulse"}`} />
-                    </span>
-                  </>
-                )}
-                
-                {/* Subtle loading progress bar line at the bottom */}
-                {pwaChecking && (
-                  <div 
-                    className="absolute bottom-0 left-0 h-[3px] bg-gradient-to-r from-blue-400 to-indigo-500 dark:from-blue-500 dark:to-indigo-400 transition-all duration-150 ease-out" 
-                    style={{ width: `${pwaProgress}%` }} 
-                  />
-                )}
-              </button>
- 
-               {/* High-Fidelity Tooltip describing PWA benefits */}
-               <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2.5 z-40 w-72 p-4 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 pointer-events-none scale-95 group-hover:scale-100 text-left space-y-3">
-                 <div className="flex items-center gap-1.5 pb-1.5 border-b border-slate-100 dark:border-slate-850">
-                   <span className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/55">
-                     {pwaChecking ? (
-                       <Loader2 className="w-3.5 h-3.5 text-blue-500 animate-spin" />
-                     ) : (
-                       <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
-                     )}
-                   </span>
-                   <div>
-                     <h5 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                       {pwaChecking ? "PWA Verification" : "Standalone Utility"}
-                     </h5>
-                     <p className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-widest">
-                       {pwaChecking ? pwaStatusText : "Elevate Your Experience"}
-                     </p>
-                   </div>
-                 </div>
- 
-                 <ul className="space-y-2 text-[11px] text-slate-650 dark:text-slate-400">
-                   <li className="flex items-start gap-1.5">
-                     <span className="text-indigo-500 mt-0.5 text-xs">✦</span>
-                     <span><strong>No Browser Clutter:</strong> Removes URL bars to maximize rendering space for your active canvas.</span>
-                   </li>
-                   <li className="flex items-start gap-1.5">
-                     <span className="text-indigo-500 mt-0.5 text-xs">✦</span>
-                     <span><strong>Dock & Desktop Access:</strong> Launch application directly from macOS/Windows Dock or your home screen.</span>
-                   </li>
-                   <li className="flex items-start gap-1.5">
-                     <span className="text-indigo-500 mt-0.5 text-xs">✦</span>
-                     <span><strong>Zero Latency:</strong> Uses background caching for lightning-fast workflow transition speed.</span>
-                   </li>
-                 </ul>
- 
-                 <div className="pt-1.5 border-t border-slate-100 dark:border-slate-850 flex items-center justify-between text-[9px] text-indigo-650 dark:text-indigo-400 font-extrabold uppercase tracking-wider">
-                   <span>Click to view installation guides</span>
-                   <span>➔</span>
-                 </div>
-              </div>
-            </div>
-          </div>
-          <h2 className={`text-3xl sm:text-4xl font-extrabold tracking-tight font-sans ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
-            Advanced Tools for Digital Creators
-          </h2>
-          <p className={`text-sm max-w-xl mx-auto leading-relaxed ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
-            Compress images, generate scan coordinates, extract color spectrums, and style custom quote card assets. Authenticate Google Drive to keep files synced and organized automatically!
-          </p>
-
-          {/* Prompt Google Drive auth warning */}
-          {!user && (
-            <div className="max-w-md mx-auto pt-4 space-y-3">
-              {authError && (
-                <div className="border border-rose-200/40 bg-rose-50 dark:bg-rose-950/25 text-rose-800 dark:text-rose-305 rounded-xl p-3.5 text-xs text-left flex items-start space-x-2.5 animate-fade-in relative shadow-sm">
-                  <AlertCircle className="w-4 h-4 mt-0.5 text-rose-500 shrink-0" />
-                  <div className="flex-1 space-y-1">
-                    <p className="font-bold">Authorization Notice</p>
-                    <p className="leading-relaxed text-slate-700 dark:text-slate-300">{authError}</p>
-                  </div>
-                  <button 
-                    onClick={() => setAuthError(null)} 
-                    className="text-rose-500 hover:text-rose-700 dark:hover:text-rose-200 absolute top-2 right-2 p-1 cursor-pointer transition-colors text-[10px]"
-                    title="Dismiss notification"
-                  >
-                    ✕
-                  </button>
-                </div>
-              )}
-
-              <div className={`border rounded-xl p-3 flex items-start space-x-2 text-xs text-left ${
-                theme === "dark"
-                  ? "bg-amber-950/20 border-amber-900/40 text-amber-300"
-                  : "bg-amber-50 border-amber-100 text-amber-800"
-              }`}>
-                <AlertCircle className="w-4 h-4 mt-0.5 text-amber-500 shrink-0" />
-                <p className="leading-relaxed">
-                  <strong>Drive Sync Inactive:</strong> Log in using your Google Workspace account to unlock instant cloud file backups and review saved assets inside the dashboard.
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* Dynamic AdSense Leaderboard Placement Box - Essential for structural human reviewer validation */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full pt-6 select-none" id="home-adsense-leaderboard-wrapper">
-        <AdSenseMock slot="top-leaderboard-home" type="leaderboard" />
-      </div>
-
-      {/* Interactive Session Insights & Activity Streams row */}
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full mt-6 grid grid-cols-1 lg:grid-cols-5 gap-6 select-none" id="home-insights-widgets-row">
-        <div className="lg:col-span-3">
-          <RecentActivitiesWidget 
-            activities={recentActivities}
-            onClear={() => {
-              setRecentActivities([]);
-              try {
-                sessionStorage.removeItem("toolkit-session-activities");
-              } catch (e) {
-                console.error(e);
-              }
-            }}
-            onTabChange={(tab) => {
-              setActiveTab(tab);
-              setIsSitemapView(false);
-            }}
-            theme={theme}
-          />
-        </div>
-        <div className="lg:col-span-2">
-          <UsageInsightsWidget
-            usageData={getUsageInsightsData()}
-            onReset={() => {
-              const resetObj = {
-                quote: 0,
-                compress: 0,
-                qr: 0,
-                palette: 0,
-                drive: 0,
-                resources: 0,
-                legal: 0
-              };
-              setToolUsage(resetObj);
-              try {
-                sessionStorage.setItem("toolkit-session-usage", JSON.stringify(resetObj));
-              } catch (e) {
-                console.error(e);
-              }
-            }}
-            onTabChange={(tab) => {
-              setActiveTab(tab);
-              setIsSitemapView(false);
-            }}
-            theme={theme}
-          />
-        </div>
-      </div>
-
-      {/* Middle Operations tabs & selector container */}
-      <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-8 space-y-6">
-        {/* Swivel Tabs with elegant horizontal scroll boundaries on small viewports */}
-        <div 
-          role="tablist"
-          aria-label="Main Operations Hub"
-          className={`flex overflow-x-auto xl:overflow-x-visible whitespace-nowrap p-1.5 rounded-2xl border max-w-5xl mx-auto scrollbar-none gap-1 ${
-            theme === "dark"
-              ? "bg-slate-900 border-slate-800"
-              : "bg-slate-100 border-slate-200/50"
-          }`}
-          onKeyDown={(e) => {
-            const tabsList = ["quote", "compress", "qr", "palette", "video", "drive", "resources", "legal"] as const;
-            const currentIndex = tabsList.indexOf(activeTab);
-            if (e.key === "ArrowRight") {
-              e.preventDefault();
-              const nextIndex = (currentIndex + 1) % tabsList.length;
-              setActiveTab(tabsList[nextIndex]);
-              setTimeout(() => {
-                document.getElementById(`tab-select-${tabsList[nextIndex]}`)?.focus();
-              }, 10);
-            } else if (e.key === "ArrowLeft") {
-              e.preventDefault();
-              const prevIndex = (currentIndex - 1 + tabsList.length) % tabsList.length;
-              setActiveTab(tabsList[prevIndex]);
-              setTimeout(() => {
-                document.getElementById(`tab-select-${tabsList[prevIndex]}`)?.focus();
-              }, 10);
-            }
-          }}
-        >
-          {[
-            { id: "quote", label: "Quote Designer", icon: Quote },
-            { id: "compress", label: "Image Compressor", icon: FileImage },
-            { id: "qr", label: "QR Generator", icon: QrCode },
-            { id: "palette", label: "Color Extractor", icon: Pipette },
-            { id: "video", label: "Video Creator", icon: Video },
-            { id: "drive", label: "Drive Panel", icon: Cloud, badge: files.length > 0 ? files.length : undefined },
-            { id: "resources", label: "Guides & SEO", icon: BookOpen },
-            { id: "legal", label: "Compliance & Contact", icon: ShieldCheck },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                onMouseEnter={() => setHoveredTab(tab.id)}
-                onMouseLeave={() => setHoveredTab(null)}
-                role="tab"
-                aria-selected={isActive}
-                aria-controls={`tabpanel-${tab.id}`}
-                aria-label={tab.label}
-                className={`relative flex-1 shrink-0 flex items-center justify-center gap-1.5 px-4 py-3 rounded-xl text-xs font-semibold select-none cursor-pointer whitespace-nowrap focus-visible:outline-hidden focus-visible:ring-4 focus-visible:ring-indigo-650 dark:focus-visible:ring-amber-400 focus-visible:ring-offset-2 transition-colors duration-200 ${
-                  isActive
-                    ? "text-slate-950 dark:text-white"
-                    : theme === "dark" 
-                      ? "text-slate-400 hover:text-slate-100" 
-                      : "text-slate-500 hover:text-slate-800"
+              {/* Sidebar Panel */}
+              <motion.aside
+                initial={{ x: "-100%", opacity: 0 }}
+                animate={{ x: 0, opacity: 1 }}
+                exit={{ x: "-100%", opacity: 0 }}
+                transition={{ type: "spring", stiffness: 380, damping: 33 }}
+                className={`fixed top-16 bottom-0 left-0 z-45 w-72 border-r flex flex-col transition-colors duration-200 lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] ${
+                  theme === "dark"
+                    ? "bg-slate-900 border-slate-800 text-slate-100"
+                    : "bg-white border-slate-200 text-slate-800"
                 }`}
-                id={`tab-select-${tab.id}`}
               >
-                {isActive && (
-                  <motion.div
-                    layoutId="active-tab-pill"
-                    className={`absolute inset-0 rounded-xl shadow-xs border ${
-                      theme === "dark" 
-                        ? "bg-slate-950 border-slate-900 shadow-slate-900/40" 
-                        : "bg-white border-slate-100/50 shadow-slate-200/50"
-                    }`}
-                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
-                  />
-                )}
-                <span className="relative z-10 flex items-center gap-1.5">
-                  <Icon className={`w-4 h-4 transition-colors duration-200 ${isActive ? "text-slate-900 dark:text-emerald-400" : "text-slate-400"}`} />
-                  <span>{tab.label}</span>
-                  {tab.badge !== undefined && (
-                    <span className={`inline-flex items-center justify-center rounded-full h-4.5 px-1.5 text-[9px] font-bold transition-colors duration-200 ${
-                      isActive 
-                        ? "bg-emerald-500 text-white" 
-                        : theme === "dark" ? "bg-slate-800 text-slate-300" : "bg-slate-200 text-slate-600"
-                    }`}>
-                      {tab.badge}
+                {/* Navigation Items container */}
+                <div className="flex-1 overflow-y-auto py-5 px-4 space-y-1 scrollbar-none">
+                  <div className="flex items-center justify-between px-2 pb-3 mb-2 border-b border-slate-100 dark:border-slate-800">
+                    <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest font-mono">
+                      Navigation Menu
                     </span>
-                  )}
-                </span>
-
-                {/* Micro interface preview tooltip */}
-                <AnimatePresence>
-                  {hoveredTab === tab.id && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                      transition={{ duration: 0.15, ease: "easeOut" }}
-                      className={`absolute bottom-full left-1/2 -translate-x-1/2 mb-3 z-50 w-56 p-3 rounded-2xl border backdrop-blur-md shadow-2xl pointer-events-none text-left whitespace-normal ${
-                        theme === "dark"
-                          ? "bg-slate-950/95 border-slate-850 text-slate-100 shadow-slate-950/80"
-                          : "bg-white/95 border-slate-200/80 text-slate-800 shadow-slate-200/80"
-                      }`}
+                    <button 
+                      onClick={() => setIsSidebarOpen(false)}
+                      className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 lg:hidden text-slate-400 transition-colors cursor-pointer"
+                      title="Hide Sidebar"
                     >
-                      <div className="flex items-center gap-1.5 border-b border-slate-150/55 dark:border-slate-850 pb-2 mb-2 font-sans">
-                        <Icon className={`w-3.5 h-3.5 ${theme === "dark" ? "text-emerald-400" : "text-indigo-600"}`} />
-                        <span className="text-[10px] font-black uppercase tracking-wider">{tab.label}</span>
+                      <X className="w-4 h-4" />
+                    </button>
+                  </div>
+
+                  {[
+                    { id: "home", label: "Dashboard Home", icon: Home, desc: "System status & stats" },
+                    { id: "quote", label: "Quote Designer", icon: Quote, desc: "Aesthetic graphic visuals" },
+                    { id: "compress", label: "Image Compressor", icon: FileImage, desc: "Fast size reduction" },
+                    { id: "qr", label: "QR Generator", icon: QrCode, desc: "ECC scan patterns" },
+                    { id: "palette", label: "Color Extractor", icon: Pipette, desc: "Analyze hex spectrums" },
+                    { id: "video", label: "Video Creator", icon: Video, desc: "Timeline loop tools" },
+                    { id: "drive", label: "Drive Panel", icon: Cloud, desc: "Cloud files index", badge: files.length > 0 ? files.length : undefined },
+                    { id: "resources", label: "Guides & SEO", icon: BookOpen, desc: "Sitemaps & templates" },
+                    { id: "legal", label: "Compliance & Safety", icon: ShieldCheck, desc: "Policies & support" },
+                  ].map((item) => {
+                    const Icon = item.icon;
+                    const isActive = activeTab === item.id;
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => {
+                          setActiveTab(item.id as any);
+                          setIsSitemapView(false);
+                          if (window.innerWidth < 1024) {
+                            setIsSidebarOpen(false);
+                          }
+                        }}
+                        className={`w-full flex items-center justify-between p-2.5 rounded-xl text-left transition-all cursor-pointer select-none border group ${
+                          isActive
+                            ? theme === "dark"
+                              ? "bg-slate-950 border-slate-800 text-white shadow-md shadow-slate-950/50"
+                              : "bg-indigo-50/40 border-indigo-100 text-indigo-700 shadow-3xs"
+                            : theme === "dark"
+                              ? "bg-transparent border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-850/50"
+                              : "bg-transparent border-transparent text-slate-500 hover:text-slate-900 hover:bg-slate-50"
+                        }`}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className={`p-1.5 rounded-lg border transition-colors ${
+                            isActive
+                              ? "bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 border-indigo-200/45 dark:border-indigo-900/30"
+                              : "bg-slate-50 dark:bg-slate-850 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-300 border-transparent"
+                          }`}>
+                            <Icon className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <p className="text-[11.5px] font-bold leading-tight">
+                              {item.label}
+                            </p>
+                            <p className="text-[9.5px] text-slate-400 dark:text-slate-505 leading-none mt-0.5">
+                              {item.desc}
+                            </p>
+                          </div>
+                        </div>
+
+                        {item.badge !== undefined ? (
+                          <span className={`inline-flex items-center justify-center rounded-full h-4 px-1.5 text-[8.5px] font-black leading-none ${
+                            isActive ? "bg-indigo-600 text-white" : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400"
+                          }`}>
+                            {item.badge}
+                          </span>
+                        ) : (
+                          isActive && <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 mr-1 animate-pulse" />
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Sidebar Footer with Workspace status */}
+                <div className="p-4 border-t border-slate-100 dark:border-slate-800 space-y-2 select-none">
+                  <div className="flex items-center justify-between text-[9px] font-black text-slate-400 dark:text-slate-505 uppercase tracking-widest font-mono">
+                    <span>Workspace State</span>
+                    <span className="flex items-center gap-1">
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                      Live
+                    </span>
+                  </div>
+                  <div className={`p-2.5 rounded-lg border text-[10px] leading-relaxed ${
+                    theme === "dark" ? "bg-slate-950/40 border-slate-805 text-slate-400" : "bg-slate-50 border-slate-200/50 text-slate-500"
+                  }`}>
+                    <span>Logged in as:</span>
+                    <p className="font-extrabold text-slate-850 dark:text-slate-200 truncate mt-0.5" title={user?.email || "Anonymous Creator"}>
+                      {user?.email || "Guest Creator"}
+                    </p>
+                  </div>
+                </div>
+              </motion.aside>
+            </>
+          )}
+        </AnimatePresence>
+
+        {/* Right workspace panel wrapper */}
+        <div className="flex-1 min-w-0 flex flex-col overflow-y-auto">
+          {activeTab === "home" ? (
+            <div className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-8 space-y-8 animate-in fade-in duration-300">
+              {/* Hero Welcome banner */}
+              <section className={`border rounded-3xl overflow-hidden transition-colors duration-200 py-10 ${
+                theme === "dark"
+                  ? "bg-gradient-to-b from-slate-900 to-slate-950 border-slate-850"
+                  : "bg-gradient-to-b from-white to-slate-50/50 border-slate-200 shadow-3xs"
+              }`}>
+                <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-4 select-none">
+                  <div className="flex flex-wrap items-center justify-center gap-2 pb-1">
+                    <div className="inline-flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-955 px-3.5 py-1.5 rounded-full text-[11px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-widest leading-none shadow-sm shadow-emerald-500/5">
+                      <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-spin" /> Toolkit Pro Drive Sync
+                    </div>
+
+                    {/* Installable PWA Badge with Tooltip */}
+                    <div className="relative group inline-block">
+                      <button
+                        disabled={pwaChecking}
+                        onClick={async () => {
+                          const promptToUse = typeof window !== "undefined" ? window.deferredInstallPrompt : null;
+                          if (promptToUse) {
+                            try {
+                              await promptToUse.prompt();
+                              const { outcome } = await promptToUse.userChoice;
+                              console.log(`User response to native installation: ${outcome}`);
+                              if (typeof window !== "undefined") {
+                                window.deferredInstallPrompt = null;
+                              }
+                              setHasDeferredPrompt(false);
+                            } catch (err) {
+                              console.error("Native install prompt trigger error:", err);
+                            }
+                          } else {
+                            setActiveTab("resources");
+                            setResourcesSubTab("installation");
+                            // Smoothly scroll to the content
+                            setTimeout(() => {
+                              const el = document.getElementById("resources-panel-installation");
+                              if (el) {
+                                el.scrollIntoView({ behavior: "smooth", block: "start" });
+                              }
+                            }, 100);
+                          }
+                        }}
+                        className={`relative overflow-hidden inline-flex items-center gap-1.5 bg-blue-50/80 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/40 border border-blue-150/40 dark:border-blue-900/30 px-3.5 py-1.5 pb-[7px] rounded-full text-[11px] font-extrabold text-blue-700 dark:text-blue-350 uppercase tracking-widest leading-none shadow-sm shadow-blue-500/5 cursor-pointer select-none transition-all hover:scale-102 hover:shadow-md ${
+                          hasDeferredPrompt ? "animate-pulse ring-2 ring-emerald-500/40 dark:ring-emerald-400/40" : ""
+                        } ${pwaChecking ? "opacity-90 cursor-wait" : ""}`}
+                        title={pwaChecking ? pwaStatusText : (hasDeferredPrompt ? "Install Toolkit Pro directly to your device now!" : "PWA Installable Software Utility")}
+                      >
+                        {pwaChecking ? (
+                          <>
+                            <Loader2 className="w-3 h-3 text-blue-500 animate-spin shrink-0" />
+                            <span className="flex items-center gap-1 text-[10px] text-blue-600 dark:text-blue-400">
+                              Checking PWA ({pwaProgress}%)
+                            </span>
+                          </>
+                        ) : (
+                          <>
+                            <Monitor className="w-3 h-3 text-blue-500" />
+                            <span className="flex items-center gap-1">
+                              {hasDeferredPrompt ? "Install App Now" : "Installable PWA"}
+                              <span className={`inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 ${hasDeferredPrompt ? "animate-ping" : "animate-pulse"}`} />
+                            </span>
+                          </>
+                        )}
+                        
+                        {/* Subtle loading progress bar line at the bottom */}
+                        {pwaChecking && (
+                          <div 
+                            className="absolute bottom-0 left-0 h-[3px] bg-gradient-to-r from-blue-400 to-indigo-500 dark:from-blue-500 dark:to-indigo-400 transition-all duration-150 ease-out" 
+                            style={{ width: `${pwaProgress}%` }} 
+                          />
+                        )}
+                      </button>
+         
+                      {/* High-Fidelity Tooltip describing PWA benefits */}
+                      <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2.5 z-40 w-72 p-4 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 pointer-events-none scale-95 group-hover:scale-100 text-left space-y-3">
+                        <div className="flex items-center gap-1.5 pb-1.5 border-b border-slate-100 dark:border-slate-850">
+                          <span className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/55">
+                            {pwaChecking ? (
+                              <Loader2 className="w-3.5 h-3.5 text-blue-500 animate-spin" />
+                            ) : (
+                              <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+                            )}
+                          </span>
+                          <div>
+                            <h5 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                              {pwaChecking ? "PWA Verification" : "Standalone Utility"}
+                            </h5>
+                            <p className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-widest">
+                              {pwaChecking ? pwaStatusText : "Elevate Your Experience"}
+                            </p>
+                          </div>
+                        </div>
+         
+                        <ul className="space-y-2 text-[11px] text-slate-650 dark:text-slate-400">
+                          <li className="flex items-start gap-1.5">
+                            <span className="text-indigo-500 mt-0.5 text-xs">✦</span>
+                            <span><strong>No Browser Clutter:</strong> Removes URL bars to maximize rendering space for your active canvas.</span>
+                          </li>
+                          <li className="flex items-start gap-1.5">
+                            <span className="text-indigo-500 mt-0.5 text-xs">✦</span>
+                            <span><strong>Dock & Desktop Access:</strong> Launch application directly from macOS/Windows Dock or your home screen.</span>
+                          </li>
+                          <li className="flex items-start gap-1.5">
+                            <span className="text-indigo-500 mt-0.5 text-xs">✦</span>
+                            <span><strong>Zero Latency:</strong> Uses background caching for lightning-fast workflow transition speed.</span>
+                          </li>
+                        </ul>
+         
+                        <div className="pt-1.5 border-t border-slate-100 dark:border-slate-850 flex items-center justify-between text-[9px] text-indigo-650 dark:text-indigo-400 font-extrabold uppercase tracking-wider">
+                          <span>Click to view installation guides</span>
+                          <span>➔</span>
+                        </div>
                       </div>
-                      
-                      <div className="relative overflow-hidden rounded-xl bg-slate-50/50 dark:bg-slate-900/50 p-2 border border-slate-100/40 dark:border-slate-800/40">
-                        {renderTabPreview(tab.id)}
-                      </div>
-                      
-                      {/* Tooltip pointer caret */}
-                      <div className={`absolute -bottom-1 left-1/2 -translate-x-1/2 w-2 h-2 rotate-45 border-r border-b ${
-                        theme === "dark"
-                          ? "bg-slate-950/95 border-slate-850"
-                          : "bg-white/95 border-slate-200/80"
-                      }`} />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </button>
-            );
-          })}
-        </div>
+                    </div>
+                  </div>
+                  <h2 className={`text-2xl sm:text-3xl font-extrabold tracking-tight font-sans ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                    Advanced Tools for Digital Creators
+                  </h2>
+                  <p className={`text-xs sm:text-sm max-w-xl mx-auto leading-relaxed ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
+                    Compress images, generate scan coordinates, extract color spectrums, and style custom quote card assets. Authenticate Google Drive to keep files synced and organized automatically!
+                  </p>
 
-        {/* Dynamic active page viewer wrapper */}
-        <motion.div 
-          layout="position"
-          role="tabpanel"
-          id={`tabpanel-${activeTab}`}
-          aria-labelledby={`tab-select-${activeTab}`}
-          className={`rounded-3xl border p-3.5 sm:p-6 md:p-8 transition-colors duration-200 ${
-            theme === "dark"
-              ? "bg-slate-900 border-slate-800/80 shadow-md shadow-slate-950/45"
-              : "bg-white border-slate-100 shadow-sm"
-          }`}
-          transition={{
-            type: "spring",
-            stiffness: 220,
-            damping: 28,
-            mass: 0.8
-          }}
-        >
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={isSitemapView ? "sitemap" : activeTab}
-              initial={{ opacity: 0, x: direction * 35 }}
-              animate={{ opacity: 1, x: 0 }}
-              exit={{ opacity: 0, x: -direction * 35 }}
-              transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
-            >
-              {isSitemapView ? (
-                <SitemapView
-                  theme={theme}
-                  onTabChange={(tab) => {
-                    setActiveTab(tab);
-                    setIsSitemapView(false);
-                  }}
-                  onClose={() => setIsSitemapView(false)}
-                />
-              ) : (
-                <>
-                  {activeTab === "quote" && (
-                    <QuoteDesigner
-                      user={user}
-                      accessToken={accessToken}
-                      onRefreshDrive={handleRefreshDrive}
-                      onLogin={handleLogin}
-                    />
-                  )}
-
-                  {activeTab === "compress" && (
-                    <ImageCompressor
-                      user={user}
-                      accessToken={accessToken}
-                      onRefreshDrive={handleRefreshDrive}
-                      onLogin={handleLogin}
-                      initialFiles={draggedFiles}
-                      onClearInitialFiles={() => setDraggedFiles(null)}
-                    />
-                  )}
-
-                  {activeTab === "qr" && (
-                    <QrGenerator
-                      user={user}
-                      accessToken={accessToken}
-                      onRefreshDrive={handleRefreshDrive}
-                      onLogin={handleLogin}
-                    />
-                  )}
-
-                  {activeTab === "palette" && (
-                    <ColorExtractor
-                      user={user}
-                      accessToken={accessToken}
-                      onRefreshDrive={handleRefreshDrive}
-                      onLogin={handleLogin}
-                    />
-                  )}
-
-                  {activeTab === "video" && (
-                    <ImageToVideo
-                      user={user}
-                      accessToken={accessToken}
-                      onRefreshDrive={handleRefreshDrive}
-                      onLogin={handleLogin}
-                    />
-                  )}
-
-                  {activeTab === "drive" && (
-                    <div>
-                      {user ? (
-                        <DriveExplorer
-                          user={user}
-                          accessToken={accessToken}
-                          files={files}
-                          isLoading={isLoadingDrive}
-                          onRefresh={handleRefreshDrive}
-                          onSelectTab={setActiveTab}
-                        />
-                      ) : (
-                        <div className="py-12 text-center flex flex-col items-center justify-center max-w-md mx-auto">
-                          <CloudLightning className="w-12 h-12 text-slate-300 mb-3" />
-                          <h4 className="text-sm font-bold text-slate-800">Authentication Required</h4>
-                          <p className="text-xs text-slate-400 mt-1 mb-6 leading-relaxed">
-                            Connecting your Google Drive account is required to browse, preview, and sync assets created within Toolkit automotive spaces.
-                          </p>
-                          <button
-                            onClick={handleLogin}
-                            disabled={isLoggingIn}
-                            className="inline-flex items-center justify-center px-4.5 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-900 font-semibold text-xs text-white shadow-md cursor-pointer"
-                            id="btn-explorer-auth-prompt"
+                  {/* Prompt Google Drive auth warning */}
+                  {!user && (
+                    <div className="max-w-md mx-auto pt-4 space-y-3">
+                      {authError && (
+                        <div className="border border-rose-200/40 bg-rose-50 dark:bg-rose-950/25 text-rose-800 dark:text-rose-305 rounded-xl p-3.5 text-xs text-left flex items-start space-x-2.5 animate-fade-in relative shadow-sm">
+                          <AlertCircle className="w-4 h-4 mt-0.5 text-rose-500 shrink-0" />
+                          <div className="flex-1 space-y-1">
+                            <p className="font-bold">Authorization Notice</p>
+                            <p className="leading-relaxed text-slate-700 dark:text-slate-300">{authError}</p>
+                          </div>
+                          <button 
+                            onClick={() => setAuthError(null)} 
+                            className="text-rose-500 hover:text-rose-700 dark:hover:text-rose-200 absolute top-2 right-2 p-1 cursor-pointer transition-colors text-[10px]"
+                            title="Dismiss notification"
                           >
-                            Authenticate with Google Drive
+                            ✕
                           </button>
                         </div>
                       )}
+
+                      <div className={`border rounded-xl p-3 flex items-start space-x-2 text-xs text-left ${
+                        theme === "dark"
+                          ? "bg-amber-950/20 border-amber-900/40 text-amber-300"
+                          : "bg-amber-50 border-amber-100 text-amber-800"
+                      }`}>
+                        <AlertCircle className="w-4 h-4 mt-0.5 text-amber-500 shrink-0" />
+                        <p className="leading-relaxed">
+                          <strong>Drive Sync Inactive:</strong> Log in using your Google Workspace account to unlock instant cloud file backups and review saved assets inside the dashboard.
+                        </p>
+                      </div>
                     </div>
                   )}
+                </div>
+              </section>
 
-                  {activeTab === "resources" && (
-                    <ResourcesHub 
-                      selectedArticleId={selectedArticleId}
-                      onSelectArticleId={setSelectedArticleId}
-                      initialSubTab={resourcesSubTab}
-                    />
-                  )}
+              {/* Dynamic AdSense Leaderboard Placement Box */}
+              <div className="w-full select-none" id="home-adsense-leaderboard-wrapper">
+                <AdSenseMock slot="top-leaderboard-home" type="leaderboard" />
+              </div>
 
-                  {activeTab === "legal" && (
-                    <AdSenseCompliance subTab={legalSubTab} onChangeSubTab={setLegalSubTab} />
-                  )}
-                </>
-              )}
-            </motion.div>
-          </AnimatePresence>
+              {/* Discovery Feature Bento Grid */}
+              <div className="space-y-4">
+                <div className="flex items-center justify-between px-1">
+                  <h3 className={`text-md font-black tracking-tight uppercase ${theme === "dark" ? "text-slate-200" : "text-slate-800"}`}>
+                    Suite of Interactive Utilities
+                  </h3>
+                  <span className="text-[10px] font-bold text-slate-400 font-mono">8 Operational Modules</span>
+                </div>
+                
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="home-feature-bento-grid">
+                  {[
+                    { id: "quote", label: "Quote Designer", desc: "Design elegant graphic text quote cards with custom typography, gradients, blurred frames, and background noise presets.", icon: Quote, color: "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border-indigo-100/50" },
+                    { id: "compress", label: "Image Compressor", desc: "Reduce JPEG, PNG, and WebP file sizes by up to 90% in milliseconds using standard local Median Cut quantization.", icon: FileImage, color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-100/50" },
+                    { id: "qr", label: "QR Code Generator", icon: QrCode, desc: "Encode scan metrics and custom targets using advanced Reed-Solomon Error Correction Code with configurable layouts.", color: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border-amber-100/50" },
+                    { id: "palette", label: "Color Extractor", icon: Pipette, desc: "Extract dominant color palettes and contrasting text values using high-fidelity color spectrum quantization.", color: "text-pink-600 dark:text-pink-400 bg-pink-50 dark:bg-pink-950/60 border-pink-100/50" },
+                    { id: "video", label: "Video Creator", icon: Video, desc: "Animate images into captivating horizontal/vertical motion videos with detailed custom timeline loop controls.", color: "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-955/60 border-purple-100/50" },
+                    { id: "drive", label: "Drive Panel", icon: Cloud, desc: "Connect your secure Google account to browse, manage, and instantly sync saved assets to Google Drive folders.", color: "text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-955/60 border-sky-100/50" },
+                    { id: "resources", label: "Guides & SEO", icon: BookOpen, desc: "Generate XML Sitemaps and evaluate structured SEO metadata snippets with our state-of-the-art copywriting guides.", color: "text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-955/40 border-teal-100/50" },
+                    { id: "legal", label: "Compliance & Safety", icon: ShieldCheck, desc: "Review AdSense editorial rules, access user agreements, and contact support teams directly for feedback.", color: "text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-955/40 border-slate-200" }
+                  ].map((t) => {
+                    const Icon = t.icon;
+                    return (
+                      <button
+                        key={t.id}
+                        onClick={() => {
+                          setActiveTab(t.id as any);
+                          setIsSitemapView(false);
+                        }}
+                        className={`p-5 rounded-2xl border text-left flex flex-col justify-between hover:scale-102 hover:shadow-md hover:-translate-y-0.5 active:scale-98 cursor-pointer transition-all h-full group ${
+                          theme === "dark"
+                            ? "bg-slate-900 border-slate-805 text-slate-100 hover:border-slate-700 hover:bg-slate-850"
+                            : "bg-white border-slate-200/60 text-slate-800 shadow-3xs hover:border-slate-300 hover:bg-slate-50/50"
+                        }`}
+                      >
+                        <div className="space-y-3">
+                          <div className={`p-2.5 rounded-xl inline-flex border ${t.color}`}>
+                            <Icon className="w-5 h-5" />
+                          </div>
+                          <h3 className="text-xs font-black tracking-tight leading-none uppercase">{t.label}</h3>
+                          <p className="text-[11px] text-slate-450 dark:text-slate-400 leading-relaxed font-sans">{t.desc}</p>
+                        </div>
+                        <div className="text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 mt-4 flex items-center gap-1 uppercase tracking-wider group-hover:text-indigo-505">
+                          Launch Tool
+                          <span className="transform group-hover:translate-x-1 transition-transform">➔</span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
 
-          {/* AdSense Inline Responsive Banner below active editor grids */}
-          <div className={`mt-8 pt-6 border-t select-none ${theme === "dark" ? "border-slate-800" : "border-slate-50"}`}>
-            <AdSenseMock slot="content-footer-responsive" type="responsive" />
-          </div>
-        </motion.div>
-      </main>
+              {/* Interactive Session Insights & Activity Streams row */}
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 select-none" id="home-insights-widgets-row">
+                <div className="lg:col-span-3">
+                  <RecentActivitiesWidget 
+                    activities={recentActivities}
+                    onClear={() => {
+                      setRecentActivities([]);
+                      try {
+                        sessionStorage.removeItem("toolkit-session-activities");
+                      } catch (e) {
+                        console.error(e);
+                      }
+                    }}
+                    onTabChange={(tab) => {
+                      setActiveTab(tab);
+                      setIsSitemapView(false);
+                    }}
+                    theme={theme}
+                  />
+                </div>
+                <div className="lg:col-span-2">
+                  <UsageInsightsWidget
+                    usageData={getUsageInsightsData()}
+                    onReset={() => {
+                      const resetObj = {
+                        home: 0,
+                        quote: 0,
+                        compress: 0,
+                        qr: 0,
+                        palette: 0,
+                        video: 0,
+                        drive: 0,
+                        resources: 0,
+                        legal: 0
+                      };
+                      setToolUsage(resetObj);
+                      try {
+                        sessionStorage.setItem("toolkit-session-usage", JSON.stringify(resetObj));
+                      } catch (e) {
+                        console.error(e);
+                      }
+                    }}
+                    onTabChange={(tab) => {
+                      setActiveTab(tab);
+                      setIsSitemapView(false);
+                    }}
+                    theme={theme}
+                  />
+                </div>
+              </div>
+            </div>
+          ) : (
+            <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-8 space-y-6">
+              {/* Breadcrumb path for clean workspace navigation */}
+              <div className="flex items-center justify-between pb-2 border-b border-slate-150 dark:border-slate-850/60 select-none">
+                <div className="flex items-center gap-2 text-[10px] font-black font-mono">
+                  <button 
+                    onClick={() => setActiveTab("home")} 
+                    className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+                  >
+                    HOME
+                  </button>
+                  <span className="text-slate-300 dark:text-slate-700">/</span>
+                  <span className="text-slate-800 dark:text-slate-200 uppercase tracking-wider font-sans">
+                    {activeTab === "quote" && "Quote Designer"}
+                    {activeTab === "compress" && "Image Compressor"}
+                    {activeTab === "qr" && "QR Generator"}
+                    {activeTab === "palette" && "Color Extractor"}
+                    {activeTab === "video" && "Video Creator"}
+                    {activeTab === "drive" && "Drive Panel"}
+                    {activeTab === "resources" && "Guides & SEO"}
+                    {activeTab === "legal" && "Compliance"}
+                  </span>
+                </div>
+
+                <button
+                  onClick={() => setActiveTab("home")}
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer select-none active:scale-95 ${
+                    theme === "dark"
+                      ? "bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-850"
+                      : "bg-slate-50 border-slate-200 text-slate-650 hover:text-slate-900 hover:bg-slate-100"
+                  }`}
+                >
+                  <X className="w-3 h-3 text-rose-500" />
+                  <span>Close Workspace</span>
+                </button>
+              </div>
+
+              {/* Dynamic active page viewer wrapper */}
+              <motion.div 
+                layout="position"
+                role="tabpanel"
+                id={`tabpanel-${activeTab}`}
+                aria-labelledby={`tab-select-${activeTab}`}
+                className={`rounded-3xl border p-3.5 sm:p-6 md:p-8 transition-colors duration-200 ${
+                  theme === "dark"
+                    ? "bg-slate-900 border-slate-800/85 shadow-md shadow-slate-950/45"
+                    : "bg-white border-slate-100 shadow-sm"
+                }`}
+                transition={{
+                  type: "spring",
+                  stiffness: 220,
+                  damping: 28,
+                  mass: 0.8
+                }}
+              >
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={isSitemapView ? "sitemap" : activeTab}
+                    initial={{ opacity: 0, x: direction * 35 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    exit={{ opacity: 0, x: -direction * 35 }}
+                    transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                  >
+                    {isSitemapView ? (
+                      <SitemapView
+                        theme={theme}
+                        onTabChange={(tab) => {
+                          setActiveTab(tab);
+                          setIsSitemapView(false);
+                        }}
+                        onClose={() => setIsSitemapView(false)}
+                      />
+                    ) : (
+                      <>
+                        {activeTab === "quote" && (
+                          <QuoteDesigner
+                            user={user}
+                            accessToken={accessToken}
+                            onRefreshDrive={handleRefreshDrive}
+                            onLogin={handleLogin}
+                          />
+                        )}
+
+                        {activeTab === "compress" && (
+                          <ImageCompressor
+                            user={user}
+                            accessToken={accessToken}
+                            onRefreshDrive={handleRefreshDrive}
+                            onLogin={handleLogin}
+                            initialFiles={draggedFiles}
+                            onClearInitialFiles={() => setDraggedFiles(null)}
+                          />
+                        )}
+
+                        {activeTab === "qr" && (
+                          <QrGenerator
+                            user={user}
+                            accessToken={accessToken}
+                            onRefreshDrive={handleRefreshDrive}
+                            onLogin={handleLogin}
+                          />
+                        )}
+
+                        {activeTab === "palette" && (
+                          <ColorExtractor
+                            user={user}
+                            accessToken={accessToken}
+                            onRefreshDrive={handleRefreshDrive}
+                            onLogin={handleLogin}
+                          />
+                        )}
+
+                        {activeTab === "video" && (
+                          <ImageToVideo
+                            user={user}
+                            accessToken={accessToken}
+                            onRefreshDrive={handleRefreshDrive}
+                            onLogin={handleLogin}
+                          />
+                        )}
+
+                        {activeTab === "drive" && (
+                          <div>
+                            {user ? (
+                              <DriveExplorer
+                                user={user}
+                                accessToken={accessToken}
+                                files={files}
+                                isLoading={isLoadingDrive}
+                                onRefresh={handleRefreshDrive}
+                                onSelectTab={setActiveTab}
+                              />
+                            ) : (
+                              <div className="py-12 text-center flex flex-col items-center justify-center max-w-md mx-auto">
+                                <CloudLightning className="w-12 h-12 text-slate-300 mb-3" />
+                                <h4 className="text-sm font-bold text-slate-800">Authentication Required</h4>
+                                <p className="text-xs text-slate-400 mt-1 mb-6 leading-relaxed">
+                                  Connecting your Google Drive account is required to browse, preview, and sync assets created within Toolkit automotive spaces.
+                                </p>
+                                <button
+                                  onClick={handleLogin}
+                                  disabled={isLoggingIn}
+                                  className="inline-flex items-center justify-center px-4.5 py-2.5 rounded-xl bg-slate-950 hover:bg-slate-900 font-semibold text-xs text-white shadow-md cursor-pointer"
+                                  id="btn-explorer-auth-prompt"
+                                >
+                                  Authenticate with Google Drive
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {activeTab === "resources" && (
+                          <ResourcesHub 
+                            selectedArticleId={selectedArticleId}
+                            onSelectArticleId={setSelectedArticleId}
+                            initialSubTab={resourcesSubTab}
+                          />
+                        )}
+
+                        {activeTab === "legal" && (
+                          <AdSenseCompliance subTab={legalSubTab} onChangeSubTab={setLegalSubTab} />
+                        )}
+                      </>
+                    )}
+                  </motion.div>
+                </AnimatePresence>
+
+                {/* AdSense Inline Responsive Banner below active editor grids */}
+                <div className={`mt-8 pt-6 border-t select-none ${theme === "dark" ? "border-slate-800" : "border-slate-50"}`}>
+                  <AdSenseMock slot="content-footer-responsive" type="responsive" />
+                </div>
+              </motion.div>
+            </main>
+          )}
+        </div>
+      </div>
 
       {/* Footer copyright */}
       <footer className={`border-t py-16 mt-16 transition-colors duration-200 ${
