@@ -21,6 +21,8 @@ import UsageInsightsWidget from "./components/UsageInsightsWidget";
 import AppTourOverlay from "./components/AppTourOverlay";
 import FeedbackModal from "./components/FeedbackModal";
 import { motion, AnimatePresence } from "motion/react";
+// @ts-ignore
+import brandLogo from "./assets/images/toolkit_pro_logo_1781887052514.jpg";
 
 import {
   Sparkles,
@@ -54,6 +56,14 @@ import {
   Menu,
   X,
   ChevronLeft,
+  CheckCircle2,
+  Circle,
+  Play,
+  ArrowRight,
+  Clock,
+  ArrowUpRight,
+  Activity,
+  Award,
 } from "lucide-react";
 
 function renderTabPreview(tabId: string) {
@@ -467,6 +477,43 @@ export default function App() {
     }
     return false;
   });
+
+  // Creator Onboarding Checklist & Dynamic clock states
+  const [checklist, setChecklist] = useState<Record<string, boolean>>(() => {
+    try {
+      const saved = localStorage.getItem("toolkit-creator-checklist");
+      if (saved) return JSON.parse(saved);
+    } catch (e) {
+      console.error(e);
+    }
+    return {
+      quote: false,
+      compress: false,
+      qr: false,
+      palette: false,
+      drive: false,
+    };
+  });
+
+  const toggleChecklistItem = (key: string) => {
+    setChecklist((prev) => {
+      const updated = { ...prev, [key]: !prev[key] };
+      try {
+        localStorage.setItem("toolkit-creator-checklist", JSON.stringify(updated));
+      } catch (e) {
+        console.error(e);
+      }
+      return updated;
+    });
+  };
+
+  const [currentTime, setCurrentTime] = useState(new Date());
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   // Drive synchronization
   const [files, setFiles] = useState<DriveFile[]>([]);
@@ -1470,6 +1517,42 @@ export default function App() {
         <div className="flex-1 min-w-0 flex flex-col overflow-y-auto">
           {activeTab === "home" ? (
             <div className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-8 space-y-8 animate-in fade-in duration-300">
+              
+              {/* Dynamic Hour Greeting & Real-time micro clock row */}
+              {(() => {
+                const getHourGreeting = () => {
+                  const hr = currentTime.getHours();
+                  if (hr < 12) return "Good morning";
+                  if (hr < 17) return "Good afternoon";
+                  return "Good evening";
+                };
+                const creatorName = user?.email ? user.email.split("@")[0] : "Creator";
+                const cleanName = creatorName.charAt(0).toUpperCase() + creatorName.slice(1);
+                const timeString = currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                const dateString = currentTime.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+                return (
+                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-6 border-b border-slate-150 dark:border-slate-850 gap-4 select-none">
+                    <div>
+                      <h1 className={`text-2xl sm:text-3xl font-black tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                        {getHourGreeting()}, <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500">{cleanName}!</span>
+                      </h1>
+                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                        Welcome to Toolkit Pro — your premium standalone space for professional-grade design, encoding, and optimization.
+                      </p>
+                    </div>
+                    <div className={`flex items-center gap-3 px-4.5 py-2.5 rounded-2xl border ${
+                      theme === "dark" ? "bg-slate-900/60 border-slate-800" : "bg-white border-slate-200/60 shadow-3xs"
+                    }`}>
+                      <Clock className="w-4 h-4 text-indigo-500 animate-pulse" />
+                      <div className="text-right">
+                        <p className="text-xs font-black font-mono leading-none tracking-wider">{timeString}</p>
+                        <p className="text-[10px] text-slate-400 dark:text-slate-505 leading-none mt-1 font-semibold">{dateString}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Hero Welcome banner */}
               <section className={`border rounded-3xl overflow-hidden transition-colors duration-200 py-10 ${
                 theme === "dark"
@@ -1546,7 +1629,7 @@ export default function App() {
                       {/* High-Fidelity Tooltip describing PWA benefits */}
                       <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2.5 z-40 w-72 p-4 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 pointer-events-none scale-95 group-hover:scale-100 text-left space-y-3">
                         <div className="flex items-center gap-1.5 pb-1.5 border-b border-slate-100 dark:border-slate-850">
-                          <span className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/55">
+                          <span className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-955/55">
                             {pwaChecking ? (
                               <Loader2 className="w-3.5 h-3.5 text-blue-500 animate-spin" />
                             ) : (
@@ -1585,6 +1668,19 @@ export default function App() {
                       </div>
                     </div>
                   </div>
+                  
+                  {/* Brand Logo Display */}
+                  <div className="flex justify-center pt-2 pb-1 animate-in fade-in zoom-in-95 duration-500">
+                    <div className="bg-white p-3 rounded-2xl border border-slate-200/60 shadow-sm flex items-center justify-center max-w-[240px] sm:max-w-[280px] transition-all hover:scale-[1.03] duration-300">
+                      <img 
+                        src={brandLogo} 
+                        alt="Toolkit Pro" 
+                        className="h-9 sm:h-11 w-auto object-contain rounded-sm"
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                  </div>
+
                   <h2 className={`text-2xl sm:text-3xl font-extrabold tracking-tight font-sans ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
                     Advanced Tools for Digital Creators
                   </h2>
@@ -1614,7 +1710,7 @@ export default function App() {
 
                       <div className={`border rounded-xl p-3 flex items-start space-x-2 text-xs text-left ${
                         theme === "dark"
-                          ? "bg-amber-950/20 border-amber-900/40 text-amber-300"
+                          ? "bg-amber-955/20 border-amber-900/40 text-amber-300"
                           : "bg-amber-50 border-amber-100 text-amber-800"
                       }`}>
                         <AlertCircle className="w-4 h-4 mt-0.5 text-amber-500 shrink-0" />
@@ -1627,59 +1723,214 @@ export default function App() {
                 </div>
               </section>
 
+              {/* Interactive Setup Progress Roadmap Checklist */}
+              <div className={`border rounded-3xl p-6 transition-colors duration-200 select-none ${
+                theme === "dark"
+                  ? "bg-gradient-to-br from-slate-900 to-slate-950 border-slate-850"
+                  : "bg-white border-slate-200/70 shadow-3xs"
+              }`}>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/55 border border-indigo-100/30">
+                        <Award className="w-4 h-4 text-indigo-500" />
+                      </div>
+                      <h3 className={`text-xs font-black uppercase tracking-wider ${theme === "dark" ? "text-slate-200" : "text-slate-800"}`}>
+                        Studio Setup Checklist & Creator Missions
+                      </h3>
+                    </div>
+                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
+                      Complete tasks to master Toolkit Pro's professional creator workflow integrations.
+                    </p>
+                  </div>
+                  {/* Progress Bar */}
+                  <div className="w-full sm:w-56 space-y-1.5 shrink-0">
+                    <div className="flex justify-between items-center text-[9px] font-bold font-mono">
+                      <span className="text-slate-405">COMPLETION STATE</span>
+                      <span className="text-indigo-600 dark:text-indigo-400">
+                        {Math.round((Object.values(checklist).filter(Boolean).length / Object.keys(checklist).length) * 100)}%
+                      </span>
+                    </div>
+                    <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                      <div 
+                        className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-500 transition-all duration-500 ease-out"
+                        style={{ width: `${(Object.values(checklist).filter(Boolean).length / Object.keys(checklist).length) * 100}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                  {[
+                    { id: "quote", label: "Quote Designer", desc: "Craft typographic asset cards", badge: "Design" },
+                    { id: "compress", label: "Image Compressor", desc: "Minimize asset bundle sizes", badge: "Optimize" },
+                    { id: "qr", label: "QR Generator", desc: "Encode ECC scan coordinates", badge: "ECC Code" },
+                    { id: "palette", label: "Color Extractor", desc: "Sample hex color spectrums", badge: "Spectrums" },
+                    { id: "drive", label: "Google Drive Sync", desc: "Synchronize cloud folders", badge: "Backup" },
+                  ].map((item) => {
+                    const isDone = item.id === "drive" ? !!user : checklist[item.id];
+                    return (
+                      <div
+                        key={item.id}
+                        className={`p-4 rounded-2xl border transition-all flex flex-col justify-between group h-40 ${
+                          isDone
+                            ? theme === "dark"
+                              ? "bg-emerald-955/10 border-emerald-900/30 text-emerald-300"
+                              : "bg-emerald-50/35 border-emerald-150 text-emerald-850"
+                            : theme === "dark"
+                              ? "bg-slate-900/40 border-slate-805 text-slate-300 hover:border-slate-700"
+                              : "bg-slate-50/30 border-slate-200/50 text-slate-700 hover:bg-slate-50 hover:border-slate-300"
+                        }`}
+                      >
+                        <div className="space-y-1.5">
+                          <div className="flex items-center justify-between">
+                            <button
+                              onClick={() => {
+                                if (item.id === "drive") {
+                                  if (!user) handleLogin();
+                                } else {
+                                  toggleChecklistItem(item.id);
+                                }
+                              }}
+                              className="p-1 rounded-lg hover:bg-slate-100/50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors"
+                              title={isDone ? "Mark incomplete" : "Mark completed"}
+                            >
+                              {isDone ? (
+                                <CheckCircle2 className="w-4.5 h-4.5 text-emerald-500 animate-in zoom-in-75 duration-200" />
+                              ) : (
+                                <Circle className="w-4.5 h-4.5 text-slate-300 dark:text-slate-650 group-hover:text-slate-400" />
+                              )}
+                            </button>
+                            <span className={`text-[8.5px] font-black uppercase font-mono px-1.5 py-0.5 rounded leading-none ${
+                              isDone ? "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600" : "bg-slate-100 dark:bg-slate-800 text-slate-405"
+                            }`}>
+                              {item.badge}
+                            </span>
+                          </div>
+                          <h4 className="text-[11.5px] font-black tracking-tight uppercase leading-tight mt-1">{item.label}</h4>
+                          <p className="text-[9.5px] text-slate-400 dark:text-slate-505 leading-tight">{item.desc}</p>
+                        </div>
+
+                        <button
+                          onClick={() => {
+                            setActiveTab(item.id as any);
+                            setIsSitemapView(false);
+                          }}
+                          className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:text-indigo-505 dark:hover:text-indigo-300 cursor-pointer"
+                        >
+                          <span>Launch Tool</span>
+                          <ArrowRight className="w-2.5 h-2.5 transform group-hover:translate-x-0.5 transition-transform" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
               {/* Dynamic AdSense Leaderboard Placement Box */}
               <div className="w-full select-none" id="home-adsense-leaderboard-wrapper">
                 <AdSenseMock slot="top-leaderboard-home" type="leaderboard" />
               </div>
 
-              {/* Discovery Feature Bento Grid */}
-              <div className="space-y-4">
-                <div className="flex items-center justify-between px-1">
-                  <h3 className={`text-md font-black tracking-tight uppercase ${theme === "dark" ? "text-slate-200" : "text-slate-800"}`}>
-                    Suite of Interactive Utilities
-                  </h3>
-                  <span className="text-[10px] font-bold text-slate-400 font-mono">8 Operational Modules</span>
+              {/* Spotlight of the Day & System Stats Metrics Block */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 select-none">
+                {/* Highlight/Spotlight card */}
+                <div className={`lg:col-span-2 border rounded-3xl p-6 relative overflow-hidden transition-colors ${
+                  theme === "dark"
+                    ? "bg-gradient-to-br from-indigo-950/20 via-slate-900 to-slate-950 border-slate-850"
+                    : "bg-gradient-to-br from-indigo-50/15 via-white to-slate-50/50 border-slate-200 shadow-3xs"
+                }`}>
+                  <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
+                  
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border border-indigo-200/40">
+                      Featured Creative Utility
+                    </span>
+                    <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" /> SECURE GPU
+                    </span>
+                  </div>
+
+                  <div className="space-y-3 max-w-xl">
+                    <h3 className={`text-lg sm:text-xl font-black tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                      Client-side Quantized Video & Typographic Quote Builder
+                    </h3>
+                    <p className="text-xs text-slate-400 dark:text-slate-405 leading-relaxed">
+                      Experience instant processing speed. Build stylized graphics with blurred backdrop filters and canvas noise presets, or animate layouts into horizontal/vertical motion videos. All processing occurs locally.
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-3 mt-6">
+                    <button
+                      onClick={() => {
+                        setActiveTab("quote");
+                        setIsSitemapView(false);
+                      }}
+                      className="inline-flex items-center justify-center gap-1.5 px-4.5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-semibold text-xs text-white shadow-md transition-all active:scale-95 cursor-pointer"
+                    >
+                      <Quote className="w-3.5 h-3.5" />
+                      <span>Launch Quote Designer</span>
+                    </button>
+                    
+                    <button
+                      onClick={() => {
+                        setActiveTab("compress");
+                        setIsSitemapView(false);
+                      }}
+                      className={`inline-flex items-center justify-center gap-1.5 px-4.5 py-2.5 rounded-xl border font-semibold text-xs transition-all active:scale-95 cursor-pointer ${
+                        theme === "dark"
+                          ? "bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-850 hover:text-white"
+                          : "bg-white border-slate-200 text-slate-650 hover:bg-slate-50 hover:text-slate-900"
+                      }`}
+                    >
+                      <FileImage className="w-3.5 h-3.5" />
+                      <span>Compress Image Bundle</span>
+                    </button>
+                  </div>
                 </div>
-                
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="home-feature-bento-grid">
-                  {[
-                    { id: "quote", label: "Quote Designer", desc: "Design elegant graphic text quote cards with custom typography, gradients, blurred frames, and background noise presets.", icon: Quote, color: "text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 border-indigo-100/50" },
-                    { id: "compress", label: "Image Compressor", desc: "Reduce JPEG, PNG, and WebP file sizes by up to 90% in milliseconds using standard local Median Cut quantization.", icon: FileImage, color: "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-100/50" },
-                    { id: "qr", label: "QR Code Generator", icon: QrCode, desc: "Encode scan metrics and custom targets using advanced Reed-Solomon Error Correction Code with configurable layouts.", color: "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border-amber-100/50" },
-                    { id: "palette", label: "Color Extractor", icon: Pipette, desc: "Extract dominant color palettes and contrasting text values using high-fidelity color spectrum quantization.", color: "text-pink-600 dark:text-pink-400 bg-pink-50 dark:bg-pink-950/60 border-pink-100/50" },
-                    { id: "video", label: "Video Creator", icon: Video, desc: "Animate images into captivating horizontal/vertical motion videos with detailed custom timeline loop controls.", color: "text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-955/60 border-purple-100/50" },
-                    { id: "drive", label: "Drive Panel", icon: Cloud, desc: "Connect your secure Google account to browse, manage, and instantly sync saved assets to Google Drive folders.", color: "text-sky-600 dark:text-sky-400 bg-sky-50 dark:bg-sky-955/60 border-sky-100/50" },
-                    { id: "resources", label: "Guides & SEO", icon: BookOpen, desc: "Generate XML Sitemaps and evaluate structured SEO metadata snippets with our state-of-the-art copywriting guides.", color: "text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-955/40 border-teal-100/50" },
-                    { id: "legal", label: "Compliance & Safety", icon: ShieldCheck, desc: "Review AdSense editorial rules, access user agreements, and contact support teams directly for feedback.", color: "text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-slate-955/40 border-slate-200" }
-                  ].map((t) => {
-                    const Icon = t.icon;
-                    return (
-                      <button
-                        key={t.id}
-                        onClick={() => {
-                          setActiveTab(t.id as any);
-                          setIsSitemapView(false);
-                        }}
-                        className={`p-5 rounded-2xl border text-left flex flex-col justify-between hover:scale-102 hover:shadow-md hover:-translate-y-0.5 active:scale-98 cursor-pointer transition-all h-full group ${
-                          theme === "dark"
-                            ? "bg-slate-900 border-slate-805 text-slate-100 hover:border-slate-700 hover:bg-slate-850"
-                            : "bg-white border-slate-200/60 text-slate-800 shadow-3xs hover:border-slate-300 hover:bg-slate-50/50"
-                        }`}
-                      >
-                        <div className="space-y-3">
-                          <div className={`p-2.5 rounded-xl inline-flex border ${t.color}`}>
-                            <Icon className="w-5 h-5" />
-                          </div>
-                          <h3 className="text-xs font-black tracking-tight leading-none uppercase">{t.label}</h3>
-                          <p className="text-[11px] text-slate-450 dark:text-slate-400 leading-relaxed font-sans">{t.desc}</p>
+
+                {/* Live Performance / System Quick Stats */}
+                <div className={`border rounded-3xl p-6 transition-colors flex flex-col justify-between ${
+                  theme === "dark"
+                    ? "bg-slate-900 border-slate-805 text-slate-100"
+                    : "bg-white border-slate-200/60 text-slate-850 shadow-3xs"
+                }`}>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between border-b border-slate-150 dark:border-slate-800 pb-3">
+                      <div className="flex items-center gap-1.5">
+                        <Activity className="w-4 h-4 text-emerald-500" />
+                        <span className="text-[10px] font-black uppercase tracking-wider font-mono">System Metrics</span>
+                      </div>
+                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                    </div>
+
+                    <div className="space-y-3">
+                      {[
+                        { label: "PWA Offline Status", value: hasDeferredPrompt ? "Ready to Install" : "Fully Integrated", status: hasDeferredPrompt ? "info" : "success" },
+                        { label: "Google Drive Sync", value: user ? "Connected & Live" : "Backup Offline", status: user ? "success" : "warning" },
+                        { label: "Active Session Actions", value: `${recentActivities.length} Operations`, status: "success" },
+                        { label: "Hardware Accelerated", value: "Active (WebKit GPU)", status: "success" }
+                      ].map((metric, idx) => (
+                        <div key={idx} className="flex items-center justify-between text-[11px]">
+                          <span className="text-slate-400 dark:text-slate-505 font-medium">{metric.label}</span>
+                          <span className={`font-bold font-mono px-2 py-0.5 rounded-full text-[9px] ${
+                            metric.status === "success" 
+                              ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400" 
+                              : metric.status === "warning"
+                                ? "bg-amber-50 dark:bg-amber-955/20 text-amber-600 dark:text-amber-400"
+                                : "bg-blue-50 dark:bg-blue-955/30 text-blue-600 dark:text-blue-400"
+                          }`}>
+                            {metric.value}
+                          </span>
                         </div>
-                        <div className="text-[10px] font-extrabold text-indigo-600 dark:text-indigo-400 mt-4 flex items-center gap-1 uppercase tracking-wider group-hover:text-indigo-505">
-                          Launch Tool
-                          <span className="transform group-hover:translate-x-1 transition-transform">➔</span>
-                        </div>
-                      </button>
-                    );
-                  })}
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="border-t border-slate-150 dark:border-slate-800 pt-3 mt-4 flex items-center justify-between text-[9px] text-slate-400 dark:text-slate-550 font-mono uppercase font-black">
+                    <span>Rendering Canvas</span>
+                    <span className="text-emerald-500 font-black">100% Client-side</span>
+                  </div>
                 </div>
               </div>
 

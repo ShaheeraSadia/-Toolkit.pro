@@ -1246,6 +1246,9 @@ export default function ImageCompressor({
   const [isDraggingSlider, setIsDraggingSlider] = useState<boolean>(false);
   const [showOriginalInAB, setShowOriginalInAB] = useState<boolean>(false);
   const [activeImageAspect, setActiveImageAspect] = useState<number | null>(null);
+  const [zoomLevel, setZoomLevel] = useState<number>(1);
+  const [mousePosition, setMousePosition] = useState<{ x: number; y: number }>({ x: 50, y: 50 });
+  const [showDiffHeatmap, setShowDiffHeatmap] = useState<boolean>(false);
 
   // Live Compression Preview States
   const [isLivePreviewEnabled, setIsLivePreviewEnabled] = useState<boolean>(false);
@@ -1312,6 +1315,22 @@ export default function ImageCompressor({
       handleSliderMove(e.touches[0].clientX);
       setIsDraggingSlider(true);
     }
+  };
+
+  const handleContainerMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (zoomLevel <= 1) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * 100;
+    const y = ((e.clientY - rect.top) / rect.height) * 100;
+    setMousePosition({ x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) });
+  };
+
+  const handleContainerTouchMove = (e: React.TouchEvent<HTMLDivElement>) => {
+    if (zoomLevel <= 1 || !e.touches || !e.touches[0]) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.touches[0].clientX - rect.left) / rect.width) * 100;
+    const y = ((e.touches[0].clientY - rect.top) / rect.height) * 100;
+    setMousePosition({ x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) });
   };
 
   // Active item resolution
@@ -6253,13 +6272,62 @@ export default function ImageCompressor({
 
                     {dashboardView === "slider" && (
                       <div className="flex-1 flex flex-col items-center justify-center py-2 select-none">
+                        {/* Interactive Zoom and Heatmap Controls */}
+                        <div className="w-full flex flex-wrap items-center justify-between gap-2 mb-3 bg-slate-50 dark:bg-slate-900/60 p-2 rounded-xl border border-slate-200/60 dark:border-slate-800">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Inspect Zoom:</span>
+                            <div className="flex items-center space-x-1 bg-white dark:bg-slate-950 rounded-lg p-0.5 border border-slate-200 dark:border-slate-800">
+                              {[1, 2, 3, 4].map((z) => (
+                                <button
+                                  key={z}
+                                  type="button"
+                                  onClick={() => {
+                                    setZoomLevel(z);
+                                    if (z === 1) setMousePosition({ x: 50, y: 50 });
+                                  }}
+                                  className={`px-2 py-1 rounded text-[9px] font-bold uppercase transition-colors cursor-pointer ${
+                                    zoomLevel === z
+                                      ? "bg-indigo-600 text-white"
+                                      : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                                  }`}
+                                >
+                                  {z}x
+                                </button>
+                              ))}
+                            </div>
+                            {zoomLevel > 1 && (
+                              <span className="text-[9px] text-indigo-500 dark:text-indigo-400 font-bold animate-pulse">
+                                🖱️ Move mouse to Pan
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center space-x-3">
+                            <button
+                              type="button"
+                              onClick={() => setShowDiffHeatmap(!showDiffHeatmap)}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[9px] font-extrabold uppercase tracking-wide transition-all cursor-pointer ${
+                                showDiffHeatmap
+                                  ? "bg-rose-500/10 dark:bg-rose-500/20 border-rose-500/30 text-rose-600 dark:text-rose-400"
+                                  : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-850 text-slate-650 hover:text-slate-850 dark:text-slate-400 dark:hover:text-white"
+                              }`}
+                              title="Compare the raw difference of pixels (mix-blend-difference)"
+                            >
+                              <Layers className="w-3.5 h-3.5" />
+                              <span>Diff Heatmap</span>
+                            </button>
+                          </div>
+                        </div>
+
                         <div 
                           ref={inlineSliderContainerRef}
                           onMouseDown={onSliderMouseDown}
                           onTouchStart={onSliderTouchStart}
+                          onMouseMove={handleContainerMouseMove}
+                          onTouchMove={handleContainerTouchMove}
                           className="relative w-full rounded-2xl bg-black/5 dark:bg-black/40 border border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden cursor-ew-resize group shadow-inner max-h-[320px] sm:max-h-[420px]"
                           style={{ aspectRatio: activeImageAspect || "16/9" }}
-                          title="Drag the slider handle to compare before and after"
+                          title="Drag the slider handle to compare before and after. Use Zoom controls above to magnify details."
                           id="inline-compare-slider-container"
                         >
                           {/* Before Image (Left Side) - Original */}
@@ -6269,8 +6337,10 @@ export default function ImageCompressor({
                               alt="Original Before" 
                               className="absolute inset-0 w-full h-full object-contain"
                               style={{
-                                transform: `rotate(${activeItem?.rotation || 0}deg)`,
-                                filter: getFilterCSS(imgFilter)
+                                transform: `rotate(${activeItem?.rotation || 0}deg) scale(${zoomLevel})`,
+                                transformOrigin: `${mousePosition.x}% ${mousePosition.y}%`,
+                                filter: getFilterCSS(imgFilter),
+                                transition: isDraggingSlider ? "none" : "transform-origin 0.05s ease-out"
                               }}
                               referrerPolicy="no-referrer"
                             />
@@ -6284,15 +6354,50 @@ export default function ImageCompressor({
                             className="absolute inset-0 select-none pointer-events-none w-full h-full"
                             style={{ clipPath: `polygon(${sliderPosition}% 0, 100% 0, 100% 100%, ${sliderPosition}% 100%)` }}
                           >
-                            <img 
-                              src={compressedResult.dataUrl} 
-                              alt="Compressed After" 
-                              className="absolute inset-0 w-full h-full object-contain"
-                              style={{ transform: `rotate(${activeItem?.rotation || 0}deg)` }}
-                              referrerPolicy="no-referrer"
-                            />
+                            {showDiffHeatmap ? (
+                              <div className="absolute inset-0 w-full h-full bg-slate-950 flex items-center justify-center">
+                                {/* Base original image for diff */}
+                                <img 
+                                  src={originalUrl || undefined} 
+                                  alt="Heatmap original base"
+                                  className="absolute inset-0 w-full h-full object-contain"
+                                  style={{
+                                    transform: `rotate(${activeItem?.rotation || 0}deg) scale(${zoomLevel})`,
+                                    transformOrigin: `${mousePosition.x}% ${mousePosition.y}%`,
+                                    filter: getFilterCSS(imgFilter),
+                                    transition: isDraggingSlider ? "none" : "transform-origin 0.05s ease-out"
+                                  }}
+                                  referrerPolicy="no-referrer"
+                                />
+                                {/* Blended optimized image on top with difference blend */}
+                                <img 
+                                  src={compressedResult.dataUrl} 
+                                  alt="Heatmap optimized blend"
+                                  className="absolute inset-0 w-full h-full object-contain mix-blend-difference"
+                                  style={{
+                                    transform: `rotate(${activeItem?.rotation || 0}deg) scale(${zoomLevel})`,
+                                    transformOrigin: `${mousePosition.x}% ${mousePosition.y}%`,
+                                    filter: "brightness(4) contrast(3) saturate(1.5)",
+                                    transition: isDraggingSlider ? "none" : "transform-origin 0.05s ease-out"
+                                  }}
+                                  referrerPolicy="no-referrer"
+                                />
+                              </div>
+                            ) : (
+                              <img 
+                                src={compressedResult.dataUrl} 
+                                alt="Compressed After" 
+                                className="absolute inset-0 w-full h-full object-contain"
+                                style={{
+                                  transform: `rotate(${activeItem?.rotation || 0}deg) scale(${zoomLevel})`,
+                                  transformOrigin: `${mousePosition.x}% ${mousePosition.y}%`,
+                                  transition: isDraggingSlider ? "none" : "transform-origin 0.05s ease-out"
+                                }}
+                                referrerPolicy="no-referrer"
+                              />
+                            )}
                             <div className="absolute top-3 right-3 bg-indigo-650/90 backdrop-blur-md px-2 py-1 rounded-lg text-[9px] font-bold text-white tracking-wide border border-indigo-500/20 uppercase select-none z-10 shadow-sm">
-                              Optimized • {formatFileSize(compressedResult.compressedSize)}
+                              {showDiffHeatmap ? "Loss Heatmap" : "Optimized"} • {formatFileSize(compressedResult.compressedSize)}
                             </div>
                           </div>
 
@@ -6914,7 +7019,44 @@ export default function ImageCompressor({
             </div>
 
             {/* Render Mode Selectors */}
-            <div className="flex flex-wrap items-center gap-2 self-stretch sm:self-auto select-none">
+            <div className="flex flex-wrap items-center gap-3 self-stretch sm:self-auto select-none">
+              {/* Zoom controls inside modal */}
+              <div className="bg-slate-900 border border-slate-800 p-1 rounded-xl flex items-center space-x-1">
+                <span className="text-[9px] font-black uppercase text-slate-500 px-2">Zoom:</span>
+                {[1, 2, 3, 4].map((z) => (
+                  <button
+                    key={z}
+                    type="button"
+                    onClick={() => {
+                      setZoomLevel(z);
+                      if (z === 1) setMousePosition({ x: 50, y: 50 });
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[9px] font-black transition-colors cursor-pointer ${
+                      zoomLevel === z
+                        ? "bg-indigo-600 text-white"
+                        : "text-slate-400 hover:text-white"
+                    }`}
+                  >
+                    {z}x
+                  </button>
+                ))}
+              </div>
+
+              {/* Heatmap control inside modal */}
+              <button
+                type="button"
+                onClick={() => setShowDiffHeatmap(!showDiffHeatmap)}
+                className={`px-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                  showDiffHeatmap
+                    ? "bg-rose-500/20 border-rose-500/40 text-rose-400"
+                    : "bg-slate-900 border-slate-800 text-slate-400 hover:text-white"
+                }`}
+                title="Highlight difference in pixel data"
+              >
+                <Layers className="w-3.5 h-3.5 mr-1 inline" />
+                Diff Heatmap
+              </button>
+
               <div className="bg-slate-900 border border-slate-800 p-1 rounded-xl flex items-center space-x-1">
                 {[
                   { id: "side-by-side", label: "Side-by-Side" },
@@ -6957,7 +7099,11 @@ export default function ImageCompressor({
           {/* Core Interactive Comparison Area */}
           <div className="flex-1 w-full max-w-7xl flex items-center justify-center p-2 sm:p-4 min-h-0">
             {previewMode === "side-by-side" && (
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full h-full max-h-[70vh] items-center">
+              <div 
+                onMouseMove={handleContainerMouseMove}
+                onTouchMove={handleContainerTouchMove}
+                className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full h-full max-h-[70vh] items-center"
+              >
                 {/* Original side */}
                 <div className="flex flex-col h-full bg-slate-900/30 border border-slate-800 rounded-2xl p-4 min-h-0 overflow-hidden text-center justify-between">
                   <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest bg-slate-900/60 px-2.5 py-1 rounded border border-slate-800 self-center">
@@ -6968,10 +7114,12 @@ export default function ImageCompressor({
                       src={originalUrl || undefined} 
                       alt="Original full quality" 
                       style={{ 
-                        transform: `rotate(${activeItem?.rotation || 0}deg)`,
-                        filter: getFilterCSS(imgFilter)
+                        transform: `rotate(${activeItem?.rotation || 0}deg) scale(${zoomLevel})`,
+                        transformOrigin: `${mousePosition.x}% ${mousePosition.y}%`,
+                        filter: getFilterCSS(imgFilter),
+                        transition: "transform-origin 0.05s ease-out"
                       }}
-                      className="max-h-[50vh] object-contain transition-transform"
+                      className="max-h-[50vh] object-contain"
                       referrerPolicy="no-referrer"
                     />
                   </div>
@@ -6986,15 +7134,49 @@ export default function ImageCompressor({
                     Optimized Quality Model (-{compressedResult.savingPercentage}%)
                   </span>
                   <div className="flex-1 flex items-center justify-center min-h-0 mt-4 overflow-hidden rounded-xl bg-black/40">
-                    <img 
-                      src={compressedResult.dataUrl} 
-                      alt="Optimized full quality" 
-                      className="max-h-[50vh] object-contain"
-                      referrerPolicy="no-referrer"
-                    />
+                    {showDiffHeatmap ? (
+                      <div className="relative w-full h-full min-h-0 bg-slate-950 flex items-center justify-center">
+                        <img 
+                          src={originalUrl || undefined} 
+                          alt="Heatmap original base fullscreen" 
+                          style={{ 
+                            transform: `rotate(${activeItem?.rotation || 0}deg) scale(${zoomLevel})`,
+                            transformOrigin: `${mousePosition.x}% ${mousePosition.y}%`,
+                            filter: getFilterCSS(imgFilter),
+                            transition: "transform-origin 0.05s ease-out"
+                          }}
+                          className="max-h-[50vh] object-contain absolute inset-0 m-auto"
+                          referrerPolicy="no-referrer"
+                        />
+                        <img 
+                          src={compressedResult.dataUrl} 
+                          alt="Heatmap optimized blend fullscreen" 
+                          style={{ 
+                            transform: `rotate(${activeItem?.rotation || 0}deg) scale(${zoomLevel})`,
+                            transformOrigin: `${mousePosition.x}% ${mousePosition.y}%`,
+                            filter: "brightness(4) contrast(3) saturate(1.5)",
+                            transition: "transform-origin 0.05s ease-out"
+                          }}
+                          className="max-h-[50vh] object-contain absolute inset-0 m-auto mix-blend-difference"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                    ) : (
+                      <img 
+                        src={compressedResult.dataUrl} 
+                        alt="Optimized full quality" 
+                        style={{ 
+                          transform: `rotate(${activeItem?.rotation || 0}deg) scale(${zoomLevel})`,
+                          transformOrigin: `${mousePosition.x}% ${mousePosition.y}%`,
+                          transition: "transform-origin 0.05s ease-out"
+                        }}
+                        className="max-h-[50vh] object-contain"
+                        referrerPolicy="no-referrer"
+                      />
+                    )}
                   </div>
                   <span className="text-xs font-black font-mono text-emerald-405 mt-3 block">
-                    {formatFileSize(compressedResult.compressedSize)}
+                    {showDiffHeatmap ? "Loss Heatmap View" : formatFileSize(compressedResult.compressedSize)}
                   </span>
                 </div>
               </div>
@@ -7005,6 +7187,8 @@ export default function ImageCompressor({
                 ref={sliderContainerRef}
                 onMouseDown={onSliderMouseDown}
                 onTouchStart={onSliderTouchStart}
+                onMouseMove={handleContainerMouseMove}
+                onTouchMove={handleContainerTouchMove}
                 className="relative w-full max-w-4xl rounded-2xl border border-slate-800 bg-black/40 overflow-hidden select-none cursor-ew-resize max-h-[70vh]"
                 style={{ aspectRatio: activeImageAspect || "16/9" }}
                 id="preview-contrast-slider-container"
@@ -7016,8 +7200,10 @@ export default function ImageCompressor({
                     alt="Original Before" 
                     className="absolute inset-0 w-full h-full object-contain"
                     style={{
-                      transform: `rotate(${activeItem?.rotation || 0}deg)`,
-                      filter: getFilterCSS(imgFilter)
+                      transform: `rotate(${activeItem?.rotation || 0}deg) scale(${zoomLevel})`,
+                      transformOrigin: `${mousePosition.x}% ${mousePosition.y}%`,
+                      filter: getFilterCSS(imgFilter),
+                      transition: isDraggingSlider ? "none" : "transform-origin 0.05s ease-out"
                     }}
                     referrerPolicy="no-referrer"
                   />
@@ -7031,15 +7217,48 @@ export default function ImageCompressor({
                   className="absolute inset-0 select-none pointer-events-none w-full h-full"
                   style={{ clipPath: `polygon(${sliderPosition}% 0, 100% 0, 100% 100%, ${sliderPosition}% 100%)` }}
                 >
-                  <img 
-                    src={compressedResult.dataUrl} 
-                    alt="Compressed After" 
-                    className="absolute inset-0 w-full h-full object-contain"
-                    style={{ transform: `rotate(${activeItem?.rotation || 0}deg)` }}
-                    referrerPolicy="no-referrer"
-                  />
+                  {showDiffHeatmap ? (
+                    <div className="absolute inset-0 w-full h-full bg-slate-950 flex items-center justify-center">
+                      <img 
+                        src={originalUrl || undefined} 
+                        alt="Heatmap original base modal" 
+                        className="absolute inset-0 w-full h-full object-contain"
+                        style={{
+                          transform: `rotate(${activeItem?.rotation || 0}deg) scale(${zoomLevel})`,
+                          transformOrigin: `${mousePosition.x}% ${mousePosition.y}%`,
+                          filter: getFilterCSS(imgFilter),
+                          transition: isDraggingSlider ? "none" : "transform-origin 0.05s ease-out"
+                        }}
+                        referrerPolicy="no-referrer"
+                      />
+                      <img 
+                        src={compressedResult.dataUrl} 
+                        alt="Heatmap optimized blend modal" 
+                        className="absolute inset-0 w-full h-full object-contain mix-blend-difference"
+                        style={{
+                          transform: `rotate(${activeItem?.rotation || 0}deg) scale(${zoomLevel})`,
+                          transformOrigin: `${mousePosition.x}% ${mousePosition.y}%`,
+                          filter: "brightness(4) contrast(3) saturate(1.5)",
+                          transition: isDraggingSlider ? "none" : "transform-origin 0.05s ease-out"
+                        }}
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                  ) : (
+                    <img 
+                      src={compressedResult.dataUrl} 
+                      alt="Compressed After" 
+                      className="absolute inset-0 w-full h-full object-contain"
+                      style={{
+                        transform: `rotate(${activeItem?.rotation || 0}deg) scale(${zoomLevel})`,
+                        transformOrigin: `${mousePosition.x}% ${mousePosition.y}%`,
+                        transition: isDraggingSlider ? "none" : "transform-origin 0.05s ease-out"
+                      }}
+                      referrerPolicy="no-referrer"
+                    />
+                  )}
                   <div className="absolute top-4 right-4 bg-indigo-650/90 backdrop-blur-md px-2.5 py-1 rounded-lg text-[10px] font-bold text-white tracking-wide border border-indigo-500/20 uppercase select-none z-10 shadow-md">
-                    Optimized (After) • {formatFileSize(compressedResult.compressedSize)}
+                    {showDiffHeatmap ? "Loss Heatmap" : "Optimized (After)"} • {formatFileSize(compressedResult.compressedSize)}
                   </div>
                 </div>
 

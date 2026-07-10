@@ -43,6 +43,8 @@ import {
 import { ActiveTab } from "../types";
 import { ambientSynth, AmbientSoundType } from "../lib/ambientSynth";
 import { AmbientVisualizer } from "./AmbientVisualizer";
+// @ts-ignore
+import brandLogo from "../assets/images/toolkit_pro_logo_1781887052514.jpg";
 
 
 interface NavbarProps {
@@ -332,24 +334,19 @@ export default function Navbar({
 
             <div 
               onClick={() => handleTabClick("home")}
-              className="flex items-center space-x-2.5 cursor-pointer group"
+              className="flex items-center space-x-3 cursor-pointer group"
             >
-              <div className="flex items-center justify-center w-9 h-9 sm:w-10 sm:h-10 rounded-xl bg-gradient-to-tr from-indigo-500 to-violet-600 text-white font-sans font-black text-sm sm:text-base shadow-md transform group-hover:scale-105 transition-all">
-                TP
+              <div className="bg-white px-2.5 py-1.5 rounded-xl border border-slate-200/60 shadow-3xs flex items-center justify-center transition-all group-hover:scale-[1.03] duration-300">
+                <img 
+                  src={brandLogo} 
+                  alt="Toolkit Pro Logo" 
+                  className="h-7 sm:h-8.5 w-auto object-contain rounded-sm"
+                  referrerPolicy="no-referrer"
+                />
               </div>
-              <div className="text-left leading-none font-sans">
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm sm:text-lg font-black tracking-tight tracking-wide uppercase">
-                    Toolkit<span className="text-indigo-600 dark:text-indigo-400">Pro</span>
-                  </span>
-                  <span className="hidden sm:inline-flex items-center rounded-full bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 text-[9px] font-extrabold text-emerald-800 dark:text-emerald-405 border border-emerald-100 dark:border-emerald-900/40 uppercase tracking-wider">
-                    AdSense ID
-                  </span>
-                </div>
-                <p className="hidden xs:block text-[9px] sm:text-[10px] text-slate-450 dark:text-slate-505 font-bold uppercase tracking-wider mt-1.5 font-mono">
-                  Ultimate Creator Hub
-                </p>
-              </div>
+              <span className="hidden sm:inline-flex items-center rounded-full bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 text-[9px] font-extrabold text-emerald-800 dark:text-emerald-405 border border-emerald-100 dark:border-emerald-900/40 uppercase tracking-wider">
+                AdSense ID
+              </span>
             </div>
           </div>
 

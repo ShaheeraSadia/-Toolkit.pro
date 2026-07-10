@@ -1184,6 +1184,7 @@ export default function QrGenerator({
 
   // Print layout studio config states
   const [showPrintLayoutModal, setShowPrintLayoutModal] = useState<boolean>(false);
+  const [paperSize, setPaperSize] = useState<"a4" | "letter" | "legal">("a4");
   const [printSourceMode, setPrintSourceMode] = useState<"single" | "multi" | "collaboration">("single");
   const [singlePrintCopies, setSinglePrintCopies] = useState<number>(12);
   const [printQrSizeMm, setPrintQrSizeMm] = useState<number>(50); // width of code in mm
@@ -1605,12 +1606,12 @@ export default function QrGenerator({
     }
   }, [printSourceMode, qrCodeDataUrl, text, singlePrintCopies, printableList, selectedMultiQrIds]);
 
-  // Physical page boundaries calculations for standard A4
-  const containerWidthMm = 210;
-  const containerHeightMm = 297;
+  // Physical page boundaries calculations based on paper size
+  const containerWidthMm = paperSize === "a4" ? 210 : paperSize === "letter" ? 215.9 : 215.9;
+  const containerHeightMm = paperSize === "a4" ? 297 : paperSize === "letter" ? 279.4 : 355.6;
   const paddingMm = 15; // 15mm page safety margin
-  const drawWidthMm = containerWidthMm - (paddingMm * 2); // 180mm
-  const drawHeightMm = containerHeightMm - (paddingMm * 2); // 267mm
+  const drawWidthMm = containerWidthMm - (paddingMm * 2);
+  const drawHeightMm = containerHeightMm - (paddingMm * 2);
 
   const cols = Math.max(1, Math.floor((drawWidthMm + printGapSizeMm) / (printQrSizeMm + printGapSizeMm)));
   const rows = Math.max(1, Math.floor((drawHeightMm + printGapSizeMm) / (printQrSizeMm + printGapSizeMm)));
@@ -6193,6 +6194,26 @@ export default function QrGenerator({
           id="a4-print-staging-modal"
           className="fixed inset-0 z-50 overflow-y-auto bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-0 md:p-6 select-none print:p-0 no-print-bg animate-fade-in"
         >
+          <style>{`
+            @media print {
+              @page {
+                size: ${paperSize === "a4" ? "A4 portrait" : paperSize === "letter" ? "letter portrait" : "legal portrait"};
+                margin: 15mm;
+              }
+              .a4-print-viewport-scale {
+                transform: none !important;
+                height: auto !important;
+              }
+              .a4-print-page {
+                box-shadow: none !important;
+                border: none !important;
+                margin: 0 !important;
+                padding: 15mm !important;
+                page-break-after: always !important;
+                page-break-inside: avoid !important;
+              }
+            }
+          `}</style>
           <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800/80 w-full max-w-7xl rounded-none md:rounded-3xl shadow-2xl flex flex-col h-full max-h-screen md:max-h-[92vh] overflow-hidden print:border-0 print:bg-white print:rounded-none select-none">
             {/* Modal Panel Header */}
             <div className="px-6 py-4 border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0 print:hidden">
@@ -6202,10 +6223,10 @@ export default function QrGenerator({
                 </div>
                 <div>
                   <h3 className="text-sm font-black text-slate-800 dark:text-slate-100 uppercase tracking-wider">
-                    A4 Physical Print Grid Studio
+                    {paperSize.toUpperCase()} Physical Print Grid Studio
                   </h3>
                   <p className="text-[11px] text-slate-450 dark:text-slate-500 font-semibold">
-                    Plan, repeat, and split customized QR grids onto A4 papers for perfect physical cut mark guidelines.
+                    Plan, repeat, and split customized QR grids onto {paperSize.toUpperCase()} papers for perfect physical cut mark guidelines.
                   </p>
                 </div>
               </div>
@@ -6373,8 +6394,25 @@ export default function QrGenerator({
                 {/* 2. Grid styling metrics */}
                 <div className="space-y-4">
                   <span className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none">
-                    2. Physical Dimensions (A4)
+                    2. Physical Dimensions ({paperSize.toUpperCase()})
                   </span>
+
+                  {/* Paper Size Selection */}
+                  <div className="space-y-1.5 text-left" id="print-paper-size-container">
+                    <label className="block text-[10.5px] font-black text-slate-700 dark:text-slate-350">
+                      Paper Size Standard
+                    </label>
+                    <select
+                      id="select-print-paper-size"
+                      value={paperSize}
+                      onChange={(e) => setPaperSize(e.target.value as "a4" | "letter" | "legal")}
+                      className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer hover:border-slate-350 dark:hover:border-slate-750 transition-colors"
+                    >
+                      <option value="a4">A4 Standard (210mm × 297mm)</option>
+                      <option value="letter">US Letter (215.9mm × 279.4mm)</option>
+                      <option value="legal">US Legal (215.9mm × 355.6mm)</option>
+                    </select>
+                  </div>
 
                   {/* QR Size Slider */}
                   <div className="space-y-1.5">
@@ -6510,7 +6548,7 @@ export default function QrGenerator({
                       <span className="text-[11.5px] font-bold font-mono font-black">{activePrintItems.length} items</span>
                     </div>
                     <div>
-                      <span className="block text-[8px] lowercase font-semibold text-slate-400 leading-none">A4 Paper Required</span>
+                      <span className="block text-[8px] lowercase font-semibold text-slate-400 leading-none">{paperSize.toUpperCase()} Paper Required</span>
                       <span className="text-[11.5px] font-bold font-mono font-black text-indigo-600 dark:text-indigo-400">{pages.length} Sheet(s)</span>
                     </div>
                   </div>
@@ -6560,7 +6598,7 @@ export default function QrGenerator({
                         Print grid is empty
                       </h4>
                       <p className="text-xs text-slate-400 dark:text-slate-500 leading-normal mt-1">
-                        Please check at least one QR code template item from the left configuration sidebar to see the live A4 preview panel!
+                        Please check at least one QR code template item from the left configuration sidebar to see the live {paperSize.toUpperCase()} preview panel!
                       </p>
                     </div>
                   ) : (
@@ -6569,13 +6607,19 @@ export default function QrGenerator({
                       style={{ 
                         transform: `scale(${previewZoom / 100})`, 
                         transformOrigin: "top center",
-                        height: pages.length > 0 ? `${(pages.length * 297 * (previewZoom / 100)) + ((pages.length - 1) * 32)}mm` : "auto"
+                        height: pages.length > 0 ? `${(pages.length * containerHeightMm * (previewZoom / 100)) + ((pages.length - 1) * 32)}mm` : "auto"
                       }}
                     >
                       {pages.map((rowItems, pageIdx) => (
                         <div
                           key={pageIdx}
-                          className="a4-print-page w-[210mm] h-[297mm] min-w-[210mm] min-h-[297mm] bg-white text-slate-900 border border-slate-300/85 shadow-xl rounded-sm p-[15mm] flex flex-col justify-between relative select-none box-sizing:border-box"
+                          className="a4-print-page bg-white text-slate-900 border border-slate-300/85 shadow-xl rounded-sm p-[15mm] flex flex-col justify-between relative select-none box-sizing:border-box"
+                          style={{
+                            width: `${containerWidthMm}mm`,
+                            height: `${containerHeightMm}mm`,
+                            minWidth: `${containerWidthMm}mm`,
+                            minHeight: `${containerHeightMm}mm`
+                          }}
                         >
                           {/* Inner page boundary grid container */}
                           <div 
@@ -6657,7 +6701,7 @@ export default function QrGenerator({
 
                           {/* Footer Page numbers stamp */}
                           <div className="absolute bottom-[5mm] left-0 right-0 text-center text-[7pt] text-slate-400 font-mono tracking-widest leading-none select-none flex items-center justify-between px-[15mm]">
-                            <span>📄 A4 PRINT SHEET PLANNER</span>
+                            <span>📄 {paperSize.toUpperCase()} PRINT SHEET PLANNER</span>
                             <span>PAGE {pageIdx + 1} OF {pages.length}</span>
                           </div>
                         </div>

@@ -1577,6 +1577,7 @@ export default function ImageToVideo({
   const [audioFadeOut, setAudioFadeOut] = useState<boolean>(true);
   const [transitionStyle, setTransitionStyle] = useState<"fade" | "slide-left" | "slide-right" | "zoom" | "flash" | "cross-zoom" | "curtain-wipe" | "blur-fade" | "glitch-wave" | "spiral-spin" | "pixelate-fade" | "radial-wipe" | "none">("fade");
   const [transitionDuration, setTransitionDuration] = useState<number>(0.6);
+  const [transitionEasing, setTransitionEasing] = useState<"linear" | "ease-in" | "ease-out">("linear");
   const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16" | "1:1">("16:9");
   const [videoPlaybackSpeed, setVideoPlaybackSpeed] = useState<number>(1.0);
   const [canvasGuideGrid, setCanvasGuideGrid] = useState<"none" | "thirds" | "safe-zone" | "all">("none");
@@ -4596,7 +4597,13 @@ export default function ImageToVideo({
     // Execute drawing layers
     if (isTransitioning) {
       const prevSlide = activeSlides[currentSlideIndex - 1];
-      const transProgress = slideLocalTime / transitionDuration;
+      const rawProgress = Math.max(0, Math.min(1, slideLocalTime / transitionDuration));
+      let transProgress = rawProgress;
+      if (transitionEasing === "ease-in") {
+        transProgress = rawProgress * rawProgress;
+      } else if (transitionEasing === "ease-out") {
+        transProgress = rawProgress * (2 - rawProgress);
+      }
 
       if (activeTransStyle === "fade") {
         // Double rendering blend
@@ -5658,7 +5665,7 @@ export default function ImageToVideo({
         ctx.restore();
       }
     }
-  }, [slides, transitionStyle, transitionDuration, subtitleStyle, subtitleFont, cinematicLetterbox, vignetteOverlay, atmosphericOverlay, aspectRatio, subtitleManualOffset, visualizerStyle, masterVideoFilter, subtitleVerticalAlign, subtitleFontSizeFactor, subtitleTextColor, subtitleBgColor, subtitleBgOpacity, subtitleStrokeColor, subtitleStrokeWidth, canvasGuideGrid, superResolution]);
+  }, [slides, transitionStyle, transitionDuration, transitionEasing, subtitleStyle, subtitleFont, cinematicLetterbox, vignetteOverlay, atmosphericOverlay, aspectRatio, subtitleManualOffset, visualizerStyle, masterVideoFilter, subtitleVerticalAlign, subtitleFontSizeFactor, subtitleTextColor, subtitleBgColor, subtitleBgOpacity, subtitleStrokeColor, subtitleStrokeWidth, canvasGuideGrid, superResolution]);
 
   // Hook rendering logic to active timeline time changes
   useEffect(() => {
@@ -5679,7 +5686,7 @@ export default function ImageToVideo({
     canvas.height = height;
 
     drawVideoFrame(ctx, canvasWidth, height, currentTime);
-  }, [currentTime, aspectRatio, slides, transitionStyle, transitionDuration, drawVideoFrame, subtitleStyle, subtitleFont, cinematicLetterbox, vignetteOverlay, atmosphericOverlay, subtitleManualOffset, masterVideoFilter, subtitleVerticalAlign, subtitleFontSizeFactor, subtitleTextColor, subtitleBgColor, subtitleBgOpacity, subtitleStrokeColor, subtitleStrokeWidth, canvasGuideGrid, superResolution]);
+  }, [currentTime, aspectRatio, slides, transitionStyle, transitionDuration, transitionEasing, drawVideoFrame, subtitleStyle, subtitleFont, cinematicLetterbox, vignetteOverlay, atmosphericOverlay, subtitleManualOffset, masterVideoFilter, subtitleVerticalAlign, subtitleFontSizeFactor, subtitleTextColor, subtitleBgColor, subtitleBgOpacity, subtitleStrokeColor, subtitleStrokeWidth, canvasGuideGrid, superResolution]);
 
   // Sync the ref with the latest drawVideoFrame callback on each change
   useEffect(() => {
@@ -8283,48 +8290,107 @@ export default function ImageToVideo({
             </div>
 
             <div className="flex flex-wrap items-center gap-4">
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap" id="transition-style-dropdown">
                 <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 font-mono">
-                  Transitions:
+                  Transition:
                 </span>
-                <select
-                  id="transition-style-dropdown"
-                  value={transitionStyle}
-                  onChange={(e) => setTransitionStyle(e.target.value as any)}
-                  className="px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-100 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl shadow-3xs cursor-pointer outline-none transition-all focus:ring-2 focus:ring-indigo-500/40"
-                >
-                  <option value="fade">🎬 Cross Dissolve (Fade)</option>
-                  <option value="slide-left">⚡ Slide Left</option>
-                  <option value="slide-right">⚡ Slide Right</option>
-                  <option value="zoom">🔍 Scaling Zoom</option>
-                  <option value="flash">✨ Flash Transition</option>
-                  <option value="cross-zoom">🎯 Cinematic Cross Zoom</option>
-                  <option value="curtain-wipe">🚪 Sliding Curtain Wipe</option>
-                  <option value="blur-fade">🌫️ Dreamy Blur Fade</option>
-                  <option value="glitch-wave">👾 Digital Glitch Wave</option>
-                  <option value="spiral-spin">🌀 Spiral Vortex Spin</option>
-                  <option value="pixelate-fade">👾 Retro Pixelate Reveal</option>
-                  <option value="radial-wipe">⭕ Radial Expanding Wipe</option>
-                  <option value="none">❌ Cut (No Transition)</option>
-                </select>
+                <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-950 p-1 rounded-xl border border-slate-250/30 dark:border-slate-850/60 shadow-3xs flex-wrap">
+                  {[
+                    { id: "none", label: "Cut", icon: Scissors, tooltip: "Direct Straight Cut (None)" },
+                    { id: "fade", label: "Fade", icon: Film, tooltip: "Cross Dissolve (Fade)" },
+                    { id: "zoom", label: "Zoom", icon: Maximize2, tooltip: "Scaling Camera Zoom" },
+                    { id: "slide-left", label: "Slide L", icon: ChevronLeft, tooltip: "Slide Left Push" },
+                    { id: "slide-right", label: "Slide R", icon: ChevronRight, tooltip: "Slide Right Push" },
+                  ].map((btn) => {
+                    const isActive = transitionStyle === btn.id;
+                    const IconComp = btn.icon;
+                    return (
+                      <button
+                        key={btn.id}
+                        type="button"
+                        onClick={() => {
+                          setTransitionStyle(btn.id as any);
+                          triggerBeepChime();
+                        }}
+                        className={`px-2 py-1.5 rounded-lg flex items-center gap-1 text-[10px] font-bold cursor-pointer transition-all select-none ${
+                          isActive
+                            ? "bg-indigo-600 text-white shadow-xs"
+                            : "text-slate-650 dark:text-slate-350 hover:bg-slate-200 dark:hover:bg-slate-850"
+                        }`}
+                        title={btn.tooltip}
+                      >
+                        <IconComp className="w-3.5 h-3.5" />
+                        <span className="hidden xs:inline">{btn.label}</span>
+                      </button>
+                    );
+                  })}
+                  
+                  {/* Select for all transitions, including advanced ones */}
+                  <div className="h-4 w-[1px] bg-slate-200 dark:bg-slate-800 mx-1 hidden sm:block" />
+                  
+                  <select
+                    value={["none", "fade", "zoom", "slide-left", "slide-right"].includes(transitionStyle) ? "" : transitionStyle}
+                    onChange={(e) => {
+                      if (e.target.value) {
+                        setTransitionStyle(e.target.value as any);
+                        triggerBeepChime();
+                      }
+                    }}
+                    className={`px-2 py-1 text-[10px] font-bold bg-transparent outline-none cursor-pointer border-none max-w-[110px] text-slate-650 dark:text-slate-350 ${
+                      !["none", "fade", "zoom", "slide-left", "slide-right"].includes(transitionStyle)
+                        ? "text-indigo-600 dark:text-indigo-400 font-extrabold"
+                        : ""
+                    }`}
+                  >
+                    <option value="" disabled>✨ More effects...</option>
+                    <option value="cross-zoom">🎯 Cross Zoom</option>
+                    <option value="blur-fade">🌫️ Blur Fade</option>
+                    <option value="flash">⚡ Flash</option>
+                    <option value="curtain-wipe">🚪 Curtain Wipe</option>
+                    <option value="glitch-wave">👾 Glitch Wave</option>
+                    <option value="spiral-spin">🌀 Spiral Spin</option>
+                    <option value="pixelate-fade">👾 Pixelate</option>
+                    <option value="radial-wipe">⭕ Radial Wipe</option>
+                  </select>
+                </div>
               </div>
 
               {transitionStyle !== "none" && (
-                <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800/60 py-1 px-2.5 rounded-xl border border-slate-200/50 dark:border-slate-700/50">
-                  <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 font-mono">
-                    Duration:
-                  </span>
-                  <input
-                    type="range"
-                    min={0.2}
-                    max={2.0}
-                    step={0.1}
-                    value={transitionDuration}
-                    onChange={(e) => setTransitionDuration(parseFloat(e.target.value))}
-                    className="w-20 sm:w-24 h-1.5 bg-slate-200 dark:bg-slate-750 rounded-lg appearance-none cursor-pointer accent-indigo-500"
-                  />
-                  <span className="text-[10.5px] font-bold text-slate-700 dark:text-slate-350 font-mono w-8">{transitionDuration.toFixed(1)}s</span>
-                </div>
+                <>
+                  <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800/60 py-1 px-2.5 rounded-xl border border-slate-200/50 dark:border-slate-700/50">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 font-mono">
+                      Duration:
+                    </span>
+                    <input
+                      type="range"
+                      min={0.2}
+                      max={2.0}
+                      step={0.1}
+                      value={transitionDuration}
+                      onChange={(e) => setTransitionDuration(parseFloat(e.target.value))}
+                      className="w-20 sm:w-24 h-1.5 bg-slate-200 dark:bg-slate-750 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                    />
+                    <span className="text-[10.5px] font-bold text-slate-700 dark:text-slate-350 font-mono w-8">{transitionDuration.toFixed(1)}s</span>
+                  </div>
+
+                  <div className="flex items-center gap-2 bg-slate-100 dark:bg-slate-800/60 py-1 px-2.5 rounded-xl border border-slate-200/50 dark:border-slate-700/50" id="toolbar-transition-easing">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 font-mono">
+                      Ease:
+                    </span>
+                    <select
+                      value={transitionEasing}
+                      onChange={(e) => {
+                        setTransitionEasing(e.target.value as any);
+                        triggerBeepChime();
+                      }}
+                      className="text-[10px] font-black bg-transparent outline-none cursor-pointer border-none text-indigo-600 dark:text-indigo-400"
+                    >
+                      <option value="linear">Linear</option>
+                      <option value="ease-in">Ease-In</option>
+                      <option value="ease-out">Ease-Out</option>
+                    </select>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -14269,40 +14335,104 @@ export default function ImageToVideo({
             </div>
 
             {/* Global Transitions selector */}
-            <div className="space-y-2 border-t border-slate-100 dark:border-slate-900 pt-3">
-              <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
-                <span>🎬 Global Frame Transitions:</span>
-              </label>
-              <div className="grid grid-cols-1 gap-2">
+            <div className="space-y-3 border-t border-slate-100 dark:border-slate-900 pt-3">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Film className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>🎬 Global Frame Transitions:</span>
+                </label>
+                <span className="text-[10px] font-mono font-bold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/45 px-2 py-0.5 rounded-lg capitalize">
+                  {transitionStyle}
+                </span>
+              </div>
+
+              {/* Grid of Interactive Visual Transition Cards */}
+              <div className="grid grid-cols-2 gap-2" id="transition-sidebar-grid">
+                {[
+                  { id: "fade", label: "Fade", desc: "Cross dissolve", icon: Film },
+                  { id: "zoom", label: "Zoom", desc: "Camera zoom", icon: Maximize2 },
+                  { id: "slide-left", label: "Slide Left", desc: "Push-slide left", icon: ChevronLeft },
+                  { id: "slide-right", label: "Slide Right", desc: "Push-slide right", icon: ChevronRight },
+                  { id: "cross-zoom", label: "Cross Zoom", desc: "Cinematic zoom blur", icon: Sparkles },
+                  { id: "blur-fade", label: "Blur Fade", desc: "Dreamy soft blend", icon: Tv },
+                  { id: "flash", label: "Flash", desc: "White light burst", icon: Zap },
+                  { id: "curtain-wipe", label: "Curtain Wipe", desc: "Split curtain reveal", icon: Move },
+                  { id: "glitch-wave", label: "Glitch Wave", desc: "Digital wave effect", icon: Flame },
+                  { id: "none", label: "Direct Cut", desc: "Straight-cut frame", icon: Scissors },
+                ].map((item) => {
+                  const isActive = transitionStyle === item.id;
+                  const IconComp = item.icon;
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => {
+                        setTransitionStyle(item.id as any);
+                        triggerBeepChime();
+                        setToastMessage({
+                          text: `🎬 Transition Style: ${item.label.toUpperCase()}`,
+                          sub: `Video frames will now blend using ${item.desc} transitions.`,
+                          success: true
+                        });
+                      }}
+                      className={`p-2 rounded-xl border text-left transition-all cursor-pointer select-none flex flex-col justify-between gap-1.5 h-[62px] group relative ${
+                        isActive
+                          ? "bg-indigo-600 border-indigo-600 text-white shadow-md shadow-indigo-500/10"
+                          : "bg-white dark:bg-slate-950 border-slate-150 dark:border-slate-850 hover:border-slate-350 dark:hover:border-slate-750"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between w-full">
+                        <span className={`p-1 rounded-md border ${
+                          isActive 
+                            ? "bg-white/10 border-white/20 text-white" 
+                            : "bg-slate-50 dark:bg-slate-900 border-slate-100 dark:border-slate-800 text-slate-500 dark:text-slate-400 group-hover:text-indigo-500"
+                        }`}>
+                          <IconComp className="w-3.5 h-3.5" />
+                        </span>
+                        {isActive && (
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
+                        )}
+                      </div>
+                      <div>
+                        <div className="text-[10px] font-black leading-none truncate">{item.label}</div>
+                        <div className={`text-[8.5px] leading-tight truncate mt-0.5 ${
+                          isActive ? "text-white/80" : "text-slate-400 dark:text-slate-500"
+                        }`}>{item.desc}</div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Select dropdown as advanced/other fallback option */}
+              <div className="space-y-1 bg-slate-100/50 dark:bg-slate-950/40 p-2.5 rounded-xl border border-slate-200/50 dark:border-slate-850">
+                <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 dark:text-slate-450">
+                  <span>Additional Styles:</span>
+                </div>
                 <select
-                  value={transitionStyle}
+                  value={["fade", "zoom", "slide-left", "slide-right", "cross-zoom", "blur-fade", "flash", "curtain-wipe", "glitch-wave", "none"].includes(transitionStyle) ? "" : transitionStyle}
                   onChange={(e) => {
-                    setTransitionStyle(e.target.value as any);
-                    triggerBeepChime();
-                    setToastMessage({
-                      text: `🎬 Transition Style: ${e.target.value.toUpperCase()}`,
-                      sub: `Video frames will now blend using ${e.target.value} transitions.`,
-                      success: true
-                    });
+                    if (e.target.value) {
+                      setTransitionStyle(e.target.value as any);
+                      triggerBeepChime();
+                      setToastMessage({
+                        text: `🎬 Transition Style: ${e.target.value.toUpperCase()}`,
+                        sub: `Video frames will now blend using ${e.target.value} transitions.`,
+                        success: true
+                      });
+                    }
                   }}
-                  className="w-full px-3 py-2.5 text-xs font-bold text-slate-800 dark:text-slate-150 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl shadow-3xs cursor-pointer outline-none transition-all focus:ring-2 focus:ring-indigo-500/40"
+                  className="w-full px-2 py-1 text-xs font-bold text-slate-800 dark:text-slate-150 bg-white dark:bg-slate-950 border border-slate-250/50 dark:border-slate-850 rounded-lg shadow-3xs cursor-pointer outline-none transition-all"
                 >
-                  <option value="fade">🎬 Fade / Cross Dissolve</option>
-                  <option value="blur-fade">🌫️ Dreamy Dissolve (Blur Fade)</option>
-                  <option value="zoom">🔍 Camera Zoom Transition</option>
-                  <option value="slide-left">⚡ Slide Left</option>
-                  <option value="slide-right">⚡ Slide Right</option>
-                  <option value="flash">✨ Flash Transition</option>
-                  <option value="cross-zoom">🎯 Cinematic Cross Zoom</option>
-                  <option value="curtain-wipe">🚪 Sliding Curtain Wipe</option>
-                  <option value="glitch-wave">👾 Digital Glitch Wave</option>
+                  <option value="" disabled>🌟 More Transition Effects...</option>
                   <option value="spiral-spin">🌀 Spiral Vortex Spin</option>
                   <option value="pixelate-fade">👾 Retro Pixelate Reveal</option>
                   <option value="radial-wipe">⭕ Radial Expanding Wipe</option>
-                  <option value="none">❌ Cut (No Transition)</option>
                 </select>
-                
-                {transitionStyle !== "none" && (
+              </div>
+
+              {transitionStyle !== "none" && (
+                <>
                   <div className="space-y-1.5 bg-slate-100/50 dark:bg-slate-950/40 p-2.5 rounded-xl border border-slate-200/50 dark:border-slate-850">
                     <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 dark:text-slate-450">
                       <span>Transition Duration:</span>
@@ -14318,8 +14448,44 @@ export default function ImageToVideo({
                       className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-600"
                     />
                   </div>
-                )}
-              </div>
+
+                  <div className="space-y-1.5 bg-slate-100/50 dark:bg-slate-950/40 p-2.5 rounded-xl border border-slate-200/50 dark:border-slate-850" id="sidebar-transition-easing">
+                    <div className="flex items-center justify-between text-[10px] font-bold text-slate-500 dark:text-slate-450">
+                      <span>Transition Easing:</span>
+                      <span className="font-mono font-black text-indigo-600 dark:text-indigo-400 capitalize">{transitionEasing}</span>
+                    </div>
+                    <div className="grid grid-cols-3 gap-1">
+                      {[
+                        { id: "linear", label: "Linear", desc: "Constant speed transition timing" },
+                        { id: "ease-in", label: "Ease-In", desc: "Start slow, speed up transition timing" },
+                        { id: "ease-out", label: "Ease-Out", desc: "Start fast, slow down transition timing" }
+                      ].map((item) => (
+                        <button
+                          key={item.id}
+                          type="button"
+                          onClick={() => {
+                            setTransitionEasing(item.id as any);
+                            triggerBeepChime();
+                            setToastMessage({
+                              text: `🎬 Transition Easing: ${item.label.toUpperCase()}`,
+                              sub: `Speed curve set to ${item.desc}.`,
+                              success: true
+                            });
+                          }}
+                          className={`py-1 px-1.5 rounded-lg border text-center transition-all cursor-pointer select-none text-[9.5px] font-extrabold ${
+                            transitionEasing === item.id
+                              ? "bg-indigo-600 border-indigo-600 text-white shadow-xs"
+                              : "bg-white dark:bg-slate-950 border-slate-150 dark:border-slate-850 text-slate-650 dark:text-slate-400 hover:border-slate-350 dark:hover:border-slate-750"
+                          }`}
+                          title={item.desc}
+                        >
+                          {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
           </div>
