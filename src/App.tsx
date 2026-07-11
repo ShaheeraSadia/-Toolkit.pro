@@ -1475,7 +1475,7 @@ export default function App() {
     <div className={`min-h-screen flex flex-col transition-colors duration-200 ${
       theme === "dark" 
         ? "dark bg-slate-950 text-slate-100" 
-        : "bg-slate-50/50 text-slate-800"
+        : "bg-slate-50 text-slate-800"
     }`}>
       {/* Upper Navigation Row */}
       <Navbar

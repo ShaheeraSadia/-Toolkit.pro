@@ -374,7 +374,7 @@ export default function Navbar({
           </button>
 
           {/* Center-Right: Segmented Tabs Capsule Control Nav */}
-          <nav className="hidden lg:flex items-center gap-1.5 bg-slate-100/60 dark:bg-slate-900/40 p-1 rounded-2xl border border-slate-205/45 dark:border-slate-805/40 select-none animate-in fade-in zoom-in-95 duration-300">
+          <nav className="hidden lg:flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900/40 p-1 rounded-2xl border border-slate-200 dark:border-slate-805/40 select-none animate-in fade-in zoom-in-95 duration-300">
             {/* Interactive utilities megamenu */}
             <div className="relative">
               <button
@@ -387,7 +387,7 @@ export default function Navbar({
                     ? theme === "dark"
                       ? "bg-slate-950 text-white font-extrabold shadow-sm"
                       : "bg-white text-indigo-700 font-extrabold shadow-sm"
-                    : "text-slate-500 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100 hover:bg-white/40 dark:hover:bg-slate-950/30"
+                    : "text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
                 }`}
                 onClick={() => setShowToolsDropdown(!showToolsDropdown)}
               >
@@ -402,7 +402,7 @@ export default function Navbar({
                   onMouseLeave={() => setShowToolsDropdown(false)}
                   className="absolute left-0 mt-2.5 w-72 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 p-2 shadow-2xl animate-fade-in z-50 duration-200"
                 >
-                  <div className="px-3.5 py-2 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest border-b border-slate-100 dark:border-slate-850 mb-1.5 flex items-center justify-between select-none">
+                  <div className="px-3.5 py-2 text-[10px] font-black text-slate-400 dark:text-slate-505 uppercase tracking-widest border-b border-slate-100 dark:border-slate-850 mb-1.5 flex items-center justify-between select-none">
                     <span>Power Suites</span>
                     <Sparkles className="w-3 h-3 text-indigo-505 animate-pulse" />
                   </div>
@@ -442,7 +442,7 @@ export default function Navbar({
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   showRecentDropdown
                     ? theme === "dark" ? "bg-slate-950 text-white shadow-sm" : "bg-white text-slate-805 shadow-sm"
-                    : "text-slate-500 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
+                    : "text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
                 }`}
                 onClick={() => setShowRecentDropdown(!showRecentDropdown)}
               >
@@ -457,7 +457,7 @@ export default function Navbar({
                   onMouseLeave={() => setShowRecentDropdown(false)}
                   className="absolute left-0 mt-2.5 w-72 rounded-2xl bg-white dark:bg-slate-955 border border-slate-200/80 dark:border-slate-800 p-2 shadow-2xl animate-fade-in z-50 text-left"
                 >
-                  <div className="px-3.5 py-2 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest border-b border-slate-100 dark:border-slate-850 flex items-center justify-between select-none font-mono">
+                  <div className="px-3.5 py-2 text-[10px] font-black text-slate-400 dark:text-slate-505 uppercase tracking-widest border-b border-slate-100 dark:border-slate-850 flex items-center justify-between select-none font-mono">
                     <span>Active Session logs</span>
                     <span className="bg-indigo-50 dark:bg-indigo-950/40 text-indigo-605 dark:text-indigo-400 text-[8px] px-2 py-0.5 rounded-md font-extrabold uppercase">
                       Trace
@@ -535,7 +535,7 @@ export default function Navbar({
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === "resources"
                   ? theme === "dark" ? "bg-slate-950 text-white shadow-sm font-extrabold" : "bg-white text-slate-955 shadow-sm font-extrabold"
-                  : "text-slate-500 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
+                  : "text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
               }`}
             >
               <BookOpen className="w-3.5 h-3.5 shrink-0 text-teal-550" />
@@ -548,7 +548,7 @@ export default function Navbar({
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === "legal"
                   ? theme === "dark" ? "bg-slate-950 text-white shadow-sm font-extrabold" : "bg-white text-slate-955 shadow-sm font-extrabold"
-                  : "text-slate-500 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
+                  : "text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
               }`}
             >
               <ShieldCheck className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
@@ -561,7 +561,7 @@ export default function Navbar({
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === "drive"
                   ? theme === "dark" ? "bg-slate-950 text-white shadow-sm font-extrabold" : "bg-white text-slate-955 shadow-sm font-extrabold"
-                  : "text-slate-500 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
+                  : "text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
               }`}
             >
               <Cloud className="w-3.5 h-3.5 shrink-0 text-sky-500 animate-pulse" />
