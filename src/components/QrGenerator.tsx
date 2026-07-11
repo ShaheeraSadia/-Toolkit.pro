@@ -606,6 +606,53 @@ function SwipeableHistoryItem({ item, onLoad, onDelete, onDownload }: SwipeableH
   );
 }
 
+const PrinterPresetMiniature = ({ marginMm, showCropMarks, orientation }: { marginMm: number; showCropMarks: boolean; orientation: "portrait" | "landscape" }) => {
+  const isLandscape = orientation === "landscape";
+  // Scale down page size: standard aspect ratio is 210x297 (1:1.41)
+  const width = isLandscape ? 44 : 32;
+  const height = isLandscape ? 32 : 44;
+  
+  // Convert mm margins to preview percentages
+  const padding = Math.max(1, Math.min(8, Math.round(marginMm * 0.15)));
+  
+  return (
+    <div 
+      className="relative bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded shadow-[0_1px_2px_rgba(0,0,0,0.04)] overflow-hidden flex items-center justify-center shrink-0"
+      style={{ width: `${width}px`, height: `${height}px` }}
+    >
+      {/* Miniature Margin Guide Frame */}
+      <div 
+        className="absolute inset-0 border border-indigo-400/30 border-dashed bg-slate-50/40 dark:bg-slate-950/20 pointer-events-none"
+        style={{ margin: `${padding}px` }}
+      />
+      
+      {/* Miniature QR Grids represented by subtle dots inside */}
+      <div 
+        className="grid grid-cols-3 gap-[2px] pointer-events-none"
+        style={{ padding: `${padding + 1}px` }}
+      >
+        {Array.from({ length: 6 }).map((_, i) => (
+          <div key={i} className="w-[3px] h-[3px] bg-slate-400 dark:bg-slate-500 rounded-[1px]" />
+        ))}
+      </div>
+
+      {/* Crop mark indicators at corners of margin frame if enabled */}
+      {showCropMarks && (
+        <>
+          {/* Top Left */}
+          <div className="absolute w-[2px] h-[2px] border-t border-l border-indigo-500 pointer-events-none" style={{ left: `${padding - 1}px`, top: `${padding - 1}px` }} />
+          {/* Top Right */}
+          <div className="absolute w-[2px] h-[2px] border-t border-r border-indigo-500 pointer-events-none" style={{ right: `${padding - 1}px`, top: `${padding - 1}px` }} />
+          {/* Bottom Left */}
+          <div className="absolute w-[2px] h-[2px] border-b border-l border-indigo-500 pointer-events-none" style={{ left: `${padding - 1}px`, bottom: `${padding - 1}px` }} />
+          {/* Bottom Right */}
+          <div className="absolute w-[2px] h-[2px] border-b border-r border-indigo-500 pointer-events-none" style={{ right: `${padding - 1}px`, bottom: `${padding - 1}px` }} />
+        </>
+      )}
+    </div>
+  );
+};
+
 interface QrGeneratorProps {
   user: User | null;
   accessToken: string | null;
@@ -1182,6 +1229,17 @@ export default function QrGenerator({
     message?: string;
   } | null>(null);
 
+  // Alert toast message system
+  const [toastMessage, setToastMessage] = useState<{ text: string; sub: string; success: boolean } | null>(null);
+  useEffect(() => {
+    if (toastMessage) {
+      const timer = setTimeout(() => {
+        setToastMessage(null);
+      }, 3500);
+      return () => clearTimeout(timer);
+    }
+  }, [toastMessage]);
+
   // Print layout studio config states
   const [showPrintLayoutModal, setShowPrintLayoutModal] = useState<boolean>(false);
   const [paperSize, setPaperSize] = useState<"a4" | "letter" | "legal">("a4");
@@ -1193,6 +1251,121 @@ export default function QrGenerator({
   const [cropMarkPaddingMm, setCropMarkPaddingMm] = useState<number>(3); // crop mark offset of QR in mm
   const [printLabelStyle, setPrintLabelStyle] = useState<"none" | "content" | "index">("none");
   const [selectedMultiQrIds, setSelectedMultiQrIds] = useState<string[]>([]);
+
+  // Printer presets and customizable layout states
+  const [printMarginMm, setPrintMarginMm] = useState<number>(15);
+  const [printOrientation, setPrintOrientation] = useState<"portrait" | "landscape">("portrait");
+  
+  const [printerPresets, setPrinterPresets] = useState<any[]>(() => {
+    const defaultPresets = [
+      {
+        id: "standard-portrait",
+        name: "Standard Portrait Guidelines",
+        marginMm: 15,
+        showCropMarks: true,
+        cropMarkPaddingMm: 3,
+        orientation: "portrait"
+      },
+      {
+        id: "tight-labels",
+        name: "Tight Margin Label Sheet",
+        marginMm: 5,
+        showCropMarks: true,
+        cropMarkPaddingMm: 2,
+        orientation: "portrait"
+      },
+      {
+        id: "landscape-posters",
+        name: "Landscape Wide Grid",
+        marginMm: 10,
+        showCropMarks: false,
+        cropMarkPaddingMm: 3,
+        orientation: "landscape"
+      }
+    ];
+    try {
+      const saved = localStorage.getItem("toolkit_pro_printer_presets");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        const customOnly = parsed.filter((p: any) => !defaultPresets.some(d => d.id === p.id));
+        return [...defaultPresets, ...customOnly];
+      }
+    } catch (e) {
+      console.error("Failed to load printer presets:", e);
+    }
+    return defaultPresets;
+  });
+
+  const [newPresetName, setNewPresetName] = useState<string>("");
+  const [showAddPresetForm, setShowAddPresetForm] = useState<boolean>(false);
+
+  const activePrinterPresetId = React.useMemo(() => {
+    const matching = printerPresets.find((p: any) => 
+      p.marginMm === printMarginMm &&
+      p.showCropMarks === showCropMarks &&
+      p.cropMarkPaddingMm === cropMarkPaddingMm &&
+      p.orientation === printOrientation
+    );
+    return matching ? matching.id : "custom";
+  }, [printerPresets, printMarginMm, showCropMarks, cropMarkPaddingMm, printOrientation]);
+
+  const handleApplyPrinterPreset = (presetId: string) => {
+    if (presetId === "custom") return;
+    const found = printerPresets.find((p: any) => p.id === presetId);
+    if (found) {
+      setPrintMarginMm(found.marginMm);
+      setShowCropMarks(found.showCropMarks);
+      setCropMarkPaddingMm(found.cropMarkPaddingMm);
+      setPrintOrientation(found.orientation);
+      playSuccessBeep();
+      setToastMessage({
+        text: "🎯 Layout Preset Applied",
+        sub: `Applied "${found.name}" configuration.`,
+        success: true
+      });
+    }
+  };
+
+  const handleAddPrinterPreset = () => {
+    if (!newPresetName.trim()) {
+      setToastMessage({
+        text: "⚠️ Preset Name Required",
+        sub: "Please enter a valid name for your layout preset.",
+        success: false
+      });
+      return;
+    }
+
+    const newId = `custom-${Date.now()}`;
+    const newPreset = {
+      id: newId,
+      name: newPresetName.trim(),
+      marginMm: printMarginMm,
+      showCropMarks: showCropMarks,
+      cropMarkPaddingMm: cropMarkPaddingMm,
+      orientation: printOrientation,
+      isCustom: true
+    };
+
+    const updatedPresets = [...printerPresets, newPreset];
+    setPrinterPresets(updatedPresets);
+    setNewPresetName("");
+    setShowAddPresetForm(false);
+
+    try {
+      const customPresets = updatedPresets.filter((p: any) => p.isCustom);
+      localStorage.setItem("toolkit_pro_printer_presets", JSON.stringify(customPresets));
+    } catch (e) {
+      console.error("Failed to save printer presets:", e);
+    }
+
+    playSuccessBeep();
+    setToastMessage({
+      text: "✨ Preset Saved Successfully",
+      sub: `Saved "${newPreset.name}" to printer presets list.`,
+      success: true
+    });
+  };
 
   // Automatically check active QR when entering print layout studio
   useEffect(() => {
@@ -1606,10 +1779,12 @@ export default function QrGenerator({
     }
   }, [printSourceMode, qrCodeDataUrl, text, singlePrintCopies, printableList, selectedMultiQrIds]);
 
-  // Physical page boundaries calculations based on paper size
-  const containerWidthMm = paperSize === "a4" ? 210 : paperSize === "letter" ? 215.9 : 215.9;
-  const containerHeightMm = paperSize === "a4" ? 297 : paperSize === "letter" ? 279.4 : 355.6;
-  const paddingMm = 15; // 15mm page safety margin
+  // Physical page boundaries calculations based on paper size and orientation
+  const baseWidthMm = paperSize === "a4" ? 210 : paperSize === "letter" ? 215.9 : 215.9;
+  const baseHeightMm = paperSize === "a4" ? 297 : paperSize === "letter" ? 279.4 : 355.6;
+  const containerWidthMm = printOrientation === "portrait" ? baseWidthMm : baseHeightMm;
+  const containerHeightMm = printOrientation === "portrait" ? baseHeightMm : baseWidthMm;
+  const paddingMm = printMarginMm; // Customizable page safety margin
   const drawWidthMm = containerWidthMm - (paddingMm * 2);
   const drawHeightMm = containerHeightMm - (paddingMm * 2);
 
@@ -3310,6 +3485,35 @@ export default function QrGenerator({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 font-sans">
+      {/* Toast Alert message system */}
+      {toastMessage && (
+        <div
+          className={`fixed top-4 right-4 z-[9999] max-w-sm p-4 rounded-2xl border shadow-xl flex items-start gap-3 select-none ${
+            toastMessage.success
+              ? "bg-emerald-50 dark:bg-emerald-950 border-emerald-200 dark:border-emerald-900 text-emerald-900 dark:text-emerald-100"
+              : "bg-rose-50 dark:bg-rose-950 border-rose-200 dark:border-rose-900 text-rose-900 dark:text-rose-100"
+          }`}
+        >
+          <div className="p-1.5 rounded-full bg-white/45 dark:bg-black/30 shrink-0">
+            {toastMessage.success ? (
+              <Check className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+            ) : (
+              <AlertTriangle className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+            )}
+          </div>
+          <div className="flex-1 text-left">
+            <h5 className="text-xs font-black uppercase tracking-wider leading-none mb-1">{toastMessage.text}</h5>
+            <p className="text-[10.5px] leading-relaxed opacity-90 font-medium">{toastMessage.sub}</p>
+          </div>
+          <button
+            onClick={() => setToastMessage(null)}
+            className="text-[10px] font-bold opacity-65 hover:opacity-100 cursor-pointer bg-transparent border-0"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
+        </div>
+      )}
+
       {/* Parameters Controls Row: 5 Cols */}
       <div className="lg:col-span-12 xl:col-span-5 bg-slate-50 rounded-2xl p-6 border border-slate-100 flex flex-col space-y-6">
         <div>
@@ -6197,8 +6401,8 @@ export default function QrGenerator({
           <style>{`
             @media print {
               @page {
-                size: ${paperSize === "a4" ? "A4 portrait" : paperSize === "letter" ? "letter portrait" : "legal portrait"};
-                margin: 15mm;
+                size: ${paperSize === "a4" ? "A4" : paperSize === "letter" ? "letter" : "legal"} ${printOrientation};
+                margin: ${printMarginMm}mm;
               }
               .a4-print-viewport-scale {
                 transform: none !important;
@@ -6208,7 +6412,7 @@ export default function QrGenerator({
                 box-shadow: none !important;
                 border: none !important;
                 margin: 0 !important;
-                padding: 15mm !important;
+                padding: ${printMarginMm}mm !important;
                 page-break-after: always !important;
                 page-break-inside: avoid !important;
               }
@@ -6397,6 +6601,112 @@ export default function QrGenerator({
                     2. Physical Dimensions ({paperSize.toUpperCase()})
                   </span>
 
+                  {/* Preset Selector & Saving */}
+                  <div className="space-y-2 bg-slate-50 dark:bg-slate-900/60 p-3 rounded-2xl border border-slate-150 dark:border-slate-850">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10.5px] font-black text-slate-700 dark:text-slate-350 flex items-center gap-1">
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-500" />
+                        Layout Preset
+                      </label>
+                      {!showAddPresetForm && (
+                        <button
+                          type="button"
+                          onClick={() => setShowAddPresetForm(true)}
+                          className="text-[9.5px] font-extrabold text-indigo-600 dark:text-indigo-400 hover:underline bg-transparent border-none cursor-pointer"
+                        >
+                          + Add Preset
+                        </button>
+                      )}
+                    </div>
+
+                    {showAddPresetForm ? (
+                      <div className="space-y-2 mt-1 bg-white dark:bg-slate-950 p-2 rounded-xl border border-indigo-100 dark:border-indigo-950">
+                        <span className="block text-[8.5px] font-extrabold text-slate-400 uppercase tracking-wider text-left">Save Current Layout</span>
+                        <input
+                          type="text"
+                          placeholder="e.g. My Heavy Labels"
+                          value={newPresetName}
+                          onChange={(e) => setNewPresetName(e.target.value)}
+                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-lg px-2 py-1.5 text-[11px] font-medium text-slate-850 dark:text-slate-200 focus:outline-none"
+                        />
+                        <div className="flex gap-1 justify-end">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowAddPresetForm(false);
+                              setNewPresetName("");
+                            }}
+                            className="px-2.5 py-1 text-[10px] font-bold text-slate-400 hover:text-slate-600 bg-transparent border-0 cursor-pointer animate-fade-in"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleAddPrinterPreset}
+                            className="px-3 py-1 text-[10px] font-black bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 border-0 cursor-pointer"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-1.5 max-h-[220px] overflow-y-auto pr-1" id="printer-preset-list-container">
+                        {printerPresets.map((preset: any) => {
+                          const isActive = activePrinterPresetId === preset.id;
+                          return (
+                            <button
+                              key={preset.id}
+                              type="button"
+                              onClick={() => handleApplyPrinterPreset(preset.id)}
+                              className={`w-full flex items-center gap-3 p-2 rounded-xl text-left border cursor-pointer transition-all ${
+                                isActive
+                                  ? "bg-indigo-50/20 dark:bg-indigo-950/30 border-indigo-500 dark:border-indigo-500/80 shadow-3xs"
+                                  : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800/80 hover:bg-slate-50 dark:hover:bg-slate-900"
+                              }`}
+                            >
+                              <PrinterPresetMiniature 
+                                marginMm={preset.marginMm}
+                                showCropMarks={preset.showCropMarks}
+                                orientation={preset.orientation}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <span className={`block text-[11px] font-bold truncate leading-snug ${
+                                  isActive ? "text-indigo-650 dark:text-indigo-400" : "text-slate-700 dark:text-slate-300"
+                                }`}>
+                                  {preset.name}
+                                </span>
+                                <span className="block text-[9px] text-slate-400 dark:text-slate-500 font-bold leading-none mt-1">
+                                  {preset.marginMm}mm • {preset.orientation === "portrait" ? "Portrait" : "Landscape"} • {preset.showCropMarks ? "Marks ON" : "Marks OFF"}
+                                </span>
+                              </div>
+                              {isActive && (
+                                <CheckCircle2 className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+                              )}
+                            </button>
+                          );
+                        })}
+                        {activePrinterPresetId === "custom" && (
+                          <div className="w-full flex items-center gap-3 p-2 rounded-xl text-left border bg-amber-500/5 dark:bg-amber-950/10 border-amber-500/30">
+                            <PrinterPresetMiniature 
+                              marginMm={printMarginMm}
+                              showCropMarks={showCropMarks}
+                              orientation={printOrientation}
+                            />
+                            <div className="flex-1 min-w-0">
+                              <span className="block text-[11px] font-bold truncate text-amber-600 dark:text-amber-400 leading-snug">
+                                Custom Layout Settings
+                              </span>
+                              <span className="block text-[9px] text-slate-400 dark:text-slate-500 font-bold leading-none mt-1">
+                                {printMarginMm}mm • {printOrientation === "portrait" ? "Portrait" : "Landscape"} • {showCropMarks ? "Marks ON" : "Marks OFF"}
+                              </span>
+                            </div>
+                            <Sparkles className="w-3.5 h-3.5 text-amber-500 shrink-0 animate-pulse" />
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
                   {/* Paper Size Selection */}
                   <div className="space-y-1.5 text-left" id="print-paper-size-container">
                     <label className="block text-[10.5px] font-black text-slate-700 dark:text-slate-350">
@@ -6406,12 +6716,73 @@ export default function QrGenerator({
                       id="select-print-paper-size"
                       value={paperSize}
                       onChange={(e) => setPaperSize(e.target.value as "a4" | "letter" | "legal")}
-                      className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer hover:border-slate-350 dark:hover:border-slate-750 transition-colors"
+                      className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2.5 text-xs font-bold text-slate-750 dark:text-slate-300 focus:outline-none cursor-pointer hover:border-slate-350 dark:hover:border-slate-750 transition-colors"
                     >
                       <option value="a4">A4 Standard (210mm × 297mm)</option>
                       <option value="letter">US Letter (215.9mm × 279.4mm)</option>
                       <option value="legal">US Legal (215.9mm × 355.6mm)</option>
                     </select>
+                  </div>
+
+                  {/* Page Orientation */}
+                  <div className="space-y-1.5 text-left">
+                    <label className="block text-[10.5px] font-black text-slate-700 dark:text-slate-350">
+                      Page Orientation
+                    </label>
+                    <div className="grid grid-cols-2 gap-1.5 bg-slate-100/80 dark:bg-slate-900/60 p-1 rounded-xl">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPrintOrientation("portrait");
+                          playSuccessBeep();
+                        }}
+                        className={`py-1.5 text-[10.5px] font-bold uppercase tracking-wider rounded-lg border-0 transition-all cursor-pointer ${
+                          printOrientation === "portrait"
+                            ? "bg-white dark:bg-slate-950 text-indigo-650 dark:text-indigo-400 shadow-3xs"
+                            : "text-slate-500 hover:text-slate-750 dark:text-slate-450 dark:hover:text-slate-300"
+                        }`}
+                      >
+                        Portrait
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPrintOrientation("landscape");
+                          playSuccessBeep();
+                        }}
+                        className={`py-1.5 text-[10.5px] font-bold uppercase tracking-wider rounded-lg border-0 transition-all cursor-pointer ${
+                          printOrientation === "landscape"
+                            ? "bg-white dark:bg-slate-950 text-indigo-650 dark:text-indigo-400 shadow-3xs"
+                            : "text-slate-500 hover:text-slate-755 dark:text-slate-450 dark:hover:text-slate-300"
+                        }`}
+                      >
+                        Landscape
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Page Margin Slider */}
+                  <div className="space-y-1.5">
+                    <div className="flex items-center justify-between text-[10.5px] font-bold text-slate-750 dark:text-slate-300">
+                      <span>Page Safety Margin</span>
+                      <span className="font-mono text-indigo-650 dark:text-indigo-400 font-extrabold text-xs">
+                        {printMarginMm}mm
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min="0"
+                      max="40"
+                      step="1"
+                      value={printMarginMm}
+                      onChange={(e) => setPrintMarginMm(parseInt(e.target.value))}
+                      className="w-full accent-indigo-600 h-1 bg-slate-200 dark:bg-slate-800 rounded-lg cursor-pointer"
+                    />
+                    <div className="flex justify-between text-[8px] text-slate-400 dark:text-slate-550 font-bold leading-none select-none">
+                      <span>0mm (No Border)</span>
+                      <span>15mm (Standard)</span>
+                      <span>40mm (Wide Frame)</span>
+                    </div>
                   </div>
 
                   {/* QR Size Slider */}
@@ -6613,12 +6984,13 @@ export default function QrGenerator({
                       {pages.map((rowItems, pageIdx) => (
                         <div
                           key={pageIdx}
-                          className="a4-print-page bg-white text-slate-900 border border-slate-300/85 shadow-xl rounded-sm p-[15mm] flex flex-col justify-between relative select-none box-sizing:border-box"
+                          className="a4-print-page bg-white text-slate-900 border border-slate-300/85 shadow-xl rounded-sm flex flex-col justify-between relative select-none box-sizing:border-box"
                           style={{
                             width: `${containerWidthMm}mm`,
                             height: `${containerHeightMm}mm`,
                             minWidth: `${containerWidthMm}mm`,
-                            minHeight: `${containerHeightMm}mm`
+                            minHeight: `${containerHeightMm}mm`,
+                            padding: `${printMarginMm}mm`
                           }}
                         >
                           {/* Inner page boundary grid container */}
@@ -6700,7 +7072,10 @@ export default function QrGenerator({
                           </div>
 
                           {/* Footer Page numbers stamp */}
-                          <div className="absolute bottom-[5mm] left-0 right-0 text-center text-[7pt] text-slate-400 font-mono tracking-widest leading-none select-none flex items-center justify-between px-[15mm]">
+                          <div 
+                            className="absolute bottom-[5mm] left-0 right-0 text-center text-[7pt] text-slate-400 font-mono tracking-widest leading-none select-none flex items-center justify-between"
+                            style={{ paddingLeft: `${printMarginMm}mm`, paddingRight: `${printMarginMm}mm` }}
+                          >
                             <span>📄 {paperSize.toUpperCase()} PRINT SHEET PLANNER</span>
                             <span>PAGE {pageIdx + 1} OF {pages.length}</span>
                           </div>

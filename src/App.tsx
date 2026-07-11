@@ -64,6 +64,7 @@ import {
   ArrowUpRight,
   Activity,
   Award,
+  Trash2,
 } from "lucide-react";
 
 function renderTabPreview(tabId: string) {
@@ -267,6 +268,7 @@ export interface PrinterPreset {
   margins: "standard" | "minimum" | "none";
   cropMarks: boolean;
   safeArea: boolean;
+  orientation?: "portrait" | "landscape";
   icon: string;
 }
 
@@ -557,20 +559,127 @@ export default function App() {
   const [showSafeArea, setShowSafeArea] = useState<boolean>(true);
   const [selectedPresetId, setSelectedPresetId] = useState<string>("professional-offset");
 
+  const [printerPresets, setPrinterPresets] = useState<PrinterPreset[]>(() => {
+    try {
+      const saved = localStorage.getItem("custom_app_printer_presets");
+      if (saved) {
+        return JSON.parse(saved);
+      }
+    } catch (e) {
+      console.warn("Failed to load custom app print presets:", e);
+    }
+    return [
+      {
+        id: "home-inkjet",
+        name: "Home Inkjet",
+        description: "Standard margins, portrait mode, safe areas active, crop marks disabled.",
+        margins: "standard",
+        cropMarks: false,
+        safeArea: true,
+        orientation: "portrait",
+        icon: "🖨️",
+      },
+      {
+        id: "professional-offset",
+        name: "Professional Offset",
+        description: "High-precision trim marks, registration targets, minimum bleed margins.",
+        margins: "minimum",
+        cropMarks: true,
+        safeArea: true,
+        orientation: "portrait",
+        icon: "🏭",
+      },
+      {
+        id: "standard-pdf",
+        name: "Standard PDF Export",
+        description: "Standard margins, clean borders, and zero crop/registration overlays.",
+        margins: "standard",
+        cropMarks: false,
+        safeArea: false,
+        orientation: "portrait",
+        icon: "📄",
+      },
+      {
+        id: "full-bleed-poster",
+        name: "Full Bleed Poster",
+        description: "Zero margins and corner trim marks for borderless edge-to-edge landscape printing.",
+        margins: "none",
+        cropMarks: true,
+        safeArea: true,
+        orientation: "landscape",
+        icon: "🎨",
+      }
+    ];
+  });
+
+  const [isSavingPreset, setIsSavingPreset] = useState<boolean>(false);
+  const [newPresetName, setNewPresetName] = useState<string>("");
+  const [newPresetDesc, setNewPresetDesc] = useState<string>("");
+  const [newPresetIcon, setNewPresetIcon] = useState<string>("🖨️");
+
+  const savePresets = (newPresets: PrinterPreset[]) => {
+    setPrinterPresets(newPresets);
+    try {
+      localStorage.setItem("custom_app_printer_presets", JSON.stringify(newPresets));
+    } catch (e) {
+      console.warn("Failed to save custom app print presets:", e);
+    }
+  };
+
+  const handleAddPreset = () => {
+    if (!newPresetName.trim()) {
+      alert("Please enter a name for your preset.");
+      return;
+    }
+    const newPreset: PrinterPreset = {
+      id: `preset-${Date.now()}`,
+      name: newPresetName.trim(),
+      description: newPresetDesc.trim() || `Custom margins (${printPageMargins}), crop marks (${showCropMarks ? "on" : "off"}), safe area (${showSafeArea ? "on" : "off"}), orientation (${printOrientation}).`,
+      margins: printPageMargins,
+      cropMarks: showCropMarks,
+      safeArea: showSafeArea,
+      orientation: printOrientation,
+      icon: newPresetIcon
+    };
+
+    const updated = [...printerPresets, newPreset];
+    savePresets(updated);
+    setSelectedPresetId(newPreset.id);
+    
+    // Clear form
+    setNewPresetName("");
+    setNewPresetDesc("");
+    setNewPresetIcon("🖨️");
+    setIsSavingPreset(false);
+  };
+
+  const handleDeletePreset = (id: string) => {
+    const defaultIds = ["home-inkjet", "professional-offset", "standard-pdf", "full-bleed-poster"];
+    if (defaultIds.includes(id)) return;
+
+    const updated = printerPresets.filter((p) => p.id !== id);
+    savePresets(updated);
+
+    if (selectedPresetId === id) {
+      setSelectedPresetId("custom");
+    }
+  };
+
   // Sync preset selection automatically with current overlay configuration options
   useEffect(() => {
-    const matchedPreset = PRINTER_PRESETS.find(
+    const matchedPreset = printerPresets.find(
       (p) =>
         p.margins === printPageMargins &&
         p.cropMarks === showCropMarks &&
-        p.safeArea === showSafeArea
+        p.safeArea === showSafeArea &&
+        (!p.orientation || p.orientation === printOrientation)
     );
     if (matchedPreset) {
       setSelectedPresetId(matchedPreset.id);
     } else {
       setSelectedPresetId("custom");
     }
-  }, [printPageMargins, showCropMarks, showSafeArea]);
+  }, [printPageMargins, showCropMarks, showSafeArea, printOrientation, printerPresets]);
 
   useEffect(() => {
     if (isPrintPreviewOpen) {
@@ -2577,9 +2686,17 @@ export default function App() {
                   </div>
                 </div>
 
-                <div className="space-y-4">
+                <motion.div 
+                  layout
+                  transition={{ type: "spring", stiffness: 220, damping: 26 }}
+                  className="space-y-4"
+                >
                   {/* Printer Preset controller */}
-                  <div className="space-y-1.5 pb-3 border-b border-slate-200/50 dark:border-slate-800/50">
+                  <motion.div 
+                    layout
+                    transition={{ type: "spring", stiffness: 220, damping: 26 }}
+                    className="space-y-1.5 pb-3 border-b border-slate-200/50 dark:border-slate-800/50"
+                  >
                     <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Printer Preset</span>
                     <div className="relative">
                       <select
@@ -2588,17 +2705,20 @@ export default function App() {
                           const val = e.target.value;
                           setSelectedPresetId(val);
                           if (val !== "custom") {
-                            const preset = PRINTER_PRESETS.find(p => p.id === val);
+                            const preset = printerPresets.find(p => p.id === val);
                             if (preset) {
                               setPrintPageMargins(preset.margins);
                               setShowCropMarks(preset.cropMarks);
                               setShowSafeArea(preset.safeArea);
+                              if (preset.orientation) {
+                                setPrintOrientation(preset.orientation);
+                              }
                             }
                           }
                         }}
                         className="w-full px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none cursor-pointer"
                       >
-                        {PRINTER_PRESETS.map((p) => (
+                        {printerPresets.map((p) => (
                           <option key={p.id} value={p.id}>
                             {p.icon} {p.name}
                           </option>
@@ -2610,12 +2730,94 @@ export default function App() {
                     <p className="text-[9px] text-slate-400 dark:text-slate-500 font-medium leading-relaxed mt-1">
                       {selectedPresetId === "custom" 
                         ? "Manually adjusted layout parameters" 
-                        : PRINTER_PRESETS.find(p => p.id === selectedPresetId)?.description}
+                        : printerPresets.find(p => p.id === selectedPresetId)?.description}
                     </p>
-                  </div>
+
+                    {/* Inline Preset Addition Form */}
+                    {selectedPresetId === "custom" && !isSavingPreset && (
+                      <button
+                        type="button"
+                        onClick={() => setIsSavingPreset(true)}
+                        className="mt-1.5 w-full py-1.5 bg-indigo-50/50 hover:bg-indigo-50 dark:bg-indigo-950/10 dark:hover:bg-indigo-950/25 border border-indigo-100 dark:border-indigo-900 text-[10px] font-black text-indigo-650 dark:text-indigo-400 rounded-lg flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                      >
+                        ✨ Save Current as Preset
+                      </button>
+                    )}
+
+                    {isSavingPreset && (
+                      <div className="mt-2 p-2.5 rounded-xl border border-indigo-200 dark:border-indigo-850 bg-slate-50 dark:bg-slate-950 text-left space-y-2 animate-fade-in">
+                        <span className="block text-[8.5px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400">Save Dynamic Preset</span>
+                        
+                        <div className="space-y-1">
+                          <label className="block text-[8px] font-bold text-slate-400">Preset Name</label>
+                          <input
+                            type="text"
+                            value={newPresetName}
+                            onChange={(e) => setNewPresetName(e.target.value)}
+                            placeholder="e.g. My Custom Offset"
+                            className="w-full px-2 py-1 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-lg outline-none text-slate-850 dark:text-slate-100"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="block text-[8px] font-bold text-slate-400">Description (Optional)</label>
+                          <input
+                            type="text"
+                            value={newPresetDesc}
+                            onChange={(e) => setNewPresetDesc(e.target.value)}
+                            placeholder="e.g. For professional labels"
+                            className="w-full px-2 py-1 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-lg outline-none text-slate-850 dark:text-slate-100"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="block text-[8px] font-bold text-slate-400">Choose Icon</label>
+                          <div className="flex gap-1">
+                            {["🖨️", "🏭", "📄", "🎨", "🏷️", "🌟"].map((emoji) => (
+                              <button
+                                key={emoji}
+                                type="button"
+                                onClick={() => setNewPresetIcon(emoji)}
+                                className={`w-6 h-6 rounded-md flex items-center justify-center cursor-pointer text-xs transition-colors ${
+                                  newPresetIcon === emoji ? "bg-indigo-100 dark:bg-indigo-950" : "hover:bg-slate-200 dark:hover:bg-slate-800"
+                                }`}
+                              >
+                                {emoji}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="flex gap-1.5 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsSavingPreset(false);
+                              setNewPresetName("");
+                              setNewPresetDesc("");
+                            }}
+                            className="flex-1 py-1 text-[9px] font-bold text-slate-500 hover:bg-slate-150 dark:hover:bg-slate-900 rounded-md cursor-pointer border border-transparent"
+                          >
+                            Cancel
+                          </button>
+                          <button
+                            type="button"
+                            onClick={handleAddPreset}
+                            className="flex-1 py-1 bg-indigo-600 text-white rounded-md text-[9px] font-black uppercase tracking-wider hover:bg-indigo-700 cursor-pointer shadow-3xs border border-transparent"
+                          >
+                            Save
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </motion.div>
 
                   {/* Orientation controller */}
-                  <div className="space-y-1.5">
+                  <motion.div 
+                    layout
+                    transition={{ type: "spring", stiffness: 220, damping: 26 }}
+                    className="space-y-1.5"
+                  >
                     <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Page Orientation</span>
                     <div className="grid grid-cols-2 gap-2">
                       {[
@@ -2636,10 +2838,14 @@ export default function App() {
                         </button>
                       ))}
                     </div>
-                  </div>
+                  </motion.div>
 
                   {/* Margins controller */}
-                  <div className="space-y-1.5">
+                  <motion.div 
+                    layout
+                    transition={{ type: "spring", stiffness: 220, damping: 26 }}
+                    className="space-y-1.5"
+                  >
                     <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Paper Margins</span>
                     <div className="grid grid-cols-3 gap-1.5">
                       {[
@@ -2661,10 +2867,14 @@ export default function App() {
                         </button>
                       ))}
                     </div>
-                  </div>
+                  </motion.div>
 
                   {/* Visual scale / zoom controller */}
-                  <div className="space-y-1.5">
+                  <motion.div 
+                    layout
+                    transition={{ type: "spring", stiffness: 220, damping: 26 }}
+                    className="space-y-1.5"
+                  >
                     <div className="flex justify-between items-center">
                       <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Preview Scale</span>
                       <span className="text-[10px] font-mono font-bold text-indigo-505 dark:text-indigo-400">
@@ -2685,10 +2895,14 @@ export default function App() {
                       <button type="button" onClick={() => setPreviewScale(0.85)} className="hover:text-indigo-505 dark:hover:text-indigo-400 cursor-pointer">Reset (85%)</button>
                       <span>120%</span>
                     </div>
-                  </div>
+                  </motion.div>
 
                   {/* Print Overlay Alignment Tools */}
-                  <div className="space-y-2 pt-3.5 border-t border-slate-200/65 dark:border-slate-800/65">
+                  <motion.div 
+                    layout
+                    transition={{ type: "spring", stiffness: 220, damping: 26 }}
+                    className="space-y-2 pt-3.5 border-t border-slate-200/65 dark:border-slate-800/65"
+                  >
                     <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Print Overlays</span>
                     
                     <div className="space-y-2">
@@ -2726,8 +2940,8 @@ export default function App() {
                         />
                       </label>
                     </div>
-                  </div>
-                </div>
+                  </motion.div>
+                </motion.div>
 
                 <div className="border-t border-slate-200 dark:border-slate-800 pt-5 space-y-4">
                   {/* Quick features breakdown */}
@@ -2739,47 +2953,65 @@ export default function App() {
                     <p>This layout uses the exact CSS `@media print` rules from `index.css` that hide editing sidebars, settings parameters, and banners to render only clean content.</p>
                   </div>
 
-                  {/* Manual Refresh Trigger */}
-                  <button
-                    type="button"
-                    onClick={() => {
-                      // Trigger state refresh by briefly clearing and re-checking
-                      setPreviewHtml("");
-                      setTimeout(() => {
-                        let selector = "";
-                        if (activeTab === "quote") selector = "#quote-card-preview";
-                        else if (activeTab === "qr") selector = "#qr-code-preview-card";
-                        else if (activeTab === "palette") selector = ".palette-swatches-grid";
-                        else if (activeTab === "compress") selector = ".compression-results-view, #active-compression-preview";
-                        else if (activeTab === "drive") selector = ".drive-files-grid";
+                  {/* Control Actions (Reset & Refresh) */}
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPrintPageMargins("minimum");
+                        setPrintOrientation("portrait");
+                        setShowCropMarks(true);
+                        setShowSafeArea(true);
+                        setPreviewScale(0.85);
+                      }}
+                      className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900/60 dark:hover:bg-slate-800/80 border border-slate-200 dark:border-slate-800 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer text-slate-700 dark:text-slate-300"
+                      title="Reset all settings to system factory defaults"
+                    >
+                      <span>🧼</span>
+                      <span>Reset Defaults</span>
+                    </button>
 
-                        if (selector) {
-                          const element = document.querySelector(selector);
-                          if (element) {
-                            if (activeTab === "palette") {
-                              const hist = document.querySelector(".color-histogram-chart");
-                              let combined = element.outerHTML;
-                              if (hist) combined += `<div class="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800">${hist.outerHTML}</div>`;
-                              setPreviewHtml(combined);
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Trigger state refresh by briefly clearing and re-checking
+                        setPreviewHtml("");
+                        setTimeout(() => {
+                          let selector = "";
+                          if (activeTab === "quote") selector = "#quote-card-preview";
+                          else if (activeTab === "qr") selector = "#qr-code-preview-card";
+                          else if (activeTab === "palette") selector = ".palette-swatches-grid";
+                          else if (activeTab === "compress") selector = ".compression-results-view, #active-compression-preview";
+                          else if (activeTab === "drive") selector = ".drive-files-grid";
+
+                          if (selector) {
+                            const element = document.querySelector(selector);
+                            if (element) {
+                              if (activeTab === "palette") {
+                                const hist = document.querySelector(".color-histogram-chart");
+                                let combined = element.outerHTML;
+                                if (hist) combined += `<div class="mt-8 pt-6 border-t border-slate-200 dark:border-slate-800">${hist.outerHTML}</div>`;
+                                setPreviewHtml(combined);
+                              } else {
+                                setPreviewHtml(element.outerHTML);
+                              }
                             } else {
-                              setPreviewHtml(element.outerHTML);
+                              setPreviewHtml(`
+                                <div class="p-12 text-center text-slate-450 dark:text-slate-500 font-sans space-y-4">
+                                  <p class="font-black text-sm uppercase tracking-wider text-slate-700 dark:text-slate-300">No Content Ready</p>
+                                  <p class="text-[11px] leading-relaxed max-w-xs mx-auto text-slate-400">Please generate or load an active design layout to print.</p>
+                                </div>
+                              `);
                             }
-                          } else {
-                            setPreviewHtml(`
-                              <div class="p-12 text-center text-slate-450 dark:text-slate-500 font-sans space-y-4">
-                                <p class="font-black text-sm uppercase tracking-wider text-slate-700 dark:text-slate-300">No Content Ready</p>
-                                <p class="text-[11px] leading-relaxed max-w-xs mx-auto text-slate-400">Please generate or load an active design layout to print.</p>
-                              </div>
-                            `);
                           }
-                        }
-                      }, 50);
-                    }}
-                    className="w-full py-2 px-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold rounded-xl transition-all hover:bg-slate-50 dark:hover:bg-slate-850 flex items-center justify-center gap-1.5 cursor-pointer"
-                  >
-                    <span>🔄</span>
-                    <span>Refresh Content</span>
-                  </button>
+                        }, 50);
+                      }}
+                      className="py-2 px-2.5 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-xs font-bold rounded-xl transition-all hover:bg-slate-50 dark:hover:bg-slate-850 flex items-center justify-center gap-1.5 cursor-pointer text-slate-700 dark:text-slate-300"
+                    >
+                      <span>🔄</span>
+                      <span>Refresh Content</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 

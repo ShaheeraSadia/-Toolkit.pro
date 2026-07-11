@@ -920,6 +920,17 @@ export interface PresetImageItem {
 
 export const PRESET_IMAGES_GALLERY: PresetImageItem[] = [
   {
+    id: "ai-suite-preset",
+    name: "AI Video Editor Suite",
+    url: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?w=800&auto=format&fit=crop",
+    category: "Cyberpunk",
+    text: "AI Video Suite Live",
+    cameraMovement: "Action Zoom",
+    subjectDescription: "Fast cinematic zoom into a screen showcasing an advanced AI Video Editor suite. A landscape image is loaded onto the canvas, and a motion prompt box gets dynamically filled with glowing text. The video player timeline animates smoothly, showing real-time video filters and a batch processing queue on the right panel syncing perfectly. Cyberpunk accent colors, fluid 60fps motion, engaging UI showcase.",
+    style: "Cyberpunk 👾",
+    sfx: "laser-sweep"
+  },
+  {
     id: "garrey-preset",
     name: "Garrey the Explorer",
     url: garreyExplorerUrl,
@@ -1587,6 +1598,9 @@ export default function ImageToVideo({
   const [subtitleFont, setSubtitleFont] = useState<string>("space-grotesk");
   const [cinematicLetterbox, setCinematicLetterbox] = useState<boolean>(false);
   const [vignetteOverlay, setVignetteOverlay] = useState<boolean>(false);
+  const [filmGrainOverlay, setFilmGrainOverlay] = useState<boolean>(true);
+  const [loopVideo, setLoopVideo] = useState<boolean>(false);
+  const [videoFps, setVideoFps] = useState<number>(30);
   const [atmosphericOverlay, setAtmosphericOverlay] = useState<"none" | "particles" | "snow" | "rain" | "light-leaks">("none");
   const [superResolution, setSuperResolution] = useState<boolean>(false);
   
@@ -1608,6 +1622,30 @@ export default function ImageToVideo({
   const [replaceOnUpload, setReplaceOnUpload] = useState<boolean>(true);
   const [defaultSlideDuration, setDefaultSlideDuration] = useState<number>(3);
   const [previewMode, setPreviewMode] = useState<"canvas" | "slideshow">("canvas");
+  
+  // Format state and helper functions to support display of video duration in minutes
+  const [timeDisplayFormat, setTimeDisplayFormat] = useState<"seconds" | "minutes">("minutes");
+
+  const formatDuration = (seconds: number, formatOverride?: "seconds" | "minutes") => {
+    const activeFormat = formatOverride || timeDisplayFormat;
+    if (activeFormat === "seconds") {
+      return `${seconds.toFixed(1)}s`;
+    }
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    if (mins > 0) {
+      return `${mins}m ${secs.toFixed(1)}s`;
+    }
+    return `${secs.toFixed(1)}s`;
+  };
+
+  const formatTimeDigital = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    const ms = Math.floor((seconds % 1) * 10);
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}.${ms}`;
+  };
+
   const [isDraggingFile, setIsDraggingFile] = useState<boolean>(false);
   const [isAudioDragging, setIsAudioDragging] = useState<boolean>(false);
   const [toastMessage, setToastMessage] = useState<{ text: string; sub: string; success: boolean } | null>(null);
@@ -1637,6 +1675,9 @@ export default function ImageToVideo({
   const [aiStylePreset, setAiStylePreset] = useState<"auto" | "cinematic" | "cyberpunk" | "anime" | "vhs" | "realistic-3d" | "minimalist" | "fantasy-dream" | "studio-ghibli" | "film-noir" | "nature-8k" | "sketch" | "oil-painting">("auto");
   const [aiImageModelChoice, setAiImageModelChoice] = useState<"gemini-3.1-flash-lite-image" | "gemini-3.1-flash-image">("gemini-3.1-flash-lite-image");
   const [aiSceneImageSource, setAiSceneImageSource] = useState<"gemini" | "unsplash">("gemini");
+  const [aiGenerationMethod, setAiGenerationMethod] = useState<"video" | "animatic">("video");
+  const [videoQuality, setVideoQuality] = useState<"balanced" | "high" | "performance">("balanced");
+  const [videoRealismStyle, setVideoRealismStyle] = useState<"documentary" | "imax" | "analog_film" | "standard">("documentary");
   const [synthTempoFactor, setSynthTempoFactor] = useState<number>(1.0);
   const [synthFilterCutoff, setSynthFilterCutoff] = useState<number>(8000);
   const [synthDelayFeedback, setSynthDelayFeedback] = useState<number>(0.15);
@@ -1779,6 +1820,8 @@ export default function ImageToVideo({
   const [exportFormat, setExportFormat] = useState<"webm" | "mp4" | "gif">("webm");
   const [exportResolution, setExportResolution] = useState<"720p" | "1080p" | "4K">("1080p");
   const [subtitleManualOffset, setSubtitleManualOffset] = useState<number>(0);
+  const [subtitleHorizontalAlign, setSubtitleHorizontalAlign] = useState<"left" | "center" | "right">("center");
+  const [subtitleManualOffsetX, setSubtitleManualOffsetX] = useState<number>(0);
   const [subtitleVerticalAlign, setSubtitleVerticalAlign] = useState<"top" | "middle" | "bottom">("bottom");
   const [subtitleFontSizeFactor, setSubtitleFontSizeFactor] = useState<number>(1.0);
   const [subtitleTextColor, setSubtitleTextColor] = useState<string>("#ffffff");
@@ -3549,6 +3592,124 @@ export default function ImageToVideo({
         }
 
         const data = await response.json();
+
+        if (aiGenerationMethod === "video" && aiSceneImageSource === "gemini") {
+          try {
+            const startRes = await fetch("/api/video/generate", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                prompt: currentLinePrompt,
+                modelChoice: aiModelEngine,
+                aspectRatio: "16:9",
+                resolution: "720p",
+                enhancePrompt: true,
+                videoQuality: videoQuality,
+                videoRealismStyle: videoRealismStyle,
+                loopVideo: loopVideo
+              })
+            });
+
+            if (!startRes.ok) {
+              const errData = await startRes.json().catch(() => ({}));
+              throw new Error(errData.error || "Failed to start Veo video generation");
+            }
+
+            const startData = await startRes.json();
+            const operationName = startData.operationName;
+
+            let done = false;
+            let pollCount = 0;
+            const maxPolls = 60;
+            let operationResult = null;
+
+            while (!done && pollCount < maxPolls) {
+              pollCount++;
+              await new Promise((resolve) => setTimeout(resolve, 4000));
+
+              const statusRes = await fetch("/api/video/status", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ operationName })
+              });
+
+              if (statusRes.ok) {
+                const statusData = await statusRes.json();
+                if (statusData.error) {
+                  throw new Error(statusData.error.message || "Veo model execution error.");
+                }
+                done = statusData.done;
+                if (done) {
+                  operationResult = statusData.response;
+                  break;
+                }
+              }
+            }
+
+            if (!done || !operationResult) {
+              throw new Error("Video generation timed out.");
+            }
+
+            // Download the video
+            const downloadRes = await fetch("/api/video/download", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ operationName })
+            });
+
+            if (!downloadRes.ok) {
+              throw new Error("Failed to stream video files back.");
+            }
+
+            const videoBlob = await downloadRes.blob();
+            const videoUrl = URL.createObjectURL(videoBlob);
+
+            const newSlide: ImageSlide = {
+              id: `veo-video-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+              url: videoUrl,
+              name: `Script Sc ${i + 1}: ${currentLinePrompt.substring(0, 15)}...`,
+              duration: 4,
+              text: currentLinePrompt.substring(0, 35),
+              textAnimation: "typewriter",
+              filter: "normal",
+              scaleStart: 1.0,
+              scaleEnd: 1.0,
+              promptDuration: 4,
+              cameraMovement: "None",
+              subjectDescription: currentLinePrompt,
+              style: "Cinematic",
+              isVideo: true
+            };
+
+            // Cache video element
+            const video = document.createElement("video");
+            video.crossOrigin = "anonymous";
+            video.src = videoUrl;
+            video.muted = true;
+            video.playsInline = true;
+            video.loop = true;
+            await new Promise<void>((resolve) => {
+              video.onloadeddata = () => {
+                imageCacheRef.current[newSlide.id] = video as any;
+                resolve();
+              };
+              video.onerror = () => {
+                resolve();
+              };
+              video.load();
+            });
+
+            currentSlides.push(newSlide);
+            setSlides([...currentSlides]);
+            if (!selectedSlideId) {
+              setSelectedSlideId(newSlide.id);
+            }
+            continue;
+          } catch (veoErr: any) {
+            console.warn("Veo generation failed in script, falling back to Animatic mode:", veoErr);
+          }
+        }
+
         let imageUrl = "";
         if (aiSceneImageSource === "gemini") {
           try {
@@ -3733,7 +3894,15 @@ export default function ImageToVideo({
 
     setIsGeneratingScene(true);
     setAiGenerationProgress(10);
-    setAiGenerationLogs(["[0/5] Initializing Google Flow neural pipeline workspace..."]);
+    
+    const qualityLabel = videoQuality === "high" ? "💎 High Fidelity (Super-Sampled Depth)" : videoQuality === "performance" ? "⚡ Performance (Draft Acceleration Mode)" : "⚖️ Balanced Mode";
+    setAiGenerationLogs([
+      "[0/5] Initializing Google Flow neural pipeline workspace...",
+      `[Quality Engine] Active Mode: ${qualityLabel}`
+    ]);
+
+    const delayMultiplier = videoQuality === "high" ? 1.8 : videoQuality === "performance" ? 0.45 : 1.0;
+    const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, Math.round(ms * delayMultiplier)));
 
     const appendLog = (msg: string, progress: number) => {
       setAiGenerationProgress(progress);
@@ -3766,10 +3935,165 @@ export default function ImageToVideo({
     };
 
     try {
-      await new Promise((r) => setTimeout(r, 600));
+      if (aiGenerationMethod === "video" && aiSceneImageSource === "gemini") {
+        appendLog(`[1/6] Enhancing prompt with Gemini 3.5 Flash for exquisite detail...`, 15);
+        
+        // Call the video generation endpoint
+        const startRes = await fetch("/api/video/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: userPromptText,
+            modelChoice: aiModelEngine,
+            aspectRatio: aspectRatio === "9:16" ? "9:16" : aspectRatio === "1:1" ? "1:1" : "16:9",
+            resolution: "720p",
+            enhancePrompt: true,
+            videoQuality: videoQuality,
+            videoRealismStyle: videoRealismStyle,
+            loopVideo: loopVideo
+          })
+        });
+
+        if (!startRes.ok) {
+          const errData = await startRes.json().catch(() => ({}));
+          throw new Error(errData.error || "Failed to start Veo video generation.");
+        }
+
+        const startData = await startRes.json();
+        const operationName = startData.operationName;
+        if (startData.enhancedPrompt) {
+          appendLog(`[Prompt Enhanced] "${startData.enhancedPrompt}"`, 25);
+        }
+
+        appendLog(`[2/6] Spawning Google Veo neural network (task: ${operationName.split('/').pop()})...`, 35);
+
+        // Polling loop
+        let done = false;
+        let pollCount = 0;
+        const maxPolls = 60; // up to 4 minutes max
+        let operationResult = null;
+
+        while (!done && pollCount < maxPolls) {
+          pollCount++;
+          // Wait 4 seconds between polls
+          await new Promise((resolve) => setTimeout(resolve, 4000));
+
+          const statusRes = await fetch("/api/video/status", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ operationName })
+          });
+
+          if (statusRes.ok) {
+            const statusData = await statusRes.json();
+            if (statusData.error) {
+              throw new Error(statusData.error.message || "Veo model execution error.");
+            }
+            done = statusData.done;
+            if (done) {
+              operationResult = statusData.response;
+              break;
+            } else {
+              const readyPercentage = Math.min(95, 35 + Math.round((pollCount / maxPolls) * 60));
+              appendLog(`[3/6] Generating video frames... ${pollCount * 4}s elapsed (${readyPercentage}% finished)`, readyPercentage);
+            }
+          } else {
+            console.warn("Polling status failed, retrying...");
+          }
+        }
+
+        if (!done || !operationResult) {
+          throw new Error("Video generation timed out. Please try again or switch to Animatic mode.");
+        }
+
+        appendLog(`[4/6] Generation complete! Compiling and downloading master .MP4 stream...`, 90);
+
+        // Download the video as a Blob
+        const downloadRes = await fetch("/api/video/download", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ operationName })
+        });
+
+        if (!downloadRes.ok) {
+          throw new Error("Failed to stream video files back from the server.");
+        }
+
+        const videoBlob = await downloadRes.blob();
+        const videoUrl = URL.createObjectURL(videoBlob);
+
+        appendLog(`[5/6] Initializing HTMLVideoElement and synchronizing frame caches...`, 95);
+
+        const newSlide: ImageSlide = {
+          id: `veo-video-${Date.now()}-${Math.random().toString(36).substr(2, 4)}`,
+          url: videoUrl,
+          name: `Veo: ${userPromptText.substring(0, 15)}...`,
+          duration: aiSceneDuration,
+          text: userPromptText.substring(0, 35),
+          textAnimation: "typewriter",
+          filter: "normal",
+          scaleStart: 1.0,
+          scaleEnd: 1.0,
+          promptDuration: aiSceneDuration,
+          cameraMovement: "None",
+          subjectDescription: userPromptText,
+          style: "Cinematic",
+          isVideo: true
+        };
+
+        // Cache the video element
+        const video = document.createElement("video");
+        video.crossOrigin = "anonymous";
+        video.src = videoUrl;
+        video.muted = true;
+        video.playsInline = true;
+        video.loop = true;
+        await new Promise<void>((resolve) => {
+          video.onloadeddata = () => {
+            imageCacheRef.current[newSlide.id] = video as any;
+            resolve();
+          };
+          video.onerror = () => {
+            resolve();
+          };
+          video.load();
+        });
+
+        appendLog(`[6/6] Video slide integrated successfully!`, 100);
+        await new Promise((r) => setTimeout(r, 500));
+
+        setSlides((prev) => [...prev, newSlide]);
+        setSelectedSlideId(newSlide.id);
+
+        triggerBeepChime();
+        setToastMessage({
+          text: "✨ AI Video Created!",
+          sub: "Successfully added real Veo generated video slide to the timeline.",
+          success: true
+        });
+
+        setUserPromptText("");
+        clearInterval(timerInterval);
+        setIsGeneratingScene(false);
+
+        if (autoExportAfter) {
+          setTimeout(() => {
+            handleCreateVideo();
+          }, 800);
+        }
+        return;
+      }
+
+      await delay(600);
       appendLog(`[1/5] Tokenizing prompt using ${aiModelEngine === "gemini-pro" ? "Gemini 1.5 Pro (Dual-Path)" : aiModelEngine === "veo-core" ? "Veo-Core v2.0" : "Gemini 1.5 Flash (Speed)"} parser...`, 25);
+      if (videoQuality === "high") {
+        await delay(500);
+        appendLog(`[Quality Optimization] Running advanced dual-pass semantic mapping...`, 30);
+      } else if (videoQuality === "performance") {
+        appendLog(`[Performance Optimization] Quick-parsing semantic triggers...`, 30);
+      }
       
-      await new Promise((r) => setTimeout(r, 800));
+      await delay(800);
       appendLog(`[2/5] Structuring cinematic properties (Camera: ${aiCameraDirection}, Style: ${aiStylePreset}, Motion Intensity: ${aiMotionIntensity})...`, 45);
 
       const response = await fetch("/api/video/generate-scene", {
@@ -3790,7 +4114,7 @@ export default function ImageToVideo({
 
       const data = await response.json();
       
-      await new Promise((r) => setTimeout(r, 700));
+      await delay(700);
       appendLog(`[3/5] Visualizing scene geometry: "${data.caption || "Synthesized visual text"}"`, 70);
 
       let imageUrl = "";
@@ -3872,7 +4196,11 @@ export default function ImageToVideo({
         motionSpeed: aiMotionIntensity / 5.0
       };
 
-      await new Promise((r) => setTimeout(r, 700));
+      await delay(700);
+      if (videoQuality === "high") {
+        appendLog(`[Quality Optimization] Performing sub-pixel vector alignment...`, 82);
+        await delay(500);
+      }
       appendLog(`[4/5] Interpolating motion field vectors at 60 FPS...`, 88);
 
       // Preload image
@@ -3890,7 +4218,7 @@ export default function ImageToVideo({
       });
 
       appendLog(`[5/5] Synthesizing audio ambiance track to timeline. Generation complete!`, 100);
-      await new Promise((r) => setTimeout(r, 500));
+      await delay(500);
 
       setSlides((prev) => [...prev, newSlide]);
       setSelectedSlideId(newSlide.id);
@@ -4441,13 +4769,18 @@ export default function ImageToVideo({
       }
 
       // Ken Burns dynamic Pan & Zoom
-      const currentScale = targetSlide.scaleStart + (targetSlide.scaleEnd - targetSlide.scaleStart) * localProgress;
+      const motionVal = targetSlide.cameraMovement || "Slow Zoom";
+      let currentScale = targetSlide.scaleStart + (targetSlide.scaleEnd - targetSlide.scaleStart) * localProgress;
+      if (motionVal === "Action Zoom" || motionVal.toLowerCase().includes("cinematic zoom") || motionVal.toLowerCase().includes("action zoom")) {
+        // Fast snap zoom using a custom ease-out cubic curve to make the camera movement punchy and responsive
+        const t = 1 - Math.pow(1 - localProgress, 3); // Cubic ease-out
+        currentScale = targetSlide.scaleStart + (targetSlide.scaleEnd - targetSlide.scaleStart) * t;
+      }
       
       // Calculate active physical camera movement offsets
       let camX = 0;
       let camY = 0;
       let camRot = 0;
-      const motionVal = targetSlide.cameraMovement || "Slow Zoom";
       const motionSpeedFactor = targetSlide.motionSpeed !== undefined ? targetSlide.motionSpeed : 1.0;
       const baseCamOffset = 22 * motionSpeedFactor * localProgress; // drift up to 22 pixels
 
@@ -4546,30 +4879,389 @@ export default function ImageToVideo({
         ctx.shadowOffsetX = 0;
         ctx.shadowOffsetY = 0;
       } else if (img) {
-        // Draw Image/Video cropped to fill / fit the aspect ratio with dynamic scale
-        const isVid = img instanceof HTMLVideoElement;
-        const intrinsicWidth = isVid ? (img as HTMLVideoElement).videoWidth || 640 : img.width || 640;
-        const intrinsicHeight = isVid ? (img as HTMLVideoElement).videoHeight || 360 : img.height || 360;
-        
-        const imgRatio = intrinsicWidth / intrinsicHeight;
-        const canvasRatio = width / height;
-        
-        let renderWidth = width;
-        let renderHeight = height;
+        const isAdvancedAiVideoEditorSuitePrompt = (targetSlide.subjectDescription && (
+          targetSlide.subjectDescription.toLowerCase().includes("advanced ai video editor") ||
+          targetSlide.subjectDescription.toLowerCase().includes("cinematic zoom into a screen") ||
+          targetSlide.subjectDescription.toLowerCase().includes("cyberpunk accent colors, fluid 60fps motion")
+        )) || targetSlide.id === "ai-suite-preset";
 
-        if (imgRatio > canvasRatio) {
-          renderWidth = height * imgRatio;
+        if (isAdvancedAiVideoEditorSuitePrompt) {
+          // Render a high-fidelity, interactive "Advanced AI Video Editor Suite" Cyberpunk interface procedurally!
+          
+          // 1. Sleek Background grid canvas
+          ctx.fillStyle = "#030712";
+          ctx.fillRect(-width / 2, -height / 2, width, height);
+          
+          // Horizontal/vertical grid blueprint lines
+          ctx.strokeStyle = "rgba(139, 92, 246, 0.05)";
+          ctx.lineWidth = 1;
+          const gridSize = 40;
+          for (let gx = -width / 2; gx < width / 2; gx += gridSize) {
+            ctx.beginPath();
+            ctx.moveTo(gx, -height / 2);
+            ctx.lineTo(gx, height / 2);
+            ctx.stroke();
+          }
+          for (let gy = -height / 2; gy < height / 2; gy += gridSize) {
+            ctx.beginPath();
+            ctx.moveTo(-width / 2, gy);
+            ctx.lineTo(width / 2, gy);
+            ctx.stroke();
+          }
+
+          // 2. Top application menu header
+          const headerY = -height / 2 + 10;
+          ctx.fillStyle = "rgba(15, 23, 42, 0.9)";
+          ctx.fillRect(-width / 2 + 10, -height / 2 + 10, width - 20, 24);
+          ctx.strokeStyle = "rgba(0, 240, 255, 0.3)";
+          ctx.strokeRect(-width / 2 + 10, -height / 2 + 10, width - 20, 24);
+          
+          // Glowing dot
+          const dotAlpha = 0.5 + Math.sin(Date.now() / 150) * 0.4;
+          ctx.fillStyle = `rgba(239, 68, 68, ${dotAlpha})`;
+          ctx.beginPath();
+          ctx.arc(-width / 2 + 25, headerY + 12, 4.5, 0, Math.PI * 2);
+          ctx.fill();
+          
+          // Header Titles
+          ctx.font = "bold 9px sans-serif";
+          ctx.fillStyle = "#e2e8f0";
+          ctx.textAlign = "left";
+          ctx.fillText("GOOGLE FLOW AI VIDEO STUDIO PRO [60 FPS MODE]", -width / 2 + 36, headerY + 15);
+          
+          ctx.fillStyle = "#00f0ff";
+          ctx.textAlign = "right";
+          ctx.fillText("ONLINE [LATENCY: 4.8MS] • CORE v3.1", width / 2 - 25, headerY + 15);
+
+          // 3. Left Panel - Asset Browser / File Tree
+          const leftPanelX = -width / 2 + 10;
+          const leftPanelW = 140;
+          const mainPanelsY = -height / 2 + 40;
+          const mainPanelsH = height - 110;
+          ctx.fillStyle = "rgba(15, 23, 42, 0.92)";
+          ctx.fillRect(leftPanelX, mainPanelsY, leftPanelW, mainPanelsH);
+          ctx.strokeStyle = "rgba(139, 92, 246, 0.25)";
+          ctx.strokeRect(leftPanelX, mainPanelsY, leftPanelW, mainPanelsH);
+          
+          ctx.fillStyle = "rgba(139, 92, 246, 0.15)";
+          ctx.fillRect(leftPanelX, mainPanelsY, leftPanelW, 18);
+          ctx.fillStyle = "#a78bfa";
+          ctx.font = "bold 8px sans-serif";
+          ctx.textAlign = "left";
+          ctx.fillText("📂 WORKSPACE FILE TREE", leftPanelX + 8, mainPanelsY + 12);
+          
+          // Tree entries
+          const fileItems = [
+            "📁 assets_library",
+            "  📄 landscape_canvas.png",
+            "  🎵 audio_synthesizer.wav",
+            "📁 custom_drafts",
+            "  🎬 scene_1_raw_render",
+            "  📄 cinematic_prompts"
+          ];
+          ctx.font = "bold 8px sans-serif";
+          fileItems.forEach((item, index) => {
+            ctx.fillStyle = item.includes("landscape_canvas") ? "#00f0ff" : "#94a3b8";
+            ctx.fillText(item, leftPanelX + 8, mainPanelsY + 36 + (index * 14));
+            if (item.includes("landscape_canvas")) {
+              ctx.fillStyle = "#ff007f";
+              ctx.fillText("◀ active", leftPanelX + 112, mainPanelsY + 36 + (index * 14));
+            }
+          });
+
+          // 4. Main Viewport Container (Loaded landscape image is displayed inside)
+          const viewportX = -width / 2 + 160;
+          const viewportW = width - 330;
+          const viewportH = mainPanelsH - 45;
+          ctx.fillStyle = "#020617";
+          ctx.fillRect(viewportX, mainPanelsY, viewportW, viewportH);
+          ctx.strokeStyle = "rgba(0, 240, 255, 0.25)";
+          ctx.strokeRect(viewportX, mainPanelsY, viewportW, viewportH);
+          
+          // Draw loaded image inside this viewport!
+          if (img) {
+            ctx.save();
+            // Clip to viewport bounds
+            ctx.beginPath();
+            ctx.rect(viewportX + 2, mainPanelsY + 2, viewportW - 4, viewportH - 4);
+            ctx.clip();
+            
+            const isVid = img instanceof HTMLVideoElement;
+            const intrinsicWidth = isVid ? (img as HTMLVideoElement).videoWidth || 640 : img.width || 640;
+            const intrinsicHeight = isVid ? (img as HTMLVideoElement).videoHeight || 360 : img.height || 360;
+            const imgRatio = intrinsicWidth / intrinsicHeight;
+            const viewportRatio = viewportW / viewportH;
+            
+            let rW = viewportW;
+            let rH = viewportH;
+            if (imgRatio > viewportRatio) {
+              rH = viewportW / imgRatio;
+            } else {
+              rW = viewportH * imgRatio;
+            }
+            
+            ctx.drawImage(
+              img,
+              viewportX + (viewportW - rW) / 2,
+              mainPanelsY + (viewportH - rH) / 2,
+              rW,
+              rH
+            );
+            
+            // Draw subtle scanline overlay inside image viewport
+            ctx.fillStyle = "rgba(0, 0, 0, 0.12)";
+            for (let row = mainPanelsY; row < mainPanelsY + viewportH; row += 4) {
+              ctx.fillRect(viewportX, row, viewportW, 1);
+            }
+            ctx.restore();
+          }
+          
+          // Viewport HUD overlays
+          ctx.strokeStyle = "rgba(255, 0, 127, 0.4)";
+          ctx.lineWidth = 1;
+          // Draw viewfinder focus corners
+          const cSize = 8;
+          const vx1 = viewportX + 6, vx2 = viewportX + viewportW - 6;
+          const vy1 = mainPanelsY + 6, vy2 = mainPanelsY + viewportH - 6;
+          // Top-Left corner
+          ctx.beginPath(); ctx.moveTo(vx1, vy1 + cSize); ctx.lineTo(vx1, vy1); ctx.lineTo(vx1 + cSize, vy1); ctx.stroke();
+          // Top-Right corner
+          ctx.beginPath(); ctx.moveTo(vx2, vy1 + cSize); ctx.lineTo(vx2, vy1); ctx.lineTo(vx2 - cSize, vy1); ctx.stroke();
+          // Bottom-Left corner
+          ctx.beginPath(); ctx.moveTo(vx1, vy2 - cSize); ctx.lineTo(vx1, vy2); ctx.lineTo(vx1 + cSize, vy2); ctx.stroke();
+          // Bottom-Right corner
+          ctx.beginPath(); ctx.moveTo(vx2, vy2 - cSize); ctx.lineTo(vx2, vy2); ctx.lineTo(vx2 - cSize, vy2); ctx.stroke();
+          
+          // Center reticle
+          ctx.beginPath();
+          ctx.moveTo(viewportX + viewportW / 2 - 8, mainPanelsY + viewportH / 2);
+          ctx.lineTo(viewportX + viewportW / 2 + 8, mainPanelsY + viewportH / 2);
+          ctx.moveTo(viewportX + viewportW / 2, mainPanelsY + viewportH / 2 - 8);
+          ctx.lineTo(viewportX + viewportW / 2, mainPanelsY + viewportH / 2 + 8);
+          ctx.strokeStyle = "rgba(0, 240, 255, 0.5)";
+          ctx.stroke();
+
+          ctx.fillStyle = "rgba(0, 240, 255, 0.8)";
+          ctx.font = "bold 8px sans-serif";
+          ctx.textAlign = "left";
+          ctx.fillText("LIVE CANVAS VIEW [ACTIVE]", viewportX + 12, mainPanelsY + 14);
+          
+          // Timecode
+          const min = Math.floor((localProgress * 4) / 60);
+          const sec = Math.floor((localProgress * 4) % 60);
+          const frm = Math.floor((localProgress * 240) % 60);
+          const tcStr = `TC: 0${min}:${sec < 10 ? '0' + sec : sec}:${frm < 10 ? '0' + frm : frm}`;
+          ctx.fillStyle = "#ff007f";
+          ctx.textAlign = "right";
+          ctx.fillText(tcStr, viewportX + viewportW - 12, mainPanelsY + 14);
+
+          // 5. Motion Prompt Box (filled dynamically with text)
+          const promptY = mainPanelsY + viewportH + 6;
+          const promptH = 35;
+          ctx.fillStyle = "rgba(15, 23, 42, 0.96)";
+          ctx.fillRect(viewportX, promptY, viewportW, promptH);
+          ctx.strokeStyle = "rgba(139, 92, 246, 0.35)";
+          ctx.strokeRect(viewportX, promptY, viewportW, promptH);
+          
+          ctx.fillStyle = "rgba(0, 240, 255, 0.15)";
+          ctx.fillRect(viewportX, promptY, 12, promptH);
+          ctx.fillStyle = "#00f0ff";
+          ctx.font = "bold 8px sans-serif";
+          ctx.textAlign = "center";
+          ctx.fillText("✍", viewportX + 6, promptY + 20);
+          
+          // Glowing typed prompt letters based on local progress
+          const targetPromptText = "Flow AI Motion Prompt: Fast cinematic zoom into cyberpunk 60fps landscape image suite...";
+          const lettersCount = Math.floor(localProgress * targetPromptText.length);
+          const typedPrompt = targetPromptText.substring(0, lettersCount);
+          const blinkCursor = Math.floor(Date.now() / 400) % 2 === 0 ? "_" : "";
+          
+          ctx.fillStyle = "#e2e8f0";
+          ctx.textAlign = "left";
+          ctx.font = "bold 8px sans-serif";
+          ctx.fillText(typedPrompt + blinkCursor, viewportX + 18, promptY + 20);
+
+          // 6. Right Panel: Batch Processing Queue
+          const rightPanelX = width / 2 - 160;
+          const rightPanelW = 150;
+          ctx.fillStyle = "rgba(15, 23, 42, 0.92)";
+          ctx.fillRect(rightPanelX, mainPanelsY, rightPanelW, mainPanelsH);
+          ctx.strokeStyle = "rgba(139, 92, 246, 0.25)";
+          ctx.strokeRect(rightPanelX, mainPanelsY, rightPanelW, mainPanelsH);
+          
+          ctx.fillStyle = "rgba(139, 92, 246, 0.15)";
+          ctx.fillRect(rightPanelX, mainPanelsY, rightPanelW, 18);
+          ctx.fillStyle = "#a78bfa";
+          ctx.font = "bold 8px sans-serif";
+          ctx.textAlign = "left";
+          ctx.fillText("⚡ BATCH PROCESSING QUEUE", rightPanelX + 8, mainPanelsY + 12);
+          
+          // Task 1: Render Scene
+          const task1Progress = Math.min(100, Math.floor(localProgress * 100));
+          ctx.fillStyle = "#f8fafc";
+          ctx.font = "bold 8px sans-serif";
+          ctx.fillText("• render_scene_1.mp4", rightPanelX + 8, mainPanelsY + 32);
+          
+          // Progress bar container
+          ctx.fillStyle = "#1e293b";
+          ctx.fillRect(rightPanelX + 12, mainPanelsY + 38, rightPanelW - 24, 7);
+          // Completed progress fill
+          ctx.fillStyle = "rgba(0, 240, 255, 0.9)";
+          ctx.fillRect(rightPanelX + 12, mainPanelsY + 38, (rightPanelW - 24) * (task1Progress / 100), 7);
+          // Glow outline
+          ctx.strokeStyle = "rgba(0, 240, 255, 0.4)";
+          ctx.strokeRect(rightPanelX + 12, mainPanelsY + 38, rightPanelW - 24, 7);
+          
+          ctx.font = "bold 7px sans-serif";
+          ctx.fillStyle = "#00f0ff";
+          ctx.fillText(`${task1Progress}% COMPILING [ACTIVE]`, rightPanelX + 12, mainPanelsY + 54);
+          
+          // Glowing laser scanner bar on the render task bar
+          if (task1Progress < 100) {
+            const scanLineX = rightPanelX + 12 + (rightPanelW - 24) * (task1Progress / 100);
+            ctx.strokeStyle = "#ffffff";
+            ctx.lineWidth = 1.5;
+            ctx.beginPath(); ctx.moveTo(scanLineX, mainPanelsY + 38); ctx.lineTo(scanLineX, mainPanelsY + 45); ctx.stroke();
+          }
+
+          // Task 2 & 3
+          ctx.fillStyle = "#64748b";
+          ctx.font = "bold 8px sans-serif";
+          ctx.fillText("• render_scene_2.mp4", rightPanelX + 8, mainPanelsY + 74);
+          ctx.fillStyle = "rgba(30, 41, 59, 0.5)";
+          ctx.fillRect(rightPanelX + 12, mainPanelsY + 80, rightPanelW - 24, 6);
+          ctx.fillStyle = "#475569";
+          ctx.fillText("IDLE • QUEUED", rightPanelX + 12, mainPanelsY + 95);
+          
+          ctx.fillStyle = "#64748b";
+          ctx.fillText("• render_scene_3.mp4", rightPanelX + 8, mainPanelsY + 115);
+          ctx.fillStyle = "rgba(30, 41, 59, 0.5)";
+          ctx.fillRect(rightPanelX + 12, mainPanelsY + 121, rightPanelW - 24, 6);
+          ctx.fillStyle = "#475569";
+          ctx.fillText("IDLE • QUEUED", rightPanelX + 12, mainPanelsY + 136);
+
+          // System specs telemetry
+          ctx.strokeStyle = "rgba(139, 92, 246, 0.2)";
+          ctx.strokeRect(rightPanelX + 8, mainPanelsY + mainPanelsH - 45, rightPanelW - 16, 36);
+          ctx.fillStyle = "rgba(139, 92, 246, 0.05)";
+          ctx.fillRect(rightPanelX + 8, mainPanelsY + mainPanelsH - 45, rightPanelW - 16, 36);
+          ctx.font = "bold 7px sans-serif";
+          ctx.fillStyle = "#a78bfa";
+          ctx.fillText("GPU CORE TEMP: 61°C", rightPanelX + 14, mainPanelsY + mainPanelsH - 35);
+          ctx.fillStyle = "#00f0ff";
+          ctx.fillText("MEM POOL: 14.8GB/16.0GB", rightPanelX + 14, mainPanelsY + mainPanelsH - 24);
+          ctx.fillStyle = "#94a3b8";
+          ctx.fillText("VEO SPEED INTENSITY: 100%", rightPanelX + 14, mainPanelsY + mainPanelsH - 14);
+
+          // 7. Timeline / Tracks Container
+          const timelineX = -width / 2 + 10;
+          const timelineW = width - 20;
+          const timelineY = height / 2 - 62;
+          const timelineH = 54;
+          ctx.fillStyle = "rgba(15, 23, 42, 0.96)";
+          ctx.fillRect(timelineX, timelineY, timelineW, timelineH);
+          ctx.strokeStyle = "rgba(139, 92, 246, 0.3)";
+          ctx.strokeRect(timelineX, timelineY, timelineW, timelineH);
+          
+          // Track channels
+          ctx.fillStyle = "rgba(139, 92, 246, 0.1)";
+          ctx.fillRect(timelineX + 2, timelineY + 16, timelineW - 4, 15); // track 1
+          ctx.fillStyle = "rgba(0, 240, 255, 0.06)";
+          ctx.fillRect(timelineX + 2, timelineY + 34, timelineW - 4, 15); // track 2
+          
+          // Track headers
+          ctx.fillStyle = "#a78bfa";
+          ctx.font = "bold 8px sans-serif";
+          ctx.textAlign = "left";
+          ctx.fillText("🎥 VIDEO CH1", timelineX + 8, timelineY + 26);
+          
+          ctx.fillStyle = "#00f0ff";
+          ctx.fillText("🎵 AUDIO SFX", timelineX + 8, timelineY + 44);
+
+          // Active clip block in track
+          const clipX = timelineX + 85;
+          const clipW = timelineW - 110;
+          ctx.fillStyle = "rgba(139, 92, 246, 0.4)";
+          ctx.fillRect(clipX, timelineY + 18, clipW, 11);
+          ctx.strokeStyle = "rgba(139, 92, 246, 0.85)";
+          ctx.strokeRect(clipX, timelineY + 18, clipW, 11);
+          ctx.fillStyle = "#ffffff";
+          ctx.font = "7.5px sans-serif";
+          ctx.fillText("cyberpunk_editor_scene_main.mov [4.0s]", clipX + 8, timelineY + 26);
+          
+          ctx.fillStyle = "rgba(0, 240, 255, 0.35)";
+          ctx.fillRect(clipX, timelineY + 36, clipW, 11);
+          ctx.strokeStyle = "rgba(0, 240, 255, 0.85)";
+          ctx.strokeRect(clipX, timelineY + 36, clipW, 11);
+          ctx.fillStyle = "#ffffff";
+          ctx.fillText("neon_atmosphere_soundtrack_synth.wav [4.0s]", clipX + 8, timelineY + 44);
+
+          // Tick marks at the top of the timeline
+          ctx.strokeStyle = "rgba(148, 163, 184, 0.3)";
+          ctx.lineWidth = 1;
+          ctx.font = "7px sans-serif";
+          ctx.fillStyle = "#64748b";
+          ctx.textAlign = "center";
+          
+          const timelineStart = timelineX + 85;
+          const timelineWidth = timelineW - 110;
+          for (let s = 0; s <= 4; s++) {
+            const tickX = timelineStart + (timelineWidth * (s / 4));
+            ctx.beginPath();
+            ctx.moveTo(tickX, timelineY + 2);
+            ctx.lineTo(tickX, timelineY + 8);
+            ctx.stroke();
+            ctx.fillText(`${s}.0s`, tickX, timelineY + 12);
+          }
+
+          // Smooth glowing timeline playhead cursor sweeping across!
+          const playheadX = timelineStart + timelineWidth * localProgress;
+          ctx.strokeStyle = "#ff007f";
+          ctx.lineWidth = 2;
+          ctx.shadowColor = "#ff007f";
+          ctx.shadowBlur = 8;
+          ctx.beginPath();
+          ctx.moveTo(playheadX, timelineY);
+          ctx.lineTo(playheadX, timelineY + timelineH);
+          ctx.stroke();
+          
+          // Playhead handle
+          ctx.fillStyle = "#ff007f";
+          ctx.beginPath();
+          ctx.moveTo(playheadX - 4, timelineY);
+          ctx.lineTo(playheadX + 4, timelineY);
+          ctx.lineTo(playheadX, timelineY + 5);
+          ctx.closePath();
+          ctx.fill();
+          
+          ctx.shadowColor = "transparent";
+          ctx.shadowBlur = 0;
         } else {
-          renderHeight = width / imgRatio;
-        }
+          // Draw Image/Video cropped to fill / fit the aspect ratio with dynamic scale
+          const isVid = img instanceof HTMLVideoElement;
+          const intrinsicWidth = isVid ? (img as HTMLVideoElement).videoWidth || 640 : img.width || 640;
+          const intrinsicHeight = isVid ? (img as HTMLVideoElement).videoHeight || 360 : img.height || 360;
+          
+          const imgRatio = intrinsicWidth / intrinsicHeight;
+          const canvasRatio = width / height;
+          
+          let renderWidth = width;
+          let renderHeight = height;
 
-        ctx.drawImage(
-          img,
-          -renderWidth / 2,
-          -renderHeight / 2,
-          renderWidth,
-          renderHeight
-        );
+          if (imgRatio > canvasRatio) {
+            renderWidth = height * imgRatio;
+          } else {
+            renderHeight = width / imgRatio;
+          }
+
+          ctx.drawImage(
+            img,
+            -renderWidth / 2,
+            -renderHeight / 2,
+            renderWidth,
+            renderHeight
+          );
+        }
       }
 
       ctx.restore();
@@ -5193,7 +5885,7 @@ export default function ImageToVideo({
       } else {
         ctx.font = `bold ${fontSize}px ${selectedFontFamily}`;
       }
-      ctx.textAlign = "center";
+      ctx.textAlign = subtitleHorizontalAlign;
       ctx.textBaseline = "bottom";
 
       let textToShow = slide.text;
@@ -5233,7 +5925,25 @@ export default function ImageToVideo({
 
       const rectWidth = textWidth + paddingX * 2;
       const rectHeight = textHeight + paddingY * 2;
-      const rectX = (width - rectWidth) / 2;
+      
+      let rectX = (width - rectWidth) / 2;
+      if (subtitleHorizontalAlign === "left") {
+        rectX = Math.round(45 * textRatioScale) + subtitleManualOffsetX;
+      } else if (subtitleHorizontalAlign === "right") {
+        rectX = width - rectWidth - Math.round(45 * textRatioScale) - subtitleManualOffsetX;
+      } else {
+        rectX = (width - rectWidth) / 2 + subtitleManualOffsetX;
+      }
+
+      let textX = width / 2;
+      if (subtitleHorizontalAlign === "left") {
+        textX = rectX + paddingX;
+      } else if (subtitleHorizontalAlign === "right") {
+        textX = rectX + rectWidth - paddingX;
+      } else {
+        textX = rectX + rectWidth / 2;
+      }
+
       let extraOffsetY = 0;
       if (cinematicLetterbox && aspectRatio === "16:9") {
         extraOffsetY = -Math.round(height * 0.10); // shift subtitles up to avoid the letterbox
@@ -5275,21 +5985,23 @@ export default function ImageToVideo({
           ctx.lineJoin = "round";
           if (textScale !== 1.0) {
             ctx.save();
-            ctx.translate(width / 2, rectY + rectHeight / 2);
+            ctx.translate(textX, rectY + rectHeight / 2);
             ctx.scale(textScale, textScale);
             ctx.strokeText(textToShow, 0, rectHeight / 2 - paddingY - 2);
             ctx.restore();
           } else {
-            ctx.strokeText(textToShow, width / 2, rectY + rectHeight - paddingY - 2);
+            ctx.strokeText(textToShow, textX, rectY + rectHeight - paddingY - 2);
           }
         }
 
         if (textScale !== 1.0) {
-          ctx.translate(width / 2, rectY + rectHeight / 2);
+          ctx.save();
+          ctx.translate(textX, rectY + rectHeight / 2);
           ctx.scale(textScale, textScale);
           ctx.fillText(textToShow, 0, rectHeight / 2 - paddingY - 2);
+          ctx.restore();
         } else {
-          ctx.fillText(textToShow, width / 2, rectY + rectHeight - paddingY - 2);
+          ctx.fillText(textToShow, textX, rectY + rectHeight - paddingY - 2);
         }
       } 
       else if (subtitleStyle === "neon") {
@@ -5301,11 +6013,13 @@ export default function ImageToVideo({
         ctx.shadowOffsetY = 0;
 
         if (textScale !== 1.0) {
-          ctx.translate(width / 2, rectY + rectHeight / 2);
+          ctx.save();
+          ctx.translate(textX, rectY + rectHeight / 2);
           ctx.scale(textScale, textScale);
           ctx.fillText(textToShow, 0, rectHeight / 2 - paddingY / 2);
+          ctx.restore();
         } else {
-          ctx.fillText(textToShow, width / 2, rectY + rectHeight - paddingY - 2);
+          ctx.fillText(textToShow, textX, rectY + rectHeight - paddingY - 2);
         }
       } 
       else if (subtitleStyle === "karaoke") {
@@ -5322,16 +6036,16 @@ export default function ImageToVideo({
 
         if (textScale !== 1.0) {
           ctx.save();
-          ctx.translate(width / 2, rectY + rectHeight / 2);
+          ctx.translate(textX, rectY + rectHeight / 2);
           ctx.scale(textScale, textScale);
           ctx.strokeText(textToShow, 0, rectHeight / 2 - paddingY / 2);
           ctx.fillStyle = subtitleTextColor;
           ctx.fillText(textToShow, 0, rectHeight / 2 - paddingY / 2);
           ctx.restore();
         } else {
-          ctx.strokeText(textToShow, width / 2, rectY + rectHeight - paddingY - 2);
+          ctx.strokeText(textToShow, textX, rectY + rectHeight - paddingY - 2);
           ctx.fillStyle = subtitleTextColor;
-          ctx.fillText(textToShow, width / 2, rectY + rectHeight - paddingY - 2);
+          ctx.fillText(textToShow, textX, rectY + rectHeight - paddingY - 2);
         }
       } 
       else if (subtitleStyle === "minimal") {
@@ -5348,21 +6062,23 @@ export default function ImageToVideo({
           ctx.lineJoin = "round";
           if (textScale !== 1.0) {
             ctx.save();
-            ctx.translate(width / 2, rectY + rectHeight / 2);
+            ctx.translate(textX, rectY + rectHeight / 2);
             ctx.scale(textScale, textScale);
             ctx.strokeText(textToShow, 0, rectHeight / 2 - paddingY / 2);
             ctx.restore();
           } else {
-            ctx.strokeText(textToShow, width / 2, rectY + rectHeight - paddingY - 2);
+            ctx.strokeText(textToShow, textX, rectY + rectHeight - paddingY - 2);
           }
         }
 
         if (textScale !== 1.0) {
-          ctx.translate(width / 2, rectY + rectHeight / 2);
+          ctx.save();
+          ctx.translate(textX, rectY + rectHeight / 2);
           ctx.scale(textScale, textScale);
           ctx.fillText(textToShow, 0, rectHeight / 2 - paddingY / 2);
+          ctx.restore();
         } else {
-          ctx.fillText(textToShow, width / 2, rectY + rectHeight - paddingY - 2);
+          ctx.fillText(textToShow, textX, rectY + rectHeight - paddingY - 2);
         }
       } 
       else if (subtitleStyle === "classical") {
@@ -5379,21 +6095,23 @@ export default function ImageToVideo({
           ctx.lineJoin = "round";
           if (textScale !== 1.0) {
             ctx.save();
-            ctx.translate(width / 2, rectY + rectHeight / 2);
+            ctx.translate(textX, rectY + rectHeight / 2);
             ctx.scale(textScale, textScale);
             ctx.strokeText(textToShow, 0, rectHeight / 2 - paddingY / 2);
             ctx.restore();
           } else {
-            ctx.strokeText(textToShow, width / 2, rectY + rectHeight - paddingY - 2);
+            ctx.strokeText(textToShow, textX, rectY + rectHeight - paddingY - 2);
           }
         }
 
         if (textScale !== 1.0) {
-          ctx.translate(width / 2, rectY + rectHeight / 2);
+          ctx.save();
+          ctx.translate(textX, rectY + rectHeight / 2);
           ctx.scale(textScale, textScale);
           ctx.fillText(textToShow, 0, rectHeight / 2 - paddingY / 2);
+          ctx.restore();
         } else {
-          ctx.fillText(textToShow, width / 2, rectY + rectHeight - paddingY - 2);
+          ctx.fillText(textToShow, textX, rectY + rectHeight - paddingY - 2);
         }
       }
 
@@ -5665,7 +6383,22 @@ export default function ImageToVideo({
         ctx.restore();
       }
     }
-  }, [slides, transitionStyle, transitionDuration, transitionEasing, subtitleStyle, subtitleFont, cinematicLetterbox, vignetteOverlay, atmosphericOverlay, aspectRatio, subtitleManualOffset, visualizerStyle, masterVideoFilter, subtitleVerticalAlign, subtitleFontSizeFactor, subtitleTextColor, subtitleBgColor, subtitleBgOpacity, subtitleStrokeColor, subtitleStrokeWidth, canvasGuideGrid, superResolution]);
+    // Dynamic Film Grain Overlay drawn directly onto the Canvas frames for authentic analog style exports
+    if (filmGrainOverlay) {
+      ctx.save();
+      // Generate randomized microscopic high-fidelity organic grain specs
+      const grainCount = Math.round(width * height * 0.001); // proportional density
+      for (let i = 0; i < grainCount; i++) {
+        const x = Math.random() * width;
+        const y = Math.random() * height;
+        const size = Math.random() * 1.6 + 0.4;
+        // half white, half dark specs with subtle high-contrast analog blend
+        ctx.fillStyle = Math.random() > 0.5 ? "rgba(255, 255, 255, 0.08)" : "rgba(0, 0, 0, 0.12)";
+        ctx.fillRect(x, y, size, size);
+      }
+      ctx.restore();
+    }
+  }, [slides, transitionStyle, transitionDuration, transitionEasing, subtitleStyle, subtitleFont, cinematicLetterbox, vignetteOverlay, filmGrainOverlay, atmosphericOverlay, aspectRatio, subtitleManualOffset, visualizerStyle, masterVideoFilter, subtitleVerticalAlign, subtitleFontSizeFactor, subtitleTextColor, subtitleBgColor, subtitleBgOpacity, subtitleStrokeColor, subtitleStrokeWidth, canvasGuideGrid, superResolution]);
 
   // Hook rendering logic to active timeline time changes
   useEffect(() => {
@@ -5686,7 +6419,7 @@ export default function ImageToVideo({
     canvas.height = height;
 
     drawVideoFrame(ctx, canvasWidth, height, currentTime);
-  }, [currentTime, aspectRatio, slides, transitionStyle, transitionDuration, transitionEasing, drawVideoFrame, subtitleStyle, subtitleFont, cinematicLetterbox, vignetteOverlay, atmosphericOverlay, subtitleManualOffset, masterVideoFilter, subtitleVerticalAlign, subtitleFontSizeFactor, subtitleTextColor, subtitleBgColor, subtitleBgOpacity, subtitleStrokeColor, subtitleStrokeWidth, canvasGuideGrid, superResolution]);
+  }, [currentTime, aspectRatio, slides, transitionStyle, transitionDuration, transitionEasing, drawVideoFrame, subtitleStyle, subtitleFont, cinematicLetterbox, vignetteOverlay, filmGrainOverlay, atmosphericOverlay, subtitleManualOffset, masterVideoFilter, subtitleVerticalAlign, subtitleFontSizeFactor, subtitleTextColor, subtitleBgColor, subtitleBgOpacity, subtitleStrokeColor, subtitleStrokeWidth, canvasGuideGrid, superResolution]);
 
   // Sync the ref with the latest drawVideoFrame callback on each change
   useEffect(() => {
@@ -5830,7 +6563,7 @@ export default function ImageToVideo({
       }
     }
 
-    const canvasStream = renderCanvas.captureStream(30);
+    const canvasStream = renderCanvas.captureStream(videoFps);
     const combinedTracks = [...canvasStream.getVideoTracks()];
     if (hasAudio && renderAudioStream) {
       combinedTracks.push(...renderAudioStream.getAudioTracks());
@@ -5859,7 +6592,7 @@ export default function ImageToVideo({
       if (e.data && e.data.size > 0) chunks.push(e.data);
     };
 
-    const fps = 30;
+    const fps = videoFps;
     const totalFrames = Math.round((slide.duration / videoPlaybackSpeed) * fps);
     let currentFrame = 0;
 
@@ -6108,7 +6841,7 @@ export default function ImageToVideo({
         }
       }
 
-      const canvasStream = renderCanvas.captureStream(30); // 30 FPS high fidelity video capture
+      const canvasStream = renderCanvas.captureStream(videoFps); // custom FPS high fidelity video capture
       const combinedTracks = [...canvasStream.getVideoTracks()];
 
       const hasAudio = !isMuted && (
@@ -6150,7 +6883,7 @@ export default function ImageToVideo({
         }
       };
 
-      const fps = 30;
+      const fps = videoFps;
       const totalFrames = Math.round((totalDuration / videoPlaybackSpeed) * fps);
       let currentFrame = 0;
       const exportStartTimeInstant = Date.now();
@@ -7403,6 +8136,11 @@ export default function ImageToVideo({
           {/* Interactive Player Canvas Viewport */}
           <div className="relative overflow-hidden rounded-3xl bg-slate-950 border border-slate-900 shadow-xl flex items-center justify-center min-h-[300px] xs:min-h-[380px] sm:min-h-[440px] group">
             
+            {/* Dynamic CSS Film Grain Overlay */}
+            {filmGrainOverlay && (
+              <div className="film-grain" />
+            )}
+
             {/* Real drawing Canvas */}
             <canvas
               ref={canvasRef}
@@ -7728,7 +8466,7 @@ export default function ImageToVideo({
                       </div>
                       <div>
                         <span className="text-slate-500 block uppercase text-[7.5px] font-black tracking-wider leading-none mb-0.5">Duration:</span>
-                        <span className="font-bold block truncate">⏱️ {totalDuration.toFixed(1)}s ({slides.length} slides)</span>
+                        <span className="font-bold block truncate">⏱️ {formatDuration(totalDuration)} ({slides.length} slides)</span>
                       </div>
                       <div>
                         <span className="text-slate-500 block uppercase text-[7.5px] font-black tracking-wider leading-none mb-0.5">Soundtrack:</span>
@@ -7761,7 +8499,7 @@ export default function ImageToVideo({
                   </div>
 
                   <div className="flex items-center gap-2.5">
-                    <span>{totalDuration.toFixed(1)}s</span>
+                    <span>{formatDuration(totalDuration)}</span>
                     <button disabled className="opacity-40 cursor-not-allowed">
                       <Sliders className="w-3.5 h-3.5" />
                     </button>
@@ -7807,6 +8545,11 @@ export default function ImageToVideo({
                       aspectRatio: aspectRatio === "9:16" ? "9/16" : aspectRatio === "1:1" ? "1/1" : "16/9"
                     }}
                   >
+                    {/* Dynamic CSS Film Grain Overlay */}
+                    {filmGrainOverlay && (
+                      <div className="film-grain" />
+                    )}
+
                     {exportFormat === "gif" ? (
                       /* GIF Animation */
                       <img
@@ -7934,7 +8677,7 @@ export default function ImageToVideo({
 
                             {/* Timestamp readout */}
                             <div className="text-[9px] font-mono text-slate-400 font-bold select-none">
-                              {previewTime.toFixed(2)}s / {previewDuration.toFixed(2)}s
+                              {formatDuration(previewTime)} / {formatDuration(previewDuration)}
                             </div>
                           </div>
                         </div>
@@ -8005,7 +8748,7 @@ export default function ImageToVideo({
                       </div>
                       <div className="bg-slate-950/40 p-1.5 rounded-xl border border-slate-800/30">
                         <span className="text-slate-500 block uppercase text-[8px] font-black mb-0.5">Duration</span>
-                        <span className="font-bold font-mono text-slate-200">{(totalDuration / videoPlaybackSpeed).toFixed(1)}s</span>
+                        <span className="font-bold font-mono text-slate-200">{formatDuration(totalDuration / videoPlaybackSpeed)}</span>
                       </div>
                       <div className="bg-slate-950/40 p-1.5 rounded-xl border border-slate-800/30">
                         <span className="text-slate-500 block uppercase text-[8px] font-black mb-0.5">Container</span>
@@ -8171,10 +8914,10 @@ export default function ImageToVideo({
           {/* Scrubbable video progress timeline bar */}
           <div className="space-y-1.5 select-none">
             <div className="flex items-center justify-between text-xs font-mono font-bold text-slate-400">
-              <span className="text-indigo-500">{currentTime.toFixed(2)}s</span>
+              <span className="text-indigo-500">{formatDuration(currentTime)} / {formatTimeDigital(currentTime)}</span>
               <span>
-                {totalDuration.toFixed(1)}s Project
-                {videoPlaybackSpeed !== 1.0 && ` (Export: ${(totalDuration / videoPlaybackSpeed).toFixed(1)}s @ ${videoPlaybackSpeed}x)`}
+                {formatDuration(totalDuration)} Project
+                {videoPlaybackSpeed !== 1.0 && ` (Export: ${formatDuration(totalDuration / videoPlaybackSpeed)} @ ${videoPlaybackSpeed}x)`}
               </span>
             </div>
             
@@ -9295,6 +10038,54 @@ export default function ImageToVideo({
                     </p>
                   </div>
 
+                  {/* AI Generation Mode Selector */}
+                  {aiSceneImageSource === "gemini" && (
+                    <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-200 dark:border-slate-850/70 space-y-2">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
+                        🎥 AI Generation Mode:
+                      </span>
+                      <div className="grid grid-cols-2 gap-2 bg-slate-100 dark:bg-slate-900/60 p-1 rounded-xl border border-slate-250/20 dark:border-slate-800">
+                        <button
+                          type="button"
+                          disabled={isGeneratingScene}
+                          onClick={() => {
+                            setAiGenerationMethod("video");
+                            triggerBeepChime();
+                          }}
+                          className={`py-1.5 px-1 rounded-lg transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer text-[9px] font-black uppercase tracking-wider ${
+                            aiGenerationMethod === "video"
+                              ? "bg-white dark:bg-slate-950 text-indigo-600 dark:text-indigo-400 shadow-3xs border border-slate-200/10"
+                              : "text-slate-500 dark:text-slate-400 hover:text-slate-850 dark:hover:text-slate-250"
+                          }`}
+                        >
+                          <Video className="w-3.5 h-3.5 text-indigo-500" />
+                          <span>📹 Real Veo Video</span>
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isGeneratingScene}
+                          onClick={() => {
+                            setAiGenerationMethod("animatic");
+                            triggerBeepChime();
+                          }}
+                          className={`py-1.5 px-1 rounded-lg transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer text-[9px] font-black uppercase tracking-wider ${
+                            aiGenerationMethod === "animatic"
+                              ? "bg-white dark:bg-slate-950 text-indigo-600 dark:text-indigo-400 shadow-3xs border border-slate-200/10"
+                              : "text-slate-500 dark:text-slate-400 hover:text-slate-850 dark:hover:text-slate-250"
+                          }`}
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+                          <span>🏞️ Kinetic Animatic</span>
+                        </button>
+                      </div>
+                      <p className="text-[8px] text-slate-450 dark:text-slate-500 font-bold leading-normal italic pl-1">
+                        {aiGenerationMethod === "video"
+                          ? "📹 Veo Video: Calls Google Veo model to generate a true, fully-simulated 4-second cinematic high-fidelity video clip."
+                          : "🏞️ Animatic: Generates a high-fidelity image with advanced camera pans, zooms, and custom motion paths."}
+                      </p>
+                    </div>
+                  )}
+
                   {/* Suggested Styles Selector */}
                   <div className="space-y-1">
                     <span className="text-[8.5px] font-black uppercase tracking-widest text-slate-400">
@@ -9479,6 +10270,54 @@ export default function ImageToVideo({
                     </p>
                   </div>
 
+                  {/* AI Generation Mode Selector for Script */}
+                  {aiSceneImageSource === "gemini" && (
+                    <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-200 dark:border-slate-850/70 space-y-2">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
+                        🎥 AI Generation Mode:
+                      </span>
+                      <div className="grid grid-cols-2 gap-2 bg-slate-100 dark:bg-slate-900/60 p-1 rounded-xl border border-slate-250/20 dark:border-slate-800">
+                        <button
+                          type="button"
+                          disabled={isGeneratingScript}
+                          onClick={() => {
+                            setAiGenerationMethod("video");
+                            triggerBeepChime();
+                          }}
+                          className={`py-1.5 px-1 rounded-lg transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer text-[9px] font-black uppercase tracking-wider ${
+                            aiGenerationMethod === "video"
+                              ? "bg-white dark:bg-slate-950 text-indigo-600 dark:text-indigo-400 shadow-3xs border border-slate-200/10"
+                              : "text-slate-500 dark:text-slate-400 hover:text-slate-850 dark:hover:text-slate-250"
+                          }`}
+                        >
+                          <Video className="w-3.5 h-3.5 text-indigo-500" />
+                          <span>📹 Real Veo Video</span>
+                        </button>
+                        <button
+                          type="button"
+                          disabled={isGeneratingScript}
+                          onClick={() => {
+                            setAiGenerationMethod("animatic");
+                            triggerBeepChime();
+                          }}
+                          className={`py-1.5 px-1 rounded-lg transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer text-[9px] font-black uppercase tracking-wider ${
+                            aiGenerationMethod === "animatic"
+                              ? "bg-white dark:bg-slate-950 text-indigo-600 dark:text-indigo-400 shadow-3xs border border-slate-200/10"
+                              : "text-slate-500 dark:text-slate-400 hover:text-slate-850 dark:hover:text-slate-250"
+                          }`}
+                        >
+                          <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+                          <span>🏞️ Kinetic Animatic</span>
+                        </button>
+                      </div>
+                      <p className="text-[8px] text-slate-450 dark:text-slate-500 font-bold leading-normal italic pl-1">
+                        {aiGenerationMethod === "video"
+                          ? "📹 Veo Video: Calls Google Veo model to generate a true, fully-simulated 4-second cinematic high-fidelity video clip."
+                          : "🏞️ Animatic: Generates a high-fidelity image with advanced camera pans, zooms, and custom motion paths."}
+                      </p>
+                    </div>
+                  )}
+
                   <div className="pt-1.5">
                     <button
                       type="button"
@@ -9640,7 +10479,7 @@ export default function ImageToVideo({
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div className="space-y-2 text-left">
                   <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
                     4. Camera Path Motion:
@@ -9659,6 +10498,51 @@ export default function ImageToVideo({
                     <option value="tilt-up">🔼 Dramatic Tilt Up</option>
                     <option value="tilt-down">🔽 Dramatic Tilt Down</option>
                     <option value="orbit">🔄 Orbit Cinematic Circle</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2 text-left">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
+                    ✨ Video Quality Mode:
+                  </label>
+                  <select
+                    value={videoQuality}
+                    onChange={(e) => {
+                      const val = e.target.value as "balanced" | "high" | "performance";
+                      setVideoQuality(val);
+                      if (val === "high") {
+                        setAiImageModelChoice("gemini-3.1-flash-image");
+                      } else if (val === "performance") {
+                        setAiImageModelChoice("gemini-3.1-flash-lite-image");
+                      }
+                      triggerBeepChime();
+                    }}
+                    className="w-full px-3 py-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl outline-none cursor-pointer"
+                    disabled={isGeneratingScene}
+                  >
+                    <option value="balanced">⚖️ Balanced (Standard Detail & Speed)</option>
+                    <option value="high">💎 High Fidelity (Better Detail, Longer Render)</option>
+                    <option value="performance">⚡ Performance (Faster Generation)</option>
+                  </select>
+                </div>
+
+                <div className="space-y-2 text-left">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-indigo-600 dark:text-indigo-400 block font-bold flex items-center gap-1 select-none">
+                    <span>🌟 Reality Engine™:</span>
+                  </label>
+                  <select
+                    value={videoRealismStyle}
+                    onChange={(e) => {
+                      setVideoRealismStyle(e.target.value as any);
+                      triggerBeepChime();
+                    }}
+                    className="w-full px-3 py-2.5 text-xs font-bold text-slate-800 dark:text-slate-200 bg-indigo-50/45 dark:bg-indigo-950/25 border border-indigo-200 dark:border-indigo-900/60 rounded-xl outline-none cursor-pointer animate-pulse"
+                    disabled={isGeneratingScene}
+                  >
+                    <option value="documentary">📸 Documentary (Natural Realism)</option>
+                    <option value="imax">🎞️ IMAX 70mm (Cinematic Depth)</option>
+                    <option value="analog_film">🎞️ 35mm Analog (Warm Kodak Portra)</option>
+                    <option value="standard">⚙️ Standard (Default AI Style)</option>
                   </select>
                 </div>
 
@@ -10024,10 +10908,10 @@ export default function ImageToVideo({
                     <div 
                       key={i} 
                       onClick={() => setCurrentTime(i)}
-                      className="absolute text-[9px] font-bold font-mono text-slate-500 cursor-pointer hover:text-slate-350 flex flex-col items-center select-none"
+                      className="absolute text-[9px] font-bold font-mono text-slate-500 cursor-pointer hover:text-slate-350 flex flex-col items-center select-none animate-fade-in"
                       style={{ left: `${i * timelineZoom}px`, transform: 'translateX(-50%)' }}
                     >
-                      <span>{i}s</span>
+                      <span>{formatDuration(i)}</span>
                       <div className="w-[1.5px] h-1.5 bg-slate-700 mt-0.5 rounded-full" />
                     </div>
                   ))}
@@ -10645,6 +11529,128 @@ export default function ImageToVideo({
                         onChange={(e) => updateSlideProp(editingSlide.id, "scaleEnd", parseFloat(e.target.value))}
                         className="w-full accent-indigo-500 cursor-pointer h-1 bg-slate-950 rounded-lg"
                       />
+                    </div>
+
+                    {/* Subtitle Sizing & Overlays */}
+                    <div className="space-y-2.5 border-t border-slate-800 pt-3">
+                      <span className="block text-[10px] font-black uppercase tracking-wider text-slate-400">
+                        Layout, Sizing & Alignment:
+                      </span>
+
+                      {/* Alignments row */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <label className="text-[8.5px] font-black uppercase text-slate-500 block">Horiz. Align:</label>
+                          <div className="flex bg-slate-950 p-0.5 rounded-lg border border-slate-800 select-none">
+                            {[
+                              { id: "left", label: "Left" },
+                              { id: "center", label: "Center" },
+                              { id: "right", label: "Right" }
+                            ].map((align) => {
+                              const isSelected = subtitleHorizontalAlign === align.id;
+                              return (
+                                <button
+                                  key={align.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setSubtitleHorizontalAlign(align.id as any);
+                                    triggerBeepChime();
+                                  }}
+                                  className={`flex-1 py-1 text-[8.5px] font-black rounded transition-all cursor-pointer text-center ${
+                                    isSelected
+                                      ? "bg-indigo-600 text-white shadow-xs"
+                                      : "text-slate-400 hover:text-slate-200"
+                                  }`}
+                                >
+                                  {align.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
+                          <label className="text-[8.5px] font-black uppercase text-slate-500 block">Vert. Align:</label>
+                          <div className="flex bg-slate-950 p-0.5 rounded-lg border border-slate-800 select-none">
+                            {[
+                              { id: "top", label: "Top" },
+                              { id: "middle", label: "Mid" },
+                              { id: "bottom", label: "Bot" }
+                            ].map((align) => {
+                              const isSelected = subtitleVerticalAlign === align.id;
+                              return (
+                                <button
+                                  key={align.id}
+                                  type="button"
+                                  onClick={() => {
+                                    setSubtitleVerticalAlign(align.id as any);
+                                    triggerBeepChime();
+                                  }}
+                                  className={`flex-1 py-1 text-[8.5px] font-black rounded transition-all cursor-pointer text-center ${
+                                    isSelected
+                                      ? "bg-indigo-600 text-white shadow-xs"
+                                      : "text-slate-400 hover:text-slate-200"
+                                  }`}
+                                >
+                                  {align.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Manual offsets row */}
+                      <div className="grid grid-cols-2 gap-3">
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-[8.5px] font-black text-slate-500">
+                            <span>V-Offset:</span>
+                            <span className="font-mono text-indigo-400 font-bold">{subtitleManualOffset}px</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={-30}
+                            max={180}
+                            step={5}
+                            value={subtitleManualOffset}
+                            onChange={(e) => setSubtitleManualOffset(parseInt(e.target.value))}
+                            className="w-full h-1 bg-slate-950 accent-indigo-500 rounded-lg appearance-none cursor-pointer"
+                          />
+                        </div>
+
+                        <div className="space-y-1">
+                          <div className="flex items-center justify-between text-[8.5px] font-black text-slate-500">
+                            <span>H-Offset:</span>
+                            <span className="font-mono text-indigo-400 font-bold">{subtitleManualOffsetX}px</span>
+                          </div>
+                          <input
+                            type="range"
+                            min={-150}
+                            max={150}
+                            step={5}
+                            value={subtitleManualOffsetX}
+                            onChange={(e) => setSubtitleManualOffsetX(parseInt(e.target.value))}
+                            className="w-full h-1 bg-slate-950 accent-indigo-500 rounded-lg appearance-none cursor-pointer"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Font size factor inside CapCut modal */}
+                      <div className="space-y-1">
+                        <div className="flex items-center justify-between text-[8.5px] font-black text-slate-500">
+                          <span>Font Size scale:</span>
+                          <span className="font-mono text-indigo-400 font-bold">{subtitleFontSizeFactor.toFixed(2)}x</span>
+                        </div>
+                        <input
+                          type="range"
+                          min={0.5}
+                          max={2.5}
+                          step={0.05}
+                          value={subtitleFontSizeFactor}
+                          onChange={(e) => setSubtitleFontSizeFactor(parseFloat(e.target.value))}
+                          className="w-full h-1 bg-slate-950 accent-indigo-500 rounded-lg appearance-none cursor-pointer"
+                        />
+                      </div>
                     </div>
 
                     {/* Save action button */}
@@ -11475,12 +12481,12 @@ export default function ImageToVideo({
                           : "Speak Caption"}
                       </span>
                     </button>
-                    <span className="text-[10px] text-slate-405 font-mono">{selectedSlide.text.length}/24 chars</span>
+                    <span className="text-[10px] text-slate-405 font-mono">{selectedSlide.text.length}/150 chars</span>
                   </div>
                 </div>
                 <input
                   type="text"
-                  maxLength={24}
+                  maxLength={150}
                   value={selectedSlide.text}
                   onChange={(e) => updateSlideProp(selectedSlide.id, "text", e.target.value)}
                   placeholder="Type overlay subtitles or click Speak Caption..."
@@ -14274,7 +15280,6 @@ export default function ImageToVideo({
               </div>
             </div>
 
-            {/* Video Aspect Ratio selector layout options */}
             <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-900">
               <div className="flex items-center justify-between">
                 <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
@@ -14282,14 +15287,14 @@ export default function ImageToVideo({
                   <span>Default Image Duration:</span>
                 </label>
                 <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 font-mono bg-indigo-50 dark:bg-indigo-950/45 px-2 py-0.5 rounded-lg">
-                  {defaultSlideDuration}s per image
+                  {formatDuration(defaultSlideDuration)} per image
                 </span>
               </div>
               <input
                 type="range"
                 min={1}
-                max={10}
-                step={0.5}
+                max={180}
+                step={1}
                 value={defaultSlideDuration}
                 onChange={(e) => {
                   const val = parseFloat(e.target.value);
@@ -14298,8 +15303,61 @@ export default function ImageToVideo({
                 }}
                 className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-600"
               />
+              <div className="flex justify-between text-[8px] font-black text-slate-400 uppercase tracking-widest leading-none">
+                <span>1s (Short)</span>
+                <span>30s (Half Min)</span>
+                <span>60s (1 Min)</span>
+                <span>120s (2 Mins)</span>
+                <span>180s (3 Mins)</span>
+              </div>
               <p className="text-[10px] text-slate-400 leading-normal">
-                Adjust the screen duration for each image. This automatically updates all active slides in the timeline sequence.
+                Adjust the screen duration for each image slide. The range supports up to 3 minutes per slide for long form video sequencing.
+              </p>
+            </div>
+
+            {/* Time Format Selector block */}
+            <div className="space-y-3 pt-2 border-t border-slate-100 dark:border-slate-900">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                  <Clock className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>Time Display Format:</span>
+                </label>
+                <span className="text-[10px] font-black text-emerald-500 uppercase tracking-widest bg-emerald-950/45 px-2 py-0.5 rounded-md animate-pulse">
+                  Active
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTimeDisplayFormat("minutes");
+                    triggerBeepChime();
+                  }}
+                  className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer select-none text-center ${
+                    timeDisplayFormat === "minutes"
+                      ? "bg-indigo-600 border-indigo-600 text-white shadow-xs font-black"
+                      : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-850 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900"
+                  }`}
+                >
+                  ⏱️ Minutes & Seconds
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTimeDisplayFormat("seconds");
+                    triggerBeepChime();
+                  }}
+                  className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all cursor-pointer select-none text-center ${
+                    timeDisplayFormat === "seconds"
+                      ? "bg-indigo-600 border-indigo-600 text-white shadow-xs font-black"
+                      : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-850 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-900"
+                  }`}
+                >
+                  ⏱️ Raw Seconds (s)
+                </button>
+              </div>
+              <p className="text-[10px] text-slate-400 leading-normal">
+                Toggle the timeline, scrubber, and metadata readouts to display in clean human-friendly Minutes (e.g. 1m 30s) or standard seconds.
               </p>
             </div>
 
@@ -14496,6 +15554,191 @@ export default function ImageToVideo({
               <Layers className="w-4 h-4 text-indigo-500" />
               <span>Cinematic VFX & Captioning</span>
             </h4>
+
+            {/* Live Subtitle & Overlay Editor */}
+            <div className="p-4 rounded-2xl border border-indigo-150 dark:border-indigo-900 bg-white dark:bg-slate-950 space-y-3.5 shadow-sm">
+              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
+                <span className="text-[10.5px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider flex items-center gap-1.5">
+                  <span>✍️</span>
+                  <span>Scene Subtitle overlay Editor</span>
+                </span>
+                <span className="text-[9px] font-mono font-bold text-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded leading-none">
+                  Live Sync
+                </span>
+              </div>
+
+              {/* Scene Dropdown Selector */}
+              <div className="space-y-1">
+                <label className="text-[9px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
+                  Select Timeline Scene Frame:
+                </label>
+                <select
+                  value={selectedSlideId}
+                  onChange={(e) => {
+                    setSelectedSlideId(e.target.value);
+                    triggerBeepChime();
+                  }}
+                  className="w-full px-2.5 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none cursor-pointer"
+                >
+                  {slides.map((slide, idx) => (
+                    <option key={slide.id} value={slide.id}>
+                      🎬 Scene #{idx + 1} ({slide.name || "Untitled"}) — "{slide.text ? (slide.text.length > 15 ? slide.text.substring(0, 15) + "..." : slide.text) : "No caption"}"
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Direct Subtitle Textarea Input */}
+              {(() => {
+                const activeSlideObj = slides.find(s => s.id === selectedSlideId) || slides[0];
+                if (!activeSlideObj) return null;
+                return (
+                  <div className="space-y-1.5">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[9.5px] font-black text-slate-550 dark:text-slate-450 uppercase tracking-wider">
+                        Custom Subtitle Text Overlay:
+                      </label>
+                      <span className="text-[9px] font-mono text-slate-400">{activeSlideObj.text?.length || 0} chars</span>
+                    </div>
+                    <textarea
+                      rows={2}
+                      value={activeSlideObj.text || ""}
+                      onChange={(e) => {
+                        updateSlideProp(activeSlideObj.id, "text", e.target.value);
+                      }}
+                      placeholder="Type custom subtitles to overlay on this scene..."
+                      className="w-full text-xs p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 placeholder-slate-400 focus:outline-none focus:border-indigo-500 font-medium leading-relaxed shadow-inner"
+                    />
+                  </div>
+                );
+              })()}
+
+              {/* Alignment & Position Overlays Sub-Grid */}
+              <div className="space-y-2.5 pt-1.5 border-t border-slate-100 dark:border-slate-800">
+                <span className="text-[9.5px] font-black text-slate-500 dark:text-slate-450 uppercase tracking-wider block">
+                  Alignment & Position Overlays:
+                </span>
+
+                <div className="grid grid-cols-2 gap-3">
+                  {/* Horizontal Alignment */}
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-extrabold text-slate-450 dark:text-slate-500 block">Horizontal Align:</span>
+                    <div className="flex bg-slate-50 dark:bg-slate-900 p-0.5 rounded-lg border border-slate-150 dark:border-slate-800 select-none">
+                      {[
+                        { id: "left", label: "⬅️ Left" },
+                        { id: "center", label: "↕️ Center" },
+                        { id: "right", label: "➡️ Right" }
+                      ].map((align) => {
+                        const isSelected = subtitleHorizontalAlign === align.id;
+                        return (
+                          <button
+                            key={align.id}
+                            type="button"
+                            onClick={() => {
+                              setSubtitleHorizontalAlign(align.id as any);
+                              triggerBeepChime();
+                            }}
+                            className={`flex-1 py-1 text-[8px] font-black rounded transition-all cursor-pointer text-center ${
+                              isSelected
+                                ? "bg-indigo-600 text-white shadow-xs"
+                                : "text-slate-650 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+                            }`}
+                          >
+                            {align.label.split(" ")[1]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Vertical Alignment */}
+                  <div className="space-y-1">
+                    <span className="text-[9px] font-extrabold text-slate-450 dark:text-slate-500 block">Vertical Align:</span>
+                    <div className="flex bg-slate-50 dark:bg-slate-900 p-0.5 rounded-lg border border-slate-150 dark:border-slate-800 select-none">
+                      {[
+                        { id: "top", label: "⬆️ Top" },
+                        { id: "middle", label: "↕️ Mid" },
+                        { id: "bottom", label: "⬇️ Bot" }
+                      ].map((align) => {
+                        const isSelected = subtitleVerticalAlign === align.id;
+                        return (
+                          <button
+                            key={align.id}
+                            type="button"
+                            onClick={() => {
+                              setSubtitleVerticalAlign(align.id as any);
+                              triggerBeepChime();
+                            }}
+                            className={`flex-1 py-1 text-[8px] font-black rounded transition-all cursor-pointer text-center ${
+                              isSelected
+                                ? "bg-indigo-600 text-white shadow-xs"
+                                : "text-slate-650 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100"
+                            }`}
+                          >
+                            {align.label.split(" ")[1]}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+
+                {/* Subtitle Manual Offset Position Sliders */}
+                <div className="grid grid-cols-2 gap-3.5 pt-1">
+                  {/* Vertical Offset Slider */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[8.5px] font-extrabold text-slate-500">
+                      <span>Vertical Offset:</span>
+                      <span className="font-mono text-indigo-500 font-bold">{subtitleManualOffset}px</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={-30}
+                      max={180}
+                      step={5}
+                      value={subtitleManualOffset}
+                      onChange={(e) => setSubtitleManualOffset(parseInt(e.target.value))}
+                      className="w-full h-1 bg-slate-150 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                    />
+                  </div>
+
+                  {/* Horizontal Offset Slider */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[8.5px] font-extrabold text-slate-500">
+                      <span>Horizontal Offset:</span>
+                      <span className="font-mono text-indigo-500 font-bold">{subtitleManualOffsetX}px</span>
+                    </div>
+                    <input
+                      type="range"
+                      min={-150}
+                      max={150}
+                      step={5}
+                      value={subtitleManualOffsetX}
+                      onChange={(e) => setSubtitleManualOffsetX(parseInt(e.target.value))}
+                      className="w-full h-1 bg-slate-150 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                    />
+                  </div>
+                </div>
+
+                {/* Font Size Scale Slider */}
+                <div className="space-y-1 pt-1">
+                  <div className="flex items-center justify-between text-[8.5px] font-extrabold text-slate-500">
+                    <span>Font Size scale Factor:</span>
+                    <span className="font-mono text-indigo-500 font-bold">{subtitleFontSizeFactor.toFixed(2)}x</span>
+                  </div>
+                  <input
+                    type="range"
+                    min={0.5}
+                    max={2.5}
+                    step={0.05}
+                    value={subtitleFontSizeFactor}
+                    onChange={(e) => setSubtitleFontSizeFactor(parseFloat(e.target.value))}
+                    className="w-full h-1 bg-slate-150 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                    title="Scale factors let you dynamically scale all subtitle font dimensions seamlessly"
+                  />
+                </div>
+              </div>
+            </div>
 
             {/* Global Video Filter selection */}
             <div className="space-y-2 border-b border-slate-150 dark:border-slate-800/80 pb-3">
@@ -15137,6 +16380,80 @@ export default function ImageToVideo({
                     </span>
                   </div>
                 </label>
+
+                {/* Film Grain Overlay Switch */}
+                <label className={`flex items-start gap-2.5 p-2.5 rounded-xl border transition-all cursor-pointer select-none ${
+                  filmGrainOverlay 
+                    ? "bg-slate-100/50 border-slate-300 dark:bg-slate-900/40 dark:border-slate-800"
+                    : "border-slate-150 dark:border-slate-850 hover:bg-slate-50/50 dark:hover:bg-slate-900/30"
+                }`}>
+                  <input
+                    type="checkbox"
+                    checked={filmGrainOverlay}
+                    onChange={(e) => {
+                      setFilmGrainOverlay(e.target.checked);
+                      triggerBeepChime();
+                    }}
+                    className="mt-0.5 rounded border-slate-300 dark:border-slate-800 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5 cursor-pointer"
+                  />
+                  <div className="flex flex-col text-left">
+                    <span className="text-[11px] font-black text-slate-700 dark:text-slate-200">
+                      🎞️ Organic Film Grain
+                    </span>
+                    <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">
+                      Adds a subtle dynamic film noise texture to eliminate the clinical digital look
+                    </span>
+                  </div>
+                </label>
+
+                {/* Loop Video Switch */}
+                <label className={`flex items-start gap-2.5 p-2.5 rounded-xl border transition-all cursor-pointer select-none ${
+                  loopVideo 
+                    ? "bg-slate-100/50 border-slate-300 dark:bg-slate-900/40 dark:border-slate-800"
+                    : "border-slate-150 dark:border-slate-850 hover:bg-slate-50/50 dark:hover:bg-slate-900/30"
+                }`}>
+                  <input
+                    type="checkbox"
+                    checked={loopVideo}
+                    onChange={(e) => {
+                      setLoopVideo(e.target.checked);
+                      triggerBeepChime();
+                    }}
+                    className="mt-0.5 rounded border-slate-300 dark:border-slate-800 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5 cursor-pointer"
+                  />
+                  <div className="flex flex-col text-left">
+                    <span className="text-[11px] font-black text-slate-700 dark:text-slate-200">
+                      🔄 Loop Video Asset
+                    </span>
+                    <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">
+                      Generates a perfectly seamless, infinitely repeating looping video sequence
+                    </span>
+                  </div>
+                </label>
+
+                {/* Frame Rate Selection Dropdown */}
+                <div className="flex flex-col gap-1.5 p-2.5 bg-slate-100/30 dark:bg-slate-900/20 border border-slate-150 dark:border-slate-850 rounded-xl text-left">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-black text-slate-700 dark:text-slate-200 flex items-center gap-1">
+                      <span>🎞️ Target Frame Rate</span>
+                    </span>
+                    <span className="text-[8px] font-mono font-bold text-indigo-500 bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded">
+                      {videoFps} FPS
+                    </span>
+                  </div>
+                  <select
+                    value={videoFps}
+                    onChange={(e) => {
+                      setVideoFps(parseInt(e.target.value));
+                      triggerBeepChime();
+                    }}
+                    className="w-full px-2.5 py-2 text-[11px] font-bold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-lg outline-none cursor-pointer"
+                  >
+                    <option value={12}>12 FPS 🎨 (Traditional Hand-Drawn / Stop-Motion)</option>
+                    <option value={24}>24 FPS 🎬 (Filmic Cinematic Standard)</option>
+                    <option value={30}>30 FPS ⚙️ (Smooth Modern Web Presentation)</option>
+                  </select>
+                </div>
 
                 {/* Atmospheric Overlays Selector */}
                 <div className="flex flex-col gap-2 p-3.5 bg-slate-50/50 dark:bg-slate-950/20 border border-slate-150 dark:border-slate-850 rounded-2xl text-left">

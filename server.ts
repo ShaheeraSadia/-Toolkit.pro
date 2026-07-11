@@ -1,7 +1,7 @@
 import express from "express";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import { GoogleGenAI } from "@google/genai";
+import { GoogleGenAI, GenerateVideosOperation } from "@google/genai";
 import dotenv from "dotenv";
 import { generateSitemapXml } from "./sitemap.xml";
 
@@ -472,6 +472,224 @@ RULES:
     console.error("Gemini subtitle generation error:", error);
     return res.status(500).json({ 
       error: error.message || "Subtitle generation failed due to a server-side error." 
+    });
+  }
+});
+
+// API route to initiate Veo AI video generation
+app.post("/api/video/generate", async (req, res) => {
+  try {
+    const activeApiKey = process.env.GEMINI_API_KEY;
+    if (!activeApiKey) {
+      return res.status(500).json({ 
+        error: "GEMINI_API_KEY is not configured in the host environment or Secrets panel." 
+      });
+    }
+
+    if (!ai) {
+      ai = new GoogleGenAI({
+        apiKey: activeApiKey,
+        httpOptions: {
+          headers: {
+            "User-Agent": "aistudio-build",
+          },
+        },
+      });
+    }
+
+    const { prompt, modelChoice, aspectRatio, resolution, image, enhancePrompt, videoQuality = "balanced", videoRealismStyle = "documentary", loopVideo = false } = req.body;
+    
+    // Choose model based on user preference and selected quality mode
+    let model = "veo-3.1-lite-generate-preview";
+    if (modelChoice === "veo-core" || modelChoice === "gemini-pro" || modelChoice === "veo-3.1-generate-preview" || videoQuality === "high") {
+      model = "veo-3.1-generate-preview";
+    } else if (videoQuality === "performance") {
+      model = "veo-3.1-lite-generate-preview";
+    }
+
+    let finalPrompt = prompt || "Cinematic masterpiece video, professional lighting, photorealistic";
+
+    // Auto-enhance prompt if requested
+    if (enhancePrompt && prompt) {
+      try {
+        let systemPromptDetail = "Write a short, highly-detailed cinematic visual prompt for a video generator like Veo based on this simple prompt: \"" + prompt + "\". Focus only on lighting, movement, textures, camera work, and rich environmental details. Under 60 words. Do not write introductory words or conversational text, just return the prompt itself.";
+        
+        if (videoQuality === "high") {
+          systemPromptDetail = "Write an exceptionally rich, highly detailed cinematic masterpiece prompt for a video generator like Veo based on: \"" + prompt + "\". Include advanced photographic descriptors, volumetric lighting, hyper-realistic textures, intricate micro-movements, professional color grading, and maximum environmental depth. Under 80 words. No intro or conversational filler, just the prompt.";
+        } else if (videoQuality === "performance") {
+          systemPromptDetail = "Write a fast-rendering, clean visual scene prompt for a video generator like Veo based on: \"" + prompt + "\". Keep focus on clear subjects, bright clean lighting, and simple linear movements. Under 40 words. No intro, just the prompt.";
+        }
+
+        // Apply advanced "Reality Engine" heuristics to remove "AI look"
+        if (videoRealismStyle === "documentary") {
+          systemPromptDetail += " IMPORTANT: The final output must describe a RAW, authentic, high-fidelity real-life documentary scene. Explicitly include natural, non-perfect, non-glossy real-world textures (like skin pores, dirt, natural fabric fibers, concrete grain, natural grass). Use words like: 'National Geographic photo, award-winning journalism footage, raw natural sunlight, handheld camera motion, organic physical motion'. Avoid and exclude any words depicting CGI, 3D render, glossy plastic, perfectly smooth skin, vector art, or neon digital glow.";
+        } else if (videoRealismStyle === "imax") {
+          systemPromptDetail += " IMPORTANT: The final output must describe a majestic, hyper-realistic cinematic masterpiece with the texture of real 70mm IMAX film. Explicitly incorporate terms like: 'shot on 70mm IMAX camera, anamorphic lens flare, deep depth of field, realistic light scattering, atmospheric volumetric dust particles, photorealistic materials, dramatic real-world shadows'. Exclude any saturated video game aesthetics, vector-drawn lines, synthetic airbrushing, or generic AI smoothness.";
+        } else if (videoRealismStyle === "analog_film") {
+          systemPromptDetail += " IMPORTANT: The final output must replicate authentic nostalgic 35mm film stock, such as Kodak Portra. Explicitly specify: 'raw 35mm film photography, natural organic film grain, subtle vintage warm color grading, realistic lens imperfections, soft focus falloff, atmospheric volumetric light, candid capture'. Avoid anything suggesting a modern digital sensor, cartoon, render, flat vector, or artificial CGI smoothing.";
+        }
+
+        // Apply seamless looping constraint if requested
+        if (loopVideo) {
+          systemPromptDetail += " IMPORTANT: Structure the visual action, camera movement, and subject activity as a seamless, infinite loop. The final frame of the video MUST perfectly align and blend with the starting frame in composition, light direction, subject position, and velocity, allowing for endless repeat playback without any visual jump cuts or sudden transitions.";
+        }
+
+        const enhancementRes = await ai.models.generateContent({
+          model: "gemini-3.5-flash",
+          contents: systemPromptDetail,
+        });
+        if (enhancementRes.text) {
+          finalPrompt = enhancementRes.text.trim();
+          console.log("Veo prompt enhanced with " + videoQuality + " (" + videoRealismStyle + ", loop=" + loopVideo + ") mode to:", finalPrompt);
+        }
+      } catch (err) {
+        console.warn("Prompt enhancement failed, using original:", err);
+      }
+    }
+
+    // Append strong looping suffix to ensure the video generation engine produces matching start and end states
+    if (loopVideo) {
+      finalPrompt += ", seamless loop, perfectly looping, starting and ending frames match perfectly, infinite looping animation";
+    }
+
+    const videoConfig: any = {
+      numberOfVideos: 1,
+      resolution: resolution || "720p",
+      aspectRatio: aspectRatio || "16:9",
+      loop: loopVideo
+    };
+
+    const payload: any = {
+      model,
+      prompt: finalPrompt,
+      config: videoConfig
+    };
+
+    // If starting image is provided (as base64 data URL or pure base64)
+    if (image) {
+      let imageBytes = image;
+      let mimeType = "image/png";
+
+      if (image.includes(";base64,")) {
+        const parts = image.split(";base64,");
+        mimeType = parts[0].replace("data:", "");
+        imageBytes = parts[1];
+      }
+
+      payload.image = {
+        imageBytes,
+        mimeType
+      };
+    }
+
+    console.log("Calling ai.models.generateVideos with model:", model);
+    const operation = await ai.models.generateVideos(payload);
+
+    return res.json({ 
+      operationName: operation.name,
+      enhancedPrompt: finalPrompt !== prompt ? finalPrompt : undefined
+    });
+  } catch (error: any) {
+    console.error("Veo video generation error:", error);
+    return res.status(500).json({ 
+      error: error.message || "Video generation failed due to a server-side error." 
+    });
+  }
+});
+
+// API route to poll the status of a Veo AI video generation
+app.post("/api/video/status", async (req, res) => {
+  try {
+    const activeApiKey = process.env.GEMINI_API_KEY;
+    if (!activeApiKey) {
+      return res.status(500).json({ 
+        error: "GEMINI_API_KEY is not configured." 
+      });
+    }
+
+    if (!ai) {
+      ai = new GoogleGenAI({
+        apiKey: activeApiKey,
+        httpOptions: {
+          headers: {
+            "User-Agent": "aistudio-build",
+          },
+        },
+      });
+    }
+
+    const { operationName } = req.body;
+    if (!operationName) {
+      return res.status(400).json({ error: "operationName is required in the body." });
+    }
+
+    const op = new GenerateVideosOperation();
+    op.name = operationName;
+
+    const updated = await ai.operations.getVideosOperation({ operation: op });
+    
+    return res.json({
+      done: updated.done || false,
+      error: updated.error || null,
+      response: updated.response || null
+    });
+  } catch (error: any) {
+    console.error("Veo video status check error:", error);
+    return res.status(500).json({ 
+      error: error.message || "Failed to retrieve video status." 
+    });
+  }
+});
+
+// API route to stream/download the generated Veo video binary
+app.post("/api/video/download", async (req, res) => {
+  try {
+    const activeApiKey = process.env.GEMINI_API_KEY;
+    if (!activeApiKey) {
+      return res.status(500).json({ 
+        error: "GEMINI_API_KEY is not configured." 
+      });
+    }
+
+    if (!ai) {
+      ai = new GoogleGenAI({
+        apiKey: activeApiKey,
+        httpOptions: {
+          headers: {
+            "User-Agent": "aistudio-build",
+          },
+        },
+      });
+    }
+
+    const { operationName } = req.body;
+    if (!operationName) {
+      return res.status(400).json({ error: "operationName is required." });
+    }
+
+    const op = new GenerateVideosOperation();
+    op.name = operationName;
+
+    const updated = await ai.operations.getVideosOperation({ operation: op });
+    const uri = updated.response?.generatedVideos?.[0]?.video?.uri;
+    if (!uri) {
+      return res.status(404).json({ error: "Video URI not found or video is not ready yet." });
+    }
+
+    const videoRes = await fetch(uri, {
+      headers: { 'x-goog-api-key': activeApiKey },
+    });
+    if (!videoRes.ok) {
+      return res.status(videoRes.status).json({ error: "Failed to fetch video from upstream Google servers." });
+    }
+
+    res.setHeader('Content-Type', 'video/mp4');
+    const arrayBuffer = await videoRes.arrayBuffer();
+    return res.send(Buffer.from(arrayBuffer));
+  } catch (error: any) {
+    console.error("Veo video download error:", error);
+    return res.status(500).json({ 
+      error: error.message || "Failed to download generated video." 
     });
   }
 });
