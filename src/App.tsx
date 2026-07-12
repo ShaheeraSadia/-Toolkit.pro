@@ -20,6 +20,7 @@ import RecentActivitiesWidget from "./components/RecentActivitiesWidget";
 import UsageInsightsWidget from "./components/UsageInsightsWidget";
 import AppTourOverlay from "./components/AppTourOverlay";
 import FeedbackModal from "./components/FeedbackModal";
+import AndroidWorkspace from "./components/AndroidWorkspace";
 import { motion, AnimatePresence } from "motion/react";
 // @ts-ignore
 import brandLogo from "./assets/images/toolkit_pro_logo_1781887052514.jpg";
@@ -471,6 +472,26 @@ export default function App() {
 
   const handleToggleTheme = () => {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
+  };
+
+  const [highContrast, setHighContrast] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("toolkit-pro-high-contrast") === "true";
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (highContrast) {
+      document.documentElement.classList.add("high-contrast");
+    } else {
+      document.documentElement.classList.remove("high-contrast");
+    }
+    localStorage.setItem("toolkit-pro-high-contrast", String(highContrast));
+  }, [highContrast]);
+
+  const handleToggleHighContrast = () => {
+    setHighContrast((prev) => !prev);
   };
 
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(() => {
@@ -1109,7 +1130,8 @@ export default function App() {
       video: "Video Creator",
       drive: "Drive",
       resources: "Guides",
-      legal: "Legal"
+      legal: "Legal",
+      android: "Android Studio"
     };
 
     const colors: Record<ActiveTab, string> = {
@@ -1121,10 +1143,11 @@ export default function App() {
       video: "rgba(139, 92, 246, 0.85)",     // Violet
       drive: "rgba(59, 130, 246, 0.85)",     // Blue
       resources: "rgba(245, 158, 11, 0.85)",   // Amber
-      legal: "rgba(244, 63, 94, 0.85)"       // Rose
+      legal: "rgba(244, 63, 94, 0.85)",       // Rose
+      android: "rgba(16, 185, 129, 0.85)"     // Emerald
     };
 
-    const tabs: ActiveTab[] = ["quote", "compress", "qr", "palette", "video", "drive", "resources", "legal"];
+    const tabs: ActiveTab[] = ["quote", "compress", "qr", "palette", "video", "drive", "resources", "legal", "android"];
     return tabs.map((tab) => ({
       tool: tab,
       label: labels[tab],
@@ -1199,7 +1222,8 @@ export default function App() {
       video: "Video Creator",
       drive: "Drive Panel",
       resources: "Guides & SEO",
-      legal: "Compliance"
+      legal: "Compliance",
+      android: "Android App Studio"
     };
 
     const tabIcons: Record<ActiveTab, RecentActivity["icon"]> = {
@@ -1211,7 +1235,8 @@ export default function App() {
       video: "Video",
       drive: "Cloud",
       resources: "BookOpen",
-      legal: "ShieldCheck"
+      legal: "ShieldCheck",
+      android: "Smartphone"
     };
 
     if (activeTab === "home") return;
@@ -1348,7 +1373,8 @@ export default function App() {
           "4": "palette",
           "5": "video",
           "6": "resources",
-          "7": "legal"
+          "7": "legal",
+          "8": "android"
         };
         const targetTab = tabMap[e.key];
         if (targetTab) {
@@ -1363,7 +1389,8 @@ export default function App() {
             video: "Video Creator",
             drive: "Drive Explorer",
             resources: "Guides & SEO",
-            legal: "Compliance"
+            legal: "Compliance",
+            android: "Android App Studio"
           };
           triggerShortcutFeedback(`Alt + ${e.key} (${tabLabelMap[targetTab]})`);
         }
@@ -1488,6 +1515,8 @@ export default function App() {
         driveCount={files.length}
         theme={theme}
         onToggleTheme={handleToggleTheme}
+        highContrast={highContrast}
+        onToggleHighContrast={handleToggleHighContrast}
         onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
       />
@@ -1541,6 +1570,7 @@ export default function App() {
                     { id: "qr", label: "QR Generator", icon: QrCode, desc: "ECC scan patterns" },
                     { id: "palette", label: "Color Extractor", icon: Pipette, desc: "Analyze hex spectrums" },
                     { id: "video", label: "Video Creator", icon: Video, desc: "Timeline loop tools" },
+                    { id: "android", label: "Android App Studio", icon: Smartphone, desc: "Veo 3.1 & Native Room DB", badge: "VEO" },
                     { id: "drive", label: "Drive Panel", icon: Cloud, desc: "Cloud files index", badge: files.length > 0 ? files.length : undefined },
                     { id: "resources", label: "Guides & SEO", icon: BookOpen, desc: "Sitemaps & templates" },
                     { id: "legal", label: "Compliance & Safety", icon: ShieldCheck, desc: "Policies & support" },
@@ -2115,6 +2145,7 @@ export default function App() {
                     {activeTab === "drive" && "Drive Panel"}
                     {activeTab === "resources" && "Guides & SEO"}
                     {activeTab === "legal" && "Compliance"}
+                    {activeTab === "android" && "Android App Studio"}
                   </span>
                 </div>
 
@@ -2256,6 +2287,10 @@ export default function App() {
 
                         {activeTab === "legal" && (
                           <AdSenseCompliance subTab={legalSubTab} onChangeSubTab={setLegalSubTab} />
+                        )}
+
+                        {activeTab === "android" && (
+                          <AndroidWorkspace theme={theme} />
                         )}
                       </>
                     )}

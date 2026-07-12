@@ -305,6 +305,161 @@ export const DEFAULT_PRESETS: CompressionPreset[] = [
   },
 ];
 
+const analyzeImageComplexity = (url: string, fileType: string, fileSize: number): Promise<{
+  complexity: "Low" | "Medium" | "High";
+  complexityScore: number;
+  suggestedQuality: number;
+  suggestedFormat: "original" | "image/webp" | "image/png" | "image/jpeg";
+  reason: string;
+  estimatedSavings: string;
+}> => {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.crossOrigin = "anonymous";
+    img.onload = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+        if (!ctx) {
+          throw new Error("Canvas context failed");
+        }
+        const width = 80;
+        const height = 80;
+        canvas.width = width;
+        canvas.height = height;
+        ctx.drawImage(img, 0, 0, width, height);
+        
+        const imgData = ctx.getImageData(0, 0, width, height);
+        const data = imgData.data;
+        
+        let totalDiff = 0;
+        let pixelCount = 0;
+        
+        for (let y = 0; y < height - 1; y += 2) {
+          for (let x = 0; x < width - 1; x += 2) {
+            const idx = (y * width + x) * 4;
+            const rightIdx = (y * width + (x + 1)) * 4;
+            const bottomIdx = ((y + 1) * width + x) * 4;
+            
+            const r = data[idx];
+            const g = data[idx+1];
+            const b = data[idx+2];
+            const gray = 0.299 * r + 0.587 * g + 0.114 * b;
+            
+            const rRight = data[rightIdx];
+            const gRight = data[rightIdx+1];
+            const bRight = data[rightIdx+2];
+            const grayRight = 0.299 * rRight + 0.587 * gRight + 0.114 * bRight;
+            
+            const rBottom = data[bottomIdx];
+            const gBottom = data[bottomIdx+1];
+            const bBottom = data[bottomIdx+2];
+            const grayBottom = 0.299 * rBottom + 0.587 * gBottom + 0.114 * bBottom;
+            
+            totalDiff += Math.abs(gray - grayRight) + Math.abs(gray - grayBottom);
+            pixelCount += 2;
+          }
+        }
+        
+        const averageDiff = pixelCount > 0 ? totalDiff / pixelCount : 0;
+        const complexityScore = Math.min(100, Math.round((averageDiff / 25) * 100));
+        
+        let complexity: "Low" | "Medium" | "High" = "Medium";
+        let suggestedQuality = 0.80;
+        let reason = "";
+        let estimatedSavings = "55% - 70%";
+        let suggestedFormat: "original" | "image/webp" | "image/png" | "image/jpeg" = "image/webp";
+        
+        if (complexityScore < 22) {
+          complexity = "Low";
+          suggestedQuality = 0.70;
+          estimatedSavings = "75% - 85%";
+          reason = `This image has flat, solid colors or clean graphics with low detail (complexity score of ${complexityScore}%). An aggressive compression level of 70% is recommended for massive size savings with no visible quality loss.`;
+          if (fileType.includes("png") || fileType.includes("gif")) {
+            suggestedFormat = "image/webp";
+          }
+        } else if (complexityScore > 58) {
+          complexity = "High";
+          suggestedQuality = 0.85;
+          estimatedSavings = "30% - 45%";
+          reason = `This image contains high-frequency textures, photographic details, or complex noise patterns (complexity score of ${complexityScore}%). A conservative quality of 85% is suggested to prevent JPEG blockiness or artifacting in busy areas.`;
+          suggestedFormat = fileType.includes("png") ? "image/webp" : "image/jpeg";
+        } else {
+          complexity = "Medium";
+          suggestedQuality = 0.78;
+          estimatedSavings = "55% - 70%";
+          reason = `Standard photographic balance or mid-detail artwork detected (complexity score of ${complexityScore}%). A sweet-spot quality of 78% is highly recommended for an excellent compromise between size reduction and visual fidelity.`;
+          suggestedFormat = "image/webp";
+        }
+        
+        resolve({
+          complexity,
+          complexityScore,
+          suggestedQuality,
+          suggestedFormat,
+          reason,
+          estimatedSavings
+        });
+      } catch (err) {
+        const sizeInMB = fileSize / (1024 * 1024);
+        let complexity: "Low" | "Medium" | "High" = "Medium";
+        let suggestedQuality = 0.80;
+        let reason = "Fallback metadata scan. ";
+        
+        if (sizeInMB > 3.5) {
+          complexity = "High";
+          suggestedQuality = 0.85;
+          reason += "Large source footprint implies intricate textures; higher quality handles this best.";
+        } else if (sizeInMB < 0.5) {
+          complexity = "Low";
+          suggestedQuality = 0.72;
+          reason += "Lightweight original file allows safe, aggressive compression bounds.";
+        } else {
+          complexity = "Medium";
+          suggestedQuality = 0.78;
+          reason += "Standard metadata scale. Recommending a safe 78% value.";
+        }
+        
+        resolve({
+          complexity,
+          complexityScore: 48,
+          suggestedQuality,
+          suggestedFormat: "image/webp",
+          reason,
+          estimatedSavings: "50% - 65%"
+        });
+      }
+    };
+    
+    img.onerror = () => {
+      const sizeInMB = fileSize / (1024 * 1024);
+      let complexity: "Low" | "Medium" | "High" = "Medium";
+      let suggestedQuality = 0.80;
+      let reason = "Profile heuristic fallback. ";
+      
+      if (sizeInMB > 3.5) {
+        complexity = "High";
+        suggestedQuality = 0.85;
+        reason += "High file size indicates visual density. Preserving textures is prioritized.";
+      } else {
+        complexity = "Medium";
+        suggestedQuality = 0.78;
+        reason += "Optimizing for standard sweet-spot parameters (78%).";
+      }
+      
+      resolve({
+        complexity,
+        complexityScore: 45,
+        suggestedQuality,
+        suggestedFormat: "image/webp",
+        reason,
+        estimatedSavings: "45% - 60%"
+      });
+    };
+    img.src = url;
+  });
+};
+
 export default function ImageCompressor({
   user,
   accessToken,
@@ -1249,6 +1404,40 @@ export default function ImageCompressor({
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number }>({ x: 50, y: 50 });
   const [showDiffHeatmap, setShowDiffHeatmap] = useState<boolean>(false);
+
+  // Smart quality suggestion states
+  const [isAnalyzingComplexity, setIsAnalyzingComplexity] = useState<boolean>(false);
+  const [smartSuggestion, setSmartSuggestion] = useState<{
+    complexity: "Low" | "Medium" | "High";
+    complexityScore: number;
+    suggestedQuality: number;
+    suggestedFormat: "original" | "image/webp" | "image/png" | "image/jpeg";
+    reason: string;
+    estimatedSavings: string;
+  } | null>(null);
+
+  // Clear suggestion when activeItem / selected ID changes
+  useEffect(() => {
+    setSmartSuggestion(null);
+  }, [selectedId]);
+
+  const handleGetSmartSuggestion = async () => {
+    const itemToAnalyze = queue.find(item => item.id === selectedId) || (queue.length > 0 ? queue[0] : null);
+    if (!itemToAnalyze) return;
+    setIsAnalyzingComplexity(true);
+    try {
+      const result = await analyzeImageComplexity(
+        itemToAnalyze.originalUrl,
+        itemToAnalyze.type || "",
+        itemToAnalyze.size || 0
+      );
+      setSmartSuggestion(result);
+    } catch (err) {
+      console.error("Smart suggestion analysis failed:", err);
+    } finally {
+      setIsAnalyzingComplexity(false);
+    }
+  };
 
   // Live Compression Preview States
   const [isLivePreviewEnabled, setIsLivePreviewEnabled] = useState<boolean>(false);
@@ -5252,6 +5441,106 @@ export default function ImageCompressor({
                 </div>
               </div>
 
+              {/* Smart Quality Suggestion Block */}
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-800/60 space-y-2">
+                {!smartSuggestion ? (
+                  <button
+                    type="button"
+                    id="btn-smart-analysis"
+                    onClick={handleGetSmartSuggestion}
+                    disabled={isAnalyzingComplexity}
+                    className="w-full py-2.5 px-3 bg-gradient-to-r from-indigo-505 to-purple-600 hover:from-indigo-600 hover:to-purple-700 disabled:from-slate-100 disabled:to-slate-100 disabled:text-slate-400 dark:disabled:from-slate-900 dark:disabled:to-slate-900 text-white font-black text-[10px] uppercase tracking-wider rounded-xl transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer active:scale-[0.98] disabled:cursor-not-allowed border border-indigo-500/10"
+                  >
+                    {isAnalyzingComplexity ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-white" />
+                        <span>Analyzing Image Complexity...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5 animate-pulse text-amber-300" />
+                        <span>AI Quality Advisor: Suggest Optimal Level</span>
+                      </>
+                    )}
+                  </button>
+                ) : (
+                  <div className="bg-gradient-to-br from-indigo-50/40 via-purple-50/15 to-indigo-50/40 dark:from-indigo-950/20 dark:via-purple-950/10 dark:to-indigo-950/20 border border-indigo-150 dark:border-indigo-900/60 p-3.5 rounded-xl space-y-3 relative overflow-hidden" id="smart-suggestion-result-panel">
+                    {/* Decorative ambient background glow */}
+                    <div className="absolute top-0 right-0 w-16 h-16 bg-indigo-500/10 dark:bg-indigo-400/10 rounded-full blur-xl pointer-events-none" />
+                    
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9.5px] font-black uppercase text-indigo-700 dark:text-indigo-400 tracking-wider flex items-center gap-1.5">
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" />
+                        <span>Smart Quality Suggestion</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleGetSmartSuggestion}
+                        disabled={isAnalyzingComplexity}
+                        className="text-[9px] font-black text-indigo-600 hover:text-indigo-500 dark:text-indigo-400 flex items-center gap-1 cursor-pointer select-none"
+                        title="Recalculate complexity parameters"
+                      >
+                        <RefreshCw className={`w-2.5 h-2.5 ${isAnalyzingComplexity ? "animate-spin" : ""}`} />
+                        <span>Rescan</span>
+                      </button>
+                    </div>
+
+                    {/* Diagnostic Metrics Row */}
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div className="bg-white/80 dark:bg-slate-900/65 p-2 rounded-lg border border-indigo-100/50 dark:border-slate-800/80">
+                        <div className="text-[8px] text-slate-400 dark:text-slate-500 font-extrabold uppercase tracking-tight">Complexity</div>
+                        <div className={`text-[10.5px] font-black ${
+                          smartSuggestion.complexity === "High" ? "text-rose-600 dark:text-rose-400" :
+                          smartSuggestion.complexity === "Medium" ? "text-amber-600 dark:text-amber-400" :
+                          "text-emerald-600 dark:text-emerald-450"
+                        }`}>
+                          {smartSuggestion.complexity} ({smartSuggestion.complexityScore}%)
+                        </div>
+                      </div>
+                      <div className="bg-white/80 dark:bg-slate-900/65 p-2 rounded-lg border border-indigo-100/50 dark:border-slate-800/80">
+                        <div className="text-[8px] text-slate-400 dark:text-slate-500 font-extrabold uppercase tracking-tight">Suggested</div>
+                        <div className="text-[10.5px] font-black text-indigo-600 dark:text-indigo-400">
+                          {Math.round(smartSuggestion.suggestedQuality * 100)}% Qual
+                        </div>
+                      </div>
+                      <div className="bg-white/80 dark:bg-slate-900/65 p-2 rounded-lg border border-indigo-100/50 dark:border-slate-800/80">
+                        <div className="text-[8px] text-slate-400 dark:text-slate-500 font-extrabold uppercase tracking-tight">Est. Savings</div>
+                        <div className="text-[10.5px] font-black text-emerald-605 dark:text-emerald-400">
+                          ~{smartSuggestion.estimatedSavings}
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Recommendation Explanation */}
+                    <p className="text-[10px] text-slate-600 dark:text-slate-350 leading-relaxed font-semibold bg-white/40 dark:bg-slate-900/30 p-2 rounded-lg border border-indigo-100/30 dark:border-slate-800/40">
+                      {smartSuggestion.reason}
+                    </p>
+
+                    {/* One-Click Apply Action Button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        saveToUndoActiveItem();
+                        handleQualityChange(smartSuggestion.suggestedQuality);
+                        if (smartSuggestion.suggestedFormat !== "original") {
+                          setTargetFormatSelection(smartSuggestion.suggestedFormat);
+                        }
+                        setAutoSaveToast({
+                          isOpen: true,
+                          title: "Smart Advisor Settings Applied",
+                          message: `Successfully tuned image to ${Math.round(smartSuggestion.suggestedQuality * 100)}% quality (${smartSuggestion.complexity} Complexity mode).`,
+                          isError: false
+                        });
+                      }}
+                      className="w-full py-2 px-3 bg-indigo-650 hover:bg-indigo-600 text-white font-black text-[10px] uppercase tracking-wider rounded-lg flex items-center justify-center gap-1.5 transition-all shadow-xs cursor-pointer active:scale-[0.98]"
+                    >
+                      <Check className="w-3.5 h-3.5" />
+                      <span>Apply Suggested Settings</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+
               {/* Quality Standard Reference Guideline Context */}
               <p className="text-[9px] text-slate-400 dark:text-slate-500 leading-tight bg-slate-50 dark:bg-slate-900/30 p-2 rounded-lg border border-dashed border-slate-205 dark:border-slate-800">
                 💡 <strong>Optimal Settings Guidance:</strong> JPEG, WebP, and standard image compressors reach maximum compression efficiency between <strong>75% - 85%</strong>. Values within this range reduce layout footprint by up to 80% while remaining perceptually raw.
@@ -6216,56 +6505,190 @@ export default function ImageCompressor({
 
                     {/* View Switch Router */}
                     {dashboardView === "side-by-side" && (
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5 flex-1 items-center">
-                        <div 
-                          onClick={() => setIsPreviewModalOpen(true)}
-                          className="space-y-2 flex flex-col items-center group/img cursor-pointer text-center select-none"
-                          title="Click to view interactive full-screen comparison"
-                        >
-                          <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider">Original Source (Click to Maximize)</p>
-                          <div className="aspect-video w-full rounded-2xl bg-black/5 dark:bg-black/40 border border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden relative shadow-inner">
-                            <img 
-                              src={originalUrl || undefined} 
-                              alt="Original" 
-                              style={{
-                                filter: getFilterCSS(imgFilter)
-                              }}
-                              className="object-contain max-h-40 font-semibold group-hover/img:scale-105 transition-transform duration-300" 
-                              referrerPolicy="no-referrer"
-                            />
-                            <div className="absolute inset-0 bg-indigo-950/40 backdrop-blur-xs opacity-0 group-hover/img:opacity-100 transition-opacity duration-200 flex flex-col items-center justify-center text-white p-4">
-                              <Maximize2 className="w-6 h-6 text-white mb-2 animate-bounce" />
-                              <span className="text-[10px] font-extrabold tracking-widest uppercase">Maximize Quality Review</span>
+                      <div className="flex-1 flex flex-col justify-between space-y-3.5 select-none animate-fade-in">
+                        {/* Interactive Zoom and Heatmap Controls for Side-by-Side */}
+                        <div className="w-full flex flex-wrap items-center justify-between gap-2 bg-slate-50 dark:bg-slate-900/60 p-2 rounded-xl border border-slate-200/60 dark:border-slate-800 shadow-xs">
+                          <div className="flex items-center space-x-2">
+                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Inspect Zoom:</span>
+                            <div className="flex items-center space-x-1 bg-white dark:bg-slate-950 rounded-lg p-0.5 border border-slate-200 dark:border-slate-800">
+                              {[1, 2, 3, 4].map((z) => (
+                                <button
+                                  key={z}
+                                  type="button"
+                                  onClick={() => {
+                                    setZoomLevel(z);
+                                    if (z === 1) setMousePosition({ x: 50, y: 50 });
+                                  }}
+                                  className={`px-2 py-1 rounded text-[9px] font-bold uppercase transition-colors cursor-pointer ${
+                                    zoomLevel === z
+                                      ? "bg-indigo-600 text-white"
+                                      : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                                  }`}
+                                >
+                                  {z}x
+                                </button>
+                              ))}
                             </div>
+                            {zoomLevel > 1 ? (
+                              <span className="text-[9px] text-indigo-500 dark:text-indigo-400 font-bold animate-pulse flex items-center gap-1">
+                                <span>🖱️ Hover either to Pan</span>
+                              </span>
+                            ) : (
+                              <span className="text-[9.5px] text-slate-400 font-medium hidden sm:inline">
+                                Choose 2x-4x to enable synchronized panning
+                              </span>
+                            )}
                           </div>
-                          <span className="text-xs font-semibold text-slate-600 dark:text-slate-400 font-mono">
-                            {formatFileSize(compressedResult.originalSize)}
-                          </span>
+
+                          <div className="flex items-center space-x-3">
+                            <button
+                              type="button"
+                              onClick={() => setShowDiffHeatmap(!showDiffHeatmap)}
+                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[9px] font-extrabold uppercase tracking-wide transition-all cursor-pointer ${
+                                showDiffHeatmap
+                                  ? "bg-rose-500/10 dark:bg-rose-500/20 border-rose-500/30 text-rose-600 dark:text-rose-400"
+                                  : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-850 text-slate-650 hover:text-slate-850 dark:text-slate-400 dark:hover:text-white"
+                              }`}
+                              title="Compare the raw difference of pixels (mix-blend-difference)"
+                            >
+                              <Layers className="w-3.5 h-3.5" />
+                              <span>Diff Heatmap</span>
+                            </button>
+                          </div>
                         </div>
 
-                        <div 
-                          onClick={() => setIsPreviewModalOpen(true)}
-                          className="space-y-2 flex flex-col items-center group/img cursor-pointer text-center select-none"
-                          title="Click to view interactive full-screen comparison"
-                        >
-                          <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center justify-center gap-1">
-                            <Sparkles className="w-3.5 h-3.5 text-emerald-500" /> Optimized Model (Click to Maximize)
-                          </p>
-                          <div className="aspect-video w-full rounded-2xl bg-black/5 dark:bg-black/40 border border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden relative shadow-inner">
-                            <img 
-                              src={compressedResult.dataUrl} 
-                              alt="CompressedResult" 
-                              className="object-contain max-h-40 group-hover/img:scale-105 transition-transform duration-300" 
-                              referrerPolicy="no-referrer"
-                            />
-                            <div className="absolute inset-0 bg-indigo-950/40 backdrop-blur-xs opacity-0 group-hover/img:opacity-100 transition-opacity duration-200 flex flex-col items-center justify-center text-white p-4">
-                              <Maximize2 className="w-6 h-6 text-white mb-2 animate-bounce" />
-                              <span className="text-[10px] font-extrabold tracking-widest uppercase">Maximize Quality Review</span>
+                        {/* Split column viewport layout */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-5 flex-1 items-stretch">
+                          {/* Left Panel: Original */}
+                          <div 
+                            onMouseMove={handleContainerMouseMove}
+                            onTouchMove={handleContainerTouchMove}
+                            className="space-y-1.5 flex flex-col items-center select-none relative group/viewport"
+                            title={zoomLevel > 1 ? "Move cursor inside viewport to pan both views" : "Original quality base. Zoom in to inspect detail."}
+                          >
+                            <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center justify-between w-full px-1">
+                              <span>Original Source (Raw 100%)</span>
+                              <span className="text-[9px] font-bold text-slate-400 bg-slate-100 dark:bg-slate-900 px-1.5 py-0.5 rounded border border-slate-200 dark:border-slate-800">
+                                {formatFileSize(compressedResult.originalSize)}
+                              </span>
+                            </p>
+                            
+                            <div className="aspect-video w-full rounded-2xl bg-black/5 dark:bg-black/40 border border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden relative shadow-inner h-[240px] md:h-auto">
+                              <img 
+                                src={originalUrl || undefined} 
+                                alt="Original viewport preview" 
+                                style={{
+                                  transform: `rotate(${activeItem?.rotation || 0}deg) scale(${zoomLevel})`,
+                                  transformOrigin: `${mousePosition.x}% ${mousePosition.y}%`,
+                                  filter: getFilterCSS(imgFilter),
+                                  transition: "transform-origin 0.05s ease-out"
+                                }}
+                                className="object-contain w-full h-full max-h-48 pointer-events-none select-none" 
+                                referrerPolicy="no-referrer"
+                              />
+
+                              {/* Target position sync crosshair */}
+                              {zoomLevel > 1 && (
+                                <div 
+                                  className="absolute pointer-events-none w-5 h-5 border-2 border-indigo-500 rounded-full flex items-center justify-center shadow-lg bg-indigo-500/10"
+                                  style={{ 
+                                    left: `${mousePosition.x}%`, 
+                                    top: `${mousePosition.y}%`, 
+                                    transform: 'translate(-50%, -50%)',
+                                    transition: "left 0.05s ease-out, top 0.05s ease-out"
+                                  }}
+                                >
+                                  <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-ping" />
+                                </div>
+                              )}
+                              
+                              <div className="absolute bottom-2.5 right-2.5 bg-slate-950/80 backdrop-blur-xs px-2 py-0.5 rounded text-[8.5px] uppercase font-black tracking-wider text-slate-400 border border-slate-800/40">
+                                original
+                              </div>
                             </div>
                           </div>
-                          <span className="text-xs font-black text-emerald-600 dark:text-emerald-400 font-mono">
-                            {formatFileSize(compressedResult.compressedSize)}
-                          </span>
+
+                          {/* Right Panel: Compressed */}
+                          <div 
+                            onMouseMove={handleContainerMouseMove}
+                            onTouchMove={handleContainerTouchMove}
+                            className="space-y-1.5 flex flex-col items-center select-none relative group/viewport"
+                            title={zoomLevel > 1 ? "Move cursor inside viewport to pan both views" : "Optimized version. Zoom in to inspect detail."}
+                          >
+                            <p className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-wider flex items-center justify-between w-full px-1">
+                              <span className="flex items-center gap-1">
+                                <Sparkles className="w-3.5 h-3.5 text-emerald-500 shrink-0" />
+                                Optimized Image (-{compressedResult.savingPercentage}%)
+                              </span>
+                              <span className="text-[9px] font-black text-emerald-600 bg-emerald-50 dark:bg-emerald-950/20 px-1.5 py-0.5 rounded border border-emerald-100 dark:border-emerald-900/30">
+                                {formatFileSize(compressedResult.compressedSize)}
+                              </span>
+                            </p>
+
+                            <div className="aspect-video w-full rounded-2xl bg-black/5 dark:bg-black/40 border border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden relative shadow-inner h-[240px] md:h-auto">
+                              {showDiffHeatmap ? (
+                                <div className="relative w-full h-full min-h-0 bg-slate-950 flex items-center justify-center">
+                                  {/* Base original image for diff */}
+                                  <img 
+                                    src={originalUrl || undefined} 
+                                    alt="Heatmap original base side-by-side"
+                                    className="absolute inset-0 w-full h-full object-contain pointer-events-none select-none"
+                                    style={{
+                                      transform: `rotate(${activeItem?.rotation || 0}deg) scale(${zoomLevel})`,
+                                      transformOrigin: `${mousePosition.x}% ${mousePosition.y}%`,
+                                      filter: getFilterCSS(imgFilter),
+                                      transition: "transform-origin 0.05s ease-out"
+                                    }}
+                                    referrerPolicy="no-referrer"
+                                  />
+                                  {/* Blended optimized image on top with difference blend */}
+                                  <img 
+                                    src={compressedResult.dataUrl} 
+                                    alt="Heatmap optimized blend side-by-side"
+                                    className="absolute inset-0 w-full h-full object-contain mix-blend-difference pointer-events-none select-none"
+                                    style={{
+                                      transform: `rotate(${activeItem?.rotation || 0}deg) scale(${zoomLevel})`,
+                                      transformOrigin: `${mousePosition.x}% ${mousePosition.y}%`,
+                                      filter: "brightness(4) contrast(3) saturate(1.5)",
+                                      transition: "transform-origin 0.05s ease-out"
+                                    }}
+                                    referrerPolicy="no-referrer"
+                                  />
+                                </div>
+                              ) : (
+                                <img 
+                                  src={compressedResult.dataUrl} 
+                                  alt="Optimized viewport preview" 
+                                  style={{
+                                    transform: `rotate(${activeItem?.rotation || 0}deg) scale(${zoomLevel})`,
+                                    transformOrigin: `${mousePosition.x}% ${mousePosition.y}%`,
+                                    transition: "transform-origin 0.05s ease-out"
+                                  }}
+                                  className="object-contain w-full h-full max-h-48 pointer-events-none select-none" 
+                                  referrerPolicy="no-referrer"
+                                />
+                              )}
+
+                              {/* Target position sync crosshair */}
+                              {zoomLevel > 1 && (
+                                <div 
+                                  className="absolute pointer-events-none w-5 h-5 border-2 border-indigo-500 rounded-full flex items-center justify-center shadow-lg bg-indigo-500/10"
+                                  style={{ 
+                                    left: `${mousePosition.x}%`, 
+                                    top: `${mousePosition.y}%`, 
+                                    transform: 'translate(-50%, -50%)',
+                                    transition: "left 0.05s ease-out, top 0.05s ease-out"
+                                  }}
+                                >
+                                  <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-ping" />
+                                </div>
+                              )}
+
+                              <div className="absolute bottom-2.5 right-2.5 bg-emerald-500 text-slate-950 px-2 py-0.5 rounded text-[8.5px] uppercase font-black tracking-wider">
+                                optimized
+                              </div>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     )}

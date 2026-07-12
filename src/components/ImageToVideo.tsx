@@ -55,7 +55,8 @@ import {
   Flame,
   Mic,
   ListChecks,
-  Grid
+  Grid,
+  Image as ImageIcon
 } from "lucide-react";
 
 interface OverlayElement {
@@ -103,6 +104,8 @@ interface ImageSlide {
   flowAiNegativePrompt?: string;
   flowAiEffect?: "lightning" | "sparks" | "fire-embers" | "glitch-cyber" | "none";
   flowAiIntensity?: number;
+  clipStart?: number;
+  clipEnd?: number;
 }
 
 interface ImageToVideoProps {
@@ -1449,7 +1452,7 @@ export default function ImageToVideo({
   const [batchGenerationMode, setBatchGenerationMode] = useState<"individual" | "sequence">("individual");
 
   const [soundtrack, setSoundtrack] = useState<string>("retro-lofi");
-  const [musicTab, setMusicTab] = useState<"mp3" | "synth" | "custom">("mp3");
+  const [musicTab, setMusicTab] = useState<"mp3" | "synth" | "custom" | "mic">("mp3");
   const [audioTrackMode, setAudioTrackMode] = useState<"synth" | "custom" | "sfx">("synth");
   const [selectedSfxId, setSelectedSfxId] = useState<string>("cinema-impact");
   const [customAudioUrl, setCustomAudioUrl] = useState<string | null>(null);
@@ -1457,6 +1460,166 @@ export default function ImageToVideo({
   const [customAudioDuration, setCustomAudioDuration] = useState<number | null>(null);
   const [audioTrimStart, setAudioTrimStart] = useState<number>(0);
   const [audioTrimEnd, setAudioTrimEnd] = useState<number>(0);
+
+  // Microphone recording states
+  const [isRecordingMic, setIsRecordingMic] = useState<boolean>(false);
+  const [micRecordingDuration, setMicRecordingDuration] = useState<number>(0);
+  const [recordedAudioUrl, setRecordedAudioUrl] = useState<string | null>(null);
+  const [recordedAudioBlob, setRecordedAudioBlob] = useState<Blob | null>(null);
+  const [micDevices, setMicDevices] = useState<MediaDeviceInfo[]>([]);
+  const [selectedMicId, setSelectedMicId] = useState<string>("");
+  const [micVolumeLevel, setMicVolumeLevel] = useState<number>(0);
+  const micRecorderRef = useRef<MediaRecorder | null>(null);
+  const micStreamRef = useRef<MediaStream | null>(null);
+  const micTimerIntervalRef = useRef<any>(null);
+  const micAudioContextRef = useRef<AudioContext | null>(null);
+  const micAnalyserRef = useRef<AnalyserNode | null>(null);
+  const micAnimationRef = useRef<number | null>(null);
+
+  const fetchMicrophones = async () => {
+    try {
+      await navigator.mediaDevices.getUserMedia({ audio: true });
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const audioInputs = devices.filter(d => d.kind === "audioinput");
+      setMicDevices(audioInputs);
+      if (audioInputs.length > 0 && !selectedMicId) {
+        setSelectedMicId(audioInputs[0].deviceId);
+      }
+    } catch (e) {
+      console.warn("Failed to fetch audio inputs:", e);
+    }
+  };
+
+  useEffect(() => {
+    if (musicTab === "mic") {
+      fetchMicrophones();
+    }
+  }, [musicTab]);
+
+  const startMicRecording = async () => {
+    try {
+      const constraints: MediaStreamConstraints = {
+        audio: selectedMicId ? { deviceId: { exact: selectedMicId } } : true
+      };
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+      micStreamRef.current = stream;
+
+      try {
+        const AudioCtxClass = window.AudioContext || (window as any).webkitAudioContext;
+        const audioCtx = new AudioCtxClass();
+        micAudioContextRef.current = audioCtx;
+        const source = audioCtx.createMediaStreamSource(stream);
+        const analyser = audioCtx.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+        micAnalyserRef.current = analyser;
+
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        const checkLevel = () => {
+          if (!analyser) return;
+          analyser.getByteFrequencyData(dataArray);
+          let sum = 0;
+          for (let i = 0; i < dataArray.length; i++) {
+            sum += dataArray[i];
+          }
+          const avg = sum / dataArray.length;
+          setMicVolumeLevel(avg);
+          micAnimationRef.current = requestAnimationFrame(checkLevel);
+        };
+        checkLevel();
+      } catch (audioErr) {
+        console.warn("Could not set up visualizer:", audioErr);
+      }
+
+      const options = { mimeType: "audio/webm" };
+      let recorder: MediaRecorder;
+      try {
+        recorder = new MediaRecorder(stream, options);
+      } catch (err) {
+        recorder = new MediaRecorder(stream);
+      }
+
+      micRecorderRef.current = recorder;
+      const chunks: Blob[] = [];
+      recorder.ondataavailable = (e) => {
+        if (e.data && e.data.size > 0) {
+          chunks.push(e.data);
+        }
+      };
+
+      recorder.onstop = () => {
+        const blob = new Blob(chunks, { type: "audio/webm" });
+        const url = URL.createObjectURL(blob);
+        setRecordedAudioBlob(blob);
+        setRecordedAudioUrl(url);
+        
+        if (micAnimationRef.current) {
+          cancelAnimationFrame(micAnimationRef.current);
+          micAnimationRef.current = null;
+        }
+        if (micAudioContextRef.current) {
+          micAudioContextRef.current.close().catch(() => {});
+          micAudioContextRef.current = null;
+        }
+        micAnalyserRef.current = null;
+        setMicVolumeLevel(0);
+      };
+
+      setRecordedAudioUrl(null);
+      setRecordedAudioBlob(null);
+      setMicRecordingDuration(0);
+      setIsRecordingMic(true);
+      recorder.start();
+
+      micTimerIntervalRef.current = setInterval(() => {
+        setMicRecordingDuration(prev => prev + 1);
+      }, 1000);
+
+      triggerBeepChime();
+    } catch (err) {
+      console.error("Failed to start mic recording:", err);
+      setToastMessage({
+        text: "❌ Microphone Access Denied",
+        sub: "Please enable microphone permission in your browser settings.",
+        success: false
+      });
+      triggerBeepChime();
+    }
+  };
+
+  const stopMicRecording = () => {
+    if (micRecorderRef.current && micRecorderRef.current.state !== "inactive") {
+      micRecorderRef.current.stop();
+    }
+    if (micStreamRef.current) {
+      micStreamRef.current.getTracks().forEach(track => track.stop());
+      micStreamRef.current = null;
+    }
+    if (micTimerIntervalRef.current) {
+      clearInterval(micTimerIntervalRef.current);
+      micTimerIntervalRef.current = null;
+    }
+    setIsRecordingMic(false);
+    triggerBeepChime();
+  };
+
+  // Cleanup recording on unmount
+  useEffect(() => {
+    return () => {
+      if (micStreamRef.current) {
+        micStreamRef.current.getTracks().forEach(track => track.stop());
+      }
+      if (micTimerIntervalRef.current) {
+        clearInterval(micTimerIntervalRef.current);
+      }
+      if (micAnimationRef.current) {
+        cancelAnimationFrame(micAnimationRef.current);
+      }
+      if (micAudioContextRef.current) {
+        micAudioContextRef.current.close().catch(() => {});
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (customAudioUrl) {
@@ -1674,7 +1837,53 @@ export default function ImageToVideo({
   const [aiCameraDirection, setAiCameraDirection] = useState<"auto" | "zoom-in" | "zoom-out" | "pan-left" | "pan-right" | "tilt-up" | "tilt-down" | "orbit">("auto");
   const [aiStylePreset, setAiStylePreset] = useState<"auto" | "cinematic" | "cyberpunk" | "anime" | "vhs" | "realistic-3d" | "minimalist" | "fantasy-dream" | "studio-ghibli" | "film-noir" | "nature-8k" | "sketch" | "oil-painting">("auto");
   const [aiImageModelChoice, setAiImageModelChoice] = useState<"gemini-3.1-flash-lite-image" | "gemini-3.1-flash-image">("gemini-3.1-flash-lite-image");
-  const [aiSceneImageSource, setAiSceneImageSource] = useState<"gemini" | "unsplash">("gemini");
+  const [aiSceneImageSource, setAiSceneImageSource] = useState<"gemini" | "unsplash" | "image-to-video">("gemini");
+  const [i2vSourceType, setI2vSourceType] = useState<"upload" | "timeline">("upload");
+  const [i2vUploadedImage, setI2vUploadedImage] = useState<string | null>(null);
+  const [i2vUploadedName, setI2vUploadedName] = useState<string | null>(null);
+  const [i2vSelectedSlideId, setI2vSelectedSlideId] = useState<string | null>(null);
+
+  // Helper to convert uploaded image or timeline slide to a base64 Data URL for Image-to-Video
+  const getI2VBase64Image = async (): Promise<string | null> => {
+    if (i2vSourceType === "upload") {
+      return i2vUploadedImage;
+    } else {
+      const slide = slides.find(s => s.id === i2vSelectedSlideId);
+      if (!slide) return null;
+
+      // Check cache first
+      let imgElement = imageCacheRef.current[slide.id];
+      if (!imgElement) {
+        // Load the image dynamically with CORS handling
+        try {
+          imgElement = await new Promise<HTMLImageElement>((resolve, reject) => {
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.src = slide.url;
+            img.onload = () => resolve(img);
+            img.onerror = (e) => reject(e);
+          });
+        } catch (err) {
+          console.error("Failed to load timeline slide image dynamically for base64 conversion:", err);
+          return null;
+        }
+      }
+
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = imgElement.naturalWidth || imgElement.width || 640;
+        canvas.height = imgElement.naturalHeight || imgElement.height || 360;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(imgElement, 0, 0);
+          return canvas.toDataURL("image/png");
+        }
+      } catch (err) {
+        console.error("Error drawing slide image to canvas:", err);
+      }
+      return null;
+    }
+  };
   const [aiGenerationMethod, setAiGenerationMethod] = useState<"video" | "animatic">("video");
   const [videoQuality, setVideoQuality] = useState<"balanced" | "high" | "performance">("balanced");
   const [videoRealismStyle, setVideoRealismStyle] = useState<"documentary" | "imax" | "analog_film" | "standard">("documentary");
@@ -1728,6 +1937,251 @@ export default function ImageToVideo({
     if (selectedSlide) {
       updateSlideProp(selectedSlide.id, "flowAiIntensity", val);
     }
+  };
+
+  // New visual enhancements states
+  const [editingTransitionSlideId, setEditingTransitionSlideId] = useState<string | null>(null);
+  const [aiDirectorAssistantTab, setAiDirectorAssistantTab] = useState<"recipes" | "chat">("recipes");
+  const [aiDirectorChatHistory, setAiDirectorChatHistory] = useState<{ sender: "user" | "director"; message: string }[]>([
+    { sender: "director", message: "Hi! I'm your Creative AI Video Director. Pick one of our One-Click Master Themes below to instantly style your video with professionally selected music, cinematic transitions, retro filters, and text overlays, or tell me what style you want!" }
+  ]);
+  const [aiDirectorInput, setAiDirectorInput] = useState<string>("");
+  const [isDirectorThinking, setIsDirectorThinking] = useState<boolean>(false);
+
+  const applyOneClickTheme = (themeId: string) => {
+    triggerBeepChime();
+    let themeName = "";
+    let themeSub = "";
+    
+    if (themeId === "cosmic") {
+      themeName = "Cosmic Odyssey Theme";
+      themeSub = "Deep space ambient soundtrack, retro typewriter captions, slow ken-burns zoom, & cinematic filters applied.";
+      
+      setMasterVideoFilter("noir");
+      setVisualizerStyle("pulse");
+      setSubtitleStyle("minimal");
+      setSubtitleFont("jetbrains-mono");
+      setSubtitleTextColor("#60a5fa"); // Light blue
+      setSubtitleBgColor("#090d16");
+      setSubtitleBgOpacity(0.8);
+      
+      setAudioTrackMode("synth");
+      setSoundtrack("retro-chimes");
+      
+      const updatedSlides = slides.map((slide, idx) => ({
+        ...slide,
+        textAnimation: "typewriter" as const,
+        filter: "noir" as const,
+        scaleStart: 1.0,
+        scaleEnd: 1.15,
+        transitionEffect: idx === 0 ? "None" : "cross-zoom",
+        sfx: "celestial-chime"
+      }));
+      setSlides(updatedSlides);
+    } 
+    else if (themeId === "cyberpunk") {
+      themeName = "Neo-Cyberpunk Neon Theme";
+      themeSub = "Fast neon cyberpunk lead synthesizer, VHS distortion filters, glitch transitions, and cyber subtitle colors.";
+      
+      setMasterVideoFilter("cyberpunk");
+      setVisualizerStyle("bars");
+      setSubtitleStyle("neon");
+      setSubtitleFont("space-grotesk");
+      setSubtitleTextColor("#f43f5e"); // Neon Rose
+      setSubtitleBgColor("#000000");
+      setSubtitleBgOpacity(0.9);
+      
+      setAudioTrackMode("synth");
+      setSoundtrack("cyberpunk-lead");
+      
+      const updatedSlides = slides.map((slide, idx) => ({
+        ...slide,
+        textAnimation: "slide-up" as const,
+        filter: "cyberpunk" as const,
+        scaleStart: 1.15,
+        scaleEnd: 1.0,
+        transitionEffect: idx === 0 ? "None" : "glitch-wave",
+        sfx: "laser-sweep"
+      }));
+      setSlides(updatedSlides);
+    }
+    else if (themeId === "retro") {
+      themeName = "Retro VHS Nostalgia Theme";
+      themeSub = "Retro lo-fi synthesizer, vintage warm filters, and fade transitions.";
+      
+      setMasterVideoFilter("vintage");
+      setVisualizerStyle("wave");
+      setSubtitleStyle("classical");
+      setSubtitleFont("serif");
+      setSubtitleTextColor("#fef08a"); // Vintage yellow
+      setSubtitleBgColor("#1c1917");
+      setSubtitleBgOpacity(0.75);
+      
+      setAudioTrackMode("synth");
+      setSoundtrack("lofi-nostalgia");
+      
+      const updatedSlides = slides.map((slide, idx) => ({
+        ...slide,
+        textAnimation: "pop" as const,
+        filter: "vhs" as const,
+        scaleStart: 1.02,
+        scaleEnd: 1.08,
+        transitionEffect: idx === 0 ? "None" : "blur-fade",
+        sfx: "arcade-rise"
+      }));
+      setSlides(updatedSlides);
+    }
+    else if (themeId === "pastel") {
+      themeName = "Dreamy Pastel Fantasy Theme";
+      themeSub = "Celestial chimes, high contrast soft filters, and smooth cross fades.";
+      
+      setMasterVideoFilter("cool");
+      setVisualizerStyle("wave");
+      setSubtitleStyle("netflix");
+      setSubtitleFont("space-grotesk");
+      setSubtitleTextColor("#e0f2fe"); // Soft ice blue
+      setSubtitleBgColor("#1e1b4b");
+      setSubtitleBgOpacity(0.7);
+      
+      setAudioTrackMode("synth");
+      setSoundtrack("celestial-lead");
+      
+      const updatedSlides = slides.map((slide, idx) => ({
+        ...slide,
+        textAnimation: "fade" as const,
+        filter: "retro" as const,
+        scaleStart: 1.0,
+        scaleEnd: 1.08,
+        transitionEffect: idx === 0 ? "None" : "fade",
+        sfx: "celestial-chime"
+      }));
+      setSlides(updatedSlides);
+    }
+    
+    setToastMessage({
+      text: `🎬 ${themeName} Applied!`,
+      sub: themeSub,
+      success: true
+    });
+  };
+
+  const handleAskDirector = () => {
+    if (!aiDirectorInput.trim()) return;
+    const userQuery = aiDirectorInput.trim();
+    setAiDirectorChatHistory(prev => [...prev, { sender: "user", message: userQuery }]);
+    setAiDirectorInput("");
+    setIsDirectorThinking(true);
+    triggerBeepChime();
+    
+    setTimeout(() => {
+      setIsDirectorThinking(false);
+      let response = "";
+      const lower = userQuery.toLowerCase();
+      
+      if (lower.includes("fast") || lower.includes("speed") || lower.includes("action") || lower.includes("energy")) {
+        setVideoPlaybackSpeed(1.2);
+        setTransitionDuration(0.3);
+        setTransitionStyle("flash");
+        setMasterVideoFilter("high-contrast");
+        setVisualizerStyle("bars");
+        setAudioTrackMode("synth");
+        setSoundtrack("cyberpunk-lead");
+        
+        const updated = slides.map(s => ({
+          ...s,
+          duration: Math.max(1.5, s.duration - 0.5),
+          textAnimation: "pop" as const,
+          filter: "high-contrast" as const,
+          scaleStart: 1.1,
+          scaleEnd: 1.0,
+          transitionEffect: "flash"
+        }));
+        setSlides(updated);
+        
+        response = "⚡ Speed-optimized setup activated! Applied snappy 0.3s Light Flash transitions, active zoom pacing, high-contrast action filters, and dynamic cyberpunk loops.";
+      } 
+      else if (lower.includes("slow") || lower.includes("calm") || lower.includes("peaceful") || lower.includes("relax")) {
+        setVideoPlaybackSpeed(0.85);
+        setTransitionDuration(1.2);
+        setTransitionStyle("fade");
+        setMasterVideoFilter("cool");
+        setVisualizerStyle("wave");
+        setAudioTrackMode("synth");
+        setSoundtrack("celestial-lead");
+        
+        const updated = slides.map(s => ({
+          ...s,
+          duration: Math.min(6, s.duration + 1),
+          textAnimation: "fade" as const,
+          filter: "retro" as const,
+          scaleStart: 1.0,
+          scaleEnd: 1.06,
+          transitionEffect: "fade"
+        }));
+        setSlides(updated);
+        
+        response = "🌸 Chill tempo activated. Set smooth 1.2s Cross Fades, warm retro filters, prolonged slide durations, and peaceful ambient chimes.";
+      }
+      else if (lower.includes("retro") || lower.includes("vintage") || lower.includes("classic") || lower.includes("old") || lower.includes("vhs")) {
+        setMasterVideoFilter("vintage");
+        setVisualizerStyle("wave");
+        setAudioTrackMode("synth");
+        setSoundtrack("lofi-nostalgia");
+        
+        const updated = slides.map(s => ({
+          ...s,
+          textAnimation: "typewriter" as const,
+          filter: "vhs" as const,
+          scaleStart: 1.02,
+          scaleEnd: 1.1,
+          transitionEffect: "blur-fade"
+        }));
+        setSlides(updated);
+        
+        response = "📼 Nostalgia engine online! Configured classic lofi tunes, vintage filters, typewriter captions, and warm blur-fade transitions.";
+      }
+      else if (lower.includes("scary") || lower.includes("dark") || lower.includes("horror") || lower.includes("mystery")) {
+        setMasterVideoFilter("noir");
+        setVisualizerStyle("pulse");
+        setAudioTrackMode("synth");
+        setSoundtrack("retro-chimes");
+        
+        const updated = slides.map(s => ({
+          ...s,
+          textAnimation: "typewriter" as const,
+          filter: "noir" as const,
+          scaleStart: 1.15,
+          scaleEnd: 1.0,
+          transitionEffect: "none"
+        }));
+        setSlides(updated);
+        
+        response = "🩸 Mystery aesthetic applied. Set high-contrast noir filter settings, eerie chimes, sudden cuts, and typewriter effects.";
+      }
+      else {
+        setTransitionStyle("cross-zoom");
+        setMasterVideoFilter("none");
+        setVisualizerStyle("wave");
+        
+        const updated = slides.map(s => ({
+          ...s,
+          scaleStart: 1.0,
+          scaleEnd: 1.1,
+          transitionEffect: "cross-zoom"
+        }));
+        setSlides(updated);
+        
+        response = "🎬 Balanced creative style initialized! Smooth ken-burns camera movements, cross-zoom transitions, and clean subtitles are ready.";
+      }
+      
+      setAiDirectorChatHistory(prev => [...prev, { sender: "director", message: response }]);
+      setToastMessage({
+        text: "🎬 AI Director Style Applied",
+        sub: "All timeline settings and tracks updated.",
+        success: true
+      });
+      triggerBeepChime();
+    }, 1500);
   };
 
   // Final video rendering preview states
@@ -1868,8 +2322,101 @@ export default function ImageToVideo({
   const playbackIntervalRef = useRef<any>(null);
   const imageCacheRef = useRef<Record<string, HTMLImageElement>>({});
   const synthManagerRef = useRef<RoyaltyFreeSynthManager>(new RoyaltyFreeSynthManager());
+  const sidebarVisualizerCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const canvasWidth = 800; // base rendering height matches aspect ratios
   const totalDuration = slides.reduce((acc, curr) => acc + curr.duration, 0);
+
+  // Real-time Sidebar Audio spectrum visualizer loop
+  useEffect(() => {
+    let animationFrameId: number;
+    const canvas = sidebarVisualizerCanvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const render = () => {
+      animationFrameId = requestAnimationFrame(render);
+      
+      const width = canvas.width;
+      const height = canvas.height;
+      ctx.clearRect(0, 0, width, height);
+
+      const manager = synthManagerRef.current;
+      const analyser = manager ? manager.getAnalyser() : null;
+
+      if (!analyser || (!isPlaying && !previewingTrack)) {
+        // Draw idle silent line with subtle pulse waves
+        ctx.strokeStyle = "rgba(79, 70, 229, 0.4)";
+        ctx.lineWidth = 1.5;
+        ctx.beginPath();
+        ctx.moveTo(0, height / 2);
+        
+        const barCount = 48;
+        const barWidth = width / barCount;
+        for (let i = 0; i < barCount; i++) {
+          const x = i * barWidth;
+          const y = (height / 2) + Math.sin(Date.now() / 350 + i * 0.3) * 1.5;
+          if (i === 0) ctx.moveTo(x, y);
+          else ctx.lineTo(x, y);
+        }
+        ctx.stroke();
+
+        // Draw idle spectrum bar outlines
+        ctx.fillStyle = "rgba(99, 102, 241, 0.08)";
+        for (let i = 0; i < barCount; i++) {
+          const barHeight = 3 + Math.sin(Date.now() / 250 + i * 0.45) * 2;
+          ctx.fillRect(i * barWidth, height - barHeight, barWidth - 1.5, barHeight);
+        }
+        return;
+      }
+
+      const bufferLength = analyser.frequencyBinCount;
+      const dataArray = new Uint8Array(bufferLength);
+      analyser.getByteFrequencyData(dataArray);
+
+      const barCount = 42;
+      const barWidth = width / barCount;
+      
+      // Clear with dark tech background
+      ctx.fillStyle = "rgba(6, 9, 18, 0.9)";
+      ctx.fillRect(0, 0, width, height);
+
+      // Gradient for bars
+      const grad = ctx.createLinearGradient(0, height, 0, 0);
+      grad.addColorStop(0, "#6366f1"); // indigo-500
+      grad.addColorStop(0.5, "#a855f7"); // purple-500
+      grad.addColorStop(1, "#f43f5e"); // rose-500
+
+      ctx.fillStyle = grad;
+
+      for (let i = 0; i < barCount; i++) {
+        const percentIdx = i / barCount;
+        // Focus primarily on frequencies up to ~80%
+        const dataIdx = Math.floor(percentIdx * bufferLength * 0.7);
+        const val = dataArray[dataIdx] || 0;
+        
+        const valPercent = val / 255;
+        const barHeight = Math.max(2, valPercent * height * 0.92);
+
+        const x = i * barWidth;
+        const y = height - barHeight;
+        
+        ctx.fillRect(x, y, barWidth - 1.5, barHeight);
+
+        // Subtle glowing dot on top of each bar
+        ctx.fillStyle = "rgba(255, 255, 255, 0.6)";
+        ctx.fillRect(x, y, barWidth - 1.5, 1);
+        ctx.fillStyle = grad;
+      }
+    };
+
+    render();
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+    };
+  }, [isPlaying, previewingTrack]);
   
   // Save slides to localStorage
   useEffect(() => {
@@ -2640,13 +3187,28 @@ export default function ImageToVideo({
     slides.forEach((slide) => {
       const img = imageCacheRef.current[slide.id];
       if (img instanceof HTMLVideoElement) {
+        const clipStart = slide.clipStart !== undefined ? slide.clipStart : 0;
+        const clipEnd = slide.clipEnd !== undefined ? slide.clipEnd : (isFinite(img.duration) ? img.duration : slide.duration);
+        const clipDur = Math.max(0.1, clipEnd - clipStart);
+
         if (isPlaying) {
           const isCurrent = currentTime >= cumulativeTime && currentTime < cumulativeTime + slide.duration;
           if (isCurrent) {
             const relativeTime = currentTime - cumulativeTime;
+            const progress = relativeTime / slide.duration;
+            const targetVideoTime = clipStart + progress * clipDur;
+
+            // Speed matching: scale playback rate so trimmed clip fits slide duration
+            const requiredSpeed = clipDur / slide.duration;
+            try {
+              img.playbackRate = requiredSpeed * videoPlaybackSpeed;
+            } catch (e) {
+              // Fail-safe
+            }
+
             // Seek if there is a drift
-            if (Math.abs(img.currentTime - relativeTime) > 0.15) {
-              img.currentTime = relativeTime;
+            if (Math.abs(img.currentTime - targetVideoTime) > 0.15) {
+              img.currentTime = targetVideoTime;
             }
             img.muted = isMuted;
             img.volume = Math.min(1.0, Math.max(0, effectiveOriginalVideoVolume));
@@ -2661,14 +3223,16 @@ export default function ImageToVideo({
           const relativeTime = currentTime >= cumulativeTime && currentTime < cumulativeTime + slide.duration
             ? currentTime - cumulativeTime
             : 0;
-          if (Math.abs(img.currentTime - relativeTime) > 0.15) {
-            img.currentTime = relativeTime;
+          const progress = relativeTime / slide.duration;
+          const targetVideoTime = clipStart + progress * clipDur;
+          if (Math.abs(img.currentTime - targetVideoTime) > 0.15) {
+            img.currentTime = targetVideoTime;
           }
         }
       }
       cumulativeTime += slide.duration;
     });
-  }, [isPlaying, currentTime, isMuted, slides, effectiveOriginalVideoVolume]);
+  }, [isPlaying, currentTime, isMuted, slides, effectiveOriginalVideoVolume, videoPlaybackSpeed]);
 
   // Stop sound on unmount
   useEffect(() => {
@@ -3935,8 +4499,22 @@ export default function ImageToVideo({
     };
 
     try {
-      if (aiGenerationMethod === "video" && aiSceneImageSource === "gemini") {
-        appendLog(`[1/6] Enhancing prompt with Gemini 3.5 Flash for exquisite detail...`, 15);
+      if (aiGenerationMethod === "video" && (aiSceneImageSource === "gemini" || aiSceneImageSource === "image-to-video")) {
+        let seedImageBase64: string | null = null;
+        if (aiSceneImageSource === "image-to-video") {
+          appendLog(`[1/6] Preparing and encoding seed image from ${i2vSourceType === "upload" ? "file upload" : "timeline slide"}...`, 12);
+          try {
+            seedImageBase64 = await getI2VBase64Image();
+            if (!seedImageBase64) {
+              throw new Error("Could not process the selected seed image. Please upload a valid image file or select an active timeline slide.");
+            }
+            appendLog(`[1/6] Seed image encoded successfully (${Math.round(seedImageBase64.length / 1024)} KB).`, 15);
+          } catch (e: any) {
+            throw new Error(`Image-to-Video setup failed: ${e.message || e}`);
+          }
+        } else {
+          appendLog(`[1/6] Enhancing prompt with Gemini 3.5 Flash for exquisite detail...`, 15);
+        }
         
         // Call the video generation endpoint
         const startRes = await fetch("/api/video/generate", {
@@ -3947,10 +4525,11 @@ export default function ImageToVideo({
             modelChoice: aiModelEngine,
             aspectRatio: aspectRatio === "9:16" ? "9:16" : aspectRatio === "1:1" ? "1:1" : "16:9",
             resolution: "720p",
-            enhancePrompt: true,
+            enhancePrompt: aiSceneImageSource === "gemini",
             videoQuality: videoQuality,
             videoRealismStyle: videoRealismStyle,
-            loopVideo: loopVideo
+            loopVideo: loopVideo,
+            image: seedImageBase64 || undefined
           })
         });
 
@@ -4683,6 +5262,17 @@ export default function ImageToVideo({
         ctx.textAlign = "center";
         ctx.fillText("Loading slide...", width / 2, height / 2);
         return;
+      }
+
+      if (img && img instanceof HTMLVideoElement) {
+        const vidEl = img as HTMLVideoElement;
+        const clipStart = targetSlide.clipStart !== undefined ? targetSlide.clipStart : 0;
+        const clipEnd = targetSlide.clipEnd !== undefined ? targetSlide.clipEnd : (isFinite(vidEl.duration) ? vidEl.duration : targetSlide.duration);
+        const clipDur = Math.max(0.1, clipEnd - clipStart);
+        const targetVideoTime = clipStart + localProgress * clipDur;
+        if (Math.abs(vidEl.currentTime - targetVideoTime) > 0.03) {
+          vidEl.currentTime = targetVideoTime;
+        }
       }
 
       ctx.save();
@@ -6640,8 +7230,20 @@ export default function ImageToVideo({
           const scaleEnd = slide.scaleEnd ?? 1.15;
           const scale = scaleStart + (scaleEnd - scaleStart) * progress;
 
-          const iw = img.width;
-          const ih = img.height;
+          const isVid = img instanceof HTMLVideoElement;
+          if (isVid) {
+            const vidEl = img as HTMLVideoElement;
+            const clipStart = slide.clipStart !== undefined ? slide.clipStart : 0;
+            const clipEnd = slide.clipEnd !== undefined ? slide.clipEnd : (isFinite(vidEl.duration) ? vidEl.duration : slide.duration);
+            const clipDur = Math.max(0.1, clipEnd - clipStart);
+            const targetVideoTime = clipStart + progress * clipDur;
+            if (Math.abs(vidEl.currentTime - targetVideoTime) > 0.03) {
+              vidEl.currentTime = targetVideoTime;
+            }
+          }
+
+          const iw = isVid ? (img as HTMLVideoElement).videoWidth || 640 : img.width || 640;
+          const ih = isVid ? (img as HTMLVideoElement).videoHeight || 360 : img.height || 360;
           const r = Math.min(exportWidth / iw, exportHeight / ih);
           const nw = iw * r * scale;
           const nh = ih * r * scale;
@@ -9997,7 +10599,7 @@ export default function ImageToVideo({
                     <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
                       🎨 Scene Base Canvas Source:
                     </span>
-                    <div className="grid grid-cols-2 gap-2 bg-slate-100 dark:bg-slate-900/60 p-1 rounded-xl border border-slate-250/20 dark:border-slate-800">
+                    <div className="grid grid-cols-3 gap-2 bg-slate-100 dark:bg-slate-900/60 p-1 rounded-xl border border-slate-250/20 dark:border-slate-800">
                       <button
                         type="button"
                         disabled={isGeneratingScene}
@@ -10008,11 +10610,11 @@ export default function ImageToVideo({
                         className={`py-1.5 px-1 rounded-lg transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer text-[9px] font-black uppercase tracking-wider ${
                           aiSceneImageSource === "gemini"
                             ? "bg-white dark:bg-slate-950 text-indigo-600 dark:text-indigo-400 shadow-3xs border border-slate-200/10"
-                            : "text-slate-500 dark:text-slate-400 hover:text-slate-850 dark:hover:text-slate-250"
+                            : "text-slate-555 dark:text-slate-400 hover:text-slate-850 dark:hover:text-slate-250"
                         }`}
                       >
                         <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
-                        <span>🌌 Gemini AI Model</span>
+                        <span>🌌 Gemini AI</span>
                       </button>
                       <button
                         type="button"
@@ -10024,19 +10626,179 @@ export default function ImageToVideo({
                         className={`py-1.5 px-1 rounded-lg transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer text-[9px] font-black uppercase tracking-wider ${
                           aiSceneImageSource === "unsplash"
                             ? "bg-white dark:bg-slate-950 text-indigo-650 dark:text-indigo-400 shadow-3xs border border-slate-200/10"
-                            : "text-slate-500 dark:text-slate-400 hover:text-slate-850 dark:hover:text-slate-250"
+                            : "text-slate-555 dark:text-slate-400 hover:text-slate-850 dark:hover:text-slate-250"
                         }`}
                       >
                         <Video className="w-3.5 h-3.5 text-emerald-500" />
-                        <span>📸 Stock Photo (Fast)</span>
+                        <span>📸 Stock</span>
+                      </button>
+                      <button
+                        type="button"
+                        disabled={isGeneratingScene}
+                        onClick={() => {
+                          setAiSceneImageSource("image-to-video");
+                          triggerBeepChime();
+                        }}
+                        className={`py-1.5 px-1 rounded-lg transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer text-[9px] font-black uppercase tracking-wider ${
+                          aiSceneImageSource === "image-to-video"
+                            ? "bg-white dark:bg-slate-950 text-indigo-650 dark:text-indigo-400 shadow-3xs border border-slate-200/10"
+                            : "text-slate-555 dark:text-slate-400 hover:text-slate-850 dark:hover:text-slate-250"
+                        }`}
+                      >
+                        <ImageIcon className="w-3.5 h-3.5 text-pink-500" />
+                        <span>🖼️ Img2Vid</span>
                       </button>
                     </div>
                     <p className="text-[8px] text-slate-450 dark:text-slate-500 font-bold leading-normal italic pl-1">
                       {aiSceneImageSource === "gemini" 
-                        ? "🌌 Text-To-Video: Gemini Imagen 3 generates a fully custom, unique high-fidelity 16:9 widescreen canvas." 
-                        : "📸 Speed Mode: Auto-retrieves beautifully-curated photography assets directly from Unsplash."}
+                        ? "🌌 Text-To-Video: Gemini Imagen 3 generates a fully custom, unique high-fidelity widescreen canvas." 
+                        : aiSceneImageSource === "unsplash"
+                        ? "📸 Speed Mode: Auto-retrieves beautifully-curated photography assets directly from Unsplash."
+                        : "🖼️ Image-To-Video Mode: Feed an existing picture or portrait to Google Veo as a high-fidelity starting seed frame."}
                     </p>
                   </div>
+
+                  {/* Image-to-Video Details Option Panel */}
+                  {aiSceneImageSource === "image-to-video" && (
+                    <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-200 dark:border-slate-850/70 space-y-3 animate-fade-in">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
+                        🖼️ Image-to-Video Source:
+                      </span>
+                      <div className="grid grid-cols-2 gap-2 bg-slate-100 dark:bg-slate-900/60 p-1 rounded-xl border border-slate-250/20 dark:border-slate-800">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setI2vSourceType("upload");
+                            triggerBeepChime();
+                          }}
+                          className={`py-1 px-1 rounded-lg transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer text-[9px] font-black uppercase tracking-wider ${
+                            i2vSourceType === "upload"
+                              ? "bg-white dark:bg-slate-950 text-indigo-600 dark:text-indigo-400 shadow-3xs border border-slate-200/10"
+                              : "text-slate-500 dark:text-slate-400 hover:text-slate-850 dark:hover:text-slate-250"
+                          }`}
+                        >
+                          <Upload className="w-3 h-3" />
+                          <span>File Upload</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setI2vSourceType("timeline");
+                            triggerBeepChime();
+                            if (slides.length > 0 && !i2vSelectedSlideId) {
+                              setI2vSelectedSlideId(slides[0].id);
+                            }
+                          }}
+                          className={`py-1 px-1 rounded-lg transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer text-[9px] font-black uppercase tracking-wider ${
+                            i2vSourceType === "timeline"
+                              ? "bg-white dark:bg-slate-950 text-indigo-600 dark:text-indigo-400 shadow-3xs border border-slate-200/10"
+                              : "text-slate-500 dark:text-slate-400 hover:text-slate-850 dark:hover:text-slate-250"
+                          }`}
+                        >
+                          <Layers className="w-3 h-3" />
+                          <span>Timeline Slide</span>
+                        </button>
+                      </div>
+
+                      {i2vSourceType === "upload" && (
+                        <div className="space-y-2">
+                          <label className="w-full flex flex-col items-center justify-center p-3 border-2 border-dashed border-slate-250 dark:border-slate-800 hover:border-indigo-500/50 dark:hover:border-indigo-500/50 rounded-xl cursor-pointer transition-all bg-white/40 dark:bg-slate-900/20">
+                            <Upload className="w-5 h-5 text-indigo-400 mb-1" />
+                            <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 text-center">
+                              {i2vUploadedName || "Click or Drag to Upload Image"}
+                            </span>
+                            <span className="text-[8px] text-slate-400 mt-0.5">JPG, PNG up to 10MB</span>
+                            <input
+                              type="file"
+                              accept="image/*"
+                              className="hidden"
+                              onChange={(e) => {
+                                const file = e.target.files?.[0];
+                                if (file) {
+                                  const reader = new FileReader();
+                                  reader.onload = () => {
+                                    setI2vUploadedImage(reader.result as string);
+                                    setI2vUploadedName(file.name);
+                                    setToastMessage({
+                                      text: "🖼️ Seed Image Uploaded!",
+                                      sub: `Loaded ${file.name} successfully. Ready for Image-to-Video translation.`,
+                                      success: true
+                                    });
+                                    triggerBeepChime();
+                                  };
+                                  reader.readAsDataURL(file);
+                                }
+                              }}
+                            />
+                          </label>
+
+                          {i2vUploadedImage && (
+                            <div className="flex items-center gap-3 p-2 bg-indigo-50/20 dark:bg-indigo-950/10 border border-indigo-100/40 dark:border-indigo-900/30 rounded-xl relative overflow-hidden">
+                              <img
+                                src={i2vUploadedImage}
+                                alt="Seed upload preview"
+                                className="w-12 h-12 rounded-lg object-cover border border-slate-200 dark:border-slate-800 shrink-0"
+                              />
+                              <div className="overflow-hidden">
+                                <div className="text-[9.5px] font-black text-slate-700 dark:text-slate-300 truncate">
+                                  {i2vUploadedName || "Uploaded Image"}
+                                </div>
+                                <div className="text-[8px] text-indigo-500 font-extrabold uppercase tracking-wider">
+                                  Seed Image Loaded
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {i2vSourceType === "timeline" && (
+                        <div className="space-y-2">
+                          {slides.length === 0 ? (
+                            <div className="p-3 bg-rose-500/5 border border-dashed border-rose-500/25 text-rose-400 text-[9px] rounded-xl font-bold text-center">
+                              ⚠️ Your video timeline is empty. Add slides or photos to the timeline first to utilize them as animate triggers!
+                            </div>
+                          ) : (
+                            <div className="space-y-2">
+                              <select
+                                value={i2vSelectedSlideId || ""}
+                                onChange={(e) => {
+                                  setI2vSelectedSlideId(e.target.value);
+                                  triggerBeepChime();
+                                }}
+                                className="w-full px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 rounded-xl outline-none cursor-pointer"
+                              >
+                                {slides.map((slide, idx) => (
+                                  <option key={slide.id} value={slide.id}>
+                                    Slide {idx + 1}: {slide.name || "Untitled Frame"} ({slide.duration}s)
+                                  </option>
+                                ))}
+                              </select>
+
+                              {slides.find(s => s.id === i2vSelectedSlideId) && (
+                                <div className="flex items-center gap-3 p-2 bg-indigo-50/20 dark:bg-indigo-950/10 border border-indigo-100/40 dark:border-indigo-900/30 rounded-xl">
+                                  <img
+                                    src={slides.find(s => s.id === i2vSelectedSlideId)?.url || ""}
+                                    alt="Selected timeline frame preview"
+                                    className="w-12 h-12 rounded-lg object-cover border border-slate-200 dark:border-slate-800 shrink-0"
+                                    referrerPolicy="no-referrer"
+                                  />
+                                  <div className="overflow-hidden">
+                                    <div className="text-[9.5px] font-black text-slate-700 dark:text-slate-300 truncate">
+                                      {slides.find(s => s.id === i2vSelectedSlideId)?.name || "Timeline Image"}
+                                    </div>
+                                    <div className="text-[8px] text-emerald-500 font-extrabold uppercase tracking-wider">
+                                      Animate Target Seed Slide
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {/* AI Generation Mode Selector */}
                   {aiSceneImageSource === "gemini" && (
@@ -11074,17 +11836,14 @@ export default function ImageToVideo({
                                 type="button"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  // Highlight slide's transition style options or switch
-                                  setSelectedSlideId(slide.id);
-                                  const selectEl = document.getElementById("transition-style-dropdown");
-                                  if (selectEl) {
-                                    selectEl.focus();
-                                    selectEl.classList.add("ring-4", "ring-indigo-500/40");
-                                    setTimeout(() => selectEl.classList.remove("ring-4", "ring-indigo-500/40"), 1500);
+                                  const nextSlide = slides[index + 1];
+                                  if (nextSlide) {
+                                    setEditingTransitionSlideId(nextSlide.id);
+                                    triggerBeepChime();
                                   }
                                 }}
-                                className="w-4 h-4 rounded-full bg-amber-500 text-slate-950 hover:scale-125 hover:bg-amber-400 cursor-pointer flex items-center justify-center text-[8px] font-black transition-transform select-none shadow shadow-amber-500/20"
-                                title={`Transition: ${transitionStyle} (${transitionDuration}s) - Click to configure`}
+                                className="w-4 h-4 rounded-full bg-amber-500 text-slate-950 hover:scale-125 hover:bg-amber-400 cursor-pointer flex items-center justify-center text-[8px] font-black transition-transform select-none shadow shadow-amber-500/20 animate-pulse"
+                                title={`Transition between Slide #${index + 1} and Slide #${index + 2} - Click to configure`}
                               >
                                 ⚡
                               </button>
@@ -11672,6 +12431,127 @@ export default function ImageToVideo({
                         <span>Apply & Close Studio Designer</span>
                       </button>
                     </div>
+                  </motion.div>
+                </div>
+              );
+            })()}
+          </AnimatePresence>
+
+          {/* Inline Sleek Slide Transition Picker Dialog */}
+          <AnimatePresence>
+            {editingTransitionSlideId && (() => {
+              const editingSlide = slides.find(s => s.id === editingTransitionSlideId);
+              if (!editingSlide) return null;
+              const idx = slides.findIndex(s => s.id === editingTransitionSlideId);
+
+              return (
+                <div className="fixed inset-0 bg-slate-950/85 z-50 flex items-center justify-center p-4 backdrop-blur-xs select-none">
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.95, y: 15 }}
+                    animate={{ opacity: 1, scale: 1, y: 0 }}
+                    exit={{ opacity: 0, scale: 0.95, y: 15 }}
+                    className="bg-slate-900 border border-slate-800 rounded-3xl p-6 w-full max-w-lg text-left space-y-4 shadow-2xl relative"
+                  >
+                    {/* Header */}
+                    <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                      <div>
+                        <span className="text-[10px] font-black uppercase text-amber-500 tracking-wider">
+                          CapCut Transition Studio
+                        </span>
+                        <h4 className="text-xs font-black text-slate-100 uppercase tracking-wide mt-0.5">
+                          Configure Transition for Slide #{idx + 1}
+                        </h4>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEditingTransitionSlideId(null)}
+                        className="text-slate-400 hover:text-slate-205 text-xs font-bold cursor-pointer bg-slate-800 hover:bg-slate-700 w-6 h-6 rounded-full flex items-center justify-center transition-all"
+                      >
+                        ✕
+                      </button>
+                    </div>
+
+                    <p className="text-[10px] text-slate-400 font-medium leading-relaxed">
+                      Select a custom cinematic transition style to apply when blending into this slide frame. Setting it to "Inherit" will fallback to your global project transition.
+                    </p>
+
+                    {/* Transition Types Grid */}
+                    <div className="grid grid-cols-3 gap-2.5 max-h-[250px] overflow-y-auto pr-1 scrollbar-thin">
+                      {[
+                        { id: "Inherit", label: "Inherit Global", desc: "Uses global preset", icon: RotateCcw },
+                        { id: "Fade", label: "Fade", desc: "Cross dissolve", icon: Film },
+                        { id: "Zoom", label: "Zoom", desc: "Camera zoom", icon: Maximize2 },
+                        { id: "Slide", label: "Slide Left", desc: "Push-slide left", icon: ChevronLeft },
+                        { id: "Slide-Right", label: "Slide Right", desc: "Push-slide right", icon: ChevronRight },
+                        { id: "Cross-dissolve", label: "Cross Dissolve", desc: "Dreamy soft blend", icon: Sparkles },
+                        { id: "Blur", label: "Blur Fade", desc: "Dreamy soft blur", icon: Tv },
+                        { id: "Flash", label: "Flash Light", desc: "White light burst", icon: Zap },
+                        { id: "Wipe", label: "Curtain Wipe", desc: "Split curtain reveal", icon: Move },
+                        { id: "Glitch", label: "Glitch Wave", desc: "Digital wave effect", icon: Flame },
+                        { id: "Spiral", label: "Spiral Spin", desc: "Vortex twist", icon: RotateCcw },
+                        { id: "Pixelate", label: "Pixelate", desc: "Retro retro reveal", icon: Grid },
+                        { id: "Radial", label: "Radial Wipe", desc: "Circle wipe reveal", icon: Check },
+                        { id: "None", label: "Direct Cut", desc: "No transition transition", icon: Scissors },
+                      ].map((item) => {
+                        const activeEffect = editingSlide.transitionEffect || "Inherit";
+                        const isActive = activeEffect.toLowerCase() === item.id.toLowerCase();
+                        const IconComp = item.icon || Film;
+                        return (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => {
+                              updateSlideProp(editingSlide.id, "transitionEffect", item.id);
+                              triggerBeepChime();
+                              setToastMessage({
+                                text: `🎬 Slide Transition: ${item.label.toUpperCase()}`,
+                                sub: `Slide #${idx + 1} will now enter using ${item.desc}.`,
+                                success: true
+                              });
+                            }}
+                            className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer select-none flex flex-col justify-between gap-2 h-[75px] group relative ${
+                              isActive
+                                ? "bg-amber-500 border-amber-500 text-slate-950 shadow-md shadow-amber-500/10 font-bold"
+                                : "bg-slate-950 border-slate-800 hover:border-slate-700 text-slate-300 hover:text-white"
+                            }`}
+                          >
+                            <div className="flex items-center justify-between w-full">
+                              <span className={`p-1 rounded-md border ${
+                                isActive 
+                                  ? "bg-slate-950/20 border-slate-950/30 text-slate-950" 
+                                  : "bg-slate-900 border-slate-800 text-slate-400 group-hover:text-amber-400"
+                              }`}>
+                                <IconComp className="w-3.5 h-3.5" />
+                              </span>
+                              {isActive && (
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-950 animate-pulse" />
+                              )}
+                            </div>
+                            <div>
+                              <div className="text-[10px] font-black leading-none truncate">{item.label}</div>
+                              <div className={`text-[8.5px] leading-tight truncate mt-0.5 ${
+                                isActive ? "text-slate-950/75" : "text-slate-500"
+                              }`}>{item.desc}</div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Bottom controls */}
+                    <div className="flex items-center justify-between pt-3 border-t border-slate-800">
+                      <div className="text-[9px] text-slate-455 font-bold italic">
+                        Applied specifically to this slide enter boundary
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setEditingTransitionSlideId(null)}
+                        className="py-1.5 px-4 bg-indigo-650 hover:bg-indigo-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest cursor-pointer transition-all"
+                      >
+                        Done Setting
+                      </button>
+                    </div>
+
                   </motion.div>
                 </div>
               );
@@ -12449,6 +13329,134 @@ export default function ImageToVideo({
                   </button>
                 </div>
               </div>
+
+              {/* Video Timeline Trimming (Start & End Time) */}
+              {selectedSlide.isVideo && (
+                <div className="border-t border-slate-150 dark:border-slate-800/80 pt-3.5 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider flex items-center gap-1.5">
+                      <Scissors className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+                      <span>Video Trim & Timeline Window</span>
+                    </label>
+                    <span className="text-[10px] font-black bg-amber-500/10 text-amber-600 px-2 py-0.5 rounded-full font-mono uppercase tracking-wider">
+                      Trimmed: {(((selectedSlide.clipEnd !== undefined ? selectedSlide.clipEnd : selectedSlide.duration) - (selectedSlide.clipStart !== undefined ? selectedSlide.clipStart : 0))).toFixed(1)}s
+                    </span>
+                  </div>
+                  
+                  <div className="bg-slate-50 dark:bg-slate-900/50 border border-slate-150 dark:border-slate-850 p-4 rounded-2xl space-y-4">
+                    {/* Visual Timeline Bar */}
+                    <div className="space-y-1.5">
+                      <span className="block text-[9.5px] font-black uppercase tracking-wider text-slate-400">
+                        Visual Trim Selector:
+                      </span>
+                      <div className="relative h-6 bg-slate-200 dark:bg-slate-850 rounded-lg overflow-hidden border border-slate-300/40 dark:border-slate-800">
+                        {/* Trim area background indicator */}
+                        {(() => {
+                          const cachedEl = imageCacheRef.current[selectedSlide.id];
+                          const maxDur = (cachedEl instanceof HTMLVideoElement && isFinite(cachedEl.duration) && cachedEl.duration > 0) ? cachedEl.duration : selectedSlide.duration * 2;
+                          const startPct = ((selectedSlide.clipStart !== undefined ? selectedSlide.clipStart : 0) / maxDur) * 100;
+                          const endPct = ((selectedSlide.clipEnd !== undefined ? selectedSlide.clipEnd : selectedSlide.duration) / maxDur) * 100;
+                          return (
+                            <div 
+                              className="absolute h-full bg-amber-500/20 border-l border-r border-amber-500/80 flex items-center justify-between px-1"
+                              style={{ left: `${startPct}%`, right: `${100 - endPct}%` }}
+                            >
+                              <div className="w-0.5 h-3 bg-amber-500/80 rounded" />
+                              <span className="text-[8.5px] font-mono font-bold text-amber-600 select-none pointer-events-none truncate">
+                                {(((selectedSlide.clipEnd !== undefined ? selectedSlide.clipEnd : selectedSlide.duration) - (selectedSlide.clipStart !== undefined ? selectedSlide.clipStart : 0))).toFixed(1)}s
+                              </span>
+                              <div className="w-0.5 h-3 bg-amber-500/80 rounded" />
+                            </div>
+                          );
+                        })()}
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-3.5">
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-wide flex justify-between">
+                          <span>Clip Start</span>
+                          <span className="font-mono text-amber-500">{(selectedSlide.clipStart !== undefined ? selectedSlide.clipStart : 0).toFixed(1)}s</span>
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="range"
+                            min="0"
+                            max={(() => {
+                              const cachedEl = imageCacheRef.current[selectedSlide.id];
+                              const maxDur = (cachedEl instanceof HTMLVideoElement && isFinite(cachedEl.duration) && cachedEl.duration > 0) ? cachedEl.duration : selectedSlide.duration * 2;
+                              return maxDur;
+                            })()}
+                            step="0.1"
+                            value={selectedSlide.clipStart !== undefined ? selectedSlide.clipStart : 0}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value);
+                              const currentEnd = selectedSlide.clipEnd !== undefined ? selectedSlide.clipEnd : selectedSlide.duration;
+                              if (val < currentEnd) {
+                                updateSlideProp(selectedSlide.id, "clipStart", val);
+                              }
+                            }}
+                            className="w-full accent-amber-500 cursor-pointer h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-1.5">
+                        <label className="text-[10px] font-black text-slate-500 uppercase tracking-wide flex justify-between">
+                          <span>Clip End</span>
+                          <span className="font-mono text-amber-500">{(selectedSlide.clipEnd !== undefined ? selectedSlide.clipEnd : selectedSlide.duration).toFixed(1)}s</span>
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <input
+                            type="range"
+                            min="0.1"
+                            max={(() => {
+                              const cachedEl = imageCacheRef.current[selectedSlide.id];
+                              const maxDur = (cachedEl instanceof HTMLVideoElement && isFinite(cachedEl.duration) && cachedEl.duration > 0) ? cachedEl.duration : selectedSlide.duration * 2;
+                              return maxDur;
+                            })()}
+                            step="0.1"
+                            value={selectedSlide.clipEnd !== undefined ? selectedSlide.clipEnd : selectedSlide.duration}
+                            onChange={(e) => {
+                              const val = parseFloat(e.target.value);
+                              const currentStart = selectedSlide.clipStart !== undefined ? selectedSlide.clipStart : 0;
+                              if (val > currentStart) {
+                                updateSlideProp(selectedSlide.id, "clipEnd", val);
+                              }
+                            }}
+                            className="w-full accent-amber-500 cursor-pointer h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-850 pt-2.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const duration = (selectedSlide.clipEnd !== undefined ? selectedSlide.clipEnd : selectedSlide.duration) - (selectedSlide.clipStart !== undefined ? selectedSlide.clipStart : 0);
+                          if (duration > 0) {
+                            updateSlideProp(selectedSlide.id, "duration", parseFloat(duration.toFixed(1)));
+                            triggerBeepChime();
+                            setToastMessage({
+                              text: "⏱️ Timeline Synced",
+                              sub: `Slide duration updated to ${duration.toFixed(1)}s to match active video trim range.`,
+                              success: true
+                            });
+                          }
+                        }}
+                        className="text-[9px] font-black uppercase tracking-wider text-amber-600 hover:text-amber-500 bg-amber-500/5 hover:bg-amber-500/10 px-2.5 py-1.5 rounded-xl border border-amber-500/10 transition-all flex items-center gap-1 cursor-pointer select-none"
+                      >
+                        <Clock className="w-3 h-3" />
+                        <span>Match Slide Playtime to Trim</span>
+                      </button>
+                      <span className="text-[8.5px] text-slate-400 italic font-medium">
+                        Select start/end bounds
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              )}
 
               {/* Subtitle / Caption overlays */}
               <div className="space-y-2">
@@ -14013,6 +15021,174 @@ export default function ImageToVideo({
             </div>
           )}
 
+          {/* Section: AI Director & One-Click Master Themes */}
+          <div className="border border-indigo-200/60 dark:border-indigo-900/40 p-5 rounded-3xl bg-gradient-to-br from-indigo-50/10 to-transparent dark:from-indigo-950/5 dark:to-transparent space-y-4">
+            <h4 className="text-xs font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 flex items-center gap-2 border-b border-indigo-150 dark:border-indigo-900/30 pb-3">
+              <Sparkles className="w-4 h-4 text-indigo-500 animate-pulse" />
+              <span>AI Director & One-Click Themes</span>
+            </h4>
+
+            <p className="text-[10.5px] text-slate-550 dark:text-slate-400 leading-relaxed font-medium">
+              Let the AI Director instantly style your whole video project using curated themes with hand-picked music, captions, and transitions, or type your custom vision!
+            </p>
+
+            {/* Inner Tabs: Themes vs AI Chat Assistant */}
+            <div className="flex bg-slate-100 dark:bg-slate-950 p-1 rounded-2xl border border-slate-200 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => {
+                  setAiDirectorAssistantTab("recipes");
+                  triggerBeepChime();
+                }}
+                className={`flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer ${
+                  aiDirectorAssistantTab === "recipes"
+                    ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                    : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400"
+                }`}
+              >
+                🎬 One-Click Themes
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setAiDirectorAssistantTab("chat");
+                  triggerBeepChime();
+                }}
+                className={`flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer ${
+                  aiDirectorAssistantTab === "chat"
+                    ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                    : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400"
+                }`}
+              >
+                💬 Ask AI Director
+              </button>
+            </div>
+
+            {aiDirectorAssistantTab === "recipes" ? (
+              /* Themes list */
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => applyOneClickTheme("cosmic")}
+                  className="p-3 bg-white dark:bg-slate-950 hover:bg-slate-50 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-2xl text-left transition-all hover:scale-102 flex flex-col justify-between gap-2 cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg">🌌</span>
+                    <span className="text-[8px] font-black bg-indigo-50 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 px-1.5 py-0.5 rounded uppercase">Ambient</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10.5px] font-black text-slate-800 dark:text-slate-100 group-hover:text-indigo-500 transition-colors">Cosmic Odyssey</span>
+                    <span className="block text-[8.5px] text-slate-400 dark:text-slate-500 leading-tight mt-0.5">Space piano, typewriter, noir filters, zoom.</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyOneClickTheme("cyberpunk")}
+                  className="p-3 bg-white dark:bg-slate-950 hover:bg-slate-50 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-2xl text-left transition-all hover:scale-102 flex flex-col justify-between gap-2 cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg">🌆</span>
+                    <span className="text-[8px] font-black bg-rose-50 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 px-1.5 py-0.5 rounded uppercase">Hyper</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10.5px] font-black text-slate-800 dark:text-slate-100 group-hover:text-rose-500 transition-colors">Neo-Cyberpunk</span>
+                    <span className="block text-[8.5px] text-slate-400 dark:text-slate-500 leading-tight mt-0.5">Heavy synth, glitch effects, neon subtitles.</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyOneClickTheme("retro")}
+                  className="p-3 bg-white dark:bg-slate-950 hover:bg-slate-50 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-2xl text-left transition-all hover:scale-102 flex flex-col justify-between gap-2 cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg">📼</span>
+                    <span className="text-[8px] font-black bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded uppercase">Nostalgic</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10.5px] font-black text-slate-800 dark:text-slate-100 group-hover:text-amber-500 transition-colors">VHS Nostalgia</span>
+                    <span className="block text-[8.5px] text-slate-400 dark:text-slate-500 leading-tight mt-0.5">Warm lofi loops, warm filters, fade chimes.</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyOneClickTheme("pastel")}
+                  className="p-3 bg-white dark:bg-slate-950 hover:bg-slate-50 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-2xl text-left transition-all hover:scale-102 flex flex-col justify-between gap-2 cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg">🍦</span>
+                    <span className="text-[8px] font-black bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 px-1.5 py-0.5 rounded uppercase">Dreamy</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10.5px] font-black text-slate-800 dark:text-slate-100 group-hover:text-emerald-500 transition-colors">Pastel Fantasy</span>
+                    <span className="block text-[8.5px] text-slate-400 dark:text-slate-500 leading-tight mt-0.5">Celestial chimes, soft vintage, cross dissolves.</span>
+                  </div>
+                </button>
+              </div>
+            ) : (
+              /* Chat Assistant */
+              <div className="space-y-3">
+                <div className="max-h-[160px] overflow-y-auto space-y-2 bg-slate-100 dark:bg-slate-950 p-3 rounded-2xl border border-slate-200 dark:border-slate-900 scrollbar-none text-left">
+                  {aiDirectorChatHistory.map((chat, idx) => (
+                    <div
+                      key={idx}
+                      className={`flex flex-col gap-0.5 max-w-[85%] ${
+                        chat.sender === "user" ? "ml-auto text-right items-end" : "mr-auto text-left items-start"
+                      }`}
+                    >
+                      <span className="text-[8.5px] font-black text-slate-400 uppercase tracking-widest leading-none">
+                        {chat.sender === "user" ? "You" : "Director AI"}
+                      </span>
+                      <div
+                        className={`p-2 rounded-2xl text-[10.5px] leading-relaxed font-bold ${
+                          chat.sender === "user"
+                            ? "bg-indigo-600 text-white rounded-tr-none"
+                            : "bg-white dark:bg-slate-900 border border-slate-150 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-tl-none shadow-3xs"
+                        }`}
+                      >
+                        {chat.message}
+                      </div>
+                    </div>
+                  ))}
+                  {isDirectorThinking && (
+                    <div className="flex flex-col gap-0.5 mr-auto text-left items-start animate-pulse">
+                      <span className="text-[8.5px] font-black text-indigo-400 uppercase tracking-widest leading-none">Director AI is styling...</span>
+                      <div className="p-2.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 rounded-2xl rounded-tl-none text-[10px] font-black uppercase tracking-wider flex items-center gap-1.5 shadow-3xs">
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-500" />
+                        <span>Rendering Director Decisions...</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex gap-1.5">
+                  <input
+                    type="text"
+                    value={aiDirectorInput}
+                    onChange={(e) => setAiDirectorInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && aiDirectorInput.trim()) {
+                        handleAskDirector();
+                      }
+                    }}
+                    placeholder="Ask director: e.g. 'Make it a fast action movie!'"
+                    className="flex-1 px-3 py-2 bg-white dark:bg-slate-950 border border-slate-250/55 dark:border-slate-850 rounded-xl text-xs text-slate-850 dark:text-slate-150 outline-none focus:border-indigo-500 transition-all font-semibold"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAskDirector}
+                    disabled={!aiDirectorInput.trim() || isDirectorThinking}
+                    className="px-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-200 dark:disabled:bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer flex items-center justify-center shrink-0 shadow shadow-indigo-500/15"
+                  >
+                    Ask
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {/* Section: Soundtrack & General Studio Presets */}
           <div className="border border-slate-150 dark:border-slate-850 p-5 rounded-3xl bg-slate-50/50 dark:bg-slate-900/10 space-y-4">
             
@@ -14020,6 +15196,25 @@ export default function ImageToVideo({
               <Music className="w-4 h-4 text-emerald-500" />
               <span>Studio Soundtrack & Ratios</span>
             </h4>
+
+            {/* Real-time Glowing Equalizer Visualizer */}
+            <div className="bg-slate-950 p-2.5 rounded-2xl border border-indigo-950/40 relative overflow-hidden space-y-1.5 shadow-inner">
+              <div className="flex items-center justify-between text-[8.5px] font-black uppercase tracking-wider text-slate-450 dark:text-slate-500 leading-none">
+                <span className="flex items-center gap-1">
+                  <span className={`w-1.5 h-1.5 rounded-full ${
+                    isPlaying || previewingTrack ? "bg-emerald-500 animate-ping" : "bg-indigo-600"
+                  }`} />
+                  <span>{isPlaying || previewingTrack ? "Live Spectrum Output" : "Spectrometer Idle"}</span>
+                </span>
+                <span className="font-mono text-indigo-400">44.1 kHz DTS</span>
+              </div>
+              <canvas
+                ref={sidebarVisualizerCanvasRef}
+                width={320}
+                height={40}
+                className="w-full h-10 block rounded-xl"
+              />
+            </div>
 
             {/* Direct Background Audio File Input Card with Drag-and-Drop */}
             <div 
@@ -14205,6 +15400,7 @@ export default function ImageToVideo({
               <div className="flex bg-slate-100 dark:bg-slate-950 p-1 rounded-2xl border border-slate-200 dark:border-slate-800">
                 <button
                   type="button"
+                  id="tab-btn-mp3"
                   onClick={() => {
                     setMusicTab("mp3");
                     triggerBeepChime();
@@ -14219,6 +15415,7 @@ export default function ImageToVideo({
                 </button>
                 <button
                   type="button"
+                  id="tab-btn-synth"
                   onClick={() => {
                     setMusicTab("synth");
                     triggerBeepChime();
@@ -14233,6 +15430,7 @@ export default function ImageToVideo({
                 </button>
                 <button
                   type="button"
+                  id="tab-btn-custom"
                   onClick={() => {
                     setMusicTab("custom");
                     triggerBeepChime();
@@ -14244,6 +15442,21 @@ export default function ImageToVideo({
                   }`}
                 >
                   📂 Custom Audio
+                </button>
+                <button
+                  type="button"
+                  id="tab-btn-mic"
+                  onClick={() => {
+                    setMusicTab("mic");
+                    triggerBeepChime();
+                  }}
+                  className={`flex-1 py-1.5 text-[10px] font-black uppercase tracking-wider rounded-xl transition-all cursor-pointer ${
+                    musicTab === "mic"
+                      ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-xs"
+                      : "text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-400"
+                  }`}
+                >
+                  🎙️ Mic Overlay
                 </button>
               </div>
 
@@ -14558,6 +15771,278 @@ export default function ImageToVideo({
                       </div>
                     </div>
                   )}
+                </div>
+              )}
+
+              {/* Tab 4: Microphone Recording & Audio Overlay */}
+              {musicTab === "mic" && (
+                <div className="bg-white dark:bg-slate-950 p-4 rounded-2xl border border-slate-200 dark:border-slate-850 space-y-4 shadow-3xs" id="mic-recording-overlay-panel">
+                  
+                  {/* Device Configuration */}
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wide flex justify-between items-center">
+                      <span>Select Input Device</span>
+                      <button
+                        type="button"
+                        onClick={fetchMicrophones}
+                        className="text-indigo-600 hover:text-indigo-500 flex items-center gap-1 font-extrabold cursor-pointer select-none"
+                      >
+                        <RefreshCw className="w-2.5 h-2.5 animate-spin-hover" />
+                        <span>Refresh Inputs</span>
+                      </button>
+                    </label>
+                    <select
+                      value={selectedMicId}
+                      onChange={(e) => {
+                        setSelectedMicId(e.target.value);
+                        triggerBeepChime();
+                      }}
+                      className="w-full text-xs p-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 font-medium cursor-pointer"
+                    >
+                      {micDevices.length > 0 ? (
+                        micDevices.map((device) => (
+                          <option key={device.deviceId} value={device.deviceId}>
+                            🎤 {device.label || `Microphone ${device.deviceId.slice(0, 5)}...`}
+                          </option>
+                        ))
+                      ) : (
+                        <option value="">Default System Microphone</option>
+                      )}
+                    </select>
+                  </div>
+
+                  {/* Visualizer and Recorder Section */}
+                  <div className="p-5 bg-slate-50 dark:bg-slate-900/40 rounded-xl border border-slate-200/60 dark:border-slate-850 text-center space-y-3 relative overflow-hidden">
+                    
+                    {/* Level Visualizer Background Ripple */}
+                    {isRecordingMic && (
+                      <div 
+                        className="absolute inset-0 bg-red-500/5 dark:bg-red-500/10 pointer-events-none transition-all duration-75"
+                        style={{ opacity: Math.min(1, micVolumeLevel / 120) }}
+                      />
+                    )}
+
+                    <div className="relative z-10 space-y-3">
+                      {isRecordingMic ? (
+                        <div className="space-y-2">
+                          <div className="relative w-14 h-14 mx-auto flex items-center justify-center">
+                            {/* Pulsing indicator */}
+                            <span 
+                              className="absolute inset-0 rounded-full bg-red-500/25 animate-ping"
+                              style={{ animationDuration: `${Math.max(0.4, 2 - (micVolumeLevel / 100))}s` }}
+                            />
+                            <div 
+                              className="w-10 h-10 rounded-full bg-red-600 dark:bg-red-500 flex items-center justify-center text-white font-bold transition-all duration-75 shadow-lg shadow-red-500/30"
+                              style={{ transform: `scale(${1 + (micVolumeLevel / 255) * 0.25})` }}
+                            >
+                              <Mic className="w-5 h-5 animate-pulse" />
+                            </div>
+                          </div>
+                          
+                          {/* Recording Waveform (CSS animated bars based on volume) */}
+                          <div className="flex justify-center items-center gap-[3px] h-6 mt-3">
+                            {Array.from({ length: 15 }).map((_, i) => {
+                              // Pseudo-random wave based on volume level
+                              const heightFactor = Math.sin((i / 15) * Math.PI);
+                              const heightVal = isRecordingMic 
+                                ? Math.max(4, Math.min(24, (micVolumeLevel / 1.5) * heightFactor * (0.6 + Math.random() * 0.4)))
+                                : 4;
+                              return (
+                                <div 
+                                  key={i} 
+                                  className="w-[3px] bg-red-500 dark:bg-red-400 rounded-full transition-all duration-75"
+                                  style={{ height: `${heightVal}px` }}
+                                />
+                              );
+                            })}
+                          </div>
+
+                          <div className="text-sm font-black text-red-600 dark:text-red-400 font-mono tracking-widest flex items-center justify-center gap-1.5">
+                            <span className="w-2 h-2 rounded-full bg-red-600 dark:bg-red-400 animate-pulse" />
+                            <span>REC: {formatTime(micRecordingDuration)}</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="w-12 h-12 mx-auto rounded-full bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-slate-400">
+                            <Mic className="w-6 h-6" />
+                          </div>
+                          <div>
+                            <p className="text-[11px] font-black text-slate-700 dark:text-slate-300">Timeline Voice Recorder</p>
+                            <p className="text-[9.5px] text-slate-450 mt-0.5 max-w-[250px] mx-auto leading-relaxed">
+                              Record a voiceover, ambient audio, or commentary to lay beneath your video.
+                            </p>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Controls */}
+                      <div className="flex justify-center gap-2.5 pt-2">
+                        {!isRecordingMic ? (
+                          <button
+                            type="button"
+                            onClick={startMicRecording}
+                            className="px-4 py-2 bg-red-600 hover:bg-red-500 text-white text-[10px] font-extrabold uppercase tracking-wider rounded-xl transition-all shadow-sm shadow-red-500/10 hover:shadow-red-500/20 flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <span className="w-2 h-2 rounded-full bg-white animate-pulse" />
+                            <span>Start Recording</span>
+                          </button>
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={stopMicRecording}
+                            className="px-4 py-2 bg-slate-850 hover:bg-slate-800 text-white text-[10px] font-extrabold uppercase tracking-wider rounded-xl transition-all flex items-center gap-1.5 cursor-pointer dark:bg-slate-800 dark:hover:bg-slate-700"
+                          >
+                            <span className="w-2 h-2 bg-red-50 rounded-sm" />
+                            <span>Stop Recording</span>
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Recorded Audio Card */}
+                  {recordedAudioUrl && (
+                    <div className="p-3.5 bg-indigo-50/20 dark:bg-indigo-950/15 border border-indigo-100 dark:border-indigo-950 rounded-2xl space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[11px] font-black text-slate-800 dark:text-slate-200 truncate flex items-center gap-1">
+                            🎙️ My Voice Recording
+                          </p>
+                          <p className="text-[9.5px] text-slate-400 mt-0.5 font-mono">Recorded Track (WebM Format)</p>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const isPreviewing = previewingTrack === "mic-local";
+                              if (isPlaying) {
+                                setIsPlaying(false);
+                                if (playbackIntervalRef.current) {
+                                  clearInterval(playbackIntervalRef.current);
+                                }
+                              }
+                              if (isPreviewing) {
+                                synthManagerRef.current.stop();
+                                setPreviewingTrack(null);
+                              } else {
+                                synthManagerRef.current.stop();
+                                synthManagerRef.current.start("custom", effectiveSoundtrackVolume, false, false, totalDuration, recordedAudioUrl, 0, audioTrimStart, audioTrimEnd, loopAudio);
+                                setPreviewingTrack("mic-local");
+                              }
+                              triggerBeepChime();
+                            }}
+                            className={`p-1.5 rounded-lg border transition-all cursor-pointer ${
+                              previewingTrack === "mic-local"
+                                ? "bg-emerald-500 border-emerald-500 text-white"
+                                : "bg-slate-100 border-slate-200 dark:bg-slate-900 text-slate-600 dark:text-slate-300"
+                            }`}
+                            title="Preview Voiceover"
+                          >
+                            {previewingTrack === "mic-local" ? <Pause className="w-3 h-3" /> : <Play className="w-3 h-3" />}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              synthManagerRef.current.stop();
+                              setRecordedAudioUrl(null);
+                              setRecordedAudioBlob(null);
+                              setToastMessage({
+                                text: "🗑️ Recording Deleted",
+                                sub: "Your microphone recording has been discarded.",
+                                success: true
+                              });
+                              triggerBeepChime();
+                            }}
+                            className="p-1.5 rounded-lg bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 dark:bg-red-950/20 dark:border-red-950 dark:text-red-400 cursor-pointer transition-all"
+                            title="Discard Recording"
+                          >
+                            <Trash2 className="w-3 h-3" />
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Apply button to overlay onto timeline */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setCustomAudioUrl(recordedAudioUrl);
+                          setCustomAudioName("Microphone Voice Recording");
+                          setAudioTrackMode("custom");
+                          synthManagerRef.current.stop();
+                          if (isPlaying) {
+                            setTimeout(() => {
+                              synthManagerRef.current.start("custom", effectiveSoundtrackVolume, false, false, totalDuration, recordedAudioUrl, currentTime, audioTrimStart, audioTrimEnd, loopAudio);
+                            }, 100);
+                          }
+                          setToastMessage({
+                            text: "🎙️ Applied to Timeline",
+                            sub: "Your microphone voiceover is now layered under the video timeline!",
+                            success: true
+                          });
+                          triggerBeepChime();
+                        }}
+                        className="w-full py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase tracking-wider rounded-xl transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Layers className="w-3.5 h-3.5" />
+                        <span>Layer Under Video Timeline</span>
+                      </button>
+                    </div>
+                  )}
+
+                  {/* Built-in Assets Quick Picker (integrated inside recording tab as requested) */}
+                  <div className="border-t border-slate-100 dark:border-slate-850 pt-3.5 space-y-2">
+                    <label className="text-[10px] font-black text-slate-500 dark:text-slate-400 uppercase tracking-wide block">
+                      Built-in Audio Presets (Ambient Beds)
+                    </label>
+                    <p className="text-[9.5px] text-slate-450 leading-relaxed">
+                      Select any high-quality built-in asset below to layer under your recording and video timeline.
+                    </p>
+                    <div className="grid grid-cols-2 gap-2 max-h-[140px] overflow-y-auto pr-1">
+                      {CURATED_MP3_LIBRARY.map((track) => {
+                        const isSelected = audioTrackMode === "custom" && customAudioUrl === track.url;
+                        return (
+                          <button
+                            key={track.id}
+                            type="button"
+                            onClick={() => {
+                              setAudioTrackMode("custom");
+                              setCustomAudioUrl(track.url);
+                              setCustomAudioName(track.name);
+                              triggerBeepChime();
+                              if (isPlaying) {
+                                synthManagerRef.current.stop();
+                                if (!isMuted) {
+                                  setTimeout(() => {
+                                    synthManagerRef.current.start("custom", effectiveSoundtrackVolume, false, false, totalDuration, track.url, currentTime, audioTrimStart, audioTrimEnd, loopAudio);
+                                  }, 100);
+                                }
+                              }
+                              setToastMessage({
+                                text: "🎵 Preset Soundtrack Selected",
+                                sub: `"${track.name}" is now active on the timeline.`,
+                                success: true
+                              });
+                            }}
+                            className={`p-2 rounded-xl text-left border transition-all flex flex-col justify-between cursor-pointer gap-1.5 ${
+                              isSelected
+                                ? "bg-indigo-50 border-indigo-400 dark:bg-indigo-950/20 dark:border-indigo-800"
+                                : "bg-white border-slate-150 hover:border-slate-300 dark:bg-slate-900 dark:border-slate-850"
+                            }`}
+                          >
+                            <span className="text-[10.5px] font-extrabold text-slate-800 dark:text-slate-100 flex items-center gap-1.5 truncate">
+                              <span>{track.emoji}</span>
+                              <span className="truncate">{track.name}</span>
+                            </span>
+                            <span className="text-[8.5px] text-slate-400 italic shrink-0">
+                              ⏱️ {track.duration} • {track.genre}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                 </div>
               )}
             </div>

@@ -1,6 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;700&family=Playfair+Display:ital,wght@0,400;0,700;1,400&family=Inter:wght@400;700&family=JetBrains+Mono:wght@400;700&family=Cinzel:wght@400;700&family=Montserrat:wght@400;700;900&family=Bebas+Neue&family=Outfit:wght@400;700;900&family=Lilita+One&family=Lobster&display=swap');
 @import "tailwindcss";
 
+@variant dark (&:where(.dark, .dark *));
+
 @theme {
   --color-slate-150: #cbd5e1;
   --color-slate-205: #94a3b8;
@@ -440,3 +442,98 @@ body {
   96% { transform: translate(-15px, -25px) scale(1.01); }
 }
 
+/* ── HIGH CONTRAST ACCESSIBILITY MODE OVERRIDES ── */
+.high-contrast {
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+.high-contrast body,
+.high-contrast #root,
+.high-contrast div,
+.high-contrast section,
+.high-contrast aside,
+.high-contrast header,
+.high-contrast footer,
+.high-contrast nav,
+.high-contrast main {
+  background-color: #000000 !important;
+  background-image: none !important;
+  color: #ffffff !important;
+  border-color: #ffffff !important;
+}
+
+/* Bright highlights for important elements */
+.high-contrast a,
+.high-contrast button,
+.high-contrast h1,
+.high-contrast h2,
+.high-contrast h3,
+.high-contrast h4,
+.high-contrast h5,
+.high-contrast h6,
+.high-contrast label,
+.high-contrast svg {
+  color: #ffffff !important;
+  text-shadow: none !important;
+}
+
+/* Bright yellow indicators for selection */
+.high-contrast .active,
+.high-contrast [data-active="true"] {
+  background-color: #ffff00 !important;
+  color: #000000 !important;
+}
+
+.high-contrast button {
+  border: 2px solid #ffffff !important;
+  background-color: #000000 !important;
+  color: #ffffff !important;
+}
+
+.high-contrast button:hover {
+  background-color: #ffff00 !important;
+  color: #000000 !important;
+  border-color: #ffff00 !important;
+}
+
+.high-contrast input,
+.high-contrast select,
+.high-contrast textarea {
+  background-color: #000000 !important;
+  color: #ffff00 !important;
+  border: 2px solid #ffff00 !important;
+  border-radius: 4px !important;
+}
+
+.high-contrast p,
+.high-contrast span,
+.high-contrast li,
+.high-contrast td,
+.high-contrast th,
+.high-contrast p *,
+.high-contrast span *,
+.high-contrast li * {
+  color: #ffffff !important;
+}
+
+.high-contrast .border,
+.high-contrast .border-t,
+.high-contrast .border-b,
+.high-contrast .border-l,
+.high-contrast .border-r {
+  border-color: #ffffff !important;
+  border-width: 1.5px !important;
+}
+
+/* High contrast scrollbars */
+.high-contrast ::-webkit-scrollbar {
+  width: 12px !important;
+  height: 12px !important;
+  background: #000000 !important;
+}
+.high-contrast ::-webkit-scrollbar-thumb {
+  background-color: #ffffff !important;
+  border: 3px solid #000000 !important;
+  border-radius: 6px !important;
+}

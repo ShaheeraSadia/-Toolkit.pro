@@ -37,7 +37,8 @@ import {
   CloudLightning,
   Trees,
   Flame,
-  Home
+  Home,
+  Contrast
 } from "lucide-react";
 
 import { ActiveTab } from "../types";
@@ -57,6 +58,8 @@ interface NavbarProps {
   driveCount: number;
   theme: "light" | "dark";
   onToggleTheme: () => void;
+  highContrast: boolean;
+  onToggleHighContrast: () => void;
   onOpenCommandPalette?: () => void;
   onToggleSidebar?: () => void;
 }
@@ -71,6 +74,8 @@ export default function Navbar({
   driveCount,
   theme,
   onToggleTheme,
+  highContrast,
+  onToggleHighContrast,
   onOpenCommandPalette,
   onToggleSidebar,
 }: NavbarProps) {
@@ -242,7 +247,8 @@ export default function Navbar({
     video: { label: "Video Creator", icon: Video, color: "text-purple-600 dark:text-purple-400 bg-purple-55/60 dark:bg-purple-955/40 border border-purple-100/50 dark:border-purple-900/30", desc: "Interactive timeline editor" },
     drive: { label: "Cloud Workspace", icon: Cloud, color: "text-sky-600 dark:text-sky-400 bg-sky-55/60 dark:bg-sky-955/40 border border-sky-100/50 dark:border-sky-900/30", desc: "Browse files via Google Drive" },
     resources: { label: "Guides & Articles Hub", icon: BookOpen, color: "text-teal-600 dark:text-teal-400 bg-teal-55/60 dark:bg-teal-955/40 border border-teal-100/50 dark:border-teal-900/30", desc: "SEO publications & manuals" },
-    legal: { label: "Legal & Support Center", icon: ShieldCheck, color: "text-slate-600 dark:text-slate-400 bg-slate-55/60 dark:bg-slate-955/40 border border-slate-100/50 dark:border-slate-800/30", desc: "AdSense policies & direct support" }
+    legal: { label: "Legal & Support Center", icon: ShieldCheck, color: "text-slate-600 dark:text-slate-400 bg-slate-55/60 dark:bg-slate-955/40 border border-slate-100/50 dark:border-slate-800/30", desc: "AdSense policies & direct support" },
+    android: { label: "Android App Studio", icon: Smartphone, color: "text-emerald-600 dark:text-emerald-400 bg-emerald-55/60 dark:bg-emerald-955/40 border border-emerald-100/50 dark:border-emerald-900/30", desc: "Simulate Android app with Veo 3.1 & Room DB" }
   };
 
   const [recentTabs, setRecentTabs] = useState<ActiveTab[]>(() => {
@@ -252,7 +258,7 @@ export default function Navbar({
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
           return parsed.filter((t): t is ActiveTab => 
-            ["home", "quote", "compress", "qr", "palette", "video", "drive", "resources", "legal"].includes(t)
+            ["home", "quote", "compress", "qr", "palette", "video", "drive", "resources", "legal", "android"].includes(t)
           );
         }
       }
@@ -387,7 +393,7 @@ export default function Navbar({
                     ? theme === "dark"
                       ? "bg-slate-950 text-white font-extrabold shadow-sm"
                       : "bg-white text-indigo-700 font-extrabold shadow-sm"
-                    : "text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
+                    : "text-slate-700 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
                 }`}
                 onClick={() => setShowToolsDropdown(!showToolsDropdown)}
               >
@@ -442,7 +448,7 @@ export default function Navbar({
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   showRecentDropdown
                     ? theme === "dark" ? "bg-slate-950 text-white shadow-sm" : "bg-white text-slate-805 shadow-sm"
-                    : "text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
+                    : "text-slate-700 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
                 }`}
                 onClick={() => setShowRecentDropdown(!showRecentDropdown)}
               >
@@ -535,7 +541,7 @@ export default function Navbar({
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === "resources"
                   ? theme === "dark" ? "bg-slate-950 text-white shadow-sm font-extrabold" : "bg-white text-slate-955 shadow-sm font-extrabold"
-                  : "text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
+                  : "text-slate-700 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
               }`}
             >
               <BookOpen className="w-3.5 h-3.5 shrink-0 text-teal-550" />
@@ -548,7 +554,7 @@ export default function Navbar({
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === "legal"
                   ? theme === "dark" ? "bg-slate-950 text-white shadow-sm font-extrabold" : "bg-white text-slate-955 shadow-sm font-extrabold"
-                  : "text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
+                  : "text-slate-700 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
               }`}
             >
               <ShieldCheck className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
@@ -561,7 +567,7 @@ export default function Navbar({
               className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === "drive"
                   ? theme === "dark" ? "bg-slate-950 text-white shadow-sm font-extrabold" : "bg-white text-slate-955 shadow-sm font-extrabold"
-                  : "text-slate-600 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
+                  : "text-slate-700 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
               }`}
             >
               <Cloud className="w-3.5 h-3.5 shrink-0 text-sky-500 animate-pulse" />
@@ -655,6 +661,22 @@ export default function Navbar({
               ) : (
                 <Moon className="w-3.5 h-3.5" />
               )}
+            </button>
+
+            {/* Elegant High Contrast Accessibility Mode Toggler */}
+            <button
+              onClick={onToggleHighContrast}
+              className={`p-2 rounded-xl border transition-all cursor-pointer select-none ${
+                highContrast
+                  ? "bg-yellow-500 border-yellow-400 text-black font-black shadow-md"
+                  : theme === "dark"
+                    ? "bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800/80"
+                    : "bg-slate-100/50 border-slate-200/60 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+              }`}
+              title={highContrast ? "Disable High Contrast Accessibility Mode" : "Enable High Contrast Accessibility Mode"}
+              id="btn-toggle-high-contrast"
+            >
+              <Contrast className="w-3.5 h-3.5" />
             </button>
 
             {/* Elegant Global Settings & Focus Soundscapes Popover */}
