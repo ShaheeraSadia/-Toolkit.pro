@@ -5224,6 +5224,69 @@ export default function ImageCompressor({
               </div>
             </div>
 
+            {/* Image Orientation & Rotation Controls */}
+            <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-950 border border-slate-205 dark:border-slate-800/80 shadow-3xs text-left space-y-3">
+              <div className="flex items-center justify-between gap-1.5">
+                <label className="text-[11px] font-black uppercase text-slate-755 dark:text-slate-300 tracking-wider flex items-center gap-1.5">
+                  <span>📐 Image Rotation</span>
+                </label>
+                <span className="text-[10px] font-mono font-bold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 px-2 py-0.5 rounded-lg border border-indigo-200/40">
+                  {(activeItem.rotation || 0)}°
+                </span>
+              </div>
+              <p className="text-[9.5px] text-slate-400 dark:text-slate-500 leading-snug">
+                Adjust image orientation in 90-degree increments before running compression.
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => handleRotation(-90)}
+                  className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-[11px] font-bold transition-all shadow-3xs cursor-pointer hover:border-slate-350 active:scale-95"
+                  title="Rotate 90° Counter-Clockwise"
+                  id="sidebar-btn-rotate-ccw"
+                >
+                  <RotateCcw className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>90° CCW</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleRotation(90)}
+                  className="inline-flex items-center justify-center gap-2 px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900/50 text-slate-700 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 text-[11px] font-bold transition-all shadow-3xs cursor-pointer hover:border-slate-350 active:scale-95"
+                  title="Rotate 90° Clockwise"
+                  id="sidebar-btn-rotate-cw"
+                >
+                  <RotateCw className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>90° CW</span>
+                </button>
+              </div>
+              {(activeItem.rotation || 0) !== 0 && (
+                <div className="flex items-center justify-between pt-1 border-t border-slate-100 dark:border-slate-800/60">
+                  <span className="text-[9px] text-slate-450 dark:text-slate-500 font-semibold italic">
+                    🔄 Canvas will re-orient.
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      saveToUndoActiveItem();
+                      setQueue(prev => prev.map(item => {
+                        if (item.id === selectedId) {
+                          return {
+                            ...item,
+                            rotation: 0,
+                            compressedResult: null
+                          };
+                        }
+                        return item;
+                      }));
+                    }}
+                    className="text-[9px] text-indigo-600 hover:text-indigo-500 dark:text-indigo-450 font-bold hover:underline cursor-pointer"
+                  >
+                    Reset to 0°
+                  </button>
+                </div>
+              )}
+            </div>
+
             {/* Target Convert-To Format Selection Dropdown */}
             <div className="space-y-1.5 p-3.5 rounded-2xl bg-white dark:bg-slate-950 border border-slate-205 dark:border-slate-800/80 shadow-3xs text-left">
               <label 
