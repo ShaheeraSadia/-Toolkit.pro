@@ -53,6 +53,7 @@ import {
   Loader2,
   Crop,
   Eye,
+  Scissors,
   Home,
   Menu,
   X,
@@ -66,6 +67,7 @@ import {
   Activity,
   Award,
   Trash2,
+  RefreshCw,
 } from "lucide-react";
 
 function renderTabPreview(tabId: string) {
@@ -269,6 +271,8 @@ export interface PrinterPreset {
   margins: "standard" | "minimum" | "none";
   cropMarks: boolean;
   safeArea: boolean;
+  bleed?: boolean;
+  bleedWidth?: number;
   orientation?: "portrait" | "landscape";
   icon: string;
 }
@@ -281,15 +285,19 @@ export const PRINTER_PRESETS: PrinterPreset[] = [
     margins: "standard",
     cropMarks: false,
     safeArea: true,
+    bleed: false,
+    bleedWidth: 0,
     icon: "🖨️",
   },
   {
     id: "professional-offset",
     name: "Professional Offset",
-    description: "High-precision trim marks, registration targets, and minimum bleed margins.",
+    description: "High-precision trim marks, registration targets, minimum bleed margins, and a red bleed boundary.",
     margins: "minimum",
     cropMarks: true,
     safeArea: true,
+    bleed: true,
+    bleedWidth: 3,
     icon: "🏭",
   },
   {
@@ -299,15 +307,19 @@ export const PRINTER_PRESETS: PrinterPreset[] = [
     margins: "standard",
     cropMarks: false,
     safeArea: false,
+    bleed: false,
+    bleedWidth: 0,
     icon: "📄",
   },
   {
     id: "full-bleed-poster",
     name: "Full Bleed Poster",
-    description: "Zero margins and corner trim marks for borderless edge-to-edge printing.",
+    description: "Zero margins and corner trim marks with a red bleed boundary for borderless edge-to-edge printing.",
     margins: "none",
     cropMarks: true,
     safeArea: true,
+    bleed: true,
+    bleedWidth: 5,
     icon: "🎨",
   }
 ];
@@ -578,6 +590,8 @@ export default function App() {
   const [previewHtml, setPreviewHtml] = useState<string>("");
   const [showCropMarks, setShowCropMarks] = useState<boolean>(true);
   const [showSafeArea, setShowSafeArea] = useState<boolean>(true);
+  const [showBleed, setShowBleed] = useState<boolean>(false);
+  const [printBleedWidth, setPrintBleedWidth] = useState<number>(3);
   const [selectedPresetId, setSelectedPresetId] = useState<string>("professional-offset");
 
   const [printerPresets, setPrinterPresets] = useState<PrinterPreset[]>(() => {
@@ -597,16 +611,20 @@ export default function App() {
         margins: "standard",
         cropMarks: false,
         safeArea: true,
+        bleed: false,
+        bleedWidth: 0,
         orientation: "portrait",
         icon: "🖨️",
       },
       {
         id: "professional-offset",
         name: "Professional Offset",
-        description: "High-precision trim marks, registration targets, minimum bleed margins.",
+        description: "High-precision trim marks, registration targets, minimum bleed margins, and a red bleed boundary.",
         margins: "minimum",
         cropMarks: true,
         safeArea: true,
+        bleed: true,
+        bleedWidth: 3,
         orientation: "portrait",
         icon: "🏭",
       },
@@ -617,16 +635,20 @@ export default function App() {
         margins: "standard",
         cropMarks: false,
         safeArea: false,
+        bleed: false,
+        bleedWidth: 0,
         orientation: "portrait",
         icon: "📄",
       },
       {
         id: "full-bleed-poster",
         name: "Full Bleed Poster",
-        description: "Zero margins and corner trim marks for borderless edge-to-edge landscape printing.",
+        description: "Zero margins and corner trim marks with a red bleed boundary for borderless edge-to-edge landscape printing.",
         margins: "none",
         cropMarks: true,
         safeArea: true,
+        bleed: true,
+        bleedWidth: 5,
         orientation: "landscape",
         icon: "🎨",
       }
@@ -655,10 +677,12 @@ export default function App() {
     const newPreset: PrinterPreset = {
       id: `preset-${Date.now()}`,
       name: newPresetName.trim(),
-      description: newPresetDesc.trim() || `Custom margins (${printPageMargins}), crop marks (${showCropMarks ? "on" : "off"}), safe area (${showSafeArea ? "on" : "off"}), orientation (${printOrientation}).`,
+      description: newPresetDesc.trim() || `Custom margins (${printPageMargins}), crop marks (${showCropMarks ? "on" : "off"}), safe area (${showSafeArea ? "on" : "off"}), bleed (${showBleed ? "on" : "off"} ${printBleedWidth}mm), orientation (${printOrientation}).`,
       margins: printPageMargins,
       cropMarks: showCropMarks,
       safeArea: showSafeArea,
+      bleed: showBleed,
+      bleedWidth: printBleedWidth,
       orientation: printOrientation,
       icon: newPresetIcon
     };
@@ -693,6 +717,8 @@ export default function App() {
         p.margins === printPageMargins &&
         p.cropMarks === showCropMarks &&
         p.safeArea === showSafeArea &&
+        (p.bleed === undefined || p.bleed === showBleed) &&
+        (p.bleedWidth === undefined || p.bleedWidth === printBleedWidth) &&
         (!p.orientation || p.orientation === printOrientation)
     );
     if (matchedPreset) {
@@ -700,7 +726,7 @@ export default function App() {
     } else {
       setSelectedPresetId("custom");
     }
-  }, [printPageMargins, showCropMarks, showSafeArea, printOrientation, printerPresets]);
+  }, [printPageMargins, showCropMarks, showSafeArea, showBleed, printBleedWidth, printOrientation, printerPresets]);
 
   useEffect(() => {
     if (isPrintPreviewOpen) {
@@ -1831,19 +1857,46 @@ export default function App() {
                   {!user && (
                     <div className="max-w-md mx-auto pt-4 space-y-3">
                       {authError && (
-                        <div className="border border-rose-200/40 bg-rose-50 dark:bg-rose-950/25 text-rose-800 dark:text-rose-305 rounded-xl p-3.5 text-xs text-left flex items-start space-x-2.5 animate-fade-in relative shadow-sm">
-                          <AlertCircle className="w-4 h-4 mt-0.5 text-rose-500 shrink-0" />
-                          <div className="flex-1 space-y-1">
-                            <p className="font-bold">Authorization Notice</p>
-                            <p className="leading-relaxed text-slate-700 dark:text-slate-300">{authError}</p>
+                        <div className="border border-rose-200/40 bg-rose-50 dark:bg-rose-950/25 text-rose-800 dark:text-rose-300 rounded-xl p-4 text-xs text-left flex flex-col space-y-3 animate-fade-in relative shadow-md">
+                          <div className="flex items-start space-x-2.5">
+                            <AlertCircle className="w-4 h-4 mt-0.5 text-rose-500 shrink-0 animate-bounce" />
+                            <div className="flex-1 space-y-1 pr-6">
+                              <p className="font-bold text-rose-900 dark:text-rose-400">Authorization Notice</p>
+                              <p className="leading-relaxed text-slate-750 dark:text-slate-200">{authError}</p>
+                            </div>
+                            <button 
+                              onClick={() => setAuthError(null)} 
+                              className="text-rose-500 hover:text-rose-700 dark:hover:text-rose-250 absolute top-3 right-3 p-1 cursor-pointer transition-colors text-xs font-bold"
+                              title="Dismiss notification"
+                              id="dismiss-auth-inline-btn"
+                            >
+                              ✕
+                            </button>
                           </div>
-                          <button 
-                            onClick={() => setAuthError(null)} 
-                            className="text-rose-500 hover:text-rose-700 dark:hover:text-rose-200 absolute top-2 right-2 p-1 cursor-pointer transition-colors text-[10px]"
-                            title="Dismiss notification"
-                          >
-                            ✕
-                          </button>
+                          <div className="flex items-center gap-2 pt-2 border-t border-rose-200/40 dark:border-rose-900/40">
+                            <button
+                              type="button"
+                              onClick={handleLogin}
+                              disabled={isLoggingIn}
+                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 dark:bg-rose-900/80 hover:bg-rose-700 dark:hover:bg-rose-800 text-white font-bold text-[11px] transition-all shadow-sm select-none disabled:opacity-55 cursor-pointer active:scale-97"
+                              id="retry-auth-inline-btn"
+                            >
+                              {isLoggingIn ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <RefreshCw className="w-3.5 h-3.5" />
+                              )}
+                              <span>{isLoggingIn ? "Connecting..." : "Retry Authorization"}</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setAuthError(null)}
+                              className="px-2.5 py-1.5 rounded-lg bg-transparent border border-rose-250 dark:border-rose-900/60 text-rose-700 dark:text-rose-400 hover:bg-rose-100/50 dark:hover:bg-rose-950/20 font-semibold text-[11px] transition-all select-none cursor-pointer"
+                              id="dismiss-auth-inline-secondary-btn"
+                            >
+                              Dismiss Error
+                            </button>
+                          </div>
                         </div>
                       )}
 
@@ -2745,6 +2798,14 @@ export default function App() {
                               setPrintPageMargins(preset.margins);
                               setShowCropMarks(preset.cropMarks);
                               setShowSafeArea(preset.safeArea);
+                              setShowBleed(preset.bleed ?? false);
+                              if (preset.bleedWidth !== undefined) {
+                                setPrintBleedWidth(preset.bleedWidth);
+                              } else if (preset.bleed) {
+                                setPrintBleedWidth(3);
+                              } else {
+                                setPrintBleedWidth(0);
+                              }
                               if (preset.orientation) {
                                 setPrintOrientation(preset.orientation);
                               }
@@ -2974,6 +3035,82 @@ export default function App() {
                           className="w-4 h-4 rounded border-slate-300 text-indigo-650 focus:ring-indigo-650 accent-indigo-650 cursor-pointer"
                         />
                       </label>
+
+                      {/* Bleed Area Control Container */}
+                      <div className="flex flex-col gap-2 p-2.5 rounded-xl border border-slate-150 dark:border-slate-800 bg-white dark:bg-slate-900 transition-all select-none">
+                        <label className="flex items-center justify-between cursor-pointer">
+                          <div className="flex items-center gap-2">
+                            <Scissors className="w-3.5 h-3.5 text-red-500" />
+                            <div className="text-left">
+                              <span className="text-xs font-bold block">Bleed Boundary ({printBleedWidth}mm)</span>
+                              <span className="text-[8px] text-slate-400 block leading-none font-medium mt-0.5">Red boundary for edge-to-edge trimming</span>
+                            </div>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={showBleed}
+                            onChange={(e) => {
+                              const checked = e.target.checked;
+                              setShowBleed(checked);
+                              if (checked && printBleedWidth === 0) {
+                                setPrintBleedWidth(3); // Default to 3mm if enabled and previously 0
+                              }
+                            }}
+                            className="w-4 h-4 rounded border-slate-300 text-indigo-650 focus:ring-indigo-650 accent-indigo-650 cursor-pointer"
+                          />
+                        </label>
+
+                        {/* Collapsible Dynamic Range Slider */}
+                        {showBleed && (
+                          <motion.div
+                            initial={{ opacity: 0, height: 0 }}
+                            animate={{ opacity: 1, height: "auto" }}
+                            exit={{ opacity: 0, height: 0 }}
+                            className="pt-2 border-t border-slate-100 dark:border-slate-800/60 mt-1 space-y-1.5"
+                          >
+                            <div className="flex items-center justify-between text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                              <span>Bleed Width:</span>
+                              <span className="text-red-500 font-bold px-1.5 py-0.5 bg-red-50 dark:bg-red-950/40 rounded border border-red-100 dark:border-red-900/30 font-mono">{printBleedWidth}mm</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-[9px] text-slate-400 font-mono">0mm</span>
+                              <input
+                                type="range"
+                                min="0"
+                                max="10"
+                                step="1"
+                                value={printBleedWidth}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value);
+                                  setPrintBleedWidth(val);
+                                  if (val === 0) {
+                                    setShowBleed(false);
+                                  } else {
+                                    setShowBleed(true);
+                                  }
+                                }}
+                                className="flex-1 h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-ew-resize accent-red-500"
+                              />
+                              <span className="text-[9px] text-slate-400 font-mono">10mm</span>
+                            </div>
+
+                            {/* Reset Button */}
+                            <div className="flex items-center justify-between pt-1">
+                              <span className="text-[8px] text-slate-400 dark:text-slate-500">3mm is the offset printing industry standard</span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPrintBleedWidth(3);
+                                  setShowBleed(true);
+                                }}
+                                className="text-[9px] font-bold uppercase tracking-wider text-red-500 dark:text-red-450 hover:text-red-600 dark:hover:text-red-450 transition-colors flex items-center gap-1 cursor-pointer bg-red-50/60 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/45 px-2 py-1 rounded-lg border border-red-200/40 dark:border-red-900/20"
+                              >
+                                🔄 Reset Bleed (3mm)
+                              </button>
+                            </div>
+                          </motion.div>
+                        )}
+                      </div>
                     </div>
                   </motion.div>
                 </motion.div>
@@ -2997,6 +3134,8 @@ export default function App() {
                         setPrintOrientation("portrait");
                         setShowCropMarks(true);
                         setShowSafeArea(true);
+                        setShowBleed(false);
+                        setPrintBleedWidth(3);
                         setPreviewScale(0.85);
                       }}
                       className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900/60 dark:hover:bg-slate-800/80 border border-slate-200 dark:border-slate-800 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer text-slate-700 dark:text-slate-300"
@@ -3064,22 +3203,39 @@ export default function App() {
 
                 {/* Simulated Paper sheet bounding box */}
                 <div className="flex-1 flex items-center justify-center py-6 overflow-hidden">
-                  <div
-                    className={`relative bg-white shadow-2xl rounded-sm transition-all duration-300 origin-center select-none overflow-hidden ${
-                      printOrientation === "portrait"
-                        ? "w-[440px] h-[622px]"
-                        : "w-[622px] h-[440px]"
-                    }`}
-                    style={{
-                      padding:
-                        printPageMargins === "standard"
-                          ? "1.5cm"
-                          : printPageMargins === "minimum"
-                          ? "0.5cm"
-                          : "0cm",
-                      color: "#000000",
-                    }}
-                  >
+                  <div className="relative">
+                    {/* Optional Bleed boundary (draws a red boundary outside the page dimensions) */}
+                    {showBleed && (
+                      <>
+                        <div 
+                          className="absolute border-2 border-dashed border-red-500 rounded-sm pointer-events-none z-30 animate-pulse" 
+                          style={{ inset: `-${printBleedWidth * 4}px` }}
+                        />
+                        <div 
+                          className="absolute left-1/2 -translate-x-1/2 text-[8px] font-black tracking-widest text-red-500 dark:text-red-400 bg-slate-100 dark:bg-slate-950 px-2 py-0.5 rounded border border-red-500/30 shadow-3xs uppercase whitespace-nowrap pointer-events-none z-30 select-none"
+                          style={{ top: `-${printBleedWidth * 4 + 20}px` }}
+                        >
+                          ✂️ Bleed Trim Zone (+{printBleedWidth}mm)
+                        </div>
+                      </>
+                    )}
+
+                    <div
+                      className={`relative bg-white shadow-2xl rounded-sm transition-all duration-300 origin-center select-none overflow-hidden ${
+                        printOrientation === "portrait"
+                          ? "w-[440px] h-[622px]"
+                          : "w-[622px] h-[440px]"
+                      }`}
+                      style={{
+                        padding:
+                          printPageMargins === "standard"
+                            ? "1.5cm"
+                            : printPageMargins === "minimum"
+                            ? "0.5cm"
+                            : "0cm",
+                        color: "#000000",
+                      }}
+                    >
                     {/* Visual margin guidelines on screen */}
                     {printPageMargins !== "none" && (
                       <div className="absolute inset-0 border border-dashed border-sky-200 dark:border-sky-900/25 pointer-events-none m-[inherit] rounded-xs" />
@@ -3152,6 +3308,7 @@ export default function App() {
                     />
                   </div>
                 </div>
+              </div>
 
                 {/* Actions row footer */}
                 <div className="pt-4 border-t border-slate-200/50 dark:border-slate-800/50 flex flex-col sm:flex-row items-center justify-between gap-3">
@@ -3190,6 +3347,100 @@ export default function App() {
                       <span>Print Document</span>
                     </button>
                   </div>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Global Google Drive Auth Error Modal */}
+      <AnimatePresence>
+        {authError && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-slate-950/70 backdrop-blur-md z-[120] flex items-center justify-center p-4 overflow-y-auto"
+          >
+            <motion.div
+              initial={{ scale: 0.95, y: 15 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.95, y: 15 }}
+              transition={{ type: "spring", duration: 0.4 }}
+              className={`w-full max-w-md rounded-2xl border shadow-2xl overflow-hidden p-6 text-left relative ${
+                theme === "dark" ? "bg-slate-900 border-slate-800 text-white" : "bg-white border-slate-200 text-slate-800"
+              }`}
+            >
+              {/* Close Button top-right corner */}
+              <button
+                onClick={() => setAuthError(null)}
+                className="absolute top-4 right-4 p-1 rounded-lg text-slate-400 hover:text-slate-605 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Close modal"
+                id="modal-close-auth-err"
+              >
+                <X className="w-4 h-4" />
+              </button>
+
+              <div className="space-y-4">
+                {/* Visual Icon Header */}
+                <div className="flex items-center gap-3">
+                  <div className="p-3 bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-400 rounded-2xl shrink-0 animate-pulse">
+                    <AlertCircle className="w-6 h-6" />
+                  </div>
+                  <div>
+                    <h3 className="text-base font-black tracking-tight uppercase text-rose-600 dark:text-rose-400">
+                      Authorization Notice
+                    </h3>
+                    <p className="text-[10px] font-mono font-black uppercase tracking-widest text-slate-450 dark:text-slate-500 mt-0.5">
+                      Google Drive Sync Failed
+                    </p>
+                  </div>
+                </div>
+
+                {/* Error description content */}
+                <div className="text-xs space-y-2 leading-relaxed bg-rose-50/50 dark:bg-rose-950/15 border border-rose-100/40 dark:border-rose-900/30 rounded-xl p-4.5">
+                  <p className="text-slate-705 dark:text-slate-200 font-medium">
+                    The system encountered an error while attempting to authorize secure cloud file synchronization:
+                  </p>
+                  <p className="font-mono text-[11px] bg-slate-950/5 dark:bg-slate-955/40 p-2.5 rounded-lg border border-slate-200/50 dark:border-slate-850 text-rose-700 dark:text-rose-400 break-words select-all leading-relaxed">
+                    {authError}
+                  </p>
+                </div>
+
+                {/* Helpful instructions for troubleshooting common OAuth issues */}
+                <div className="text-[11px] text-slate-500 dark:text-slate-400 space-y-1 bg-slate-50 dark:bg-slate-950/20 p-3 rounded-xl border border-slate-150 dark:border-slate-850">
+                  <span className="font-bold block text-slate-600 dark:text-slate-350">💡 Common Solutions:</span>
+                  <ul className="list-disc pl-4 space-y-1">
+                    <li>Ensure you permit popups if a separate browser window is blocked.</li>
+                    <li>Verify your device has a stable and active internet connection.</li>
+                    <li>If testing locally, synchronize client credentials in your cloud console.</li>
+                  </ul>
+                </div>
+
+                {/* Footer Action buttons */}
+                <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-slate-100 dark:border-slate-800">
+                  <button
+                    type="button"
+                    onClick={() => setAuthError(null)}
+                    className="px-4 py-2 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-800 text-slate-655 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-850 cursor-pointer select-none transition-all"
+                  >
+                    Dismiss
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleLogin}
+                    disabled={isLoggingIn}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-indigo-650 hover:bg-indigo-700 dark:bg-indigo-600 dark:hover:bg-indigo-500 text-white font-black text-xs transition-all shadow-md select-none disabled:opacity-55 cursor-pointer active:scale-97"
+                    id="retry-auth-modal-btn"
+                  >
+                    {isLoggingIn ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <RefreshCw className="w-3.5 h-3.5" />
+                    )}
+                    <span>{isLoggingIn ? "Retrying..." : "Retry Authorization"}</span>
+                  </button>
                 </div>
               </div>
             </motion.div>

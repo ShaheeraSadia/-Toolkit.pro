@@ -14,6 +14,7 @@ import JSZip from "jszip";
 // @ts-ignore
 import gifshot from "gifshot";
 import { motion, AnimatePresence } from "motion/react";
+import VideoPresetsDrawer from "./VideoPresetsDrawer";
 import {
   Video,
   Plus,
@@ -28,6 +29,7 @@ import {
   Cloud,
   Layers,
   Music,
+  HardDrive,
   Tv,
   Type,
   Maximize2,
@@ -1447,6 +1449,8 @@ export default function ImageToVideo({
     return SAMPLE_SLIDES;
   });
 
+  const [isPresetsDrawerOpen, setIsPresetsDrawerOpen] = useState<boolean>(false);
+
   const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
   const [isBatchProcessing, setIsBatchProcessing] = useState<boolean>(false);
   const [batchGenerationMode, setBatchGenerationMode] = useState<"individual" | "sequence">("individual");
@@ -1752,7 +1756,7 @@ export default function ImageToVideo({
   const [transitionStyle, setTransitionStyle] = useState<"fade" | "slide-left" | "slide-right" | "zoom" | "flash" | "cross-zoom" | "curtain-wipe" | "blur-fade" | "glitch-wave" | "spiral-spin" | "pixelate-fade" | "radial-wipe" | "none">("fade");
   const [transitionDuration, setTransitionDuration] = useState<number>(0.6);
   const [transitionEasing, setTransitionEasing] = useState<"linear" | "ease-in" | "ease-out">("linear");
-  const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16" | "1:1">("16:9");
+  const [aspectRatio, setAspectRatio] = useState<"16:9" | "9:16" | "1:1" | "4:5" | "2.39:1" | "4:3">("16:9");
   const [videoPlaybackSpeed, setVideoPlaybackSpeed] = useState<number>(1.0);
   const [canvasGuideGrid, setCanvasGuideGrid] = useState<"none" | "thirds" | "safe-zone" | "all">("none");
   
@@ -1763,6 +1767,7 @@ export default function ImageToVideo({
   const [vignetteOverlay, setVignetteOverlay] = useState<boolean>(false);
   const [filmGrainOverlay, setFilmGrainOverlay] = useState<boolean>(true);
   const [loopVideo, setLoopVideo] = useState<boolean>(false);
+  const [autoEnhanceVideoPrompt, setAutoEnhanceVideoPrompt] = useState<boolean>(true);
   const [videoFps, setVideoFps] = useState<number>(30);
   const [atmosphericOverlay, setAtmosphericOverlay] = useState<"none" | "particles" | "snow" | "rain" | "light-leaks">("none");
   const [superResolution, setSuperResolution] = useState<boolean>(false);
@@ -2057,6 +2062,113 @@ export default function ImageToVideo({
       }));
       setSlides(updatedSlides);
     }
+    else if (themeId === "cinematic") {
+      themeName = "Hollywood Cinema Blockbuster";
+      themeSub = "Dramatic cinematic depth, warm golden grading, slow widescreen panning, and classical score.";
+      
+      setMasterVideoFilter("warm");
+      setVisualizerStyle("wave");
+      setSubtitleStyle("netflix");
+      setSubtitleFont("serif");
+      setSubtitleTextColor("#ffffff");
+      setSubtitleBgColor("#000000");
+      setSubtitleBgOpacity(0.75);
+      setCinematicLetterbox(true);
+      
+      setAudioTrackMode("synth");
+      setSoundtrack("orchestral-theme");
+      
+      const updatedSlides = slides.map((slide, idx) => ({
+        ...slide,
+        textAnimation: "typewriter" as const,
+        filter: "cinematic-warm" as const,
+        scaleStart: 1.0,
+        scaleEnd: 1.12,
+        transitionEffect: idx === 0 ? "None" : "zoom",
+        sfx: "deep-sub-boom"
+      }));
+      setSlides(updatedSlides);
+    }
+    else if (themeId === "lofi") {
+      themeName = "Cozy Lofi Sunset Chill";
+      themeSub = "Mellow electric piano loops, soft sepia filters, retro typewriter subtitles, and serene micro-panning.";
+      
+      setMasterVideoFilter("sepia");
+      setVisualizerStyle("pulse");
+      setSubtitleStyle("minimal");
+      setSubtitleFont("jetbrains-mono");
+      setSubtitleTextColor("#fdba74"); // Mellow orange
+      setSubtitleBgColor("#1e1b4b");
+      setSubtitleBgOpacity(0.6);
+      setFilmGrainOverlay(true);
+      
+      setAudioTrackMode("synth");
+      setSoundtrack("lofi-piano");
+      
+      const updatedSlides = slides.map((slide, idx) => ({
+        ...slide,
+        textAnimation: "typewriter" as const,
+        filter: "vintage" as const,
+        scaleStart: 1.05,
+        scaleEnd: 0.98,
+        transitionEffect: idx === 0 ? "None" : "blur-fade",
+        sfx: "vinyl-crackle"
+      }));
+      setSlides(updatedSlides);
+    }
+    else if (themeId === "tiktok") {
+      themeName = "TikTok Social Media Trend";
+      themeSub = "Fast-paced cross-zooms, energetic synthesizer tracks, glowing neon rose subtitles, and aggressive motion scaling.";
+      
+      setMasterVideoFilter("high-contrast");
+      setVisualizerStyle("bars");
+      setSubtitleStyle("neon");
+      setSubtitleFont("space-grotesk");
+      setSubtitleTextColor("#ec4899"); // Bright Pink
+      setSubtitleBgColor("#000000");
+      setSubtitleBgOpacity(0.9);
+      
+      setAudioTrackMode("synth");
+      setSoundtrack("cyberpunk-synth");
+      
+      const updatedSlides = slides.map((slide, idx) => ({
+        ...slide,
+        textAnimation: "slide-up" as const,
+        filter: "high-contrast" as const,
+        scaleStart: 1.18,
+        scaleEnd: 1.0,
+        transitionEffect: idx === 0 ? "None" : "cross-zoom",
+        sfx: "laser-sweep"
+      }));
+      setSlides(updatedSlides);
+    }
+    else if (themeId === "corporate") {
+      themeName = "Professional Corporate Pitch";
+      themeSub = "Clean sleek design, neutral minimalist subtitles, smooth cross dissolves, and professional corporate themes.";
+      
+      setMasterVideoFilter("none");
+      setVisualizerStyle("none");
+      setSubtitleStyle("minimal");
+      setSubtitleFont("sans-serif");
+      setSubtitleTextColor("#1e293b"); // Slate 800
+      setSubtitleBgColor("#f1f5f9");
+      setSubtitleBgOpacity(0.95);
+      setCinematicLetterbox(false);
+      
+      setAudioTrackMode("synth");
+      setSoundtrack("ambient-uplift");
+      
+      const updatedSlides = slides.map((slide, idx) => ({
+        ...slide,
+        textAnimation: "pop" as const,
+        filter: "normal" as const,
+        scaleStart: 1.02,
+        scaleEnd: 1.05,
+        transitionEffect: idx === 0 ? "None" : "fade",
+        sfx: "synth-swell"
+      }));
+      setSlides(updatedSlides);
+    }
     
     setToastMessage({
       text: `🎬 ${themeName} Applied!`,
@@ -2196,7 +2308,7 @@ export default function ImageToVideo({
     id: string;
     name: string;
     url: string; // Object URL for active playback in current session
-    format: "webm" | "mp4" | "gif";
+    format: "webm" | "mp4" | "gif" | "avi" | "mkv" | "ogv";
     resolution: string;
     timestamp: string;
     slidesCount: number;
@@ -2271,7 +2383,7 @@ export default function ImageToVideo({
   const [titleSlideFontSize, setTitleSlideFontSize] = useState<number>(44);
   const [titleSlideColor, setTitleSlideColor] = useState<string>("#ffffff");
 
-  const [exportFormat, setExportFormat] = useState<"webm" | "mp4" | "gif">("webm");
+  const [exportFormat, setExportFormat] = useState<"webm" | "mp4" | "gif" | "avi" | "mkv" | "ogv">("webm");
   const [exportResolution, setExportResolution] = useState<"720p" | "1080p" | "4K">("1080p");
   const [subtitleManualOffset, setSubtitleManualOffset] = useState<number>(0);
   const [subtitleHorizontalAlign, setSubtitleHorizontalAlign] = useState<"left" | "center" | "right">("center");
@@ -2310,6 +2422,19 @@ export default function ImageToVideo({
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(null);
   const [aiImageError, setAiImageError] = useState<string | null>(null);
   const [aiImageProgressStage, setAiImageProgressStage] = useState<string>("");
+  
+  // Enhanced AI states
+  const [aiImageSize, setAiImageSize] = useState<"512px" | "1K" | "2K" | "4K">("1K");
+  const [aiImageEnableSearch, setAiImageEnableSearch] = useState<boolean>(false);
+  const [sessionAiImageHistory, setSessionAiImageHistory] = useState<{
+    id: string;
+    url: string;
+    prompt: string;
+    style: string;
+    model: string;
+    aspectRatio: string;
+    timestamp: string;
+  }[]>([]);
 
   // For the custom integrated video player
   const previewVideoRef = useRef<HTMLVideoElement | null>(null);
@@ -3064,11 +3189,17 @@ export default function ImageToVideo({
     const renderLoop = () => {
       if (!active) return;
 
-      let height = 450;
+      let height = Math.round(canvasWidth * (9 / 16));
       if (aspectRatio === "9:16") {
         height = Math.round(canvasWidth * (16 / 9));
       } else if (aspectRatio === "1:1") {
         height = canvasWidth;
+      } else if (aspectRatio === "4:5") {
+        height = Math.round(canvasWidth * (5 / 4));
+      } else if (aspectRatio === "2.39:1") {
+        height = Math.round(canvasWidth / 2.39);
+      } else if (aspectRatio === "4:3") {
+        height = Math.round(canvasWidth * (3 / 4));
       }
 
       // Draw the frame at the high-precision current time using the callback ref
@@ -3413,6 +3544,47 @@ export default function ImageToVideo({
     triggerBeepChime();
   };
 
+  const handleEnhanceAiPrompt = async () => {
+    if (!aiImagePrompt.trim()) return;
+    setIsEnhancingPrompt(true);
+    triggerBeepChime();
+    try {
+      const response = await fetch("/api/image/enhance-prompt", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json"
+        },
+        body: JSON.stringify({
+          prompt: aiImagePrompt,
+          style: aiImageStyle
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to enhance prompt.");
+      }
+
+      const data = await response.json();
+      if (data.enhancedPrompt) {
+        setAiImagePrompt(data.enhancedPrompt);
+        setToastMessage({
+          text: "🪄 Magic Prompt Enhanced!",
+          sub: "Your prompt was rewritten with cinematic details for high-fidelity rendering.",
+          success: true
+        });
+      }
+    } catch (err: any) {
+      console.error("Enhance prompt error:", err);
+      setToastMessage({
+        text: "❌ Magic Prompt Failed",
+        sub: "Could not enhance prompt. Using original instead.",
+        success: false
+      });
+    } finally {
+      setIsEnhancingPrompt(false);
+    }
+  };
+
   const handleGenerateAiImage = async () => {
     if (!aiImagePrompt.trim()) return;
     setIsGeneratingAiImage(true);
@@ -3449,7 +3621,10 @@ export default function ImageToVideo({
         body: JSON.stringify({
           prompt: aiImagePrompt,
           aspectRatio: aiImageAspectRatio,
-          style: aiImageStyle
+          style: aiImageStyle,
+          modelChoice: aiImageModelChoice,
+          imageSize: aiImageSize,
+          enableSearch: aiImageEnableSearch
         })
       });
 
@@ -3463,6 +3638,19 @@ export default function ImageToVideo({
       const data = await response.json();
       if (data.imageUrl) {
         setGeneratedImageUrl(data.imageUrl);
+        
+        // Add to history
+        const newHistoryItem = {
+          id: `ai-hist-${Date.now()}`,
+          url: data.imageUrl,
+          prompt: aiImagePrompt,
+          style: aiImageStyle,
+          model: aiImageModelChoice === "gemini-3.1-flash-image" ? "Gemini Ultra 3.1 Pro" : "Gemini Standard 3.1 Lite",
+          aspectRatio: aiImageAspectRatio,
+          timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+        };
+        setSessionAiImageHistory(prev => [newHistoryItem, ...prev]);
+
         setToastMessage({
           text: "✨ Image Created successfully!",
           sub: "Your custom AI creation is ready. Add it to your timeline!",
@@ -4167,10 +4355,13 @@ export default function ImageToVideo({
                 modelChoice: aiModelEngine,
                 aspectRatio: "16:9",
                 resolution: "720p",
-                enhancePrompt: true,
+                enhancePrompt: autoEnhanceVideoPrompt,
                 videoQuality: videoQuality,
                 videoRealismStyle: videoRealismStyle,
-                loopVideo: loopVideo
+                loopVideo: loopVideo,
+                stylePreset: aiStylePreset,
+                cameraDirection: aiCameraDirection,
+                motionIntensity: aiMotionIntensity
               })
             });
 
@@ -4513,7 +4704,11 @@ export default function ImageToVideo({
             throw new Error(`Image-to-Video setup failed: ${e.message || e}`);
           }
         } else {
-          appendLog(`[1/6] Enhancing prompt with Gemini 3.5 Flash for exquisite detail...`, 15);
+          if (autoEnhanceVideoPrompt && aiSceneImageSource === "gemini") {
+            appendLog(`[1/6] Enhancing prompt with Gemini 3.5 Flash for exquisite detail...`, 15);
+          } else {
+            appendLog(`[1/6] Preparing video scene parameters...`, 15);
+          }
         }
         
         // Call the video generation endpoint
@@ -4525,11 +4720,14 @@ export default function ImageToVideo({
             modelChoice: aiModelEngine,
             aspectRatio: aspectRatio === "9:16" ? "9:16" : aspectRatio === "1:1" ? "1:1" : "16:9",
             resolution: "720p",
-            enhancePrompt: aiSceneImageSource === "gemini",
+            enhancePrompt: autoEnhanceVideoPrompt && aiSceneImageSource === "gemini",
             videoQuality: videoQuality,
             videoRealismStyle: videoRealismStyle,
             loopVideo: loopVideo,
-            image: seedImageBase64 || undefined
+            image: seedImageBase64 || undefined,
+            stylePreset: aiStylePreset,
+            cameraDirection: aiCameraDirection,
+            motionIntensity: aiMotionIntensity
           })
         });
 
@@ -6998,11 +7196,17 @@ export default function ImageToVideo({
     if (!ctx) return;
 
     // Adjust canvas layout size based on ratios
-    let height = 450;
+    let height = Math.round(canvasWidth * (9 / 16));
     if (aspectRatio === "9:16") {
       height = Math.round(canvasWidth * (16 / 9)); // 800 x 1422
     } else if (aspectRatio === "1:1") {
       height = canvasWidth; // 800 x 800
+    } else if (aspectRatio === "4:5") {
+      height = Math.round(canvasWidth * (5 / 4));
+    } else if (aspectRatio === "2.39:1") {
+      height = Math.round(canvasWidth / 2.39);
+    } else if (aspectRatio === "4:3") {
+      height = Math.round(canvasWidth * (3 / 4));
     }
 
     canvas.width = canvasWidth;
@@ -7110,18 +7314,25 @@ export default function ImageToVideo({
     // Canvas sizes
     const renderCanvas = document.createElement("canvas");
     let exportWidth = 1280;
+    const isVerticalOrSquare = aspectRatio === "9:16" || aspectRatio === "1:1" || aspectRatio === "4:5";
     if (exportResolution === "720p") {
-      exportWidth = aspectRatio === "9:16" ? 720 : 1280;
+      exportWidth = isVerticalOrSquare ? 720 : 1280;
     } else if (exportResolution === "1080p") {
-      exportWidth = aspectRatio === "9:16" ? 1080 : 1920;
+      exportWidth = isVerticalOrSquare ? 1080 : 1920;
     } else if (exportResolution === "4K") {
-      exportWidth = aspectRatio === "9:16" ? 2160 : 3840;
+      exportWidth = isVerticalOrSquare ? 2160 : 3840;
     }
     let exportHeight = Math.round(exportWidth * (9 / 16));
     if (aspectRatio === "9:16") {
       exportHeight = Math.round(exportWidth * (16 / 9));
     } else if (aspectRatio === "1:1") {
       exportHeight = exportWidth;
+    } else if (aspectRatio === "4:5") {
+      exportHeight = Math.round(exportWidth * (5 / 4));
+    } else if (aspectRatio === "2.39:1") {
+      exportHeight = Math.round(exportWidth / 2.39);
+    } else if (aspectRatio === "4:3") {
+      exportHeight = Math.round(exportWidth * (3 / 4));
     }
 
     renderCanvas.width = exportWidth;
@@ -7290,7 +7501,7 @@ export default function ImageToVideo({
         const resultUrl = URL.createObjectURL(finalBlob);
 
         // Auto-download file
-        const ext = exportFormat === "gif" ? "gif" : (exportFormat === "webm" ? "webm" : "mp4");
+        const ext = exportFormat;
         const cleanName = `${slide.name.replace(/\.[^/.]+$/, "").replace(/\s+/g, "_")}_clip.${ext}`;
         triggerFileDownload(finalBlob, cleanName);
 
@@ -7397,12 +7608,13 @@ export default function ImageToVideo({
     try {
       const renderCanvas = document.createElement("canvas");
       let exportWidth = 1920;
+      const isVerticalOrSquare = aspectRatio === "9:16" || aspectRatio === "1:1" || aspectRatio === "4:5";
       if (exportResolution === "720p") {
-        exportWidth = aspectRatio === "9:16" ? 720 : 1280;
+        exportWidth = isVerticalOrSquare ? 720 : 1280;
       } else if (exportResolution === "1080p") {
-        exportWidth = aspectRatio === "9:16" ? 1080 : 1920;
+        exportWidth = isVerticalOrSquare ? 1080 : 1920;
       } else if (exportResolution === "4K") {
-        exportWidth = aspectRatio === "9:16" ? 2160 : 3840;
+        exportWidth = isVerticalOrSquare ? 2160 : 3840;
       }
 
       if (superResolution) {
@@ -7414,6 +7626,12 @@ export default function ImageToVideo({
         exportHeight = Math.round(exportWidth * (16 / 9));
       } else if (aspectRatio === "1:1") {
         exportHeight = exportWidth;
+      } else if (aspectRatio === "4:5") {
+        exportHeight = Math.round(exportWidth * (5 / 4));
+      } else if (aspectRatio === "2.39:1") {
+        exportHeight = Math.round(exportWidth / 2.39);
+      } else if (aspectRatio === "4:3") {
+        exportHeight = Math.round(exportWidth * (3 / 4));
       }
 
       renderCanvas.width = exportWidth;
@@ -7756,7 +7974,16 @@ export default function ImageToVideo({
             }
           });
         } else {
-          const mimeType = exportFormat === "mp4" ? "video/mp4" : "video/webm";
+          let mimeType = "video/webm";
+          if (exportFormat === "mp4") {
+            mimeType = "video/mp4";
+          } else if (exportFormat === "avi") {
+            mimeType = "video/x-msvideo";
+          } else if (exportFormat === "mkv") {
+            mimeType = "video/x-matroska";
+          } else if (exportFormat === "ogv") {
+            mimeType = "video/ogg";
+          }
           const videoBlob = new Blob(chunks, { type: mimeType });
           await finalizeOutput(videoBlob, exportFormat, mimeType);
         }
@@ -7988,6 +8215,19 @@ export default function ImageToVideo({
               >
                 <Sparkles className="w-3 h-3 text-amber-500 animate-bounce" />
                 <span>Preload Samples</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPresetsDrawerOpen(true);
+                  triggerBeepChime();
+                }}
+                className="inline-flex items-center gap-1 px-3 py-1.5 text-[11px] font-extrabold text-indigo-700 dark:text-indigo-350 bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-150 dark:border-indigo-900/30 rounded-lg cursor-pointer transition-all hover:bg-indigo-100 active:scale-95 shadow-3xs"
+                title="Backup and load custom CapCut sequences directly to Google Drive"
+              >
+                <HardDrive className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />
+                <span>Video Presets</span>
               </button>
             </div>
           </div>
@@ -8501,25 +8741,38 @@ export default function ImageToVideo({
                     <label className="text-[11px] font-black uppercase tracking-wider text-slate-700 dark:text-slate-300">
                       Describe the image you want to create:
                     </label>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const suggestions = [
-                          "A futuristic sports car speeding on a cyberpunk neon-lit wet highway at night, sunset background",
-                          "A cozy wooden cabin deep in an autumn forest with warm light shining from windows and river reflecting",
-                          "An astronaut fluffy red panda floating in cosmic colorful nebulas with a glowing helmet",
-                          "A serene tropical beach with golden sunbeams, gentle turquoise waves, and tall palm trees",
-                          "A magnificent medieval castle on top of a mist-covered mountain during golden hour, cinematic lighting"
-                        ];
-                        setAiImagePrompt(suggestions[Math.floor(Math.random() * suggestions.length)]);
-                        triggerBeepChime();
-                      }}
-                      className="text-[10px] font-bold text-indigo-650 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
-                      title="Get a creative prompt idea"
-                    >
-                      <Lightbulb className="w-3 h-3 text-amber-500 animate-bounce" />
-                      <span>Suggest Idea</span>
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={handleEnhanceAiPrompt}
+                        disabled={isEnhancingPrompt || !aiImagePrompt.trim()}
+                        className="text-[10px] font-black text-violet-600 dark:text-violet-400 hover:underline flex items-center gap-1 cursor-pointer disabled:opacity-50 disabled:no-underline"
+                        title="Enhance your short prompt into a high-fidelity cinematic masterpiece instruction using Gemini"
+                      >
+                        <Sparkles className={`w-3 h-3 text-violet-500 ${isEnhancingPrompt ? "animate-spin" : "animate-pulse"}`} />
+                        <span>{isEnhancingPrompt ? "Enhancing..." : "🪄 Enhance Prompt"}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const suggestions = [
+                            "A futuristic sports car speeding on a cyberpunk neon-lit wet highway at night, sunset background",
+                            "A cozy wooden cabin deep in an autumn forest with warm light shining from windows and river reflecting",
+                            "An astronaut fluffy red panda floating in cosmic colorful nebulas with a glowing helmet",
+                            "A serene tropical beach with golden sunbeams, gentle turquoise waves, and tall palm trees",
+                            "A magnificent medieval castle on top of a mist-covered mountain during golden hour, cinematic lighting"
+                          ];
+                          setAiImagePrompt(suggestions[Math.floor(Math.random() * suggestions.length)]);
+                          triggerBeepChime();
+                        }}
+                        className="text-[10px] font-bold text-indigo-650 dark:text-indigo-400 hover:underline flex items-center gap-1 cursor-pointer"
+                        title="Get a creative prompt idea"
+                      >
+                        <Lightbulb className="w-3 h-3 text-amber-500 animate-bounce" />
+                        <span>Suggest Idea</span>
+                      </button>
+                    </div>
                   </div>
                   
                   <textarea
@@ -8577,7 +8830,117 @@ export default function ImageToVideo({
                       <option value="sketch">Sketch ✏️</option>
                       <option value="render_3d">3D Render 🪐</option>
                       <option value="retro_vhs">Retro VHS 📹</option>
+                      <option value="cyberpunk_neon">Cyberpunk Neon Cityscape ⚡</option>
+                      <option value="fantasy_dream">Fantasy Dreamworld 🦄</option>
+                      <option value="studio_ghibli">Nostalgic Ghibli Meadows 🌸</option>
+                      <option value="film_noir">Dramatic Film Noir 📽️</option>
+                      <option value="nature_8k">National Geographic 8K Nature 🌲</option>
                     </select>
+                  </div>
+                </div>
+
+                {/* Advanced Model Selection & Grounding Bento Row */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-left border-t border-slate-150 dark:border-slate-850 pt-4 mt-1">
+                  {/* Model Selection */}
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                      AI Generation Model Engine:
+                    </label>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAiImageModelChoice("gemini-3.1-flash-lite-image");
+                          triggerBeepChime();
+                        }}
+                        className={`p-2.5 rounded-xl border text-left transition-all flex flex-col gap-1 cursor-pointer ${
+                          aiImageModelChoice === "gemini-3.1-flash-lite-image"
+                            ? "bg-slate-50 dark:bg-slate-950 border-indigo-500 text-slate-800 dark:text-slate-100 ring-1 ring-indigo-500/20"
+                            : "bg-transparent border-slate-200 dark:border-slate-800 text-slate-500 hover:border-slate-350 dark:hover:border-slate-700"
+                        }`}
+                      >
+                        <span className="text-[10px] font-extrabold uppercase tracking-wide flex items-center gap-1">
+                          <Zap className="w-3.5 h-3.5 text-amber-500" />
+                          <span>Gemini Standard</span>
+                        </span>
+                        <span className="text-[8.5px] leading-tight text-slate-400 dark:text-slate-500 font-medium">
+                          ⚡ Super fast generation. Ideal for quick drafts and mobile tests.
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setAiImageModelChoice("gemini-3.1-flash-image");
+                          triggerBeepChime();
+                        }}
+                        className={`p-2.5 rounded-xl border text-left transition-all flex flex-col gap-1 cursor-pointer ${
+                          aiImageModelChoice === "gemini-3.1-flash-image"
+                            ? "bg-slate-50 dark:bg-slate-950 border-indigo-500 text-slate-800 dark:text-slate-100 ring-1 ring-indigo-500/20"
+                            : "bg-transparent border-slate-200 dark:border-slate-800 text-slate-500 hover:border-slate-350 dark:hover:border-slate-700"
+                        }`}
+                      >
+                        <span className="text-[10px] font-extrabold uppercase tracking-wide flex items-center gap-1">
+                          <Flame className="w-3.5 h-3.5 text-indigo-500" />
+                          <span>Gemini Ultra Pro</span>
+                        </span>
+                        <span className="text-[8.5px] leading-tight text-slate-400 dark:text-slate-500 font-medium">
+                          ✨ Masterpiece quality. Configurable high-res output and live web search.
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Resolution Quality or Grounding Toggle */}
+                  <div className="flex flex-col justify-between gap-3">
+                    {aiImageModelChoice === "gemini-3.1-flash-image" ? (
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                          Fidelity Resolution Size:
+                        </label>
+                        <div className="grid grid-cols-4 gap-1.5 bg-slate-100/80 dark:bg-slate-950 p-1 rounded-xl border border-slate-200/50 dark:border-slate-850/60">
+                          {(["512px", "1K", "2K", "4K"] as const).map((sz) => (
+                            <button
+                              key={sz}
+                              type="button"
+                              onClick={() => {
+                                setAiImageSize(sz);
+                                triggerBeepChime();
+                              }}
+                              className={`py-1 text-[9px] font-extrabold rounded-md cursor-pointer transition-all ${
+                                aiImageSize === sz
+                                  ? "bg-white dark:bg-slate-850 text-indigo-650 dark:text-indigo-400 shadow-3xs"
+                                  : "text-slate-500 hover:text-slate-750 dark:hover:text-slate-300"
+                              }`}
+                            >
+                              {sz}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="p-2.5 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-250/30 dark:border-slate-800/40 text-[9px] font-medium text-slate-500">
+                        💡 Upgrade the model engine to <strong>Gemini Ultra Pro</strong> to unlock high-fidelity resolution configurations (up to 4K Ultra HD) and live search context filters!
+                      </div>
+                    )}
+
+                    {aiImageModelChoice === "gemini-3.1-flash-image" && (
+                      <label className="flex items-center gap-2 px-3 py-2 bg-slate-100/60 dark:bg-slate-950 p-1.5 rounded-xl border border-slate-200/50 dark:border-slate-850/60 cursor-pointer select-none transition-colors hover:bg-slate-100/90 dark:hover:bg-slate-900/40">
+                        <input
+                          type="checkbox"
+                          checked={aiImageEnableSearch}
+                          onChange={(e) => {
+                            setAiImageEnableSearch(e.target.checked);
+                            triggerBeepChime();
+                          }}
+                          className="rounded border-slate-300 dark:border-slate-800 text-indigo-650 focus:ring-indigo-500 h-3.5 w-3.5 cursor-pointer"
+                        />
+                        <div className="text-left leading-tight">
+                          <span className="block text-[10px] font-extrabold text-slate-700 dark:text-slate-300">Live Google Search Grounding</span>
+                          <span className="block text-[8px] text-slate-400 dark:text-slate-500">Retrieves real-world live facts & image patterns as context.</span>
+                        </div>
+                      </label>
+                    )}
                   </div>
                 </div>
 
@@ -8688,6 +9051,50 @@ export default function ImageToVideo({
                           <Download className="w-3.5 h-3.5 text-indigo-500" />
                           <span>Download PNG</span>
                         </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Recently Generated History Grid */}
+                  {sessionAiImageHistory.length > 0 && (
+                    <div className="mt-4 border-t border-slate-200 dark:border-slate-850 pt-4 text-left">
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-[10px] font-black uppercase tracking-wider text-slate-500 flex items-center gap-1">
+                          <History className="w-3.5 h-3.5 text-indigo-500" />
+                          <span>Session Generated History ({sessionAiImageHistory.length})</span>
+                        </span>
+                        <button 
+                          type="button"
+                          onClick={() => {
+                            setSessionAiImageHistory([]);
+                            triggerBeepChime();
+                          }}
+                          className="text-[9px] font-bold text-slate-400 hover:text-indigo-650 dark:hover:text-indigo-400 transition-colors"
+                        >
+                          Clear History
+                        </button>
+                      </div>
+                      <div className="flex gap-2.5 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-slate-300 dark:scrollbar-thumb-slate-700">
+                        {sessionAiImageHistory.map((item) => (
+                          <button
+                            key={item.id}
+                            type="button"
+                            onClick={() => {
+                              setGeneratedImageUrl(item.url);
+                              setAiImagePrompt(item.prompt);
+                              setAiImageStyle(item.style);
+                              triggerBeepChime();
+                            }}
+                            className="relative rounded-xl overflow-hidden aspect-[4/3] w-20 flex-shrink-0 bg-slate-900 border border-slate-250 dark:border-slate-800 hover:border-indigo-500 dark:hover:border-indigo-500 transition-all hover:scale-105 active:scale-95 group/hist"
+                            title={`Click to view: "${item.prompt}"`}
+                          >
+                            <img src={item.url} alt={item.prompt} className="w-full h-full object-cover" />
+                            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover/hist:opacity-100 flex flex-col items-center justify-center transition-opacity text-[8px] text-white p-1">
+                              <span className="font-extrabold tracking-wider">VIEW</span>
+                              <span className="text-[6.5px] text-slate-300 truncate w-full font-mono font-medium">{item.timestamp}</span>
+                            </div>
+                          </button>
+                        ))}
                       </div>
                     </div>
                   )}
@@ -10582,6 +10989,92 @@ export default function ImageToVideo({
                     </div>
                   </div>
 
+                  {/* Quick One-Click Scene Builders */}
+                  <div className="bg-slate-50 dark:bg-slate-950/30 p-2.5 rounded-xl border border-slate-200/65 dark:border-slate-850/60 space-y-2 text-left">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                        <Sparkles className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />
+                        <span>1-Click Scene Templates:</span>
+                      </span>
+                      <span className="text-[8px] font-extrabold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded">
+                        Load Scene & Style
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-2 xs:grid-cols-3 gap-1.5">
+                      {[
+                        {
+                          title: "Cyber Tokyo",
+                          emoji: "🏎️ 🌆",
+                          prompt: "A sleek futuristic sports car speeding down a wet neon-lit street in Neo-Tokyo, towering holographic billboards, skyscrapers reflecting pink and blue light, cinematic motion blur, deep depth of field",
+                          style: "cyberpunk",
+                          camera: "zoom-in"
+                        },
+                        {
+                          title: "Mystic Forest",
+                          emoji: "🍄 ✨",
+                          prompt: "A magical glowing forest with towering ancient trees, vibrant giant mushrooms, soft golden light particles floating gracefully, a mysterious hidden waterfall in the background",
+                          style: "fantasy-dream",
+                          camera: "orbit"
+                        },
+                        {
+                          title: "Sunset Shore",
+                          emoji: "🌅 🌊",
+                          prompt: "A dramatic cinematic sunset over gentle turquoise ocean waves, warm pink and amber clouds, detailed palm tree leaves silhouetted on the pristine shore, light leaks",
+                          style: "nature-8k",
+                          camera: "pan-right"
+                        },
+                        {
+                          title: "Ghibli Cottage",
+                          emoji: "🏡 🌸",
+                          prompt: "A cozy wooden cottage nestled in a soft green valley of wildflowers under gentle morning sunlight, warm breeze blowing, studio ghibli anime key art aesthetic",
+                          style: "studio-ghibli",
+                          camera: "tilt-up"
+                        },
+                        {
+                          title: "Cosmic Space",
+                          emoji: "🪐 🌌",
+                          prompt: "A vast cosmic nebula swirling with stellar dust and glowing infant stars, deep purples and blues, a majestic ringed planet slowly rotating in the far distance",
+                          style: "realistic-3d",
+                          camera: "zoom-out"
+                        },
+                        {
+                          title: "Dark Noir",
+                          emoji: "🕵️‍♂️ 🌧️",
+                          prompt: "A mysterious detective in a trench coat standing under a solitary yellow street lamp, dark foggy city alleyway, heavy raindrops glistening, high contrast shadows",
+                          style: "film-noir",
+                          camera: "zoom-in"
+                        }
+                      ].map((preset) => (
+                        <button
+                          key={preset.title}
+                          type="button"
+                          onClick={() => {
+                            setUserPromptText(preset.prompt);
+                            setAiStylePreset(preset.style as any);
+                            setAiCameraDirection(preset.camera as any);
+                            setToastMessage({
+                              text: `✨ Setup ${preset.title}!`,
+                              sub: `Configured cinematic prompt, style: ${preset.style}, camera path: ${preset.camera}.`,
+                              success: true
+                            });
+                            triggerBeepChime();
+                          }}
+                          className="p-1.5 bg-white dark:bg-slate-900 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/20 border border-slate-150 dark:border-slate-850 hover:border-indigo-500/30 rounded-lg transition-all hover:scale-[1.02] active:scale-98 text-left cursor-pointer flex flex-col justify-between h-[52px]"
+                        >
+                          <span className="text-[9.5px] font-black text-slate-800 dark:text-slate-300 truncate block">
+                            {preset.title}
+                          </span>
+                          <div className="flex items-center justify-between text-[8px] text-slate-400 font-bold uppercase mt-1">
+                            <span>{preset.emoji}</span>
+                            <span className="bg-slate-50 dark:bg-slate-950 px-1 py-0.2 rounded border border-slate-150/40 dark:border-slate-800 shrink-0 scale-90">
+                              {preset.style}
+                            </span>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
                   <div className="relative">
                     <textarea
                       value={userPromptText}
@@ -10592,6 +11085,47 @@ export default function ImageToVideo({
                       disabled={isGeneratingScene}
                     />
                     {renderPromptValidationInfo(userPromptText)}
+                  </div>
+
+                  {/* Quick Modifier Boosters for Main Creator */}
+                  <div className="space-y-1 text-left">
+                    <span className="text-[9px] font-bold text-slate-450 dark:text-slate-500 uppercase tracking-widest block">
+                      ⚡ Quick Booster Modifiers (Tap to Add):
+                    </span>
+                    <div className="flex flex-wrap gap-1">
+                      {[
+                        "🎬 4K Resolution",
+                        "💎 Ultra-Detailed",
+                        "🌪️ Fluid Motion",
+                        "🕹️ Unreal Engine 5",
+                        "✨ Volumetric Glow",
+                        "🎥 Raytraced Reflections",
+                        "🌸 Slow Motion Drift",
+                        "⚡ 60FPS Smooth"
+                      ].map((tag) => (
+                        <button
+                          key={tag}
+                          type="button"
+                          onClick={() => {
+                            const current = userPromptText.trim();
+                            const tagClean = tag.replace(/[\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD00-\uDFFF]/g, "").trim();
+                            let newVal = "";
+                            if (current) {
+                              newVal = current.endsWith(",") || current.endsWith(".") 
+                                ? `${current} ${tagClean}` 
+                                : `${current}, ${tagClean}`;
+                            } else {
+                              newVal = tagClean;
+                            }
+                            setUserPromptText(newVal);
+                            triggerBeepChime();
+                          }}
+                          className="px-2 py-1 rounded bg-slate-50 hover:bg-indigo-50 dark:bg-slate-950 dark:hover:bg-indigo-950/20 text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 border border-slate-200/60 dark:border-slate-850/60 text-[8.5px] font-bold cursor-pointer transition-all active:scale-95"
+                        >
+                          {tag}
+                        </button>
+                      ))}
+                    </div>
                   </div>
 
                   {/* Image Generation Source Selector */}
@@ -12705,7 +13239,7 @@ export default function ImageToVideo({
                               onClick={() => {
                                 const a = document.createElement("a");
                                 a.href = item.resultUrl!;
-                                a.download = `${item.name.replace(/\.[^/.]+$/, "")}_clip.${exportFormat === "gif" ? "gif" : (exportFormat === "webm" ? "webm" : "mp4")}`;
+                                a.download = `${item.name.replace(/\.[^/.]+$/, "")}_clip.${exportFormat}`;
                                 a.click();
                               }}
                               className="p-1 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400 hover:text-indigo-500 dark:hover:text-indigo-400 rounded-lg cursor-pointer"
@@ -13296,6 +13830,33 @@ export default function ImageToVideo({
                     <Scissors className="w-3.5 h-3.5 text-rose-500" />
                     <span>Split Clip</span>
                   </button>
+
+                  {!selectedSlide.isVideo && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAiSceneImageSource("image-to-video");
+                        setI2vSourceType("timeline");
+                        setI2vSelectedSlideId(selectedSlide.id);
+                        setActiveImageTab("ai_create");
+                        triggerBeepChime();
+                        const el = document.getElementById("ai-image-generator-section");
+                        if (el) {
+                          el.scrollIntoView({ behavior: "smooth" });
+                        }
+                        setToastMessage({
+                          text: "🎥 Img2Vid Selected",
+                          sub: "Ready to translate your slide into a real 3D animated video segment!",
+                          success: true
+                        });
+                      }}
+                      className="col-span-2 flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-black uppercase tracking-wider text-white bg-gradient-to-r from-violet-600 to-indigo-700 hover:from-violet-500 hover:to-indigo-650 rounded-xl shadow-md cursor-pointer active:scale-95 transition-all mt-1"
+                      title="Translate this static slide into a realistic moving AI video clip using Google Veo"
+                    >
+                      <Video className="w-3.5 h-3.5 text-amber-300 animate-pulse fill-current" />
+                      <span>⚡ Convert to AI Video (Img2Vid)</span>
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -14612,9 +15173,12 @@ export default function ImageToVideo({
                 </label>
                 <div className="grid grid-cols-3 gap-2">
                   {[
+                    { id: "16:9" as const, label: "📺 16:9 Wide", sub: "YouTube/Landscape" },
                     { id: "9:16" as const, label: "📱 9:16 Vertical", sub: "TikTok/Shorts" },
                     { id: "1:1" as const, label: "⏹️ 1:1 Square", sub: "Instagram Post" },
-                    { id: "16:9" as const, label: "📺 16:9 Wide", sub: "Cinematic" }
+                    { id: "4:5" as const, label: "📸 4:5 Portrait", sub: "Social Feed/Pins" },
+                    { id: "2.39:1" as const, label: "🎥 2.39:1 Cinema", sub: "Anamorphic Screen" },
+                    { id: "4:3" as const, label: "📺 4:3 Classic", sub: "Retro TV/iPad" }
                   ].map((item) => {
                     const isActive = aspectRatio === item.id;
                     return (
@@ -15124,6 +15688,66 @@ export default function ImageToVideo({
                   <div>
                     <span className="block text-[10.5px] font-black text-slate-800 dark:text-slate-100 group-hover:text-emerald-500 transition-colors">Pastel Fantasy</span>
                     <span className="block text-[8.5px] text-slate-400 dark:text-slate-500 leading-tight mt-0.5">Celestial chimes, soft vintage, cross dissolves.</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyOneClickTheme("cinematic")}
+                  className="p-3 bg-white dark:bg-slate-950 hover:bg-slate-50 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-2xl text-left transition-all hover:scale-102 flex flex-col justify-between gap-2 cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg">🎬</span>
+                    <span className="text-[8px] font-black bg-amber-50 dark:bg-amber-950/60 text-amber-600 dark:text-amber-400 px-1.5 py-0.5 rounded uppercase">Cinema</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10.5px] font-black text-slate-800 dark:text-slate-100 group-hover:text-amber-500 transition-colors">Hollywood Epic</span>
+                    <span className="block text-[8.5px] text-slate-400 dark:text-slate-500 leading-tight mt-0.5">Golden cinematic grading, slow pans, dramatic depth.</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyOneClickTheme("lofi")}
+                  className="p-3 bg-white dark:bg-slate-950 hover:bg-slate-50 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-2xl text-left transition-all hover:scale-102 flex flex-col justify-between gap-2 cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg">☕</span>
+                    <span className="text-[8px] font-black bg-amber-100 dark:bg-amber-950/60 text-amber-700 dark:text-amber-300 px-1.5 py-0.5 rounded uppercase">Sunset</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10.5px] font-black text-slate-800 dark:text-slate-100 group-hover:text-amber-600 transition-colors">Cozy Lofi Chill</span>
+                    <span className="block text-[8.5px] text-slate-400 dark:text-slate-500 leading-tight mt-0.5">Mellow piano loops, sepia filters, vinyl crackle sfx.</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyOneClickTheme("tiktok")}
+                  className="p-3 bg-white dark:bg-slate-950 hover:bg-slate-50 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-2xl text-left transition-all hover:scale-102 flex flex-col justify-between gap-2 cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg">📱</span>
+                    <span className="text-[8px] font-black bg-rose-100 dark:bg-rose-950/60 text-rose-600 dark:text-rose-450 px-1.5 py-0.5 rounded uppercase">Viral</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10.5px] font-black text-slate-800 dark:text-slate-100 group-hover:text-rose-500 transition-colors">Social Trend</span>
+                    <span className="block text-[8.5px] text-slate-400 dark:text-slate-500 leading-tight mt-0.5">Fast-paced cross-zooms, high contrast, neon titles.</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => applyOneClickTheme("corporate")}
+                  className="p-3 bg-white dark:bg-slate-950 hover:bg-slate-50 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-850 rounded-2xl text-left transition-all hover:scale-102 flex flex-col justify-between gap-2 cursor-pointer group"
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-lg">💼</span>
+                    <span className="text-[8px] font-black bg-blue-50 dark:bg-blue-950/60 text-blue-600 dark:text-blue-400 px-1.5 py-0.5 rounded uppercase">Sleek</span>
+                  </div>
+                  <div>
+                    <span className="block text-[10.5px] font-black text-slate-800 dark:text-slate-100 group-hover:text-blue-500 transition-colors">Business Pitch</span>
+                    <span className="block text-[8.5px] text-slate-400 dark:text-slate-500 leading-tight mt-0.5">Clean titles, neutral presentation style, smooth fades.</span>
                   </div>
                 </button>
               </div>
@@ -16851,11 +17475,14 @@ export default function ImageToVideo({
               <label className="text-xs font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wider">
                 Video Aspect Ratio:
               </label>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-3 gap-2.5">
                 {[
-                  { id: "16:9", label: "YouTube", desc: "Horizontal", ratio: "16:9" },
-                  { id: "9:16", label: "TikTok", desc: "Vertical", ratio: "9:16" },
-                  { id: "1:1", label: "Instagram", desc: "Square", ratio: "1:1" }
+                  { id: "16:9", label: "YouTube / Landscape", desc: "Horizontal", ratio: "16:9" },
+                  { id: "9:16", label: "TikTok / Reels", desc: "Vertical", ratio: "9:16" },
+                  { id: "1:1", label: "Instagram Square", desc: "Square", ratio: "1:1" },
+                  { id: "4:5", label: "Pinterest / Social", desc: "Portrait Feed", ratio: "4:5" },
+                  { id: "2.39:1", label: "Anamorphic Widescreen", desc: "Cinema", ratio: "2.39:1" },
+                  { id: "4:3", label: "Classic TV / iPad", desc: "Retro Standard", ratio: "4:3" }
                 ].map((item) => {
                   const isActive = aspectRatio === item.id;
                   return (
@@ -17916,6 +18543,31 @@ export default function ImageToVideo({
                   </div>
                 </label>
 
+                {/* AI Magic Prompt Enhancer Toggle */}
+                <label className={`flex items-start gap-2.5 p-2.5 rounded-xl border transition-all cursor-pointer select-none ${
+                  autoEnhanceVideoPrompt 
+                    ? "bg-indigo-50/20 border-indigo-250 dark:bg-indigo-950/10 dark:border-indigo-900/40"
+                    : "border-slate-150 dark:border-slate-850 hover:bg-slate-50/50 dark:hover:bg-slate-900/30"
+                }`}>
+                  <input
+                    type="checkbox"
+                    checked={autoEnhanceVideoPrompt}
+                    onChange={(e) => {
+                      setAutoEnhanceVideoPrompt(e.target.checked);
+                      triggerBeepChime();
+                    }}
+                    className="mt-0.5 rounded border-indigo-300 dark:border-indigo-800 text-indigo-600 focus:ring-indigo-500 h-3.5 w-3.5 cursor-pointer"
+                  />
+                  <div className="flex flex-col text-left">
+                    <span className="text-[11px] font-black text-indigo-600 dark:text-indigo-400">
+                      ✨ Prompt Magic Enhancer
+                    </span>
+                    <span className="text-[9px] text-slate-400 dark:text-slate-500 mt-0.5 leading-tight">
+                      Super-charges your prompt with professional cinematography, lighting, and motion descriptors
+                    </span>
+                  </div>
+                </label>
+
                 {/* Frame Rate Selection Dropdown */}
                 <div className="flex flex-col gap-1.5 p-2.5 bg-slate-100/30 dark:bg-slate-900/20 border border-slate-150 dark:border-slate-850 rounded-xl text-left">
                   <div className="flex items-center justify-between">
@@ -18025,9 +18677,12 @@ export default function ImageToVideo({
               </label>
               <div className="grid grid-cols-3 gap-2">
                 {[
-                  { id: "mp4", label: "MP4", desc: "Highly Compatible" },
-                  { id: "webm", label: "WebM", desc: "Ultra Compact" },
-                  { id: "gif", label: "GIF", desc: "Animated Image" }
+                  { id: "mp4", label: "MP4", desc: "Standard Video" },
+                  { id: "webm", label: "WebM", desc: "HTML5/Modern" },
+                  { id: "gif", label: "GIF", desc: "Animated Loop" },
+                  { id: "avi", label: "AVI", desc: "Classic Retro" },
+                  { id: "mkv", label: "MKV", desc: "Lossless Contain" },
+                  { id: "ogv", label: "OGV", desc: "Ogg Video Stream" }
                 ].map((item) => {
                   const isActive = exportFormat === item.id;
                   return (
@@ -18185,6 +18840,43 @@ export default function ImageToVideo({
         </div>
 
       </div>
+
+      <VideoPresetsDrawer
+        isOpen={isPresetsDrawerOpen}
+        onClose={() => setIsPresetsDrawerOpen(false)}
+        user={user}
+        accessToken={accessToken}
+        onLogin={onLogin}
+        currentTimeline={slides}
+        onLoadTimeline={(loadedSlides) => {
+          setSlides(loadedSlides);
+          if (loadedSlides && loadedSlides.length > 0) {
+            setSelectedSlideId(loadedSlides[0].id || "");
+          }
+        }}
+        currentFps={videoFps}
+        onLoadFps={(loadedFps) => setVideoFps(loadedFps)}
+        currentSettings={{
+          videoQuality,
+          videoRealismStyle,
+          loopVideo,
+          autoEnhanceVideoPrompt,
+          vignetteOverlay,
+          filmGrainOverlay,
+          atmosphericOverlay,
+          superResolution
+        }}
+        onLoadSettings={(settings) => {
+          if (settings.videoQuality) setVideoQuality(settings.videoQuality);
+          if (settings.videoRealismStyle) setVideoRealismStyle(settings.videoRealismStyle);
+          if (settings.loopVideo !== undefined) setLoopVideo(settings.loopVideo);
+          if (settings.autoEnhanceVideoPrompt !== undefined) setAutoEnhanceVideoPrompt(settings.autoEnhanceVideoPrompt);
+          if (settings.vignetteOverlay !== undefined) setVignetteOverlay(settings.vignetteOverlay);
+          if (settings.filmGrainOverlay !== undefined) setFilmGrainOverlay(settings.filmGrainOverlay);
+          if (settings.atmosphericOverlay) setAtmosphericOverlay(settings.atmosphericOverlay);
+          if (settings.superResolution !== undefined) setSuperResolution(settings.superResolution);
+        }}
+      />
 
     </div>
   );

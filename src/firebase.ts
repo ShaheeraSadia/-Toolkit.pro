@@ -1,13 +1,7 @@
- import { initializeApp } from "firebase/app";
-import {
-  getAuth,
-  signInWithPopup,
-  GoogleAuthProvider,
-  onAuthStateChanged,
-  User,
-} from "firebase/auth";
+import { initializeApp } from "firebase/app";
+import { getAuth, User } from "firebase/auth";
 
-// 🛠 متبادل حل: خراب JSON فائل امپورٹ کرنے کے بجائے اصلی کنفگریشن کو یہیں ہارڈ کوڈ کر دیا
+// Initialize Firebase using the hardcoded config
 const firebaseConfig = {
   apiKey: "AIzaSyDcJ1nBQ1HgVk7-Qz8wcoruskfZ8M2Jno8",
   authDomain: "symmetric-ray-tg02f.firebaseapp.com",
@@ -18,77 +12,160 @@ const firebaseConfig = {
   measurementId: ""
 };
 
-// Initialize Firebase
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
-
-// Setup Google Auth Provider with Google Drive scopes
-const provider = new GoogleAuthProvider();
-provider.addScope("https://www.googleapis.com/auth/drive.file");
 
 // Auth State Cache and Flags
 let isSigningIn = false;
 let cachedAccessToken: string | null = null;
+let cachedUser: any = null;
 
 /**
- * Initializes the Firebase Auth observer.
+ * Initializes the Auth observer.
  * Call this at the root of your application.
  */
 export const initAuth = (
   onAuthSuccess: (user: User, token: string) => void,
   onAuthFailure: () => void
 ) => {
-  return onAuthStateChanged(auth, async (user) => {
-    if (user) {
-      if (cachedAccessToken) {
-        onAuthSuccess(user, cachedAccessToken);
-      } else if (!isSigningIn) {
-        // If there is a user but no cached token (e.g. page reload), 
-        // we might need to prompt signing in with popup again to get the accessToken,
-        // or clear the session so they can click sign in.
-        cachedAccessToken = null;
-        onAuthFailure();
-      }
-    } else {
-      cachedAccessToken = null;
+  // Check localStorage for a saved session
+  const savedToken = localStorage.getItem("google_oauth_token");
+  const savedUserStr = localStorage.getItem("google_oauth_user");
+
+  if (savedToken && savedUserStr) {
+    try {
+      const user = JSON.parse(savedUserStr);
+      cachedAccessToken = savedToken;
+      cachedUser = user;
+      onAuthSuccess(user as User, savedToken);
+    } catch (e) {
+      console.error("Failed to parse saved google_oauth_user:", e);
+      localStorage.removeItem("google_oauth_token");
+      localStorage.removeItem("google_oauth_user");
       onAuthFailure();
     }
-  });
+  } else {
+    onAuthFailure();
+  }
+
+  // Return unsubscribe dummy
+  return () => {};
 };
 
 /**
- * Trigger Google Pop-up authentication to fetch credentials and Drive scopes.
+ * Trigger Google Pop-up authentication directly to get Drive scopes,
+ * bypassing Firebase Auth popups to avoid auth/unauthorized-domain errors in iframe contexts.
  */
 export const googleSignIn = async (): Promise<{ user: User; accessToken: string } | null> => {
-  try {
+  return new Promise((resolve, reject) => {
     isSigningIn = true;
-    const result = await signInWithPopup(auth, provider);
-    const credential = GoogleAuthProvider.credentialFromResult(result);
-    if (!credential?.accessToken) {
-      throw new Error("Failed to get Google API access token from authentication.");
+
+    // Use OAuth Client ID from firebase-applet-config.json
+    const clientId = "974556276539-1tgu7gkg44ip5qbn1g9bfbiv5agr0e1d.apps.googleusercontent.com";
+    const redirectUri = window.location.origin;
+    const scope = "https://www.googleapis.com/auth/drive.file email profile openid";
+
+    const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${encodeURIComponent(scope)}&prompt=consent`;
+
+    const width = 600;
+    const height = 650;
+    const left = window.screen.width / 2 - width / 2;
+    const top = window.screen.height / 2 - height / 2;
+
+    const popup = window.open(
+      authUrl,
+      "google_oauth_popup",
+      `width=${width},height=${height},left=${left},top=${top}`
+    );
+
+    if (!popup) {
+      isSigningIn = false;
+      reject(new Error("Popup was blocked by the browser. Please allow popups for this site."));
+      return;
     }
 
-    cachedAccessToken = credential.accessToken;
-    return { user: result.user, accessToken: cachedAccessToken };
-  } catch (error) {
-    console.error("Google Authentication error:", error);
-    throw error;
-  } finally {
-    isSigningIn = false;
-  }
+    const messageListener = async (event: MessageEvent) => {
+      const origin = event.origin;
+      if (!origin.endsWith(".run.app") && !origin.includes("localhost") && !origin.includes("vercel.app")) {
+        return;
+      }
+
+      if (event.data?.type === "GOOGLE_OAUTH_SUCCESS" && event.data?.hash) {
+        window.removeEventListener("message", messageListener);
+        clearInterval(checkClosedInterval);
+
+        try {
+          const hash = event.data.hash;
+          const params = new URLSearchParams(hash.substring(1)); // remove '#'
+          const accessToken = params.get("access_token");
+
+          if (!accessToken) {
+            throw new Error("No access token found in redirect hash.");
+          }
+
+          // Fetch user info using the access token
+          const userinfoRes = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+            headers: { Authorization: `Bearer ${accessToken}` }
+          });
+
+          if (!userinfoRes.ok) {
+            throw new Error("Failed to fetch user profile information from Google.");
+          }
+
+          const userInfo = await userinfoRes.json();
+
+          // Construct a Firebase-compatible User object structure
+          const userObj = {
+            uid: userInfo.sub,
+            displayName: userInfo.name,
+            email: userInfo.email,
+            photoURL: userInfo.picture,
+            emailVerified: userInfo.email_verified,
+          };
+
+          cachedAccessToken = accessToken;
+          cachedUser = userObj;
+
+          // Save session in localStorage for page refreshes
+          localStorage.setItem("google_oauth_token", accessToken);
+          localStorage.setItem("google_oauth_user", JSON.stringify(userObj));
+
+          isSigningIn = false;
+          resolve({ user: userObj as User, accessToken });
+        } catch (err: any) {
+          isSigningIn = false;
+          reject(err);
+        }
+      }
+    };
+
+    window.addEventListener("message", messageListener);
+
+    // Watch for popup manual closure by user
+    const checkClosedInterval = setInterval(() => {
+      if (popup.closed) {
+        clearInterval(checkClosedInterval);
+        window.removeEventListener("message", messageListener);
+        isSigningIn = false;
+        resolve(null);
+      }
+    }, 1000);
+  });
 };
 
 /**
  * Retrieve cached access token in-memory.
  */
 export const getAccessToken = async (): Promise<string | null> => {
-  return cachedAccessToken;
+  return cachedAccessToken || localStorage.getItem("google_oauth_token");
 };
 
 /**
- * Sign out the current user and flush in-memory tokens.
+ * Sign out the current user and flush saved tokens.
  */
 export const logout = async (): Promise<void> => {
-  await auth.signOut();
+  localStorage.removeItem("google_oauth_token");
+  localStorage.removeItem("google_oauth_user");
   cachedAccessToken = null;
+  cachedUser = null;
 };

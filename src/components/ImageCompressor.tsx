@@ -4296,6 +4296,72 @@ export default function ImageCompressor({
                 PNG, JPG, WEBP, AVIF
               </span>
             </div>
+
+            {/* Batch Compression Settings for Dropped/Loaded Files */}
+            {queue.length > 1 && (
+              <div
+                onClick={(e) => e.stopPropagation()}
+                className="mt-4 p-4 w-full max-w-sm bg-slate-50 dark:bg-slate-900/90 rounded-2xl border border-slate-200/60 dark:border-slate-800/80 space-y-3 relative z-20 shadow-md text-left transition-all hover:border-indigo-400/50"
+                id="batch-quality-quick-control"
+              >
+                <div className="flex items-center justify-between border-b border-slate-200/50 dark:border-slate-800 pb-2">
+                  <div className="flex items-center gap-1.5">
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-indigo-500" />
+                    <span className="text-[11px] font-bold text-slate-700 dark:text-slate-300">
+                      Batch Quality Level
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-black font-mono text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-2 py-0.5 rounded border border-indigo-200/30 animate-pulse">
+                    {Math.round(quality * 100)}%
+                  </span>
+                </div>
+
+                <div className="space-y-1">
+                  <div className="flex justify-between text-[9px] font-bold text-slate-400 dark:text-slate-550">
+                    <span>Aggressive</span>
+                    <span className="text-emerald-500">🎯 Optimal (80%)</span>
+                    <span>High Quality</span>
+                  </div>
+                  <input
+                    type="range"
+                    min="0.1"
+                    max="1"
+                    step="0.05"
+                    value={quality}
+                    onChange={(e) => {
+                      const val = parseFloat(e.target.value);
+                      setQuality(val);
+                      if (selectedId) {
+                        setQueue(prev => prev.map(item => item.id === selectedId ? { ...item, quality: val } : item));
+                      }
+                    }}
+                    className="w-full h-2 rounded-lg bg-slate-200 dark:bg-slate-800 accent-indigo-600 dark:accent-indigo-500 cursor-pointer transition-colors"
+                    id="batch-quality-slider-input"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setQueue(prev => prev.map(item => ({ ...item, quality, compressedResult: null })));
+                    window.dispatchEvent(new CustomEvent("toolkit-add-activity", {
+                      detail: {
+                        type: "filter",
+                        title: "Bulk quality applied",
+                        detail: `Assigned a quality factor of ${Math.round(quality * 100)}% to all ${queue.length} staged images.`,
+                        icon: "Check",
+                        tab: "compress"
+                      }
+                    }));
+                  }}
+                  className="w-full inline-flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-700 hover:to-violet-700 text-white font-black text-[11px] shadow-sm transition-all hover:scale-[1.01] active:scale-[0.98] select-none cursor-pointer"
+                  id="batch-apply-all-btn"
+                >
+                  <Check className="w-3 h-3" />
+                  <span>Apply {Math.round(quality * 100)}% Quality to All ({queue.length})</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 

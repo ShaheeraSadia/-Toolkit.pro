@@ -3,6 +3,19 @@ import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
 
+// Check if this is the OAuth redirect popup
+if (window.opener && (window.location.hash.includes("access_token") || window.location.hash.includes("error"))) {
+  try {
+    window.opener.postMessage({
+      type: "GOOGLE_OAUTH_SUCCESS",
+      hash: window.location.hash
+    }, "*");
+    window.close();
+  } catch (e) {
+    console.error("OAuth parent communication error:", e);
+  }
+}
+
 // Declare custom properties on window object for TypeScript safety
 declare global {
   interface Window {

@@ -233,6 +233,63 @@ The camera motion is: "${camera || "Slow Zoom"}".`;
   }
 });
 
+// API route to enhance an image prompt using Gemini AI
+app.post("/api/image/enhance-prompt", async (req, res) => {
+  try {
+    const activeApiKey = process.env.GEMINI_API_KEY;
+    if (!activeApiKey) {
+      return res.status(500).json({ 
+        error: "GEMINI_API_KEY is not configured in the host environment or Secrets panel." 
+      });
+    }
+
+    if (!ai) {
+      ai = new GoogleGenAI({
+        apiKey: activeApiKey,
+        httpOptions: {
+          headers: {
+            "User-Agent": "aistudio-build",
+          },
+        },
+      });
+    }
+
+    const { prompt, style } = req.body;
+    if (!prompt) {
+      return res.status(400).json({ error: "A non-empty prompt is required to enhance." });
+    }
+
+    const systemInstruction = `You are an expert AI prompt engineer specialized in Google Imagen image generation models.
+Your goal is to take a simple, short, or raw user description, and transform it into a highly detailed, descriptive, and vivid image generation prompt.
+
+RULES:
+1. Focus strictly on visual elements, subjects, textures, lighting, atmosphere, colors, and composition.
+2. Avoid generic buzzwords like "photorealistic", "hyperrealistic", "masterpiece", "8k". Instead, use concrete artistic descriptions (e.g., "volumetric raytraced lighting", "subtle rim light highlighting edge contours", "textured matte oil paint on canvas").
+3. Keep the output relatively concise but rich (max 250 characters).
+4. Return ONLY the enhanced prompt. No preambles, explanations, quotes, or introduction. Just the raw prompt itself.`;
+
+    const styleText = style && style !== "none" ? `The desired artistic style/aesthetic is: ${style}.` : "";
+    const userPrompt = `Enhance this image description: "${prompt}". ${styleText}`;
+
+    const response = await ai.models.generateContent({
+      model: "gemini-3.5-flash",
+      contents: userPrompt,
+      config: {
+        systemInstruction,
+        temperature: 0.85,
+      },
+    });
+
+    const enhancedPrompt = response?.text?.trim() || prompt;
+    return res.json({ enhancedPrompt });
+  } catch (error: any) {
+    console.error("Gemini image prompt enhancement error:", error);
+    return res.status(500).json({ 
+      error: error.message || "Prompt enhancement failed due to a server-side error." 
+    });
+  }
+});
+
 // API route to generate images using the gemini-3.1-flash-lite-image model
 app.post("/api/image/generate", async (req, res) => {
   try {
@@ -254,7 +311,7 @@ app.post("/api/image/generate", async (req, res) => {
       });
     }
 
-    const { prompt, aspectRatio = "1:1", style = "none" } = req.body;
+    const { prompt, aspectRatio = "1:1", style = "none", modelChoice = "gemini-3.1-flash-lite-image", imageSize = "1K", enableSearch = false } = req.body;
     if (!prompt) {
       return res.status(400).json({ error: "A prompt description is required to generate an image." });
     }
@@ -279,8 +336,37 @@ app.post("/api/image/generate", async (req, res) => {
       fullPrompt = `${prompt}, in style of ${stylePhrases[style]}`;
     }
 
-    const { modelChoice } = req.body;
     const targetModel = modelChoice === "gemini-3.1-flash-image" ? "gemini-3.1-flash-image" : "gemini-3.1-flash-lite-image";
+
+    // Setup configuration
+    const imageConfig: any = {
+      aspectRatio: aspectRatio,
+    };
+
+    const tools: any[] = [];
+
+    if (targetModel === "gemini-3.1-flash-image") {
+      imageConfig.imageSize = imageSize; // "512px" | "1K" | "2K" | "4K"
+      
+      if (enableSearch) {
+        tools.push({
+          googleSearch: {
+            searchTypes: {
+              webSearch: {},
+              imageSearch: {},
+            }
+          }
+        });
+      }
+    }
+
+    const config: any = {
+      imageConfig
+    };
+
+    if (tools.length > 0) {
+      config.tools = tools;
+    }
 
     // Call selected image generation model
     const response = await ai.models.generateContent({
@@ -292,11 +378,7 @@ app.post("/api/image/generate", async (req, res) => {
           },
         ],
       },
-      config: {
-        imageConfig: {
-          aspectRatio: aspectRatio, // "1:1" | "3:4" | "4:3" | "9:16" | "16:9"
-        }
-      }
+      config
     });
 
     let imageUrl = "";
@@ -497,7 +579,20 @@ app.post("/api/video/generate", async (req, res) => {
       });
     }
 
-    const { prompt, modelChoice, aspectRatio, resolution, image, enhancePrompt, videoQuality = "balanced", videoRealismStyle = "documentary", loopVideo = false } = req.body;
+    const { 
+      prompt, 
+      modelChoice, 
+      aspectRatio, 
+      resolution, 
+      image, 
+      enhancePrompt, 
+      videoQuality = "balanced", 
+      videoRealismStyle = "documentary", 
+      loopVideo = false,
+      stylePreset = "auto",
+      cameraDirection = "auto",
+      motionIntensity = 5
+    } = req.body;
     
     // Choose model based on user preference and selected quality mode
     let model = "veo-3.1-lite-generate-preview";
@@ -518,6 +613,53 @@ app.post("/api/video/generate", async (req, res) => {
           systemPromptDetail = "Write an exceptionally rich, highly detailed cinematic masterpiece prompt for a video generator like Veo based on: \"" + prompt + "\". Include advanced photographic descriptors, volumetric lighting, hyper-realistic textures, intricate micro-movements, professional color grading, and maximum environmental depth. Under 80 words. No intro or conversational filler, just the prompt.";
         } else if (videoQuality === "performance") {
           systemPromptDetail = "Write a fast-rendering, clean visual scene prompt for a video generator like Veo based on: \"" + prompt + "\". Keep focus on clear subjects, bright clean lighting, and simple linear movements. Under 40 words. No intro, just the prompt.";
+        }
+
+        // Apply style preset instructions if active
+        if (stylePreset && stylePreset !== "auto") {
+          let styleDetails = "";
+          if (stylePreset === "cinematic") styleDetails = "strictly cinematic photorealism, professional cinema color grading, anamorphic depth, 8k resolution, theatrical ambient lighting";
+          else if (stylePreset === "cyberpunk") styleDetails = "neon cyberpunk aesthetic, glowing retro futuristic city, rain-slicked wet pavement, volumetric neon light scattering, synthwave vibes";
+          else if (stylePreset === "anime") styleDetails = "gorgeous hand-drawn anime aesthetic, high-fidelity modern illustration, cell-shaded, cinematic anime keyframe";
+          else if (stylePreset === "studio-ghibli") styleDetails = "whimsical hand-painted Studio Ghibli style, lush watercolor landscapes, soft warm nostalgia, detailed whimsical hand-drawn background";
+          else if (stylePreset === "vhs") styleDetails = "nostalgic retro VHS analog tape look, subtle color aberrations, warm vintage glow, authentic video tracking textures";
+          else if (stylePreset === "realistic-3d") styleDetails = "hyper-detailed 3D octane render style, raytraced ambient occlusion, Unreal Engine 5 realism, pristine raytraced reflections";
+          else if (stylePreset === "fantasy-dream") styleDetails = "surreal fantasy dreamscape, glowing ethereal particles, magical whimsical lighting, soft cinematic volumetric fog";
+          else if (stylePreset === "film-noir") styleDetails = "classic 1940s film noir, dramatic high-contrast chiaroscuro shadows, moody atmosphere, cinematic black and white realism";
+          else if (stylePreset === "nature-8k") styleDetails = "breathtaking 8k nature photography, ultra-detailed textures, crisp organic details, majestic National Geographic natural lighting";
+          else if (stylePreset === "sketch") styleDetails = "intricate hand-drawn monochrome pencil sketch on fine textured paper, detailed graphite shading, clean artistic pencil line art";
+          else if (stylePreset === "oil-painting") styleDetails = "classical fine art textured oil painting on canvas, heavy impasto brushstrokes, rich classical paint textures, moody fine art lighting";
+          
+          if (styleDetails) {
+            systemPromptDetail += `\n\nSTYLE INSTRUCTION: Ensure the visual aesthetics strictly adhere to: ${styleDetails}. Ensure everything matches this stylistic look.`;
+          }
+        }
+
+        // Apply camera direction instructions if active
+        if (cameraDirection && cameraDirection !== "auto") {
+          let cameraDetails = "";
+          if (cameraDirection === "zoom-in") cameraDetails = "smooth continuous slow dolly zoom-in towards the subject, magnifying focal points and creating deep focal immersion";
+          else if (cameraDirection === "zoom-out") cameraDetails = "smooth slow dolly zoom-out revealing the expansive ambient background scenery, widening the focal field";
+          else if (cameraDirection === "pan-left") cameraDetails = "smooth horizontal tracking camera pan sliding from right to left across the scene";
+          else if (cameraDirection === "pan-right") cameraDetails = "smooth horizontal tracking camera pan sliding from left to right across the scene";
+          else if (cameraDirection === "tilt-up") cameraDetails = "dramatic vertical camera pedestal ascent tilting slowly up towards the sky/horizon";
+          else if (cameraDirection === "tilt-down") cameraDetails = "dramatic vertical camera pedestal descent tilting slowly down focusing on the central subject";
+          else if (cameraDirection === "orbit") cameraDetails = "sweeping circular 360-degree rotational camera orbit crane shot circling the main focal point";
+          
+          if (cameraDetails) {
+            systemPromptDetail += `\n\nCAMERA MOTION INSTRUCTION: Explicitly write the visual action and camera work to perform a ${cameraDetails}. Make this movement prominent and clear in the scene's motion descriptors.`;
+          }
+        }
+
+        // Apply motion intensity instructions
+        if (motionIntensity !== undefined) {
+          if (motionIntensity <= 3) {
+            systemPromptDetail += "\n\nMOTION LEVEL INSTRUCTION: The physical motion of subjects, fluids, and particles in the scene must be extremely slow, subtle, and gently drifting. Avoid fast changes or sudden actions.";
+          } else if (motionIntensity >= 8) {
+            systemPromptDetail += "\n\nMOTION LEVEL INSTRUCTION: The scene must feature highly dynamic, hyper-active, fast-paced physical action. Subjects, wind, particles, and environments should undergo energetic, swift, and highly kinetic movements.";
+          } else {
+            systemPromptDetail += "\n\nMOTION LEVEL INSTRUCTION: Keep the scene physical actions and subject motion balanced, steady, and at a standard cinematic pacing.";
+          }
         }
 
         // Apply advanced "Reality Engine" heuristics to remove "AI look"
