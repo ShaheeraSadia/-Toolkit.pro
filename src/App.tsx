@@ -585,6 +585,7 @@ export default function App() {
   // Print Preview state declarations
   const [isPrintPreviewOpen, setIsPrintPreviewOpen] = useState<boolean>(false);
   const [printPageMargins, setPrintPageMargins] = useState<"standard" | "minimum" | "none">("minimum");
+  const [centerDesign, setCenterDesign] = useState<boolean>(true);
   const [printOrientation, setPrintOrientation] = useState<"portrait" | "landscape">("portrait");
   const [previewScale, setPreviewScale] = useState<number>(0.85);
   const [previewHtml, setPreviewHtml] = useState<string>("");
@@ -929,6 +930,11 @@ export default function App() {
       justify-content: center;
       overflow: hidden;
     }
+    ${centerDesign ? `
+    .content-area > * {
+      margin: auto !important;
+    }
+    ` : ""}
   </style>
 </head>
 <body>
@@ -2965,6 +2971,32 @@ export default function App() {
                     </div>
                   </motion.div>
 
+                  {/* Centering Mode */}
+                  <motion.div 
+                    layout
+                    transition={{ type: "spring", stiffness: 220, damping: 26 }}
+                    className="space-y-1.5 pt-3 border-t border-slate-200/65 dark:border-slate-800/65"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Centering Mode</span>
+                      <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                        {centerDesign ? "Auto Center ON" : "Off"}
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setCenterDesign(!centerDesign)}
+                      className={`w-full py-2 px-3 rounded-xl border font-bold text-[10px] cursor-pointer flex items-center justify-center gap-1.5 transition-all ${
+                        centerDesign
+                          ? "bg-emerald-50 dark:bg-emerald-950/40 border-emerald-500/50 text-emerald-750 dark:text-emerald-300 shadow-3xs"
+                          : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-850"
+                      }`}
+                    >
+                      <span>🎯</span>
+                      <span>{centerDesign ? "Design Centered" : "Center Design"}</span>
+                    </button>
+                  </motion.div>
+
                   {/* Visual scale / zoom controller */}
                   <motion.div 
                     layout
@@ -3306,6 +3338,16 @@ export default function App() {
                       }}
                       dangerouslySetInnerHTML={{ __html: previewHtml }}
                     />
+                    {centerDesign && (
+                      <style dangerouslySetInnerHTML={{ __html: `
+                        .print-preview-content-area > * {
+                          margin-left: auto !important;
+                          margin-right: auto !important;
+                          margin-top: auto !important;
+                          margin-bottom: auto !important;
+                        }
+                      `}} />
+                    )}
                   </div>
                 </div>
               </div>

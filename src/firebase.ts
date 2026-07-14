@@ -60,9 +60,9 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
   return new Promise((resolve, reject) => {
     isSigningIn = true;
 
-    // Use OAuth Client ID from firebase-applet-config.json
-    const clientId = "974556276539-1tgu7gkg44ip5qbn1g9bfbiv5agr0e1d.apps.googleusercontent.com";
-    const redirectUri = window.location.origin;
+    // Use OAuth Client ID from user configuration
+    const clientId = "1055798293442-kqau5dd6f88nismqd3rjc3i5ngsocck4.apps.googleusercontent.com";
+    const redirectUri = window.location.origin.endsWith("/") ? window.location.origin : window.location.origin + "/";
     const scope = "https://www.googleapis.com/auth/drive.file email profile openid";
 
     const authUrl = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=token&scope=${encodeURIComponent(scope)}&prompt=consent`;

@@ -996,15 +996,15 @@ export default function ResourcesHub({
   const getCategoryColor = (category: string) => {
     switch (category) {
       case "Design":
-        return "bg-pink-50 text-pink-650 border-pink-100";
+        return "bg-pink-50 dark:bg-pink-950/30 text-pink-700 dark:text-pink-300 border-pink-100 dark:border-pink-900/35";
       case "Development":
-        return "bg-blue-50 text-blue-650 border-blue-100";
+        return "bg-blue-50 dark:bg-blue-950/30 text-blue-700 dark:text-blue-300 border-blue-100 dark:border-blue-900/35";
       case "SEO":
-        return "bg-emerald-50 text-emerald-650 border-emerald-100";
+        return "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-300 border-emerald-100 dark:border-emerald-900/35";
       case "Technology":
-        return "bg-purple-50 text-purple-650 border-purple-100";
+        return "bg-purple-50 dark:bg-purple-950/30 text-purple-700 dark:text-purple-300 border-purple-100 dark:border-purple-900/35";
       default:
-        return "bg-slate-50 text-slate-650 border-slate-100";
+        return "bg-slate-50 dark:bg-slate-900/40 text-slate-700 dark:text-slate-300 border-slate-100 dark:border-slate-800";
     }
   };
 
@@ -1464,12 +1464,12 @@ export default function ResourcesHub({
                       <p className="text-slate-500 dark:text-slate-400">
                         First, go to the <strong className="text-indigo-600 dark:text-indigo-400">XML Sitemap Search Indexer</strong> sub-tab. Enter your canonical production domain name (e.g. <code>https://yourdomain.com</code>). Click <strong className="text-indigo-600 dark:text-indigo-400">"Generate & Fetch Sitemap"</strong> to inspect sitemap records.
                       </p>
-                      <div className="text-[9.5px] bg-indigo-50/40 dark:bg-indigo-950/20 p-2 rounded-lg border border-indigo-100/30 dark:border-indigo-900/20 text-indigo-650 dark:text-indigo-400 leading-normal">
+                      <div className="text-[9.5px] bg-indigo-50/40 dark:bg-indigo-950/20 p-2 rounded-lg border border-indigo-100/30 dark:border-indigo-900/20 text-indigo-700 dark:text-indigo-400 leading-normal">
                         <strong>Action Item:</strong> Click the "Copy Sitemap XML" button and paste it into a file named <code>sitemap.xml</code> on your site's root directory, then submit this URL to Google Search Console.
                       </div>
                     </div>
 
-                    <div className="p-4 bg-white dark:bg-slate-955 border border-slate-100 dark:border-slate-850/80 rounded-2xl space-y-2.5 shadow-xs">
+                    <div className="p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-850/80 rounded-2xl space-y-2.5 shadow-xs">
                       <div className="flex items-center gap-2">
                         <span className="flex items-center justify-center w-5.5 h-5.5 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-[10px] font-black text-indigo-600 dark:text-indigo-400 font-mono border border-indigo-100/50 dark:border-indigo-900/40">02</span>
                         <h5 className="font-extrabold text-slate-850 dark:text-slate-200 uppercase tracking-wide">Select Template Page</h5>
@@ -1477,7 +1477,7 @@ export default function ResourcesHub({
                       <p className="text-slate-500 dark:text-slate-400">
                         Switch to the <strong className="text-indigo-600 dark:text-indigo-400">SEO Meta Template Generator</strong> sub-tab. Select your target viewport (e.g. <em>Home Page</em>, <em>Video Maker</em>, <em>Guides Hub</em>) under <strong className="text-slate-600 dark:text-slate-400">"1. Choose Layout Context"</strong>.
                       </p>
-                      <div className="text-[9.5px] bg-sky-50/40 dark:bg-sky-955/25 p-2 rounded-lg border border-sky-100/30 dark:border-sky-900/20 text-sky-650 dark:text-sky-400 leading-normal">
+                      <div className="text-[9.5px] bg-sky-50/40 dark:bg-sky-950/20 p-2 rounded-lg border border-sky-100/30 dark:border-sky-900/20 text-sky-750 dark:text-sky-400 leading-normal">
                         <strong>Default Setup:</strong> Presets default to highly optimized titles matching Google publisher and strict <strong>Google AdSense Editorial policies</strong> out of the box.
                       </div>
                     </div>
@@ -1490,12 +1490,12 @@ export default function ResourcesHub({
                       <p className="text-slate-500 dark:text-slate-400">
                         Under <strong className="text-slate-600 dark:text-slate-400">"2. Customize Parameters"</strong>, customize your brand name, target search keywords, and descriptive context. Then, click <strong className="text-indigo-600 dark:text-indigo-400">"🔮 Optimize with Gemini AI"</strong>.
                       </p>
-                      <div className="text-[9.5px] bg-purple-50/40 dark:bg-purple-955/20 p-2 rounded-lg border border-purple-100/30 dark:border-purple-900/20 text-purple-650 dark:text-purple-400 leading-normal">
+                      <div className="text-[9.5px] bg-purple-50/40 dark:bg-purple-950/20 p-2 rounded-lg border border-purple-100/30 dark:border-purple-900/20 text-purple-750 dark:text-purple-400 leading-normal">
                         <strong>AI Power:</strong> Gemini will analyze your input parameters and generate a compelling, click-maximizing copy fitting optimal metadata lengths.
                       </div>
                     </div>
 
-                    <div className="p-4 bg-white dark:bg-slate-955 border border-slate-100 dark:border-slate-850/80 rounded-2xl space-y-2.5 shadow-xs">
+                    <div className="p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-850/80 rounded-2xl space-y-2.5 shadow-xs">
                       <div className="flex items-center gap-2">
                         <span className="flex items-center justify-center w-5.5 h-5.5 rounded-lg bg-indigo-50 dark:bg-indigo-950 text-[10px] font-black text-indigo-600 dark:text-indigo-400 font-mono border border-indigo-100/50 dark:border-indigo-900/40">04</span>
                         <h5 className="font-extrabold text-slate-850 dark:text-slate-200 uppercase tracking-wide">Validate & Deploy</h5>
@@ -1503,7 +1503,7 @@ export default function ResourcesHub({
                       <p className="text-slate-500 dark:text-slate-400">
                         Check counts on the <strong className="text-slate-600 dark:text-slate-400">Live Google Search Snippet Mockup</strong> (green length indicators represent optimal length). Finally, copy the code and deploy it to your site's codebase!
                       </p>
-                      <div className="text-[9.5px] bg-emerald-50/40 dark:bg-emerald-955/25 p-2 rounded-lg border border-emerald-100/30 dark:border-emerald-900/20 text-emerald-650 dark:text-emerald-400 leading-normal">
+                      <div className="text-[9.5px] bg-emerald-50/40 dark:bg-emerald-950/20 p-2 rounded-lg border border-emerald-100/30 dark:border-emerald-900/20 text-emerald-750 dark:text-emerald-400 leading-normal">
                         <strong>Instant Copy:</strong> Copy buttons let you duplicate code instantly. OpenGraph tags are included to ensure your social links look beautiful on Discord, X, and Facebook.
                       </div>
                     </div>
