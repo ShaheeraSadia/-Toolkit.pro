@@ -61,7 +61,7 @@ export const googleSignIn = async (): Promise<{ user: User; accessToken: string 
     isSigningIn = true;
 
     // Use OAuth Client ID from user configuration
-    const clientId = "1055798293442-kqau5dd6f88nismqd3rjc3i5ngsocck4.apps.googleusercontent.com";
+    const clientId = "902695205105-92e8tiqfa4uu7uvl1o7pkgpbg6phgciv.apps.googleusercontent.com";
     const redirectUri = window.location.origin.endsWith("/") ? window.location.origin : window.location.origin + "/";
     const scope = "https://www.googleapis.com/auth/drive.file email profile openid";
 
