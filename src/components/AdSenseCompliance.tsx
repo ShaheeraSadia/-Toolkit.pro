@@ -135,22 +135,26 @@ export default function AdSenseCompliance({ subTab, onChangeSubTab }: AdSenseCom
                 Privacy & Data Synchronization Policy
               </h4>
               <p>
-                This Privacy Policy describes how we collect, handle, and store user analytics and authentication details. We are committed to protecting your privacy and transparently disclosing our data processing.
+                This Privacy Policy describes how <strong>Toolkit Pro</strong> (&ldquo;we&rdquo;, &ldquo;our&rdquo;, or &ldquo;us&rdquo;) collects, handles, and stores user analytics and authentication details. We are committed to protecting your privacy and transparently disclosing our data processing.
               </p>
 
               <div className="space-y-3">
                 <div>
                   <h5 className="font-bold text-slate-900 dark:text-white">1. Google AdSense & Third-Party Advertising Cookies</h5>
                   <p>
-                    Google, as a third-party vendor, uses cookies to serve ads on our site. Google's use of advertising cookies enables it and its partners to serve ads based on your visit to this site and other websites on the Internet. You can opt out of personalized advertising by visiting Google's Ad Settings.
+                    Google, as a third-party vendor, uses cookies to serve ads on <a href="https://toolkit-pro-chi.vercel.app" target="_blank" rel="noopener noreferrer" className="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline">Toolkit Pro</a>. Google's use of advertising cookies enables it and its partners to serve ads based on your visit to this site and other websites on the Internet. You can opt out of personalized advertising by visiting Google's Ad Settings.
                   </p>
                 </div>
 
                 <div>
-                  <h5 className="font-bold text-slate-900 dark:text-white">2. Google Workspace API Data Storage</h5>
+                  <h5 className="font-bold text-slate-900 dark:text-white">2. Google Workspace API Data Storage & Usage</h5>
                   <p>
-                    When you authenticate with your Google account inside this application, we use the restricted scope <code className="bg-slate-100 dark:bg-indigo-950/40 px-1 py-0.5 rounded text-[10px] text-indigo-700 dark:text-indigo-300 font-semibold font-mono">/auth/drive.file</code>. This scope allows us ONLY to read, edit, or delete files created explicitly by this layout kit. Your files are never stored or transmitted to external hosts; all API routing is processed secure in the browser or via strict end-to-end Firebase proxies.
+                    When you authenticate with your Google account inside <a href="https://toolkit-pro-chi.vercel.app" target="_blank" rel="noopener noreferrer" className="text-indigo-600 dark:text-indigo-400 font-semibold hover:underline">Toolkit Pro</a> (https://toolkit-pro-chi.vercel.app), we use the restricted scope <code className="bg-slate-100 dark:bg-indigo-950/40 px-1 py-0.5 rounded text-[10px] text-indigo-700 dark:text-indigo-300 font-semibold font-mono">/auth/drive.file</code>.
                   </p>
+                  <ul className="list-disc pl-4 mt-1 space-y-1 text-slate-500 dark:text-slate-400">
+                    <li><strong>Purpose:</strong> This scope allows <a href="https://toolkit-pro-chi.vercel.app" target="_blank" rel="noopener noreferrer" className="font-semibold text-indigo-600 dark:text-indigo-400">Toolkit Pro</a> ONLY to read, edit, create, or delete specific files created explicitly by this layout kit (such as templates and design assets).</li>
+                    <li><strong>Storage:</strong> Your files and data are never stored on or transmitted to external hosts. All API routing is processed securely inside your browser or via strict end-to-end Firebase proxies. We do not transfer this Google user data to third-party platforms.</li>
+                  </ul>
                 </div>
 
                 <div>
@@ -168,8 +172,17 @@ export default function AdSenseCompliance({ subTab, onChangeSubTab }: AdSenseCom
                 </div>
               </div>
 
+              <div className="border-t border-slate-100 dark:border-slate-800/80 pt-3 mt-4 space-y-2">
+                <p className="text-[11px] font-bold text-slate-850 dark:text-slate-200">
+                  Contact Us:
+                </p>
+                <p className="text-[11px] text-slate-500 dark:text-slate-450">
+                  If you have any questions about this Privacy Policy, please contact us at: <a href="mailto:shaheerasadia@gmail.com" className="text-indigo-600 dark:text-indigo-400 font-bold hover:underline">shaheerasadia@gmail.com</a>
+                </p>
+              </div>
+
               <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-4 border-t border-slate-100 dark:border-slate-800/80 pt-3 flex items-center justify-between animate-fade-in">
-                <span>Last Updated: June 2026</span>
+                <span>Last Updated: July 2026</span>
                 <span>GDPR & CCPA Compliant</span>
               </div>
             </div>

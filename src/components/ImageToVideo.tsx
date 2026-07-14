@@ -58,7 +58,8 @@ import {
   Mic,
   ListChecks,
   Grid,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Search
 } from "lucide-react";
 
 interface OverlayElement {
@@ -1432,6 +1433,74 @@ interface BatchItem {
   slide?: ImageSlide;
 }
 
+const MiniMusicWaveform: React.FC<{ active: boolean; volume?: number }> = ({ active, volume = 0.5 }) => {
+  const canvasRef = useRef<HTMLCanvasElement | null>(null);
+  const volumeRef = useRef<number>(volume);
+
+  useEffect(() => {
+    volumeRef.current = volume;
+  }, [volume]);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    let animationId: number;
+    const numBars = 4;
+    const barWidth = 3;
+    const gap = 2;
+    const barHeights = Array(numBars).fill(3);
+    const targetHeights = Array(numBars).fill(3);
+
+    const render = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+
+      const currentVolume = volumeRef.current;
+
+      for (let i = 0; i < numBars; i++) {
+        if (active && currentVolume > 0.02) {
+          if (Math.abs(barHeights[i] - targetHeights[i]) < 0.5) {
+            // Scale target height limit with volume
+            const maxHeight = Math.max(3, currentVolume * canvas.height);
+            targetHeights[i] = Math.random() * (maxHeight - 1.5) + 1.5;
+          }
+          // Scale animation speed/interpolation rate with volume level
+          const speedFactor = Math.max(0.06, currentVolume * 0.25);
+          barHeights[i] += (targetHeights[i] - barHeights[i]) * speedFactor;
+        } else {
+          barHeights[i] += (1.5 - barHeights[i]) * 0.1;
+        }
+
+        const x = i * (barWidth + gap) + 1;
+        const y = canvas.height - barHeights[i];
+        
+        ctx.beginPath();
+        ctx.fillRect(x, y, barWidth, barHeights[i]);
+      }
+
+      animationId = requestAnimationFrame(render);
+    };
+
+    render();
+
+    return () => {
+      cancelAnimationFrame(animationId);
+    };
+  }, [active]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={22}
+      height={14}
+      className="shrink-0 opacity-90 inline-block align-middle mr-1"
+    />
+  );
+};
+
 export default function ImageToVideo({
   user,
   accessToken,
@@ -1830,6 +1899,7 @@ export default function ImageToVideo({
   const [promptTemplateStyle, setPromptTemplateStyle] = useState<"detailed" | "minimal" | "sora_luma" | "runway_agent">("runway_agent");
   const [copySuccess, setCopySuccess] = useState<boolean>(false);
   const [userPromptText, setUserPromptText] = useState<string>("");
+  const [sceneTemplateSearchQuery, setSceneTemplateSearchQuery] = useState<string>("");
   const [isGeneratingScene, setIsGeneratingScene] = useState<boolean>(false);
   const [showPromptGuide, setShowPromptGuide] = useState<boolean>(false);
   const [handbookTab, setHandbookTab] = useState<"basics" | "consistency" | "references" | "power-prompt" | "post-edit" | "models">("basics");
@@ -8503,7 +8573,16 @@ export default function ImageToVideo({
                           className="py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white rounded-xl text-[10.5px] font-black uppercase tracking-wider cursor-pointer flex items-center justify-center gap-1.5 transition-all select-none shadow-md"
                         >
                           <Video className="w-4 h-4 fill-current animate-pulse" />
-                          <span>Export Cinematic Video</span>
+                          <span>
+                            {soundtrack !== "none" && audioTrackMode === "synth" && (
+                              <MiniMusicWaveform active={true} volume={audioVolume} />
+                            )}
+                            <span>
+                              {soundtrack !== "none" && audioTrackMode === "synth"
+                                ? `Generate Video with ${SOUNDTRACK_LIBRARY.find(t => t.id === soundtrack)?.name || soundtrack} ✨`
+                                : "Generate Video (Mute) 🎥"}
+                            </span>
+                          </span>
                         </button>
                       </div>
                     </div>
@@ -8578,7 +8657,16 @@ export default function ImageToVideo({
                     className="px-4 py-2.5 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white rounded-xl text-[10.5px] font-black uppercase tracking-wider cursor-pointer flex items-center gap-1.5 transition-all select-none border border-emerald-500/30 active:scale-97"
                   >
                     <Video className="w-4 h-4 fill-current animate-pulse" />
-                    <span>⚡ Create Video Now ({slides.length} {slides.length === 1 ? "Image" : "Images"})</span>
+                    <span className="flex items-center gap-1">
+                      {soundtrack !== "none" && audioTrackMode === "synth" && (
+                        <MiniMusicWaveform active={true} volume={audioVolume} />
+                      )}
+                      <span>
+                        {soundtrack !== "none" && audioTrackMode === "synth"
+                          ? `Generate Video with ${SOUNDTRACK_LIBRARY.find(t => t.id === soundtrack)?.name || soundtrack} ✨`
+                          : "Generate Video (Mute) 🎥"}
+                      </span>
+                    </span>
                   </button>
                 )}
               </div>
@@ -10990,7 +11078,7 @@ export default function ImageToVideo({
                   </div>
 
                   {/* Quick One-Click Scene Builders */}
-                  <div className="bg-slate-50 dark:bg-slate-950/30 p-2.5 rounded-xl border border-slate-200/65 dark:border-slate-850/60 space-y-2 text-left">
+                  <div className="bg-slate-50 dark:bg-slate-950/30 p-2.5 rounded-xl border border-slate-200/65 dark:border-slate-850/60 space-y-2 text-left animate-fade-in">
                     <div className="flex items-center justify-between">
                       <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
                         <Sparkles className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />
@@ -11000,7 +11088,29 @@ export default function ImageToVideo({
                         Load Scene & Style
                       </span>
                     </div>
-                    <div className="grid grid-cols-2 xs:grid-cols-3 gap-1.5">
+
+                    {/* Search Field for Templates */}
+                    <div className="relative flex items-center mt-1">
+                      <Search className="w-3.5 h-3.5 text-slate-400 dark:text-slate-500 absolute left-2.5 pointer-events-none" />
+                      <input
+                        type="text"
+                        placeholder="Search templates (e.g. Cyber, Ghibli, Sunset)..."
+                        value={sceneTemplateSearchQuery}
+                        onChange={(e) => setSceneTemplateSearchQuery(e.target.value)}
+                        className="w-full pl-8 pr-7 py-1.5 text-[9.5px] font-semibold bg-white dark:bg-slate-900 border border-slate-200/80 dark:border-indigo-950/40 rounded-lg text-slate-800 dark:text-slate-200 placeholder-slate-400 dark:placeholder-slate-500 focus:outline-hidden focus:border-indigo-500/80 dark:focus:border-indigo-500/60 focus:ring-1 focus:ring-indigo-500/10 transition-all shadow-2xs"
+                      />
+                      {sceneTemplateSearchQuery && (
+                        <button
+                          type="button"
+                          onClick={() => setSceneTemplateSearchQuery("")}
+                          className="absolute right-2 text-slate-400 dark:text-slate-500 hover:text-slate-600 dark:hover:text-slate-300 text-[10px] font-black cursor-pointer p-0.5"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-2 xs:grid-cols-3 gap-1.5 pt-0.5">
                       {[
                         {
                           title: "Cyber Tokyo",
@@ -11044,7 +11154,15 @@ export default function ImageToVideo({
                           style: "film-noir",
                           camera: "zoom-in"
                         }
-                      ].map((preset) => (
+                      ].filter((preset) => {
+                        const q = sceneTemplateSearchQuery.toLowerCase().trim();
+                        if (!q) return true;
+                        return (
+                          preset.title.toLowerCase().includes(q) ||
+                          preset.prompt.toLowerCase().includes(q) ||
+                          preset.style.toLowerCase().includes(q)
+                        );
+                      }).map((preset) => (
                         <button
                           key={preset.title}
                           type="button"
@@ -11072,6 +11190,314 @@ export default function ImageToVideo({
                           </div>
                         </button>
                       ))}
+                      {/* Empty state when no templates match search */}
+                      {[
+                        {
+                          title: "Cyber Tokyo",
+                          emoji: "🏎️ 🌆",
+                          prompt: "A sleek futuristic sports car speeding down a wet neon-lit street in Neo-Tokyo, towering holographic billboards, skyscrapers reflecting pink and blue light, cinematic motion blur, deep depth of field",
+                          style: "cyberpunk",
+                          camera: "zoom-in"
+                        },
+                        {
+                          title: "Mystic Forest",
+                          emoji: "🍄 ✨",
+                          prompt: "A magical glowing forest with towering ancient trees, vibrant giant mushrooms, soft golden light particles floating gracefully, a mysterious hidden waterfall in the background",
+                          style: "fantasy-dream",
+                          camera: "orbit"
+                        },
+                        {
+                          title: "Sunset Shore",
+                          emoji: "🌅 🌊",
+                          prompt: "A dramatic cinematic sunset over gentle turquoise ocean waves, warm pink and amber clouds, detailed palm tree leaves silhouetted on the pristine shore, light leaks",
+                          style: "nature-8k",
+                          camera: "pan-right"
+                        },
+                        {
+                          title: "Ghibli Cottage",
+                          emoji: "🏡 🌸",
+                          prompt: "A cozy wooden cottage nestled in a soft green valley of wildflowers under gentle morning sunlight, warm breeze blowing, studio ghibli anime key art aesthetic",
+                          style: "studio-ghibli",
+                          camera: "tilt-up"
+                        },
+                        {
+                          title: "Cosmic Space",
+                          emoji: "🪐 🌌",
+                          prompt: "A vast cosmic nebula swirling with stellar dust and glowing infant stars, deep purples and blues, a majestic ringed planet slowly rotating in the far distance",
+                          style: "realistic-3d",
+                          camera: "zoom-out"
+                        },
+                        {
+                          title: "Dark Noir",
+                          emoji: "🕵️‍♂️ 🌧️",
+                          prompt: "A mysterious detective in a trench coat standing under a solitary yellow street lamp, dark foggy city alleyway, heavy raindrops glistening, high contrast shadows",
+                          style: "film-noir",
+                          camera: "zoom-in"
+                        }
+                      ].filter((preset) => {
+                        const q = sceneTemplateSearchQuery.toLowerCase().trim();
+                        if (!q) return true;
+                        return (
+                          preset.title.toLowerCase().includes(q) ||
+                          preset.prompt.toLowerCase().includes(q) ||
+                          preset.style.toLowerCase().includes(q)
+                        );
+                      }).length === 0 && (
+                        <div className="col-span-full py-3 text-center text-[10px] font-bold text-slate-400 bg-white dark:bg-slate-900 border border-dashed border-slate-200 dark:border-slate-800 rounded-xl">
+                          No matching templates found 🔍
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Fill-in-the-Blank Prompt Templates */}
+                  <div className="bg-gradient-to-r from-indigo-50/50 to-pink-50/30 dark:from-indigo-950/20 dark:to-pink-950/10 p-2.5 rounded-xl border border-indigo-100/50 dark:border-indigo-900/30 space-y-2.5 text-left">
+                    <div className="flex items-center justify-between flex-wrap gap-1">
+                      <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                        <span className="text-xs">✏️</span>
+                        <span>Try "Fill-in-the-Blank" Templates (بنے بنائے ٹیمپلیٹس):</span>
+                      </span>
+                      <span className="text-[8px] font-extrabold text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded">
+                        Tap to Load & Sync Music
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-1.5">
+                      {[
+                        {
+                          label: "🎬 Cinematic Movie",
+                          desc: "Create highly realistic, movie-style scenes with 4K depth.",
+                          text: "A cinematic, hyper-realistic video of [Subject - e.g. a majestic lion] walking slowly in [Location - e.g. a snowy forest at sunset], shot on a 35mm lens, dramatic golden hour lighting, ultra-detailed, 4k.",
+                          toastTitle: "🎬 Movie Template Loaded!",
+                          style: "cinematic-4k",
+                          audioId: "cinema-epic"
+                        },
+                        {
+                          label: "🎨 Anime Style",
+                          desc: "Vibrant anime aesthetics inspired by Studio Ghibli.",
+                          text: "A beautiful anime-style animation of [Subject - e.g. a boy playing guitar] sitting by the window, vibrant colors, Studio Ghibli aesthetic, soft wind blowing, nostalgic and highly detailed.",
+                          toastTitle: "🎨 Anime Template Loaded!",
+                          style: "studio-ghibli",
+                          audioId: "dream-pop"
+                        },
+                        {
+                          label: "☕ Cozy Lo-Fi",
+                          desc: "Aesthetic slow-motion and relaxing lo-fi vibes.",
+                          text: "A cozy, aesthetic lo-fi video of [Scene - e.g. a warm cup of tea next to a rainy window], soft golden lighting, slow motion, relaxing atmosphere, cinematic depth of field.",
+                          toastTitle: "☕ Lo-Fi Template Loaded!",
+                          style: "warm-vibe",
+                          audioId: "retro-lofi"
+                        }
+                      ].map((tmpl, idx) => {
+                        // Check if prompt contains the core template signature
+                        const isSignatureMatch = userPromptText.includes(tmpl.text.split('[')[0]);
+                        return (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => {
+                              setUserPromptText(tmpl.text);
+                              setSoundtrack(tmpl.audioId);
+                              setAudioTrackMode("synth");
+                              setToastMessage({
+                                text: tmpl.toastTitle,
+                                sub: "Loaded! Background audio sync set to " + (SOUNDTRACK_LIBRARY.find(t => t.id === tmpl.audioId)?.name || "") + ". Edit the bracketed [ ] sections to customize.",
+                                success: true
+                              });
+                              triggerBeepChime();
+                            }}
+                            className={`p-2 rounded-lg transition-all hover:scale-[1.01] active:scale-99 text-left cursor-pointer flex flex-col justify-between border ${
+                              isSignatureMatch
+                                ? "bg-indigo-50/80 dark:bg-indigo-950/30 border-indigo-500 dark:border-indigo-400 shadow-xs ring-1 ring-indigo-500/20"
+                                : "bg-white dark:bg-slate-900/90 border-slate-150 dark:border-indigo-950/40 hover:bg-indigo-50/40 dark:hover:bg-indigo-950/10 hover:border-indigo-500/30"
+                            }`}
+                          >
+                            <div>
+                              <div className="flex items-center justify-between">
+                                <span className="text-[9.5px] font-black text-indigo-700 dark:text-indigo-400 block mb-0.5">
+                                  {tmpl.label}
+                                </span>
+                                {isSignatureMatch && (
+                                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-ping" />
+                                )}
+                              </div>
+                              <p className="text-[8.5px] text-slate-500 dark:text-slate-400 leading-tight">
+                                {tmpl.desc}
+                              </p>
+                            </div>
+                            <div className="mt-1.5 flex items-center justify-between text-[7.5px] font-bold text-slate-450">
+                              <span>{tmpl.style}</span>
+                              <span className="text-indigo-500 text-[10px]">→</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+
+                    {/* Background Music Presets Toggles */}
+                    <div className="border-t border-indigo-100/30 dark:border-indigo-900/20 pt-2 mt-1">
+                      <div className="flex items-center justify-between mb-1.5">
+                        <span className="text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                          <span>🎵</span>
+                          <span>Background Music Presets (بیک گراؤنڈ میوزک):</span>
+                        </span>
+                        {soundtrack !== "none" && (
+                          <span className="text-[8px] font-extrabold text-indigo-600 dark:text-indigo-400 animate-pulse bg-indigo-50 dark:bg-indigo-950/40 px-1 py-0.5 rounded">
+                            {SOUNDTRACK_LIBRARY.find(t => t.id === soundtrack)?.bpm} BPM Active
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap gap-1">
+                        {[
+                          { id: "retro-lofi", label: "🎧 Lo-Fi Beat", toast: "🎧 Lo-Fi Synth Activated!" },
+                          { id: "cinema-epic", label: "🎻 Cinematic Piano", toast: "🎻 Cinematic Epic Synth Activated!" },
+                          { id: "ambient-deep", label: "🌊 Nature Ambient", toast: "🌊 Deep Blue Nature Ambient Activated!" },
+                          { id: "dream-pop", label: "✨ Dream Synth", toast: "✨ Dream Pop Synthwave Activated!" },
+                          { id: "none", label: "🔇 Mute (No Audio)", toast: "🔇 Video Set to Mute (Silent)" }
+                        ].map((track) => {
+                          const isTrackActive = soundtrack === track.id && audioTrackMode === "synth";
+                          const isPreviewing = previewingTrack === track.id;
+                          return (
+                            <div
+                              key={track.id}
+                              role="button"
+                              tabIndex={0}
+                              onClick={() => {
+                                setSoundtrack(track.id);
+                                setAudioTrackMode("synth");
+                                setToastMessage({
+                                  text: track.toast,
+                                  sub: track.id === "none" ? "All procedural synth audio disabled." : "Synth loops will blend beautifully with your generated video scene.",
+                                  success: true
+                                });
+                                triggerBeepChime();
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  setSoundtrack(track.id);
+                                  setAudioTrackMode("synth");
+                                }
+                              }}
+                              className={`pl-2 pr-1.5 py-1 text-[9px] font-black rounded-lg transition-all cursor-pointer flex items-center justify-between gap-1 border ${
+                                isTrackActive
+                                  ? "bg-indigo-50/80 dark:bg-indigo-950/30 border-indigo-500 dark:border-indigo-400 text-indigo-700 dark:text-indigo-300 shadow-xs ring-1 ring-indigo-500/20 scale-102"
+                                  : "bg-white dark:bg-slate-900/90 text-slate-600 dark:text-slate-350 border-slate-150 dark:border-indigo-950/40 hover:bg-indigo-50/20 dark:hover:bg-indigo-950/10"
+                              }`}
+                            >
+                              <div className="flex items-center gap-1">
+                                <span>{track.label}</span>
+                                {isTrackActive && (
+                                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-500 dark:bg-indigo-400 animate-pulse inline-block" />
+                                )}
+                              </div>
+
+                              {track.id !== "none" && (
+                                <span
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (isPlaying) {
+                                      setIsPlaying(false);
+                                      if (playbackIntervalRef.current) {
+                                        clearInterval(playbackIntervalRef.current);
+                                      }
+                                    }
+                                    if (isPreviewing) {
+                                      synthManagerRef.current.stop();
+                                      setPreviewingTrack(null);
+                                    } else {
+                                      synthManagerRef.current.stop();
+                                      synthManagerRef.current.start(track.id, effectiveSoundtrackVolume, audioFadeIn, audioFadeOut, totalDuration, null, 0, 0, 0, loopAudio);
+                                      setPreviewingTrack(track.id);
+                                    }
+                                    triggerBeepChime();
+                                  }}
+                                  className={`ml-1.5 p-0.5 rounded-full flex items-center justify-center transition-all hover:scale-115 active:scale-90 ${
+                                    isPreviewing
+                                      ? "bg-emerald-500 text-white shadow-xs animate-pulse"
+                                      : isTrackActive
+                                        ? "bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/30"
+                                        : "bg-slate-100 dark:bg-slate-800 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-500"
+                                  }`}
+                                  title={isPreviewing ? "Stop Preview" : "Listen Preview Loop"}
+                                >
+                                  {isPreviewing ? (
+                                    <Pause className="w-2.5 h-2.5 fill-current" />
+                                  ) : (
+                                    <Play className="w-2.5 h-2.5 fill-current" />
+                                  )}
+                                </span>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {/* Selected Soundtrack Volume Level */}
+                      {soundtrack !== "none" && (
+                        <div className="mt-2 bg-indigo-50/25 dark:bg-indigo-950/15 p-2 rounded-xl border border-indigo-100/30 dark:border-indigo-900/20 space-y-1.5 animate-fade-in">
+                          <div className="flex items-center justify-between text-[8.5px] font-extrabold text-slate-550 dark:text-slate-400">
+                            <span className="flex items-center gap-1">
+                              <Volume2 className="w-3 h-3 text-indigo-500 animate-pulse" />
+                              <span>Preset Volume Level (حجم آواز):</span>
+                            </span>
+                            <span className="font-mono text-[8.5px] text-indigo-650 dark:text-indigo-400 bg-indigo-100/40 dark:bg-indigo-950/60 px-1.5 py-0.2 rounded font-black">
+                              {Math.round(audioVolume * 100)}%
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <VolumeX className="w-3 h-3 text-slate-400 shrink-0" />
+                            <input
+                              type="range"
+                              min="0"
+                              max="1"
+                              step="0.01"
+                              value={audioVolume}
+                              onChange={(e) => {
+                                const val = parseFloat(e.target.value);
+                                setAudioVolume(val);
+                                if (val > 0 && isMuted) {
+                                  setIsMuted(false);
+                                }
+                              }}
+                              className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 transition-all"
+                            />
+                            <Volume2 className="w-3 h-3 text-indigo-400 shrink-0" />
+                          </div>
+
+                          {/* Fade In / Out Toggles */}
+                          <div className="flex items-center justify-between gap-4 pt-1.5 border-t border-indigo-100/30 dark:border-indigo-900/20 text-[8px] sm:text-[8.5px]">
+                            <label className="flex items-center gap-1.5 cursor-pointer select-none text-slate-600 dark:text-slate-350 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                              <input
+                                type="checkbox"
+                                checked={audioFadeIn}
+                                onChange={(e) => {
+                                  setAudioFadeIn(e.target.checked);
+                                  triggerBeepChime();
+                                }}
+                                className="rounded border-slate-300 dark:border-slate-850 text-indigo-600 focus:ring-indigo-500 h-3 w-3 sm:h-3.5 sm:w-3.5 cursor-pointer"
+                              />
+                              <span className="font-extrabold">
+                                Fade In (آواز کا آغاز)
+                              </span>
+                            </label>
+
+                            <label className="flex items-center gap-1.5 cursor-pointer select-none text-slate-600 dark:text-slate-350 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
+                              <input
+                                type="checkbox"
+                                checked={audioFadeOut}
+                                onChange={(e) => {
+                                  setAudioFadeOut(e.target.checked);
+                                  triggerBeepChime();
+                                }}
+                                className="rounded border-slate-300 dark:border-slate-850 text-indigo-600 focus:ring-indigo-500 h-3 w-3 sm:h-3.5 sm:w-3.5 cursor-pointer"
+                              />
+                              <span className="font-extrabold">
+                                Fade Out (آواز کا اختتام)
+                              </span>
+                            </label>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -18830,7 +19256,16 @@ export default function ImageToVideo({
                   className="w-full py-3 bg-gradient-to-r from-indigo-650 to-indigo-750 hover:from-indigo-700 hover:to-indigo-800 disabled:from-slate-300 disabled:to-slate-400 disabled:cursor-not-allowed text-white rounded-2xl font-black text-xs uppercase tracking-widest cursor-pointer shadow-md shadow-indigo-500/10 flex items-center justify-center gap-2 select-none transition-all active:scale-99"
                 >
                   <Video className="w-4 h-4 fill-current" />
-                  <span>Create CapCut Video</span>
+                  <span className="flex items-center gap-1">
+                    {soundtrack !== "none" && audioTrackMode === "synth" && (
+                      <MiniMusicWaveform active={true} volume={audioVolume} />
+                    )}
+                    <span>
+                      {soundtrack !== "none" && audioTrackMode === "synth"
+                        ? `Generate Video with ${SOUNDTRACK_LIBRARY.find(t => t.id === soundtrack)?.name || soundtrack} ✨`
+                        : "Generate Video (Mute) 🎥"}
+                    </span>
+                  </span>
                 </button>
               )}
             </div>
