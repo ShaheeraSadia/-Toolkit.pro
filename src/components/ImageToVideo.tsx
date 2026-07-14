@@ -1,14 +1,3 @@
- 
-
-
-
-
-
-
-
-
-
-
 import React, { useState, useEffect, useRef, useCallback } from "react";
 // @ts-ignore
 import garreyExplorerUrl from "../assets/images/garrey_explorer_1783014281882.jpg";
@@ -216,7 +205,7 @@ class RoyaltyFreeSynthManager {
     if (!this.ctx) {
       const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
       if (AudioContextClass) {
-        this.ctx = new AudioContextClass();
+        this.ctx = new AudioContextClass();   
         this.gainNode = this.ctx.createGain();
         this.gainNode.gain.setValueAtTime(volume, this.ctx.currentTime);
         
@@ -833,12 +822,12 @@ class RoyaltyFreeSynthManager {
 }
 
 const STYLE_TAGS: Record<string, string> = {
-  "Cinematic 🎬": "cinematic masterpiece, dramatic lighting, hyperdetailed 8k, volumetric atmosphere",
-  "Anime 🌸": "gorgeous studio ghibli anime style, vibrant hand-drawn, cozy lighting, beautiful aesthetics",
-  "Oil Painting 🎨": "textured oil painting brushstrokes, classical fine art canvas, rich moody impasto technique",
-  "Sketch ✏️": "highly detailed graphite pencil sketch, fine paper texture, clean hand-drawn monochrome",
-  "3D Render 🪐": "hyperrealistic octane 3D render, raytraced ambient occlusion, unreal engine 5 fidelity",
-  "Retro VHS 📹": "retro 1980s vhs camcorder look, vintage analog noise, nostalgic warm neon chromatic glow"
+  "Cinematic": "cinematic masterpiece, dramatic lighting, hyperdetailed 8k, volumetric atmosphere",
+  "Anime": "gorgeous studio ghibli anime style, vibrant hand-drawn, cozy lighting, beautiful aesthetics",
+  "Oil Painting": "textured oil painting brushstrokes, classical fine art canvas, rich moody impasto technique",
+  "Sketch": "highly detailed graphite pencil sketch, fine paper texture, clean hand-drawn monochrome",
+  "3D Render": "hyperrealistic octane 3D render, raytraced ambient occlusion, unreal engine 5 fidelity",
+  "Retro VHS": "retro 1980s vhs camcorder look, vintage analog noise, nostalgic warm neon chromatic glow"
 };
 
 const SAMPLE_SLIDES: ImageSlide[] = [
@@ -1055,7 +1044,7 @@ export const PRESET_IMAGES_GALLERY: PresetImageItem[] = [
     text: "Alpine Freshness",
     cameraMovement: "Pan Left",
     subjectDescription: "mist floating through tall pine trees in a mountain valley",
-    style: "Anime 🌸",
+    style: "Anime",
     sfx: "none"
   },
   {
@@ -1066,7 +1055,7 @@ export const PRESET_IMAGES_GALLERY: PresetImageItem[] = [
     text: "Emerald Lake",
     cameraMovement: "Slow Zoom",
     subjectDescription: "peaceful crystal clear emerald lake with giant mountains reflecting in the water",
-    style: "Oil Painting 🎨",
+    style: "Oil Painting",
     sfx: "bubble-pop"
   },
   {
@@ -1110,7 +1099,7 @@ export const PRESET_IMAGES_GALLERY: PresetImageItem[] = [
     text: "Deep Jungle Canopy",
     cameraMovement: "Slow Pan",
     subjectDescription: "lush tropical green ferns and ancient moss-covered tree roots catching soft shafts of morning light",
-    style: "Oil Painting 🎨",
+    style: "Oil Painting",
     sfx: "bubble-pop"
   },
   {
@@ -1121,7 +1110,7 @@ export const PRESET_IMAGES_GALLERY: PresetImageItem[] = [
     text: "Garrey Cyber Security Lab",
     cameraMovement: "Tilt Up",
     subjectDescription: "cute fluffy hacker Garrey wearing tech hoodie and glowing goggles in cozy futuristic room surrounded by neon computer screens",
-    style: "Retro VHS 📹",
+    style: "Retro VHS",
     sfx: "laser-sweep"
   },
   {
@@ -1132,7 +1121,7 @@ export const PRESET_IMAGES_GALLERY: PresetImageItem[] = [
     text: "Cyberpunk Alleyway",
     cameraMovement: "Tilt Up",
     subjectDescription: "cyberpunk city street with towering glowing neon signs and rain puddles reflecting lights",
-    style: "Retro VHS 📹",
+    style: "Retro VHS",
     sfx: "arcade-rise"
   },
   {
@@ -1143,7 +1132,7 @@ export const PRESET_IMAGES_GALLERY: PresetImageItem[] = [
     text: "Tokyo Cyber Rain",
     cameraMovement: "Slow Pan",
     subjectDescription: "glowing neon lights of dynamic Tokyo street during heavy rain",
-    style: "Retro VHS 📹",
+    style: "Retro VHS",
     sfx: "laser-sweep"
   },
   {
@@ -1176,7 +1165,7 @@ export const PRESET_IMAGES_GALLERY: PresetImageItem[] = [
     text: "Outrun the Future",
     cameraMovement: "Slow Zoom",
     subjectDescription: "an endless glowing wireframe grid with a giant neon sun setting in a hazy 80s pink purple background",
-    style: "Retro VHS 📹",
+    style: "Retro VHS",
     sfx: "arcade-rise"
   },
   {
@@ -1198,7 +1187,7 @@ export const PRESET_IMAGES_GALLERY: PresetImageItem[] = [
     text: "Color Explosion",
     cameraMovement: "Slow Zoom",
     subjectDescription: "swirling vibrant fluid colors in a stunning high-contrast macro dynamic explosion",
-    style: "3D Render 🪐",
+    style: "3D Render",
     sfx: "cinema-impact"
   },
   {
@@ -1209,7 +1198,7 @@ export const PRESET_IMAGES_GALLERY: PresetImageItem[] = [
     text: "Monolithic Shapes",
     cameraMovement: "Slow Pan",
     subjectDescription: "abstract glossy futuristic monolithic geometry floating in space with orange and purple lights",
-    style: "3D Render 🪐",
+    style: "3D Render",
     sfx: "laser-sweep"
   },
   {
@@ -1220,7 +1209,7 @@ export const PRESET_IMAGES_GALLERY: PresetImageItem[] = [
     text: "Quantum Processor",
     cameraMovement: "Slow Zoom",
     subjectDescription: "abstract macro photography of high-tech motherboard circuits with glowing gold pathways and microchips",
-    style: "3D Render 🪐",
+    style: "3D Render",
     sfx: "cinema-impact"
   },
   {
@@ -1231,7 +1220,7 @@ export const PRESET_IMAGES_GALLERY: PresetImageItem[] = [
     text: "Interstellar Flow",
     cameraMovement: "Pan Left",
     subjectDescription: "beautiful slow moving macro marble swirls of cyan blue, gold, and magenta liquid acrylic paint in absolute zero gravity",
-    style: "Oil Painting 🎨",
+    style: "Oil Painting",
     sfx: "celestial-chime"
   },
   {
@@ -1242,7 +1231,7 @@ export const PRESET_IMAGES_GALLERY: PresetImageItem[] = [
     text: "Pulse of the Grid",
     cameraMovement: "Slow Zoom",
     subjectDescription: "glowing neon wireframe glass wave curves crossing over each other in dark space with pink and blue laser gradients",
-    style: "3D Render 🪐",
+    style: "3D Render",
     sfx: "laser-sweep"
   },
   {
@@ -1267,11 +1256,11 @@ interface SfxItem {
 }
 
 const SFX_LIBRARY: SfxItem[] = [
-  { id: "cinema-impact", name: "Deep Cinematic Impact", emoji: "💥", desc: "A heavy, sub-bass explosive transition impact for dramatic scenes.", type: "impact" },
-  { id: "laser-sweep", name: "Retro Laser Sweep", emoji: "⚡", desc: "A sweeping, high-frequency sci-fi laser effect.", type: "sweep" },
-  { id: "bubble-pop", name: "Ambient Bubble Pops", emoji: "🫧", desc: "Playful underwater bubble textures for nature/relaxing scenes.", type: "nature" },
-  { id: "celestial-chime", name: "Celestial Star Chimes", emoji: "✨", desc: "Bright major pentatonic chime sweeps.", type: "chime" },
-  { id: "arcade-rise", name: "8-Bit Arcade Rise", emoji: "👾", desc: "An escalating chiptune retro pitch-slide sweep.", type: "sweep" }
+  { id: "cinema-impact", name: "Deep Cinematic Impact",   desc: "A heavy, sub-bass explosive transition impact for dramatic scenes.", type: "impact" },
+  { id: "laser-sweep", name: "Retro Laser Sweep",   desc: "A sweeping, high-frequency sci-fi laser effect.", type: "sweep" },
+  { id: "bubble-pop", name: "Ambient Bubble Pops",  desc: "Playful underwater bubble textures for nature/relaxing scenes.", type: "nature" },
+  { id: "celestial-chime", name: "Celestial Star Chimes",  desc: "Bright major pentatonic chime sweeps.", type: "chime" },
+  { id: "arcade-rise", name: "8-Bit Arcade Rise",   desc: "An escalating chiptune retro pitch-slide sweep.", type: "sweep" }
 ];
 
 interface SoundtrackItem {
@@ -1284,14 +1273,14 @@ interface SoundtrackItem {
 }
 
 const SOUNDTRACK_LIBRARY: SoundtrackItem[] = [
-  { id: "retro-lofi", name: "Soft Retro Lofi", bpm: 85, emoji: "🎧", genre: "Lofi Hip-Hop", desc: "Warm relaxing chord sweeps with soft rim shots and ambient vinyl crackle beats." },
-  { id: "upbeat-chimes", name: "Upbeat Major Chimes", bpm: 115, emoji: "🔔", genre: "Ambient Pop", desc: "Bright major scale pentatonic arpeggios with positive chiptune percussion layers." },
-  { id: "dream-pop", name: "Dream Pop Synthwave", bpm: 100, emoji: "✨", genre: "Dreamwave", desc: "Ethereal floating analog synth pads with sweet bubbling echo melodies." },
-  { id: "ambient-deep", name: "Deep Blue Ambient", bpm: 60, emoji: "🌊", genre: "Ambient Drone", desc: "Immersion drone waves with underwater bubble pops and sub heartbeat kicks." },
-  { id: "cyberpunk", name: "Cyberpunk Industrial", bpm: 125, emoji: "🎸", genre: "Synth Bass", desc: "Pulsating heavy sawtooth bass, high-frequency metallic sizzles, and retro lasers." },
-  { id: "tech-house", name: "Ibiza Tech House", bpm: 124, emoji: "🕺", genre: "Electronic", desc: "Four-on-the-floor pumping kick drums with offbeat high-hats and tech stab chords." },
-  { id: "cinema-epic", name: "Cinematic Epic", bpm: 75, emoji: "🎻", genre: "Orchestral", desc: "Dramatic slow-brass chords, giant sub heartbeat impact drums, and high strings." },
-  { id: "none", name: "Silent Video File", bpm: 0, emoji: "🔇", genre: "Mute", desc: "Deactivate all live synthesis. Export your final video clip with no sound track." }
+  { id: "retro-lofi", name: "Soft Retro Lofi", bpm: 85,   genre: "Lofi Hip-Hop", desc: "Warm relaxing chord sweeps with soft rim shots and ambient vinyl crackle beats." },
+  { id: "upbeat-chimes", name: "Upbeat Major Chimes", bpm: 115,   genre: "Ambient Pop", desc: "Bright major scale pentatonic arpeggios with positive chiptune percussion layers." },
+  { id: "dream-pop", name: "Dream Pop Synthwave", bpm: 100,   genre: "Dreamwave", desc: "Ethereal floating analog synth pads with sweet bubbling echo melodies." },
+  { id: "ambient-deep", name: "Deep Blue Ambient", bpm: 60,   genre: "Ambient Drone", desc: "Immersion drone waves with underwater bubble pops and sub heartbeat kicks." },
+  { id: "cyberpunk", name: "Cyberpunk Industrial", bpm: 125,   genre: "Synth Bass", desc: "Pulsating heavy sawtooth bass, high-frequency metallic sizzles, and retro lasers." },
+  { id: "tech-house", name: "Ibiza Tech House", bpm: 124,   genre: "Electronic", desc: "Four-on-the-floor pumping kick drums with offbeat high-hats and tech stab chords." },
+  { id: "cinema-epic", name: "Cinematic Epic", bpm: 75,   genre: "Orchestral", desc: "Dramatic slow-brass chords, giant sub heartbeat impact drums, and high strings." },
+  { id: "none", name: "Silent Video File", bpm: 0,  genre: "Mute", desc: "Deactivate all live synthesis. Export your final video clip with no sound track." }
 ];
 
 interface FontOption {
@@ -1330,7 +1319,7 @@ const CURATED_MP3_LIBRARY: CuratedMusicTrack[] = [
     name: "Sunset Horizon Lounge",
     url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
     genre: "Chill Lounge",
-    emoji: "🎷",
+   
     desc: "A warm, smooth jazz-hop blend with slow brass chords, acoustic piano, and double bass.",
     duration: "6:12"
   },
@@ -1339,7 +1328,7 @@ const CURATED_MP3_LIBRARY: CuratedMusicTrack[] = [
     name: "Golden Hour Drive",
     url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3",
     genre: "Guitar Pop/Rock",
-    emoji: "🚗",
+    
     desc: "An upbeat, driving pop-rock track with sparkling electric guitars and steady energetic drums.",
     duration: "7:05"
   },
@@ -1348,7 +1337,7 @@ const CURATED_MP3_LIBRARY: CuratedMusicTrack[] = [
     name: "Nebula Cinematic Dreams",
     url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3",
     genre: "Ambient",
-    emoji: "🌌",
+  
     desc: "Ethereal string movements, swelling synth textures, and distant echoing woodwinds.",
     duration: "5:44"
   },
@@ -1357,7 +1346,7 @@ const CURATED_MP3_LIBRARY: CuratedMusicTrack[] = [
     name: "Electric Flow Synth",
     url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3",
     genre: "Upbeat Techno",
-    emoji: "⚡",
+  
     desc: "Pulsating electric synthesizers, driving retro drum patterns, and dynamic high-energy stabs.",
     duration: "5:02"
   },
@@ -1366,7 +1355,7 @@ const CURATED_MP3_LIBRARY: CuratedMusicTrack[] = [
     name: "Neon Horizon Synthwave",
     url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3",
     genre: "Synthwave",
-    emoji: "🏎️",
+  
     desc: "Retro 80s arpeggiated basslines, classic analog drum machines, and futuristic pads.",
     duration: "5:02"
   },
@@ -1375,7 +1364,7 @@ const CURATED_MP3_LIBRARY: CuratedMusicTrack[] = [
     name: "Peaceful Meadow Acoustic",
     url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3",
     genre: "Acoustic Folk",
-    emoji: "🏡",
+    
     desc: "Soft warm acoustic folk guitars fingerpicking sweet, positive morning chords in a slow tempo.",
     duration: "5:38"
   },
@@ -1384,7 +1373,7 @@ const CURATED_MP3_LIBRARY: CuratedMusicTrack[] = [
     name: "Midnight Funk Groove",
     url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3",
     genre: "Funk / Groove",
-    emoji: "🕺",
+   
     desc: "A funky, bouncing slap-bass groove with retro Rhodes electric keys and offbeat drum hi-hats.",
     duration: "6:18"
   },
@@ -1393,7 +1382,7 @@ const CURATED_MP3_LIBRARY: CuratedMusicTrack[] = [
     name: "Cosmic Sci-Fi Ambient",
     url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3",
     genre: "Sci-Fi Drone",
-    emoji: "🪐",
+  
     desc: "Suspenseful space exploration drones, echoing solar wind noise, and mysterious deep-space bells.",
     duration: "5:10"
   },
@@ -1402,7 +1391,7 @@ const CURATED_MP3_LIBRARY: CuratedMusicTrack[] = [
     name: "Coastal Breeze Acoustic",
     url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3",
     genre: "Acoustic Pop",
-    emoji: "🎸",
+  
     desc: "Upbeat organic acoustic guitars paired with warm piano harmonies and a positive rhythm.",
     duration: "7:03"
   },
@@ -1411,7 +1400,7 @@ const CURATED_MP3_LIBRARY: CuratedMusicTrack[] = [
     name: "Cyber Hacker Lounge",
     url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3",
     genre: "Chill Electronic",
-    emoji: "💻",
+  
     desc: "Cool futuristic digital soundscapes, liquid sub-bass drops, and steady mid-tempo electronic beats.",
     duration: "7:44"
   },
@@ -1420,7 +1409,7 @@ const CURATED_MP3_LIBRARY: CuratedMusicTrack[] = [
     name: "Symphony of the Universe",
     url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-11.mp3",
     genre: "Orchestral Epic",
-    emoji: "🎻",
+ 
     desc: "A powerful dramatic rising orchestral track with soaring strings, woodwinds, and colossal brass accents.",
     duration: "6:50"
   },
@@ -1429,7 +1418,7 @@ const CURATED_MP3_LIBRARY: CuratedMusicTrack[] = [
     name: "Dreamwave Analog Odyssey",
     url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-12.mp3",
     genre: "Dreamwave Chill",
-    emoji: "🕯️",
+  
     desc: "Cozy analogue synthesizer swells, soft nostalgic vinyl dust noises, and slow breathing snare hits.",
     duration: "7:12"
   }
@@ -2253,7 +2242,7 @@ export default function ImageToVideo({
     }
     
     setToastMessage({
-      text: `🎬 ${themeName} Applied!`,
+      text: ' ${themeName} Applied!`,
       sub: themeSub,
       success: true
     });
@@ -2292,7 +2281,7 @@ export default function ImageToVideo({
         }));
         setSlides(updated);
         
-        response = "⚡ Speed-optimized setup activated! Applied snappy 0.3s Light Flash transitions, active zoom pacing, high-contrast action filters, and dynamic cyberpunk loops.";
+        response = " Speed-optimized setup activated! Applied snappy 0.3s Light Flash transitions, active zoom pacing, high-contrast action filters, and dynamic cyberpunk loops.";
       } 
       else if (lower.includes("slow") || lower.includes("calm") || lower.includes("peaceful") || lower.includes("relax")) {
         setVideoPlaybackSpeed(0.85);
@@ -2314,7 +2303,7 @@ export default function ImageToVideo({
         }));
         setSlides(updated);
         
-        response = "🌸 Chill tempo activated. Set smooth 1.2s Cross Fades, warm retro filters, prolonged slide durations, and peaceful ambient chimes.";
+        response = " Chill tempo activated. Set smooth 1.2s Cross Fades, warm retro filters, prolonged slide durations, and peaceful ambient chimes.";
       }
       else if (lower.includes("retro") || lower.includes("vintage") || lower.includes("classic") || lower.includes("old") || lower.includes("vhs")) {
         setMasterVideoFilter("vintage");
@@ -2332,7 +2321,7 @@ export default function ImageToVideo({
         }));
         setSlides(updated);
         
-        response = "📼 Nostalgia engine online! Configured classic lofi tunes, vintage filters, typewriter captions, and warm blur-fade transitions.";
+        response = " Nostalgia engine online! Configured classic lofi tunes, vintage filters, typewriter captions, and warm blur-fade transitions.";
       }
       else if (lower.includes("scary") || lower.includes("dark") || lower.includes("horror") || lower.includes("mystery")) {
         setMasterVideoFilter("noir");
@@ -2350,7 +2339,7 @@ export default function ImageToVideo({
         }));
         setSlides(updated);
         
-        response = "🩸 Mystery aesthetic applied. Set high-contrast noir filter settings, eerie chimes, sudden cuts, and typewriter effects.";
+        response = " Mystery aesthetic applied. Set high-contrast noir filter settings, eerie chimes, sudden cuts, and typewriter effects.";
       }
       else {
         setTransitionStyle("cross-zoom");
@@ -2365,12 +2354,12 @@ export default function ImageToVideo({
         }));
         setSlides(updated);
         
-        response = "🎬 Balanced creative style initialized! Smooth ken-burns camera movements, cross-zoom transitions, and clean subtitles are ready.";
+        response = " Balanced creative style initialized! Smooth ken-burns camera movements, cross-zoom transitions, and clean subtitles are ready.";
       }
       
       setAiDirectorChatHistory(prev => [...prev, { sender: "director", message: response }]);
       setToastMessage({
-        text: "🎬 AI Director Style Applied",
+        text: " AI Director Style Applied",
         sub: "All timeline settings and tracks updated.",
         success: true
       });
