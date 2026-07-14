@@ -59,7 +59,8 @@ import {
   ListChecks,
   Grid,
   Image as ImageIcon,
-  Search
+  Search,
+  Share2
 } from "lucide-react";
 
 interface OverlayElement {
@@ -2372,6 +2373,7 @@ export default function ImageToVideo({
   const [showFinalOutput, setShowFinalOutput] = useState<boolean>(false);
   const [isSavingToDrive, setIsSavingToDrive] = useState<boolean>(false);
   const [isWaitingForLogin, setIsWaitingForLogin] = useState<boolean>(false);
+  const [showShareOptions, setShowShareOptions] = useState<boolean>(false);
 
   // Video history list
   const [videoHistory, setVideoHistory] = useState<{
@@ -9941,6 +9943,132 @@ export default function ImageToVideo({
                         <span>{isSavingToDrive ? "Saving..." : "Save to Drive"}</span>
                       </button>
                     </div>
+
+                    {/* Integrated Web Share & Social Sharing Panel */}
+                    <div className="space-y-1.5 pt-0.5">
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          const title = "My AI Video Masterpiece 🎬";
+                          const text = "I just generated a stunning AI video using AI Studio Video Creator! Check it out! ✨📽️";
+                          const url = window.location.href;
+
+                          let shared = false;
+                          if (navigator.share) {
+                            try {
+                              const shareData: any = {
+                                title,
+                                text,
+                                url,
+                              };
+
+                              // Support sharing the physical compiled video blob as a File if browser allows
+                              if (exportedVideoBlob && navigator.canShare) {
+                                const format = exportFormat || "webm";
+                                const mimeType = format === "gif" ? "image/gif" : "video/webm";
+                                const file = new File([exportedVideoBlob], `AI_Video_${Date.now()}.${format}`, { type: mimeType });
+                                if (navigator.canShare({ files: [file] })) {
+                                  shareData.files = [file];
+                                }
+                              }
+
+                              await navigator.share(shareData);
+                              shared = true;
+                              setToastMessage({
+                                text: "🎉 Shared Successfully!",
+                                sub: "Your video was shared via Web Share API.",
+                                success: true
+                              });
+                            } catch (err) {
+                              console.log("Web Share API error or cancelled:", err);
+                            }
+                          }
+
+                          // If Web Share was not finalized or supported, toggle the direct fallback grid
+                          if (!shared) {
+                            setShowShareOptions(!showShareOptions);
+                          }
+                          triggerBeepChime();
+                        }}
+                        className="w-full py-2 bg-gradient-to-r from-indigo-650 via-purple-650 to-pink-650 hover:from-indigo-600 hover:via-purple-600 hover:to-pink-600 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1 select-none shadow-md shadow-indigo-500/10 active:scale-98"
+                        title="Share your generated video using Web Share API or direct social links"
+                      >
+                        <Share2 className="w-3.5 h-3.5 text-white animate-pulse" />
+                        <span>Share Masterwork (ویڈیو شیئر کریں)</span>
+                      </button>
+
+                      {/* Collapsible/Toggleable Social Share Grid */}
+                      {showShareOptions && (
+                        <div className="bg-slate-950/40 border border-slate-800/60 p-2 rounded-xl space-y-1.5 animate-fade-in text-left">
+                          <span className="text-slate-400 font-black tracking-wider text-[7.5px] uppercase block px-1">
+                            Direct Social Sharing (سوشل میڈیا شیئر):
+                          </span>
+                          <div className="grid grid-cols-3 gap-1.5">
+                            {/* X / Twitter */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const text = "Check out this amazing AI Video I created with AI Studio Video Creator! 🎬✨ #AIVideo #GenerativeAI";
+                                const url = window.location.href;
+                                const xUrl = `https://x.com/intent/tweet?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`;
+                                try {
+                                  window.open(xUrl, "_blank", "noopener,noreferrer");
+                                } catch (e) {
+                                  console.warn(e);
+                                }
+                                triggerBeepChime();
+                              }}
+                              className="px-1.5 py-1.5 rounded-lg border border-slate-800 bg-slate-900 hover:bg-slate-850 text-white font-black text-[8.5px] uppercase tracking-wider flex items-center justify-center gap-1 cursor-pointer select-none transition-all active:scale-95"
+                              title="Post to X (Twitter)"
+                            >
+                              <span className="text-[9.5px]">𝕏</span>
+                              <span>Post</span>
+                            </button>
+
+                            {/* Facebook */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const url = window.location.href;
+                                const fbUrl = `https://www.facebook.com/sharer/sharer.php?u=${encodeURIComponent(url)}`;
+                                try {
+                                  window.open(fbUrl, "_blank", "noopener,noreferrer");
+                                } catch (e) {
+                                  console.warn(e);
+                                }
+                                triggerBeepChime();
+                              }}
+                              className="px-1.5 py-1.5 rounded-lg border border-slate-800 bg-slate-900 hover:bg-slate-850 text-white font-black text-[8.5px] uppercase tracking-wider flex items-center justify-center gap-1 cursor-pointer select-none transition-all active:scale-95"
+                              title="Share to Facebook"
+                            >
+                              <span className="text-[9.5px]">👤</span>
+                              <span>Facebook</span>
+                            </button>
+
+                            {/* Copy Link */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const url = window.location.href;
+                                navigator.clipboard.writeText(url);
+                                setToastMessage({
+                                  text: "🔗 Link Copied!",
+                                  sub: "The app share link has been copied to your clipboard.",
+                                  success: true
+                                });
+                                triggerBeepChime();
+                              }}
+                              className="px-1.5 py-1.5 rounded-lg border border-slate-800 bg-slate-900 hover:bg-slate-850 text-white font-black text-[8.5px] uppercase tracking-wider flex items-center justify-center gap-1 cursor-pointer select-none transition-all active:scale-95"
+                              title="Copy Link to Clipboard"
+                            >
+                              <Copy className="w-3 h-3 text-indigo-400" />
+                              <span>Copy Link</span>
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
                     <button
                       type="button"
                       onClick={() => {
@@ -14257,7 +14385,7 @@ export default function ImageToVideo({
                     <span>Split Clip</span>
                   </button>
 
-                  {!selectedSlide.isVideo && (
+                  {!selectedSlide.isVideo ? (
                     <button
                       type="button"
                       onClick={() => {
@@ -14281,6 +14409,32 @@ export default function ImageToVideo({
                     >
                       <Video className="w-3.5 h-3.5 text-amber-300 animate-pulse fill-current" />
                       <span>⚡ Convert to AI Video (Img2Vid)</span>
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (selectedSlide.url) {
+                          const downloadLink = document.createElement("a");
+                          downloadLink.href = selectedSlide.url;
+                          const cleanTitle = (selectedSlide.name || "Veo_3_1_Video").replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_.-]/g, "");
+                          downloadLink.download = cleanTitle.endsWith(".mp4") ? cleanTitle : `${cleanTitle}.mp4`;
+                          document.body.appendChild(downloadLink);
+                          downloadLink.click();
+                          document.body.removeChild(downloadLink);
+                          triggerBeepChime();
+                          setToastMessage({
+                            text: "📥 Downloading Veo MP4!",
+                            sub: "Completed raw video segment local browser download.",
+                            success: true
+                          });
+                        }
+                      }}
+                      className="col-span-2 flex items-center justify-center gap-1.5 py-2 px-3 text-xs font-black uppercase tracking-wider text-white bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-650 rounded-xl shadow-md cursor-pointer active:scale-95 transition-all mt-1 border border-emerald-500/15"
+                      title="Download the raw generated Veo .MP4 video stream to your local machine"
+                    >
+                      <Download className="w-3.5 h-3.5 text-white animate-pulse" />
+                      <span>Download as .MP4 (آف لائن ڈاؤن لوڈ)</span>
                     </button>
                   )}
                 </div>
@@ -14417,29 +14571,57 @@ export default function ImageToVideo({
                       </div>
                     </div>
 
-                    <div className="flex items-center justify-between border-t border-slate-100 dark:border-slate-850 pt-2.5">
+                    <div className="flex flex-col gap-2 border-t border-slate-100 dark:border-slate-850 pt-2.5">
+                      <div className="flex items-center justify-between">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const duration = (selectedSlide.clipEnd !== undefined ? selectedSlide.clipEnd : selectedSlide.duration) - (selectedSlide.clipStart !== undefined ? selectedSlide.clipStart : 0);
+                            if (duration > 0) {
+                              updateSlideProp(selectedSlide.id, "duration", parseFloat(duration.toFixed(1)));
+                              triggerBeepChime();
+                              setToastMessage({
+                                text: "⏱️ Timeline Synced",
+                                sub: `Slide duration updated to ${duration.toFixed(1)}s to match active video trim range.`,
+                                success: true
+                              });
+                            }
+                          }}
+                          className="text-[9px] font-black uppercase tracking-wider text-amber-600 hover:text-amber-500 bg-amber-500/5 hover:bg-amber-500/10 px-2.5 py-1.5 rounded-xl border border-amber-500/10 transition-all flex items-center gap-1 cursor-pointer select-none"
+                        >
+                          <Clock className="w-3 h-3" />
+                          <span>Match Slide Playtime to Trim</span>
+                        </button>
+                        <span className="text-[8.5px] text-slate-400 italic font-medium">
+                          Select start/end bounds
+                        </span>
+                      </div>
+
                       <button
                         type="button"
                         onClick={() => {
-                          const duration = (selectedSlide.clipEnd !== undefined ? selectedSlide.clipEnd : selectedSlide.duration) - (selectedSlide.clipStart !== undefined ? selectedSlide.clipStart : 0);
-                          if (duration > 0) {
-                            updateSlideProp(selectedSlide.id, "duration", parseFloat(duration.toFixed(1)));
+                          if (selectedSlide.url) {
+                            const downloadLink = document.createElement("a");
+                            downloadLink.href = selectedSlide.url;
+                            const cleanTitle = (selectedSlide.name || "Veo_3_1_Video").replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_.-]/g, "");
+                            downloadLink.download = cleanTitle.endsWith(".mp4") ? cleanTitle : `${cleanTitle}.mp4`;
+                            document.body.appendChild(downloadLink);
+                            downloadLink.click();
+                            document.body.removeChild(downloadLink);
                             triggerBeepChime();
                             setToastMessage({
-                              text: "⏱️ Timeline Synced",
-                              sub: `Slide duration updated to ${duration.toFixed(1)}s to match active video trim range.`,
+                              text: "📥 Downloading Veo MP4!",
+                              sub: "Completed raw video segment local browser download.",
                               success: true
                             });
                           }
                         }}
-                        className="text-[9px] font-black uppercase tracking-wider text-amber-600 hover:text-amber-500 bg-amber-500/5 hover:bg-amber-500/10 px-2.5 py-1.5 rounded-xl border border-amber-500/10 transition-all flex items-center gap-1 cursor-pointer select-none"
+                        className="w-full flex items-center justify-center gap-1.5 py-2 px-3 text-[10px] font-black uppercase tracking-wider text-white bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-650 rounded-xl shadow-xs cursor-pointer active:scale-95 transition-all border border-emerald-500/15"
+                        title="Download the raw generated Veo .MP4 video stream to your local machine"
                       >
-                        <Clock className="w-3 h-3" />
-                        <span>Match Slide Playtime to Trim</span>
+                        <Download className="w-3.5 h-3.5 text-white animate-pulse" />
+                        <span>Download as .MP4 (آف لائن ڈاؤن لوڈ)</span>
                       </button>
-                      <span className="text-[8.5px] text-slate-400 italic font-medium">
-                        Select start/end bounds
-                      </span>
                     </div>
                   </div>
                 </div>
