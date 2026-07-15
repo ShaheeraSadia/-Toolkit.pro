@@ -8,6 +8,17 @@ import garreyDeepSeaUrl from "../assets/images/garrey_deep_sea_1783163452596.jpg
 // @ts-ignore
 import garreyCyberHackerUrl from "../assets/images/garrey_cyber_hacker_1783163473126.jpg";
 import { User } from "firebase/auth";
+import { db } from "../firebase";
+import {
+  collection,
+  doc,
+  setDoc,
+  getDocs,
+  query,
+  where,
+  onSnapshot,
+  deleteDoc
+} from "firebase/firestore";
 import { uploadFileToDrive } from "../lib/drive";
 import { triggerFileDownload } from "../lib/download";
 import JSZip from "jszip";
@@ -110,6 +121,17 @@ interface ImageSlide {
   flowAiIntensity?: number;
   clipStart?: number;
   clipEnd?: number;
+}
+
+interface CustomSubtitleItem {
+  id: string;
+  text: string;
+  startTime: number;
+  endTime: number;
+  color: string;
+  fontFamily: string;
+  fontSize: number;
+  yPosition: number;
 }
 
 interface ImageToVideoProps {
@@ -1961,6 +1983,7 @@ export default function ImageToVideo({
     }
   };
   const [aiGenerationMethod, setAiGenerationMethod] = useState<"video" | "animatic">("video");
+  const [realTimeMotionPreview, setRealTimeMotionPreview] = useState<boolean>(true);
   const [videoQuality, setVideoQuality] = useState<"balanced" | "high" | "performance">("balanced");
   const [videoRealismStyle, setVideoRealismStyle] = useState<"documentary" | "imax" | "analog_film" | "standard">("documentary");
   const [synthTempoFactor, setSynthTempoFactor] = useState<number>(1.0);
@@ -1974,6 +1997,7 @@ export default function ImageToVideo({
   const [aiElapsedTime, setAiElapsedTime] = useState<string>("0.0s");
 
   // Slide-specific Google Flow AI state variables
+  const [flowAiMethod, setFlowAiMethod] = useState<"real-veo" | "procedural">("real-veo");
   const [isGeneratingFlowAi, setIsGeneratingFlowAi] = useState<boolean>(false);
   const [flowAiLogs, setFlowAiLogs] = useState<string[]>([]);
   const [flowAiProgress, setFlowAiProgress] = useState<number>(0);
@@ -2407,8 +2431,9 @@ export default function ImageToVideo({
     return [];
   });
 
-  // Keep localStorage sync of metadata (excluding URLs, blobs, etc.)
+  // Keep localStorage sync of metadata (excluding URLs, blobs, etc.) (only when offline)
   useEffect(() => {
+    if (user) return; // Do not overwrite with empty list when loading cloud data
     try {
       const metadataOnly = videoHistory.map((item) => ({
         id: item.id,
@@ -2426,7 +2451,173 @@ export default function ImageToVideo({
     } catch (e) {
       console.warn("Failed to save video history to localStorage", e);
     }
-  }, [videoHistory]);
+  }, [videoHistory, user]);
+
+  // Sync user details to Firestore
+  useEffect(() => {
+    if (user) {
+      const userRef = doc(db, "users", user.uid);
+      setDoc(userRef, {
+        uid: user.uid,
+        email: user.email || "",
+        displayName: user.displayName || "Toolkit Creator",
+        subscriptionStatus: "Pro Creator",
+        createdAt: new Date()
+      }, { merge: true }).catch((err) => {
+        console.error("Failed to sync user to Firestore:", err);
+      });
+    }
+  }, [user]);
+
+  // Migrate local videos to cloud upon sign-in
+  const migrateLocalToCloud = async (userId: string) => {
+    try {
+      const saved = localStorage.getItem("capcut_video_history_metadata");
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && parsed.length > 0) {
+          console.log(`[Firebase Sync] Migrating ${parsed.length} local items to Firestore...`);
+          for (const item of parsed) {
+            const videoId = item.id;
+            const videoRef = doc(db, "videos", videoId);
+            await setDoc(videoRef, {
+              id: videoId,
+              userId: userId,
+              name: item.name,
+              format: item.format,
+              resolution: item.resolution,
+              timestamp: item.timestamp,
+              slidesCount: item.slidesCount || 0,
+              duration: item.duration || 0,
+              filter: item.filter || "",
+              thumbnail: item.thumbnail || "",
+              createdAt: Date.now(),
+              status: "completed"
+            });
+          }
+          localStorage.removeItem("capcut_video_history_metadata");
+          console.log("[Firebase Sync] Local creations migrated to Firestore successfully!");
+        }
+      }
+    } catch (err) {
+      console.error("Local to cloud migration failed:", err);
+    }
+  };
+
+  // Real-time synchronization with Firestore videos collection
+  useEffect(() => {
+    if (!user) return;
+
+    migrateLocalToCloud(user.uid);
+
+    const vQuery = query(
+      collection(db, "videos"),
+      where("userId", "==", user.uid)
+    );
+
+    const unsubscribe = onSnapshot(vQuery, (snapshot) => {
+      const fbVideos = snapshot.docs.map((doc) => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          name: data.name || "Untitled",
+          url: data.videoUrl || "",
+          format: data.format || "mp4",
+          resolution: data.resolution || "720p",
+          timestamp: data.timestamp || new Date().toLocaleTimeString(),
+          slidesCount: data.slidesCount || 0,
+          duration: data.duration || 0,
+          filter: data.filter || "",
+          thumbnail: data.thumbnail || "",
+          isFromPreviousSession: true,
+          status: data.status || "completed",
+          createdAt: data.createdAt || Date.now()
+        };
+      });
+
+      // Sort client-side by createdAt descending
+      fbVideos.sort((a, b) => b.createdAt - a.createdAt);
+
+      setVideoHistory(fbVideos as any);
+    }, (err) => {
+      console.error("Firestore onSnapshot subscription failed:", err);
+    });
+
+    return () => unsubscribe();
+  }, [user]);
+
+  // Video saving abstraction helper
+  const saveVideoToHistory = async (item: any) => {
+    if (user) {
+      try {
+        const videoRef = doc(db, "videos", item.id);
+        await setDoc(videoRef, {
+          id: item.id,
+          userId: user.uid,
+          name: item.name,
+          format: item.format,
+          resolution: item.resolution,
+          timestamp: item.timestamp,
+          slidesCount: item.slidesCount,
+          duration: item.duration,
+          filter: item.filter,
+          thumbnail: item.thumbnail || "",
+          videoUrl: item.url || "",
+          createdAt: Date.now(),
+          status: "completed"
+        });
+        
+        setToastMessage({
+          text: "✨ Syncing with Cloud Dashboard",
+          sub: "Your creation has been saved to your secure profile.",
+          success: true
+        });
+      } catch (err) {
+        console.error("Failed to save video to Firestore:", err);
+      }
+    } else {
+      setVideoHistory((prev) => [item, ...prev]);
+    }
+  };
+
+  // Video deletion abstraction helper
+  const deleteVideoFromHistory = async (itemId: string) => {
+    if (user) {
+      try {
+        await deleteDoc(doc(db, "videos", itemId));
+        setToastMessage({
+          text: "🗑️ Video Removed from Cloud",
+          sub: "Your creation was successfully deleted from your profile.",
+          success: true
+        });
+      } catch (err) {
+        console.error("Failed to delete video from Firestore:", err);
+      }
+    } else {
+      setVideoHistory((prev) => prev.filter((v) => v.id !== itemId));
+    }
+  };
+
+  // Video clearing abstraction helper
+  const clearAllVideoHistory = async () => {
+    if (user) {
+      try {
+        const q = query(collection(db, "videos"), where("userId", "==", user.uid));
+        const snapshot = await getDocs(q);
+        const batchPromises = snapshot.docs.map((d) => deleteDoc(d.ref));
+        await Promise.all(batchPromises);
+        setToastMessage({
+          text: "🗑️ Cloud Gallery Cleared",
+          sub: "All creations have been cleared from your profile.",
+          success: true
+        });
+      } catch (err) {
+        console.error("Failed to clear Firestore creations:", err);
+      }
+    } else {
+      setVideoHistory([]);
+    }
+  };
 
   // Trimming tool state
   const [trimmingVideoId, setTrimmingVideoId] = useState<string | null>(null);
@@ -2471,6 +2662,31 @@ export default function ImageToVideo({
   const [subtitleBgOpacity, setSubtitleBgOpacity] = useState<number>(0.65);
   const [subtitleStrokeColor, setSubtitleStrokeColor] = useState<string>("#000000");
   const [subtitleStrokeWidth, setSubtitleStrokeWidth] = useState<number>(4);
+
+  // Custom Time-Stamped Subtitles State
+  const [subtitleEditorTab, setSubtitleEditorTab] = useState<"scene" | "stamped">("scene");
+  const [customSubtitles, setCustomSubtitles] = useState<CustomSubtitleItem[]>([
+    {
+      id: "sub-init-1",
+      text: "⚡ Dynamic Text Overlay Engaged",
+      startTime: 0.5,
+      endTime: 3.5,
+      color: "#ffffff",
+      fontFamily: "space-grotesk",
+      fontSize: 28,
+      yPosition: 85,
+    },
+    {
+      id: "sub-init-2",
+      text: "🔥 Custom Fonts, Colors & Precise Timestamps",
+      startTime: 4.0,
+      endTime: 8.0,
+      color: "#facc15",
+      fontFamily: "bebas-neue",
+      fontSize: 32,
+      yPosition: 80,
+    }
+  ]);
 
   // Premium Audio Visualizer & Voiceover state variables
   const [visualizerStyle, setVisualizerStyle] = useState<"none" | "bars" | "wave" | "pulse">("wave");
@@ -2851,7 +3067,7 @@ export default function ImageToVideo({
         isFromPreviousSession: false
       };
       
-      setVideoHistory((prev) => [trimmedItem, ...prev]);
+      saveVideoToHistory(trimmedItem);
 
       // Download automatically
       const downloadLink = document.createElement("a");
@@ -3044,7 +3260,7 @@ export default function ImageToVideo({
         isFromPreviousSession: false
       };
 
-      setVideoHistory((prev) => [overlaidItem, ...prev]);
+      saveVideoToHistory(overlaidItem);
 
       // Download automatically
       const downloadLink = document.createElement("a");
@@ -5112,6 +5328,46 @@ export default function ImageToVideo({
     }
   };
 
+  const getBase64ImageForSlide = async (slideId: string): Promise<string | null> => {
+    const slide = slides.find(s => s.id === slideId);
+    if (!slide) return null;
+    if (slide.url.startsWith("data:")) {
+      return slide.url;
+    }
+
+    // Check cache first
+    let imgElement = imageCacheRef.current[slide.id];
+    if (!imgElement || imgElement instanceof HTMLVideoElement) {
+      // Load the image dynamically with CORS handling
+      try {
+        imgElement = await new Promise<HTMLImageElement>((resolve, reject) => {
+          const img = new Image();
+          img.crossOrigin = "anonymous";
+          img.src = slide.url;
+          img.onload = () => resolve(img);
+          img.onerror = (e) => reject(e);
+        });
+      } catch (err) {
+        console.error("Failed to load slide image dynamically for base64 conversion:", err);
+        return null;
+      }
+    }
+
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = (imgElement as HTMLImageElement).naturalWidth || (imgElement as HTMLImageElement).width || 640;
+      canvas.height = (imgElement as HTMLImageElement).naturalHeight || (imgElement as HTMLImageElement).height || 360;
+      const ctx = canvas.getContext("2d");
+      if (ctx) {
+        ctx.drawImage(imgElement as HTMLImageElement, 0, 0);
+        return canvas.toDataURL("image/png");
+      }
+    } catch (err) {
+      console.error("Canvas draw to base64 failed:", err);
+    }
+    return null;
+  };
+
   const handleRunFlowAiForSlide = async () => {
     if (!selectedSlide) {
       setToastMessage({
@@ -5133,7 +5389,7 @@ export default function ImageToVideo({
 
     setFlowAiFailures((prev) => ({ ...prev, [selectedSlide.id]: false }));
     setIsGeneratingFlowAi(true);
-    setFlowAiProgress(10);
+    setFlowAiProgress(5);
     setFlowAiActiveStage("Initializing Pipeline");
     setFlowAiLogs(["[0/5] Booting Google Flow AI Neural Video pipeline workspace..."]);
 
@@ -5144,73 +5400,223 @@ export default function ImageToVideo({
     };
 
     try {
-      // Step 1: Parsing prompt & vectorizing frame boundaries
-      await new Promise((r) => setTimeout(r, 800));
-      appendFlowLog("[1/5] Vectorizing frame composition boundaries & contrast points...", 25, "Analyzing image layout");
+      if (flowAiMethod === "real-veo") {
+        appendFlowLog("[1/5] Extracting & encoding current slide image to neural seed...", 15, "Encoding seed image");
+        
+        // Convert slide image to base64
+        const seedImageBase64 = await getBase64ImageForSlide(selectedSlide.id);
+        if (!seedImageBase64) {
+          throw new Error("Could not extract image data from the selected slide. Make sure it is a valid image.");
+        }
+        
+        appendFlowLog(`[2/5] Initiating Google Veo Image-to-Video generation (Prompt: "${flowAiPromptText.substring(0, 40)}...")...`, 25, "Spawning Veo network");
 
-      // Step 2: Running text-to-motion prompt parsing
-      await new Promise((r) => setTimeout(r, 900));
-      appendFlowLog(`[2/5] Running Google Flow text-to-motion parser on prompt: "${flowAiPromptText.substring(0, 45)}..."`, 45, "Parsing motion prompts");
+        // Call the video generation endpoint
+        const startRes = await fetch("/api/video/generate", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: flowAiPromptText,
+            modelChoice: aiModelEngine,
+            aspectRatio: aspectRatio === "9:16" ? "9:16" : aspectRatio === "1:1" ? "1:1" : "16:9",
+            resolution: "720p",
+            enhancePrompt: autoEnhanceVideoPrompt,
+            videoQuality: videoQuality,
+            videoRealismStyle: videoRealismStyle,
+            loopVideo: loopVideo,
+            image: seedImageBase64,
+            stylePreset: aiStylePreset,
+            cameraDirection: aiCameraDirection,
+            motionIntensity: aiMotionIntensity,
+            motion_bucket_id: 140, 
+            steps: 30,             
+            audio_sync: true       
+          })
+        });
 
-      // We call the API endpoint /api/video/generate-scene to analyze the prompt!
-      const response = await fetch("/api/video/generate-scene", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: flowAiPromptText })
-      });
+        if (!startRes.ok) {
+          const errData = await startRes.json().catch(() => ({}));
+          throw new Error(errData.error || "Failed to start Veo video generation.");
+        }
 
-      let promptKeywords = "";
-      if (response.ok) {
-        const data = await response.json();
-        promptKeywords = (data.keywords || "").toLowerCase();
+        const startData = await startRes.json();
+        const operationName = startData.operationName;
+        const taskShortId = operationName.split('/').pop() || "";
+        
+        appendFlowLog(`[3/5] Spawning Google Veo neural network (task: ${taskShortId}). Running frames...`, 35, "Generating frames");
+
+        // Polling loop
+        let done = false;
+        let pollCount = 0;
+        const maxPolls = 60; // up to 4 minutes max
+        let operationResult = null;
+
+        while (!done && pollCount < maxPolls) {
+          pollCount++;
+          // Wait 4 seconds between polls
+          await new Promise((resolve) => setTimeout(resolve, 4000));
+
+          const statusRes = await fetch("/api/video/status", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ operationName })
+          });
+
+          if (statusRes.ok) {
+            const statusData = await statusRes.json();
+            if (statusData.error) {
+              throw new Error(statusData.error.message || "Veo model execution error.");
+            }
+            done = statusData.done;
+            if (done) {
+              operationResult = statusData.response;
+              break;
+            } else {
+              const readyPercentage = Math.min(95, 35 + Math.round((pollCount / maxPolls) * 60));
+              appendFlowLog(`[3/5] Generating video frames... ${pollCount * 4}s elapsed (${readyPercentage}% finished)`, readyPercentage, "Rendering video");
+            }
+          } else {
+            console.warn("Polling status failed, retrying...");
+          }
+        }
+
+        if (!done || !operationResult) {
+          throw new Error("Video generation timed out. Please try again or switch to Live Particle Overlay mode.");
+        }
+
+        appendFlowLog(`[4/5] Generation complete! Compiling and downloading master .MP4 stream...`, 90, "Downloading video");
+
+        // Download the video as a Blob
+        const downloadRes = await fetch("/api/video/download", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ operationName })
+        });
+
+        if (!downloadRes.ok) {
+          throw new Error("Failed to stream video files back from the server.");
+        }
+
+        const videoBlob = await downloadRes.blob();
+        const videoUrl = URL.createObjectURL(videoBlob);
+
+        appendFlowLog(`[5/5] Initializing HTMLVideoElement and synchronizing frame caches...`, 95, "Caching video asset");
+
+        // Cache the video element instantly
+        const video = document.createElement("video");
+        video.crossOrigin = "anonymous";
+        video.src = videoUrl;
+        video.muted = true;
+        video.playsInline = true;
+        video.loop = true;
+        
+        await new Promise<void>((resolve) => {
+          video.onloadeddata = () => {
+            imageCacheRef.current[selectedSlide.id] = video as any;
+            resolve();
+          };
+          // Fail-safe timeout
+          setTimeout(resolve, 3000);
+        });
+
+        // Update slide URL and convert it to isVideo: true
+        setSlides((prev) =>
+          prev.map((s) =>
+            s.id === selectedSlide.id
+              ? {
+                  ...s,
+                  url: videoUrl,
+                  isVideo: true,
+                  name: `Veo: ${flowAiPromptText.substring(0, 15)}...`,
+                  duration: selectedSlide.duration,
+                  text: flowAiPromptText.substring(0, 35),
+                  style: aiStylePreset !== "auto" ? aiStylePreset : s.style,
+                  filter: "normal" // clear filters so it looks clean
+                }
+              : s
+          )
+        );
+
+        appendFlowLog("[5/5] Google Veo video clip integrated into your timeline successfully!", 100, "Done");
+        await new Promise((r) => setTimeout(r, 500));
+
+        setToastMessage({
+          text: "📹 Real Veo Video Generated!",
+          sub: "Your slide has been upgraded to a high-fidelity cinematic video clip!",
+          success: true
+        });
+        triggerBeepChime();
+        
+      } else {
+        // Procedural mode
+        // Step 1: Parsing prompt & vectorizing frame boundaries
+        await new Promise((r) => setTimeout(r, 800));
+        appendFlowLog("[1/5] Vectorizing frame composition boundaries & contrast points...", 25, "Analyzing image layout");
+
+        // Step 2: Running text-to-motion prompt parsing
+        await new Promise((r) => setTimeout(r, 900));
+        appendFlowLog(`[2/5] Running Google Flow text-to-motion parser on prompt: "${flowAiPromptText.substring(0, 45)}..."`, 45, "Parsing motion prompts");
+
+        // We call the API endpoint /api/video/generate-scene to analyze the prompt!
+        const response = await fetch("/api/video/generate-scene", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ prompt: flowAiPromptText })
+        });
+
+        let promptKeywords = "";
+        if (response.ok) {
+          const data = await response.json();
+          promptKeywords = (data.keywords || "").toLowerCase();
+        }
+
+        // Step 3: Determining the matching visual effect shader
+        await new Promise((r) => setTimeout(r, 800));
+        appendFlowLog("[3/5] Synthesizing volumetric fluid simulation maps...", 65, "Fluid mapping");
+
+        // Smart semantic mapping
+        const combinedSearch = (flowAiPromptText.toLowerCase() + " " + promptKeywords).trim();
+        let matchedEffect: "lightning" | "sparks" | "fire-embers" | "glitch-cyber" = "sparks"; // Default is gorgeous sparks
+        
+        if (combinedSearch.includes("lightning") || combinedSearch.includes("thunder") || combinedSearch.includes("storm") || combinedSearch.includes("flash") || combinedSearch.includes("strobe")) {
+          matchedEffect = "lightning";
+        } else if (combinedSearch.includes("spark") || combinedSearch.includes("electric") || combinedSearch.includes("arc") || combinedSearch.includes("energy") || combinedSearch.includes("neon") || combinedSearch.includes("flow")) {
+          matchedEffect = "sparks";
+        } else if (combinedSearch.includes("fire") || combinedSearch.includes("ember") || combinedSearch.includes("flame") || combinedSearch.includes("burn") || combinedSearch.includes("smoke") || combinedSearch.includes("warm")) {
+          matchedEffect = "fire-embers";
+        } else if (combinedSearch.includes("glitch") || combinedSearch.includes("cyber") || combinedSearch.includes("tech") || combinedSearch.includes("hologram") || combinedSearch.includes("matrix") || combinedSearch.includes("digital")) {
+          matchedEffect = "glitch-cyber";
+        }
+
+        // Step 4: Compiling shader arrays & rendering particles
+        await new Promise((r) => setTimeout(r, 900));
+        appendFlowLog(`[4/5] Compiling custom particle physics shader array: [Effect: ${matchedEffect.toUpperCase()}]...`, 85, "Compiling visual particles");
+
+        // Step 5: Encoding 60 FPS visual stream to project timeline
+        await new Promise((r) => setTimeout(r, 700));
+        appendFlowLog("[5/5] Encoding 60 FPS visual simulation layer directly onto slide timeline. Generation complete!", 100, "Encoding flow vectors");
+        await new Promise((r) => setTimeout(r, 400));
+
+        // If user prompt mentions lightning or electric, we can also auto-assign beat-sync or soundtrack for extra polish!
+        if (matchedEffect === "lightning" || matchedEffect === "sparks") {
+          updateSlideProp(selectedSlide.id, "sfx", "cinema-impact");
+        }
+
+        // Update slide props
+        updateSlideProp(selectedSlide.id, "flowAiEffect", matchedEffect);
+        updateSlideProp(selectedSlide.id, "flowAiPrompt", flowAiPromptText);
+        updateSlideProp(selectedSlide.id, "flowAiNegativePrompt", flowAiNegativePromptText);
+        updateSlideProp(selectedSlide.id, "flowAiIntensity", flowAiIntensityValue);
+
+        setFlowAiFailures((prev) => ({ ...prev, [selectedSlide.id]: false }));
+
+        setToastMessage({
+          text: "⚡ Google Flow AI Motion Generated!",
+          sub: `Successfully generated ${matchedEffect.toUpperCase()} video animation for this image!`,
+          success: true
+        });
+        triggerBeepChime();
       }
-
-      // Step 3: Determining the matching visual effect shader
-      await new Promise((r) => setTimeout(r, 800));
-      appendFlowLog("[3/5] Synthesizing volumetric fluid simulation maps...", 65, "Fluid mapping");
-
-      // Smart semantic mapping
-      const combinedSearch = (flowAiPromptText.toLowerCase() + " " + promptKeywords).trim();
-      let matchedEffect: "lightning" | "sparks" | "fire-embers" | "glitch-cyber" = "sparks"; // Default is gorgeous sparks
-      
-      if (combinedSearch.includes("lightning") || combinedSearch.includes("thunder") || combinedSearch.includes("storm") || combinedSearch.includes("flash") || combinedSearch.includes("strobe")) {
-        matchedEffect = "lightning";
-      } else if (combinedSearch.includes("spark") || combinedSearch.includes("electric") || combinedSearch.includes("arc") || combinedSearch.includes("energy") || combinedSearch.includes("neon") || combinedSearch.includes("flow")) {
-        matchedEffect = "sparks";
-      } else if (combinedSearch.includes("fire") || combinedSearch.includes("ember") || combinedSearch.includes("flame") || combinedSearch.includes("burn") || combinedSearch.includes("smoke") || combinedSearch.includes("warm")) {
-        matchedEffect = "fire-embers";
-      } else if (combinedSearch.includes("glitch") || combinedSearch.includes("cyber") || combinedSearch.includes("tech") || combinedSearch.includes("hologram") || combinedSearch.includes("matrix") || combinedSearch.includes("digital")) {
-        matchedEffect = "glitch-cyber";
-      }
-
-      // Step 4: Compiling shader arrays & rendering particles
-      await new Promise((r) => setTimeout(r, 900));
-      appendFlowLog(`[4/5] Compiling custom particle physics shader array: [Effect: ${matchedEffect.toUpperCase()}]...`, 85, "Compiling visual particles");
-
-      // Step 5: Encoding 60 FPS visual stream to project timeline
-      await new Promise((r) => setTimeout(r, 700));
-      appendFlowLog("[5/5] Encoding 60 FPS visual simulation layer directly onto slide timeline. Generation complete!", 100, "Encoding flow vectors");
-      await new Promise((r) => setTimeout(r, 400));
-
-      // If user prompt mentions lightning or electric, we can also auto-assign beat-sync or soundtrack for extra polish!
-      if (matchedEffect === "lightning" || matchedEffect === "sparks") {
-        updateSlideProp(selectedSlide.id, "sfx", "cinema-impact");
-      }
-
-      // Update slide props
-      updateSlideProp(selectedSlide.id, "flowAiEffect", matchedEffect);
-      updateSlideProp(selectedSlide.id, "flowAiPrompt", flowAiPromptText);
-      updateSlideProp(selectedSlide.id, "flowAiNegativePrompt", flowAiNegativePromptText);
-      updateSlideProp(selectedSlide.id, "flowAiIntensity", flowAiIntensityValue);
-
-      setFlowAiFailures((prev) => ({ ...prev, [selectedSlide.id]: false }));
-
-      setToastMessage({
-        text: "⚡ Google Flow AI Motion Generated!",
-        sub: `Successfully generated ${matchedEffect.toUpperCase()} video animation for this image!`,
-        success: true
-      });
-      triggerBeepChime();
 
     } catch (err: any) {
       console.error(err);
@@ -6988,6 +7394,68 @@ export default function ImageToVideo({
       ctx.restore();
     }
 
+    // DRAW CUSTOM TIME-STAMPED SUBTITLES
+    if (customSubtitles && customSubtitles.length > 0) {
+      customSubtitles.forEach((sub) => {
+        if (time >= sub.startTime && time <= sub.endTime) {
+          ctx.save();
+          
+          // Set font size relative to canvas width
+          const textRatioScale = width / 800;
+          const fontId = sub.fontFamily || "space-grotesk";
+          const fontObj = CURATED_FONTS.find((f) => f.id === fontId) || CURATED_FONTS[0];
+          const selectedFontFamily = fontObj.family;
+          const fSize = Math.round((sub.fontSize || 28) * textRatioScale);
+          
+          ctx.font = `bold ${fSize}px ${selectedFontFamily}`;
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          
+          // Text shadow for high contrast / readability
+          ctx.shadowColor = "rgba(0, 0, 0, 0.85)";
+          ctx.shadowBlur = 6;
+          ctx.shadowOffsetX = 1;
+          ctx.shadowOffsetY = 1;
+          
+          // Draw text backdrop card/box (Accessibility friendly semi-transparent pill box)
+          const textMetrics = ctx.measureText(sub.text);
+          const textWidth = textMetrics.width;
+          const textHeight = fSize;
+          const paddingX = 14 * textRatioScale;
+          const paddingY = 8 * textRatioScale;
+          
+          const rectWidth = textWidth + paddingX * 2;
+          const rectHeight = textHeight + paddingY * 2;
+          const rectX = (width - rectWidth) / 2;
+          
+          // Get Y coordinate from percentage (yPosition)
+          const yPercent = sub.yPosition !== undefined ? sub.yPosition : 85;
+          const rectY = (height * yPercent) / 100 - rectHeight / 2;
+          
+          // Draw a semi-transparent black pill box behind the text
+          ctx.fillStyle = "rgba(15, 23, 42, 0.72)";
+          ctx.beginPath();
+          if (ctx.roundRect) {
+            ctx.roundRect(rectX, rectY, rectWidth, rectHeight, 8 * textRatioScale);
+          } else {
+            ctx.rect(rectX, rectY, rectWidth, rectHeight);
+          }
+          ctx.fill();
+          
+          // Draw white/custom stroke/border around the pill for a beautiful polished glassmorphism look
+          ctx.strokeStyle = "rgba(255, 255, 255, 0.15)";
+          ctx.lineWidth = 1;
+          ctx.stroke();
+          
+          // Draw actual text
+          ctx.fillStyle = sub.color || "#ffffff";
+          ctx.fillText(sub.text, width / 2, rectY + rectHeight / 2 + 1);
+          
+          ctx.restore();
+        }
+      });
+    }
+
     // Draw Safe Area & Guidelines Overlay on the canvas
     if (canvasGuideGrid && canvasGuideGrid !== "none") {
       ctx.save();
@@ -7268,7 +7736,7 @@ export default function ImageToVideo({
       }
       ctx.restore();
     }
-  }, [slides, transitionStyle, transitionDuration, transitionEasing, subtitleStyle, subtitleFont, cinematicLetterbox, vignetteOverlay, filmGrainOverlay, atmosphericOverlay, aspectRatio, subtitleManualOffset, visualizerStyle, masterVideoFilter, subtitleVerticalAlign, subtitleFontSizeFactor, subtitleTextColor, subtitleBgColor, subtitleBgOpacity, subtitleStrokeColor, subtitleStrokeWidth, canvasGuideGrid, superResolution]);
+  }, [slides, transitionStyle, transitionDuration, transitionEasing, subtitleStyle, subtitleFont, cinematicLetterbox, vignetteOverlay, filmGrainOverlay, atmosphericOverlay, aspectRatio, subtitleManualOffset, visualizerStyle, masterVideoFilter, subtitleVerticalAlign, subtitleFontSizeFactor, subtitleTextColor, subtitleBgColor, subtitleBgOpacity, subtitleStrokeColor, subtitleStrokeWidth, canvasGuideGrid, superResolution, customSubtitles]);
 
   // Hook rendering logic to active timeline time changes
   useEffect(() => {
@@ -7295,7 +7763,7 @@ export default function ImageToVideo({
     canvas.height = height;
 
     drawVideoFrame(ctx, canvasWidth, height, currentTime);
-  }, [currentTime, aspectRatio, slides, transitionStyle, transitionDuration, transitionEasing, drawVideoFrame, subtitleStyle, subtitleFont, cinematicLetterbox, vignetteOverlay, filmGrainOverlay, atmosphericOverlay, subtitleManualOffset, masterVideoFilter, subtitleVerticalAlign, subtitleFontSizeFactor, subtitleTextColor, subtitleBgColor, subtitleBgOpacity, subtitleStrokeColor, subtitleStrokeWidth, canvasGuideGrid, superResolution]);
+  }, [currentTime, aspectRatio, slides, transitionStyle, transitionDuration, transitionEasing, drawVideoFrame, subtitleStyle, subtitleFont, cinematicLetterbox, vignetteOverlay, filmGrainOverlay, atmosphericOverlay, subtitleManualOffset, masterVideoFilter, subtitleVerticalAlign, subtitleFontSizeFactor, subtitleTextColor, subtitleBgColor, subtitleBgOpacity, subtitleStrokeColor, subtitleStrokeWidth, canvasGuideGrid, superResolution, customSubtitles]);
 
   // Sync the ref with the latest drawVideoFrame callback on each change
   useEffect(() => {
@@ -7952,7 +8420,7 @@ export default function ImageToVideo({
             isFromPreviousSession: false,
             slides: slides.map((s) => ({ ...s }))
           };
-          setVideoHistory((prev) => [newHistoryItem, ...prev]);
+          saveVideoToHistory(newHistoryItem);
 
           setExportProgress(100);
           setExportCurrentStage("Finished");
@@ -8396,209 +8864,276 @@ export default function ImageToVideo({
                 </div>
 
                 {/* RHS: Video Generation Prompt & Controls */}
-                <div className="w-full lg:w-7/12 flex flex-col gap-4 border-t lg:border-t-0 lg:border-l border-slate-100 dark:border-slate-850 pt-5 lg:pt-0 lg:pl-6">
-                  <div className="flex items-center justify-between">
+                <div className="w-full lg:w-7/12 flex flex-col gap-4 border-t lg:border-t-0 lg:border-l border-slate-100 dark:border-slate-850 pt-5 lg:pt-0 lg:pl-6 animate-fade-in">
+                  
+                  {/* Step-by-Step Header */}
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-850 pb-3">
                     <div>
                       <h4 className="text-xs font-black uppercase tracking-wider text-amber-600 dark:text-amber-400 flex items-center gap-1.5">
                         <Sparkles className="w-4 h-4 text-amber-500 animate-pulse" />
-                        <span>Google Flow AI Video Prompt</span>
+                        <span>AI Neural Motion Director</span>
                       </h4>
-                      <p className="text-[10px] text-slate-500 mt-0.5">
-                        Define descriptive instructions below to simulate rich motion on top of your image.
+                      <p className="text-[10px] text-slate-400 mt-0.5">
+                        Animate your static images into fluid, living cinematic masterpieces.
                       </p>
                     </div>
-                    <span className="text-[9px] font-black uppercase tracking-wider text-amber-600 bg-amber-50 dark:bg-amber-950/40 px-2 py-0.5 rounded font-mono">
-                      VEV-CORE
-                    </span>
+                    {selectedSlide && (
+                      <span className="text-[8.5px] font-black uppercase tracking-wider text-indigo-500 bg-indigo-50/80 dark:bg-indigo-950/40 px-2 py-0.5 rounded-lg border border-indigo-100/30 font-mono shrink-0">
+                        Slide {slides.indexOf(selectedSlide) + 1} Selected
+                      </span>
+                    )}
                   </div>
 
-                  {/* Prompt Textarea */}
-                  <div className="space-y-1.5">
-                    <label className="block text-[9.5px] font-black uppercase tracking-wider text-slate-450">
-                      Define Video Generation Prompt / Description:
-                    </label>
+                  {/* Dual Mode Switcher Card */}
+                  <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-150 dark:border-slate-900 space-y-2">
+                    <div className="flex justify-between items-center">
+                      <span className="text-[9px] font-black uppercase tracking-widest text-slate-450 dark:text-slate-400 block">
+                        ⚙️ AI Generation Engine:
+                      </span>
+                      <span className="text-[8px] font-extrabold text-indigo-500 uppercase tracking-wider">
+                        {flowAiMethod === "real-veo" ? "✨ Google Veo (Real Motion)" : "⚡ Particle Shader (Fast)"}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 bg-slate-100/60 dark:bg-slate-900/60 p-1 rounded-xl border border-slate-200/40 dark:border-slate-850">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFlowAiMethod("real-veo");
+                          triggerBeepChime();
+                        }}
+                        className={`py-2 px-1 rounded-lg transition-all text-center flex flex-col items-center justify-center gap-0.5 cursor-pointer select-none ${
+                          flowAiMethod === "real-veo"
+                            ? "bg-white dark:bg-slate-950 text-indigo-650 dark:text-indigo-400 shadow-3xs border border-slate-200/10 font-black"
+                            : "text-slate-555 dark:text-slate-400 hover:text-slate-850 dark:hover:text-slate-250 font-bold"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1 text-[9.5px] uppercase tracking-wide">
+                          <Video className="w-3.5 h-3.5 text-indigo-500" />
+                          <span>Google Veo Video</span>
+                        </div>
+                        <span className="text-[7.5px] opacity-75">Real AI Motion Clip</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFlowAiMethod("procedural");
+                          triggerBeepChime();
+                        }}
+                        className={`py-2 px-1 rounded-lg transition-all text-center flex flex-col items-center justify-center gap-0.5 cursor-pointer select-none ${
+                          flowAiMethod === "procedural"
+                            ? "bg-white dark:bg-slate-950 text-amber-650 dark:text-amber-400 shadow-3xs border border-slate-200/10 font-black"
+                            : "text-slate-555 dark:text-slate-400 hover:text-slate-850 dark:hover:text-slate-250 font-bold"
+                        }`}
+                      >
+                        <div className="flex items-center gap-1 text-[9.5px] uppercase tracking-wide">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-pulse" />
+                          <span>Live Particle Overlay</span>
+                        </div>
+                        <span className="text-[7.5px] opacity-75">Instant Local Rendering</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* STEP 1: MOTION PROMPT DESIGN */}
+                  <div className="space-y-2">
+                    <div className="flex justify-between items-center">
+                      <label className="text-[9.5px] font-black uppercase tracking-wider text-slate-450 flex items-center gap-1">
+                        <span className="w-4 h-4 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center font-mono text-[9px] font-black">1</span>
+                        <span>Describe Desired Motion:</span>
+                      </label>
+                    </div>
                     <textarea
                       rows={2}
                       value={flowAiPromptText}
                       onChange={(e) => setFlowAiPromptText(e.target.value)}
-                      placeholder='e.g., "lightning bolt striking over the landscape with glowing blue electric sparks" or "warm glowing fire embers rising upwards with smoke"'
-                      className="w-full text-xs p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-850 dark:text-slate-100 font-medium leading-relaxed outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500/60 resize-none shadow-inner"
+                      placeholder={flowAiMethod === "real-veo" 
+                        ? 'e.g., "Slow cinemagraph of lightning bolts hitting distant mountains, heavy dramatic clouds moving slowly"' 
+                        : 'e.g., "lightning strike: intense lightning and thunder bolt flashes over image"'}
+                      className="w-full text-xs p-3 rounded-xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-850 dark:text-slate-100 font-medium leading-relaxed outline-none focus:ring-2 focus:ring-amber-500/30 focus:border-amber-500/50 resize-none shadow-3xs transition-all"
                     />
-                  </div>
 
-                  {/* Negative Prompt Textarea */}
-                  <div className="space-y-1.5">
-                    <label className="block text-[9.5px] font-black uppercase tracking-wider text-slate-450">
-                      Negative Prompt (Elements to avoid):
-                    </label>
-                    <textarea
-                      rows={1}
-                      value={flowAiNegativePromptText}
-                      onChange={(e) => setFlowAiNegativePromptText(e.target.value)}
-                      placeholder='e.g., "blur, low resolution, bad anatomy, text, watermark, fast motion"'
-                      className="w-full text-xs p-3 rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-950 text-slate-850 dark:text-slate-100 font-medium leading-relaxed outline-none focus:ring-2 focus:ring-amber-500/40 focus:border-amber-500/60 resize-none shadow-inner"
-                    />
-                  </div>
-
-                  {/* Motion Intensity Range Control */}
-                  <div className="space-y-2.5 bg-amber-500/5 dark:bg-amber-950/20 p-3.5 rounded-2xl border border-amber-500/10">
-                    <div className="flex justify-between items-center gap-2">
-                      <label className="block text-[9px] font-black uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                        Adjust Motion Intensity Preset:
-                      </label>
-                      <select
-                        value={(() => {
-                          const matched = [0.4, 1.0, 1.5, 2.0].find(v => Math.abs(v - flowAiIntensityValue) < 0.05);
-                          return matched !== undefined ? matched.toString() : "custom";
-                        })()}
-                        onChange={(e) => {
-                          const val = e.target.value;
-                          if (val !== "custom") {
-                            handleIntensityChange(parseFloat(val));
-                            triggerBeepChime();
+                    {/* Quick presets as simple clickable tag chips */}
+                    <div className="space-y-1">
+                      <span className="text-[8px] font-extrabold uppercase tracking-wider text-slate-400 block pl-1">
+                        ⚡ Quick Motion Presets:
+                      </span>
+                      <div className="flex flex-wrap gap-1.5 pl-0.5">
+                        {[
+                          {
+                            label: "⚡ Lightning",
+                            prompt: "lightning strike: intense lightning bolt flashes over the dark dramatic sky"
+                          },
+                          {
+                            label: "🌀 Sparks",
+                            prompt: "electric sparks: glowing neon-blue volumetric particle rings rotating slowly"
+                          },
+                          {
+                            label: "🔥 Fire Embers",
+                            prompt: "fire embers: warm glowing ashes and floating fireplace embers rising with smoke"
+                          },
+                          {
+                            label: "👾 Cyber Glitch",
+                            prompt: "glitch cyber: fast futuristic digital chromatic aberration and tech distortions"
                           }
-                        }}
-                        className="text-[9.5px] bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200 rounded-lg px-2 py-1 outline-none focus:ring-1 focus:ring-amber-500 font-extrabold cursor-pointer shadow-sm"
-                      >
-                        <option value="custom" disabled>Custom ({flowAiIntensityValue.toFixed(1)}x)</option>
-                        <option value="0.4">Subtle (0.4x)</option>
-                        <option value="1.0">Dynamic (1.0x)</option>
-                        <option value="1.5">Cinematic (1.5x)</option>
-                        <option value="2.0">Extreme (2.0x)</option>
-                      </select>
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <div className="flex justify-between items-center text-[8.5px] font-bold text-slate-400 uppercase">
-                        <span>Fine-tune Intensity / Speed Slider:</span>
-                        <span className="text-[9.5px] font-mono font-black text-amber-600 dark:text-amber-400">
-                          {flowAiIntensityValue.toFixed(1)}x
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-3">
-                        <span className="text-[8.5px] font-black uppercase text-slate-400 font-mono">0.2x</span>
-                        <input
-                          type="range"
-                          min="0.2"
-                          max="2.0"
-                          step="0.1"
-                          value={flowAiIntensityValue}
-                          onChange={(e) => handleIntensityChange(parseFloat(e.target.value))}
-                          className="flex-1 h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-amber-500 focus:outline-none focus:ring-2 focus:ring-amber-500/30"
-                        />
-                        <span className="text-[8.5px] font-black uppercase text-slate-400 font-mono">2.0x</span>
+                        ].map((p, idx) => (
+                          <button
+                            key={idx}
+                            type="button"
+                            onClick={() => {
+                              setFlowAiPromptText(p.prompt);
+                              triggerBeepChime();
+                            }}
+                            className={`px-2.5 py-1 rounded-full text-[8.5px] font-bold border transition-all cursor-pointer active:scale-95 ${
+                              flowAiPromptText === p.prompt
+                                ? "bg-amber-500/10 dark:bg-amber-500/15 border-amber-400 text-amber-600 dark:text-amber-400"
+                                : "bg-slate-50 dark:bg-slate-950 hover:bg-slate-100/60 dark:hover:bg-slate-900 border-slate-200 dark:border-slate-850 text-slate-600 dark:text-slate-350"
+                            }`}
+                          >
+                            {p.label}
+                          </button>
+                        ))}
                       </div>
                     </div>
                   </div>
 
-                  {/* Suggested Preset motion bubbles */}
-                  <div className="space-y-1.5">
-                    <span className="block text-[8.5px] font-black uppercase tracking-wider text-slate-400">
-                      ⚡ Quick Presets (Click to load prompt):
-                    </span>
-                    <div className="grid grid-cols-2 gap-1.5">
+                  {/* STEP 2: MOTION INTENSITY SELECTION */}
+                  <div className="space-y-2 bg-slate-50/50 dark:bg-slate-950/45 p-3 rounded-2xl border border-slate-150/80 dark:border-slate-850">
+                    <label className="block text-[9.5px] font-black uppercase tracking-wider text-slate-450 flex items-center gap-1">
+                      <span className="w-4 h-4 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center font-mono text-[9px] font-black">2</span>
+                      <span>Adjust Motion Intensity / Speed:</span>
+                    </label>
+
+                    <div className="grid grid-cols-4 gap-1.5">
                       {[
-                        {
-                          label: "⚡ Lightning Strike",
-                          prompt: "lightning strike: intense lightning and thunder bolt flashes over image"
-                        },
-                        {
-                          label: "🌀 Electric Sparks",
-                          prompt: "electric sparks: glowing neon-blue particle vortex rings rotating around center"
-                        },
-                        {
-                          label: "🔥 Fire Embers",
-                          prompt: "fire embers: dynamic warm floating embers rising with ambient heat"
-                        },
-                        {
-                          label: "👾 Glitch Cyber",
-                          prompt: "glitch cyber: digital chromatic glitch distortions and neon cyber grids"
-                        }
-                      ].map((p, idx) => (
+                        { label: "Subtle", value: 0.4 },
+                        { label: "Dynamic", value: 1.0 },
+                        { label: "Cinematic", value: 1.5 },
+                        { label: "Extreme", value: 2.0 }
+                      ].map((item) => (
                         <button
-                          key={idx}
+                          key={item.label}
                           type="button"
                           onClick={() => {
-                            setFlowAiPromptText(p.prompt);
+                            handleIntensityChange(item.value);
                             triggerBeepChime();
                           }}
-                          className="px-2 py-1.5 bg-slate-50 dark:bg-slate-950 hover:bg-amber-500/5 border border-slate-250/60 dark:border-slate-850 hover:border-amber-400/50 rounded-xl text-[9px] font-extrabold text-slate-700 dark:text-slate-350 transition-all cursor-pointer truncate active:scale-95 text-center"
+                          className={`py-1.5 px-1 rounded-lg text-[9px] font-black uppercase text-center border transition-all cursor-pointer select-none ${
+                            Math.abs(flowAiIntensityValue - item.value) < 0.05
+                              ? "bg-amber-500 text-white border-amber-500 shadow-2xs font-extrabold"
+                              : "bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-850"
+                          }`}
                         >
-                          {p.label}
+                          <div>{item.label}</div>
+                          <div className="text-[7.5px] opacity-75 mt-0.5">{item.value.toFixed(1)}x</div>
                         </button>
                       ))}
                     </div>
                   </div>
 
-                  {/* Generation Status vs Trigger Button */}
-                  {isGeneratingFlowAi ? (
-                    <div className="bg-slate-50 dark:bg-slate-950 border border-slate-150 dark:border-slate-850 p-3.5 rounded-2xl space-y-2.5">
-                      <div className="flex justify-between items-center text-[10px]">
-                        <span className="font-black text-amber-500 flex items-center gap-1">
-                          <Sparkles className="w-3.5 h-3.5 animate-spin" />
-                          <span>SYNTHESIZING FLOW VECTOR LAYER</span>
-                        </span>
-                        <span className="font-mono font-black text-amber-500">
-                          {flowAiProgress}%
-                        </span>
-                      </div>
-                      <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-1.5 overflow-hidden">
-                        <div 
-                          className="bg-gradient-to-r from-amber-500 to-amber-400 h-full transition-all duration-300" 
-                          style={{ width: `${flowAiProgress}%` }}
-                        />
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
-                      {selectedSlide && flowAiFailures[selectedSlide.id] && (
-                        <div className="p-2.5 bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-[9.5px] rounded-xl flex items-center gap-2 font-black uppercase tracking-wider">
-                          <span>⚠️ Generation failed. Click Regenerate to retry with current parameters.</span>
-                        </div>
-                      )}
-                      <div className="flex flex-col sm:flex-row gap-2.5 pt-1">
-                        <button
-                          type="button"
-                          onClick={handleRunFlowAiForSlide}
-                          className="flex-1 py-2.5 px-4 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl text-[10.5px] font-black uppercase tracking-wider shadow-md hover:shadow-lg hover:shadow-amber-500/10 transition-all cursor-pointer flex items-center justify-center gap-1.5"
-                        >
-                          <Sparkles className="w-4 h-4 text-white" />
-                          <span>Run Flow AI (Render Effects)</span>
-                        </button>
+                  {/* STEP 3: GENERATE & RUN */}
+                  <div className="space-y-2 pt-1 border-t border-slate-100 dark:border-slate-850/60">
+                    <label className="block text-[9.5px] font-black uppercase tracking-wider text-slate-450 flex items-center gap-1 mb-1">
+                      <span className="w-4 h-4 rounded-full bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 flex items-center justify-center font-mono text-[9px] font-black">3</span>
+                      <span>Animate Image Frame:</span>
+                    </label>
 
-                        {selectedSlide && (flowAiFailures[selectedSlide.id] || (selectedSlide.flowAiEffect && selectedSlide.flowAiEffect !== "none")) && (
+                    {isGeneratingFlowAi ? (
+                      <div className="bg-slate-900 text-slate-100 border border-slate-850 p-4 rounded-xl space-y-3 shadow-inner font-mono text-[9.5px] leading-relaxed relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500" />
+                        <div className="flex justify-between items-center font-black uppercase tracking-wider text-indigo-400">
+                          <span className="flex items-center gap-1.5">
+                            <Sparkles className="w-3.5 h-3.5 animate-spin" />
+                            <span>{flowAiActiveStage.toUpperCase()}</span>
+                          </span>
+                          <span>{flowAiProgress}%</span>
+                        </div>
+                        
+                        <div className="w-full bg-slate-800 rounded-full h-1.5 overflow-hidden">
+                          <div 
+                            className="bg-indigo-500 h-full transition-all duration-300" 
+                            style={{ width: `${flowAiProgress}%` }}
+                          />
+                        </div>
+
+                        {/* Scrolling Log window */}
+                        <div className="h-16 overflow-y-auto space-y-1 text-[8.5px] opacity-90 pr-1 scrollbar-thin scrollbar-thumb-slate-800">
+                          {flowAiLogs.map((log, idx) => (
+                            <div key={idx} className="truncate">
+                              {log}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="space-y-2">
+                        {selectedSlide && flowAiFailures[selectedSlide.id] && (
+                          <div className="p-2.5 bg-rose-500/10 border border-rose-500/20 text-rose-600 dark:text-rose-400 text-[9px] rounded-xl flex items-center gap-2 font-black uppercase tracking-wider animate-shake">
+                            <span>⚠️ Generation failed. Please try again or simplify prompt.</span>
+                          </div>
+                        )}
+
+                        <div className="flex flex-col sm:flex-row gap-2">
                           <button
                             type="button"
                             onClick={handleRunFlowAiForSlide}
-                            className="py-2.5 px-4 bg-gradient-to-r from-rose-500 to-red-650 hover:from-rose-650 hover:to-red-750 text-white rounded-xl text-[10.5px] font-black uppercase tracking-wider cursor-pointer flex items-center justify-center gap-1.5 shadow-md active:scale-97 transition-all"
-                            title="Quickly resubmit with existing parameters"
+                            className={`flex-1 py-3 px-4 rounded-xl text-[10px] font-black uppercase tracking-wider shadow-md hover:shadow-lg transition-all cursor-pointer flex items-center justify-center gap-2 text-white active:scale-97 ${
+                              flowAiMethod === "real-veo"
+                                ? "bg-gradient-to-r from-indigo-650 to-violet-650 hover:from-indigo-600 hover:to-violet-600"
+                                : "bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700"
+                            }`}
                           >
-                            <RotateCcw className="w-4 h-4 text-white" />
-                            <span>Regenerate</span>
-                          </button>
-                        )}
-
-                        <button
-                          type="button"
-                          disabled={isExporting}
-                          onClick={handleCreateVideo}
-                          className="py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white rounded-xl text-[10.5px] font-black uppercase tracking-wider cursor-pointer flex items-center justify-center gap-1.5 transition-all select-none shadow-md"
-                        >
-                          <Video className="w-4 h-4 fill-current animate-pulse" />
-                          <span>
-                            {soundtrack !== "none" && audioTrackMode === "synth" && (
-                              <MiniMusicWaveform active={true} volume={audioVolume} />
+                            {flowAiMethod === "real-veo" ? (
+                              <>
+                                <Video className="w-4 h-4 text-white animate-pulse" />
+                                <span>📹 Generate Real AI Video Clip</span>
+                              </>
+                            ) : (
+                              <>
+                                <Sparkles className="w-4 h-4 text-white animate-pulse" />
+                                <span>⚡ Apply Particle FX Overlay</span>
+                              </>
                             )}
+                          </button>
+
+                          {selectedSlide && (selectedSlide.flowAiEffect && selectedSlide.flowAiEffect !== "none") && (
+                            <button
+                              type="button"
+                              onClick={handleRunFlowAiForSlide}
+                              className="py-3 px-3.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-855 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer flex items-center justify-center gap-1.5 transition-all"
+                              title="Regenerate with existing parameters"
+                            >
+                              <RotateCcw className="w-3.5 h-3.5" />
+                              <span>Retry</span>
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Export Timeline Card */}
+                        <div className="pt-2">
+                          <button
+                            type="button"
+                            disabled={isExporting}
+                            onClick={handleCreateVideo}
+                            className="w-full py-2.5 px-4 bg-gradient-to-r from-emerald-600 to-teal-700 hover:from-emerald-500 hover:to-teal-600 text-white rounded-xl text-[10px] font-black uppercase tracking-wider cursor-pointer flex items-center justify-center gap-1.5 transition-all select-none shadow-sm hover:shadow active:scale-97"
+                          >
+                            <Download className="w-4 h-4" />
                             <span>
-                              {soundtrack !== "none" && audioTrackMode === "synth"
-                                ? `Generate Video with ${SOUNDTRACK_LIBRARY.find(t => t.id === soundtrack)?.name || soundtrack} ✨`
-                                : "Generate Video (Mute) 🎥"}
+                              {soundtrack !== "none" && audioTrackMode === "synth" && (
+                                <MiniMusicWaveform active={true} volume={audioVolume} />
+                              )}
+                              <span>
+                                {soundtrack !== "none" && audioTrackMode === "synth"
+                                  ? `Export Cinematic Video with ${SOUNDTRACK_LIBRARY.find(t => t.id === soundtrack)?.name || soundtrack} ✨`
+                                  : "Export Cinematic Video File (Mute) 🎥"}
+                              </span>
                             </span>
-                          </span>
-                        </button>
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  )}
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
@@ -11915,8 +12450,8 @@ export default function ImageToVideo({
                   )}
 
                   {/* AI Generation Mode Selector */}
-                  {aiSceneImageSource === "gemini" && (
-                    <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-200 dark:border-slate-850/70 space-y-2">
+                  {(aiSceneImageSource === "gemini" || aiSceneImageSource === "image-to-video") && (
+                    <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-200 dark:border-slate-850/70 space-y-2 animate-fade-in">
                       <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
                         🎥 AI Generation Mode:
                       </span>
@@ -11959,6 +12494,126 @@ export default function ImageToVideo({
                           ? "📹 Veo Video: Calls Google Veo model to generate a true, fully-simulated 4-second cinematic high-fidelity video clip."
                           : "🏞️ Animatic: Generates a high-fidelity image with advanced camera pans, zooms, and custom motion paths."}
                       </p>
+
+                      {/* Real-time Motion Preview Toggle & Live Simulation */}
+                      <div className="mt-2 pt-2 border-t border-slate-200/50 dark:border-slate-850/50 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                            <span className="relative flex h-1.5 w-1.5">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-indigo-500"></span>
+                            </span>
+                            Live Neural Motion Preview
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRealTimeMotionPreview(!realTimeMotionPreview);
+                              triggerBeepChime();
+                            }}
+                            className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider cursor-pointer border transition-all ${
+                              realTimeMotionPreview
+                                ? "bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 border-indigo-250 dark:border-indigo-800"
+                                : "bg-slate-100 dark:bg-slate-900 text-slate-400 border-slate-200 dark:border-slate-800"
+                            }`}
+                          >
+                            {realTimeMotionPreview ? "ENABLED" : "DISABLED"}
+                          </button>
+                        </div>
+
+                        {realTimeMotionPreview && (
+                          <div className="relative rounded-xl overflow-hidden aspect-video bg-slate-950 border border-slate-200/80 dark:border-slate-850 p-2.5 flex flex-col justify-between group/preview animate-fade-in shadow-inner">
+                            {/* Motion Indicator Badges */}
+                            <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5">
+                              <span className="px-1.5 py-0.5 bg-indigo-600/90 text-white text-[7px] font-black uppercase tracking-widest rounded shadow-sm">
+                                {aiGenerationMethod === "video" ? "📹 VEO FULL MOTION" : "🏞️ STATIC IMAGE"}
+                              </span>
+                              <span className="px-1.5 py-0.5 bg-slate-900/80 text-slate-300 text-[7px] font-mono rounded border border-slate-800">
+                                {aiGenerationMethod === "video" ? "Fluid Motion Loop" : "Ken Burns Zoom"}
+                              </span>
+                            </div>
+
+                            {/* Live Graphic Simulation Screen */}
+                            <div className="absolute inset-0 flex items-center justify-center overflow-hidden pointer-events-none">
+                              {/* Background Artificially Animated Scene */}
+                              <div
+                                className={`w-full h-full bg-gradient-to-tr from-slate-950 via-indigo-950/20 to-slate-900 flex flex-col items-center justify-center p-4 transition-all duration-1000 ${
+                                  aiGenerationMethod === "video"
+                                    ? "animate-pulse"
+                                    : "scale-105"
+                                }`}
+                              >
+                                {/* Simulated Subject */}
+                                <div
+                                  className={`relative w-12 h-12 rounded-full border border-indigo-550/40 flex items-center justify-center transition-all duration-1000 ${
+                                    aiGenerationMethod === "video"
+                                      ? "animate-bounce duration-3000 ease-in-out scale-110 shadow-lg shadow-indigo-500/20"
+                                      : "scale-100"
+                                  }`}
+                                  style={
+                                    aiGenerationMethod === "video"
+                                      ? {
+                                          transform: "perspective(300px) rotateX(15deg) rotateY(15deg)",
+                                          animation: "bounce 2s infinite ease-in-out, pulse 1.5s infinite"
+                                        }
+                                      : {
+                                          animation: "pulse 3s ease-in-out infinite"
+                                        }
+                                  }
+                                >
+                                  {/* Inner Neural Grid */}
+                                  <div className="absolute inset-0 rounded-full bg-gradient-to-r from-indigo-500/25 to-pink-500/25 blur-xs"></div>
+                                  <Sparkles className="w-5 h-5 text-indigo-400 animate-pulse" />
+                                  
+                                  {/* Full Neural Motion Vector Lines for Real Veo Video */}
+                                  {aiGenerationMethod === "video" && (
+                                    <>
+                                      <div className="absolute -top-3 -left-3 w-3 h-3 border-t-2 border-l-2 border-indigo-500/80 rounded-tl animate-pulse"></div>
+                                      <div className="absolute -bottom-3 -right-3 w-3 h-3 border-b-2 border-r-2 border-pink-500/80 rounded-br animate-pulse"></div>
+                                      <span className="absolute -bottom-6 text-[6px] text-indigo-300 font-black tracking-widest whitespace-nowrap animate-pulse">
+                                        DYNAMIC PHYSICS ACTIVE
+                                      </span>
+                                    </>
+                                  )}
+                                  
+                                  {/* Kinetic zoom/pan indicator */}
+                                  {aiGenerationMethod === "animatic" && (
+                                    <>
+                                      <div className="absolute inset-0 border border-amber-500/30 scale-125 rounded-full animate-ping"></div>
+                                      <span className="absolute -bottom-6 text-[6px] text-amber-400 font-bold tracking-wider whitespace-nowrap">
+                                        STRETCHING PERSPECTIVE
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+
+                                {/* Flow indicators representing motion particles */}
+                                {aiGenerationMethod === "video" && (
+                                  <div className="absolute inset-0 pointer-events-none opacity-50">
+                                    <div className="absolute top-1/4 left-1/4 w-1 h-1 bg-indigo-400 rounded-full animate-ping delay-75"></div>
+                                    <div className="absolute top-2/3 right-1/3 w-1.5 h-1.5 bg-pink-400 rounded-full animate-ping delay-500"></div>
+                                    <div className="absolute bottom-1/4 left-1/2 w-1 h-1 bg-purple-450 rounded-full animate-ping delay-1000"></div>
+                                    {/* Swirling path particles */}
+                                    <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-indigo-500/40 to-transparent absolute top-1/2 left-0 animate-pulse"></div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Bottom Label overlay */}
+                            <div className="mt-auto relative z-10 w-full flex items-center justify-between bg-slate-950/90 p-1.5 rounded-lg border border-slate-800/80 backdrop-blur-xs">
+                              <span className="text-[7.5px] font-bold text-slate-350">
+                                {aiGenerationMethod === "video" 
+                                  ? "💡 3D camera synthesis & organic particle flow."
+                                  : "💡 2D static crop shifting across the canvas."}
+                              </span>
+                              <span className="text-[6.5px] font-mono text-indigo-400 uppercase tracking-widest font-black animate-pulse">
+                                {aiGenerationMethod === "video" ? "Veo-Core v2.0" : "Imagen 3"}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
 
@@ -12148,7 +12803,7 @@ export default function ImageToVideo({
 
                   {/* AI Generation Mode Selector for Script */}
                   {aiSceneImageSource === "gemini" && (
-                    <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-200 dark:border-slate-850/70 space-y-2">
+                    <div className="bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-200 dark:border-slate-850/70 space-y-2 animate-fade-in">
                       <span className="text-[9px] font-black uppercase tracking-widest text-slate-500 dark:text-slate-400 block">
                         🎥 AI Generation Mode:
                       </span>
@@ -12191,6 +12846,126 @@ export default function ImageToVideo({
                           ? "📹 Veo Video: Calls Google Veo model to generate a true, fully-simulated 4-second cinematic high-fidelity video clip."
                           : "🏞️ Animatic: Generates a high-fidelity image with advanced camera pans, zooms, and custom motion paths."}
                       </p>
+
+                      {/* Real-time Motion Preview Toggle & Live Simulation */}
+                      <div className="mt-2 pt-2 border-t border-slate-200/50 dark:border-slate-850/50 space-y-2">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[8.5px] font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
+                            <span className="relative flex h-1.5 w-1.5">
+                              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                              <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-indigo-500"></span>
+                            </span>
+                            Live Neural Motion Preview
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRealTimeMotionPreview(!realTimeMotionPreview);
+                              triggerBeepChime();
+                            }}
+                            className={`px-2 py-0.5 rounded-md text-[8px] font-black uppercase tracking-wider cursor-pointer border transition-all ${
+                              realTimeMotionPreview
+                                ? "bg-indigo-50 dark:bg-indigo-950/20 text-indigo-600 dark:text-indigo-400 border-indigo-250 dark:border-indigo-800"
+                                : "bg-slate-100 dark:bg-slate-900 text-slate-400 border-slate-200 dark:border-slate-800"
+                            }`}
+                          >
+                            {realTimeMotionPreview ? "ENABLED" : "DISABLED"}
+                          </button>
+                        </div>
+
+                        {realTimeMotionPreview && (
+                          <div className="relative rounded-xl overflow-hidden aspect-video bg-slate-950 border border-slate-200/80 dark:border-slate-850 p-2.5 flex flex-col justify-between group/preview animate-fade-in shadow-inner">
+                            {/* Motion Indicator Badges */}
+                            <div className="absolute top-2.5 left-2.5 z-10 flex items-center gap-1.5">
+                              <span className="px-1.5 py-0.5 bg-indigo-600/90 text-white text-[7px] font-black uppercase tracking-widest rounded shadow-sm">
+                                {aiGenerationMethod === "video" ? "📹 VEO FULL MOTION" : "🏞️ STATIC IMAGE"}
+                              </span>
+                              <span className="px-1.5 py-0.5 bg-slate-900/80 text-slate-300 text-[7px] font-mono rounded border border-slate-800">
+                                {aiGenerationMethod === "video" ? "Fluid Motion Loop" : "Ken Burns Zoom"}
+                              </span>
+                            </div>
+
+                            {/* Live Graphic Simulation Screen */}
+                            <div className="absolute inset-0 flex items-center justify-center overflow-hidden pointer-events-none">
+                              {/* Background Artificially Animated Scene */}
+                              <div
+                                className={`w-full h-full bg-gradient-to-tr from-slate-950 via-indigo-950/20 to-slate-900 flex flex-col items-center justify-center p-4 transition-all duration-1000 ${
+                                  aiGenerationMethod === "video"
+                                    ? "animate-pulse"
+                                    : "scale-105"
+                                }`}
+                              >
+                                {/* Simulated Subject */}
+                                <div
+                                  className={`relative w-12 h-12 rounded-full border border-indigo-550/40 flex items-center justify-center transition-all duration-1000 ${
+                                    aiGenerationMethod === "video"
+                                      ? "animate-bounce duration-3000 ease-in-out scale-110 shadow-lg shadow-indigo-500/20"
+                                      : "scale-100"
+                                  }`}
+                                  style={
+                                    aiGenerationMethod === "video"
+                                      ? {
+                                          transform: "perspective(300px) rotateX(15deg) rotateY(15deg)",
+                                          animation: "bounce 2s infinite ease-in-out, pulse 1.5s infinite"
+                                        }
+                                      : {
+                                          animation: "pulse 3s ease-in-out infinite"
+                                        }
+                                  }
+                                >
+                                  {/* Inner Neural Grid */}
+                                  <div className="absolute inset-0 rounded-full bg-gradient-to-r from-indigo-500/25 to-pink-500/25 blur-xs"></div>
+                                  <Sparkles className="w-5 h-5 text-indigo-400 animate-pulse" />
+                                  
+                                  {/* Full Neural Motion Vector Lines for Real Veo Video */}
+                                  {aiGenerationMethod === "video" && (
+                                    <>
+                                      <div className="absolute -top-3 -left-3 w-3 h-3 border-t-2 border-l-2 border-indigo-500/80 rounded-tl animate-pulse"></div>
+                                      <div className="absolute -bottom-3 -right-3 w-3 h-3 border-b-2 border-r-2 border-pink-500/80 rounded-br animate-pulse"></div>
+                                      <span className="absolute -bottom-6 text-[6px] text-indigo-300 font-black tracking-widest whitespace-nowrap animate-pulse">
+                                        DYNAMIC PHYSICS ACTIVE
+                                      </span>
+                                    </>
+                                  )}
+                                  
+                                  {/* Kinetic zoom/pan indicator */}
+                                  {aiGenerationMethod === "animatic" && (
+                                    <>
+                                      <div className="absolute inset-0 border border-amber-500/30 scale-125 rounded-full animate-ping"></div>
+                                      <span className="absolute -bottom-6 text-[6px] text-amber-400 font-bold tracking-wider whitespace-nowrap">
+                                        STRETCHING PERSPECTIVE
+                                      </span>
+                                    </>
+                                  )}
+                                </div>
+
+                                {/* Flow indicators representing motion particles */}
+                                {aiGenerationMethod === "video" && (
+                                  <div className="absolute inset-0 pointer-events-none opacity-50">
+                                    <div className="absolute top-1/4 left-1/4 w-1 h-1 bg-indigo-400 rounded-full animate-ping delay-75"></div>
+                                    <div className="absolute top-2/3 right-1/3 w-1.5 h-1.5 bg-pink-400 rounded-full animate-ping delay-500"></div>
+                                    <div className="absolute bottom-1/4 left-1/2 w-1 h-1 bg-purple-450 rounded-full animate-ping delay-1000"></div>
+                                    {/* Swirling path particles */}
+                                    <div className="w-full h-[1px] bg-gradient-to-r from-transparent via-indigo-500/40 to-transparent absolute top-1/2 left-0 animate-pulse"></div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Bottom Label overlay */}
+                            <div className="mt-auto relative z-10 w-full flex items-center justify-between bg-slate-950/90 p-1.5 rounded-lg border border-slate-800/80 backdrop-blur-xs">
+                              <span className="text-[7.5px] font-bold text-slate-350">
+                                {aiGenerationMethod === "video" 
+                                  ? "💡 3D camera synthesis & organic particle flow."
+                                  : "💡 2D static crop shifting across the canvas."}
+                              </span>
+                              <span className="text-[6.5px] font-mono text-indigo-400 uppercase tracking-widest font-black animate-pulse">
+                                {aiGenerationMethod === "video" ? "Veo-Core v2.0" : "Imagen 3"}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                   )}
 
@@ -13901,7 +14676,7 @@ export default function ImageToVideo({
               <button
                 type="button"
                 onClick={() => {
-                  setVideoHistory([]);
+                  clearAllVideoHistory();
                   triggerBeepChime();
                   setToastMessage({
                     text: "🗑️ Gallery Cleared",
@@ -14048,7 +14823,7 @@ export default function ImageToVideo({
                                 <button
                                   type="button"
                                   onClick={() => {
-                                    setVideoHistory((prev) => prev.filter((v) => v.id !== item.id));
+                                    deleteVideoFromHistory(item.id);
                                     triggerBeepChime();
                                     setToastMessage({
                                       text: "🗑️ Item Removed",
@@ -18400,37 +19175,79 @@ export default function ImageToVideo({
             </h4>
 
             {/* Live Subtitle & Overlay Editor */}
-            <div className="p-4 rounded-2xl border border-indigo-150 dark:border-indigo-900 bg-white dark:bg-slate-950 space-y-3.5 shadow-sm">
-              <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
-                <span className="text-[10.5px] font-black uppercase text-indigo-600 dark:text-indigo-400 tracking-wider flex items-center gap-1.5">
-                  <span>✍️</span>
-                  <span>Scene Subtitle overlay Editor</span>
-                </span>
-                <span className="text-[9px] font-mono font-bold text-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded leading-none">
-                  Live Sync
-                </span>
+            <div className="p-4 rounded-2xl border border-indigo-150 dark:border-indigo-900 bg-white dark:bg-slate-950 space-y-4 shadow-sm">
+              {/* Header with dual tabs */}
+              <div className="border-b border-slate-100 dark:border-slate-850 pb-2">
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-[10.5px] font-black uppercase text-indigo-600 dark:text-indigo-450 tracking-wider flex items-center gap-1.5">
+                    <span>✍️</span>
+                    <span>Subtitle Overlay Studio</span>
+                  </span>
+                  <span className="text-[8.5px] font-mono font-bold text-indigo-500 bg-indigo-50/50 dark:bg-indigo-950/40 px-1.5 py-0.5 rounded leading-none">
+                    Multi-Track
+                  </span>
+                </div>
+                
+                {/* Tabs */}
+                <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-150 dark:border-slate-800/80">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSubtitleEditorTab("scene");
+                      triggerBeepChime();
+                    }}
+                    className={`py-1.5 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer text-center ${
+                      subtitleEditorTab === "scene"
+                        ? "bg-indigo-650 text-white shadow-xs"
+                        : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    🎬 Scene Captions
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSubtitleEditorTab("stamped");
+                      triggerBeepChime();
+                    }}
+                    className={`py-1.5 text-[9px] font-black uppercase tracking-wider rounded-lg transition-all cursor-pointer text-center flex items-center justify-center gap-1 ${
+                      subtitleEditorTab === "stamped"
+                        ? "bg-indigo-650 text-white shadow-xs"
+                        : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    ⏱️ Time Stamps
+                    {customSubtitles.length > 0 && (
+                      <span className="w-4 h-4 bg-amber-500 text-slate-950 text-[8px] font-black rounded-full flex items-center justify-center">
+                        {customSubtitles.length}
+                      </span>
+                    )}
+                  </button>
+                </div>
               </div>
 
-              {/* Scene Dropdown Selector */}
-              <div className="space-y-1">
-                <label className="text-[9px] font-extrabold text-slate-500 dark:text-slate-400 uppercase tracking-wider block">
-                  Select Timeline Scene Frame:
-                </label>
-                <select
-                  value={selectedSlideId}
-                  onChange={(e) => {
-                    setSelectedSlideId(e.target.value);
-                    triggerBeepChime();
-                  }}
-                  className="w-full px-2.5 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none cursor-pointer"
-                >
-                  {slides.map((slide, idx) => (
-                    <option key={slide.id} value={slide.id}>
-                      🎬 Scene #{idx + 1} ({slide.name || "Untitled"}) — "{slide.text ? (slide.text.length > 15 ? slide.text.substring(0, 15) + "..." : slide.text) : "No caption"}"
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {subtitleEditorTab === "scene" ? (
+                <div className="space-y-3.5">
+                  {/* Scene Dropdown Selector */}
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-extrabold text-slate-500 dark:text-slate-450 uppercase tracking-wider block">
+                      Select Timeline Scene Frame:
+                    </label>
+                    <select
+                      value={selectedSlideId}
+                      onChange={(e) => {
+                        setSelectedSlideId(e.target.value);
+                        triggerBeepChime();
+                      }}
+                      className="w-full px-2.5 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none cursor-pointer"
+                    >
+                      {slides.map((slide, idx) => (
+                        <option key={slide.id} value={slide.id}>
+                          🎬 Scene #{idx + 1} ({slide.name || "Untitled"}) — "{slide.text ? (slide.text.length > 15 ? slide.text.substring(0, 15) + "..." : slide.text) : "No caption"}"
+                        </option>
+                      ))}
+                    </select>
+                  </div>
 
               {/* Direct Subtitle Textarea Input */}
               {(() => {
@@ -18442,7 +19259,7 @@ export default function ImageToVideo({
                       <label className="text-[9.5px] font-black text-slate-550 dark:text-slate-450 uppercase tracking-wider">
                         Custom Subtitle Text Overlay:
                       </label>
-                      <span className="text-[9px] font-mono text-slate-400">{activeSlideObj.text?.length || 0} chars</span>
+                      <span className="text-[9px] font-mono text-slate-450">{activeSlideObj.text?.length || 0} chars</span>
                     </div>
                     <textarea
                       rows={2}
@@ -18456,6 +19273,254 @@ export default function ImageToVideo({
                   </div>
                 );
               })()}
+                </div>
+              ) : (
+                <div className="space-y-3.5">
+                  {/* Stamped Overlays Timeline Editor */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-[9px] font-black uppercase text-slate-450 tracking-wider">
+                      Add custom time-stamped overlays:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const newId = `sub-stamp-${Date.now()}`;
+                        const defaultStart = Math.max(0, Math.min(totalDuration - 1, parseFloat((currentTime).toFixed(1))));
+                        const defaultEnd = Math.max(0, Math.min(totalDuration, parseFloat((defaultStart + 2.5).toFixed(1))));
+                        
+                        const newSub: CustomSubtitleItem = {
+                          id: newId,
+                          text: "New Styled Subtitle",
+                          startTime: defaultStart,
+                          endTime: defaultEnd,
+                          color: "#ffffff",
+                          fontFamily: "space-grotesk",
+                          fontSize: 28,
+                          yPosition: 85,
+                        };
+                        setCustomSubtitles([...customSubtitles, newSub]);
+                        triggerBeepChime();
+                        setToastMessage({
+                          text: "💬 Subtitle Added!",
+                          sub: `Created at ${defaultStart}s - ${defaultEnd}s`,
+                          success: true
+                        });
+                      }}
+                      className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-550 text-white rounded-xl text-[9px] font-black uppercase tracking-wider flex items-center gap-1 cursor-pointer shadow-sm active:scale-95 transition-all select-none border border-indigo-500/10"
+                    >
+                      <Plus className="w-3.5 h-3.5 text-white" />
+                      <span>Add Subtitle</span>
+                    </button>
+                  </div>
+
+                  {customSubtitles.length === 0 ? (
+                    <div className="py-8 px-4 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 text-center text-slate-450 bg-slate-50/20 dark:bg-slate-950/20">
+                      <Type className="w-8 h-8 text-slate-350 mx-auto mb-2 animate-pulse" />
+                      <span className="block text-xs font-bold">No custom subtitles created</span>
+                      <span className="block text-[9px] mt-0.5 text-slate-400">Click 'Add Subtitle' to begin customizing overlays</span>
+                    </div>
+                  ) : (
+                    <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-800">
+                      {customSubtitles.map((sub, idx) => {
+                        const isActive = currentTime >= sub.startTime && currentTime <= sub.endTime;
+                        return (
+                          <div
+                            key={sub.id}
+                            className={`p-3 rounded-2xl border transition-all space-y-2.5 relative ${
+                              isActive
+                                ? "bg-indigo-50/40 dark:bg-indigo-950/15 border-indigo-500 shadow-xs"
+                                : "bg-slate-50/50 dark:bg-slate-900/40 border-slate-200 dark:border-slate-850"
+                            }`}
+                          >
+                            {/* Card Header & Delete */}
+                            <div className="flex items-center justify-between border-b border-slate-200/50 dark:border-slate-800 pb-1.5">
+                              <span className="text-[10px] font-black text-slate-450 flex items-center gap-1 leading-none uppercase tracking-wider">
+                                <span className={`w-1.5 h-1.5 rounded-full ${isActive ? 'bg-emerald-500 animate-pulse shadow-sm' : 'bg-slate-400'}`} />
+                                Subtitle #{idx + 1}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCustomSubtitles(customSubtitles.filter((s) => s.id !== sub.id));
+                                  triggerBeepChime();
+                                }}
+                                className="text-rose-500 hover:text-rose-600 dark:hover:text-rose-400 text-xs p-1 rounded-md hover:bg-rose-50 dark:hover:bg-rose-950/20 cursor-pointer transition-all"
+                                title="Delete this subtitle overlay"
+                              >
+                                ✕
+                              </button>
+                            </div>
+
+                            {/* Subtitle Text Input */}
+                            <div className="space-y-1">
+                              <label className="text-[8.5px] font-black uppercase text-slate-450 block">Subtitle Content:</label>
+                              <input
+                                type="text"
+                                value={sub.text}
+                                onChange={(e) => {
+                                  setCustomSubtitles(customSubtitles.map((s) => s.id === sub.id ? { ...s, text: e.target.value } : s));
+                                }}
+                                placeholder="Subtitle text..."
+                                className="w-full text-xs font-bold px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-100 placeholder-slate-450 focus:outline-none focus:border-indigo-500"
+                              />
+                            </div>
+
+                            {/* Timestamps Row */}
+                            <div className="grid grid-cols-2 gap-2">
+                              <div className="space-y-1 text-left">
+                                <div className="flex items-center justify-between">
+                                  <label className="text-[8.5px] font-black uppercase text-slate-450 tracking-wider">Start Time:</label>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const snapped = parseFloat(currentTime.toFixed(1));
+                                      setCustomSubtitles(customSubtitles.map((s) => s.id === sub.id ? { ...s, startTime: Math.min(s.endTime, snapped) } : s));
+                                      triggerBeepChime();
+                                    }}
+                                    className="text-[8px] font-black uppercase text-indigo-500 hover:text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 px-1 rounded cursor-pointer leading-none"
+                                    title="Set Start Time to Current Timeline Playhead Position"
+                                  >
+                                    ⏱️ Playhead
+                                  </button>
+                                </div>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={totalDuration}
+                                  step={0.1}
+                                  value={sub.startTime}
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value) || 0;
+                                    setCustomSubtitles(customSubtitles.map((s) => s.id === sub.id ? { ...s, startTime: val } : s));
+                                  }}
+                                  className="w-full text-xs font-mono font-bold px-2 py-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg outline-none text-slate-700 dark:text-slate-255"
+                                />
+                              </div>
+
+                              <div className="space-y-1 text-left">
+                                <div className="flex items-center justify-between">
+                                  <label className="text-[8.5px] font-black uppercase text-slate-450 tracking-wider">End Time:</label>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      const snapped = parseFloat(currentTime.toFixed(1));
+                                      setCustomSubtitles(customSubtitles.map((s) => s.id === sub.id ? { ...s, endTime: Math.max(s.startTime, snapped) } : s));
+                                      triggerBeepChime();
+                                    }}
+                                    className="text-[8px] font-black uppercase text-indigo-500 hover:text-indigo-600 bg-indigo-50 dark:bg-indigo-950/40 px-1 rounded cursor-pointer leading-none"
+                                    title="Set End Time to Current Timeline Playhead Position"
+                                  >
+                                    ⏱️ Playhead
+                                  </button>
+                                </div>
+                                <input
+                                  type="number"
+                                  min={0}
+                                  max={totalDuration}
+                                  step={0.1}
+                                  value={sub.endTime}
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value) || 0;
+                                    setCustomSubtitles(customSubtitles.map((s) => s.id === sub.id ? { ...s, endTime: val } : s));
+                                  }}
+                                  className="w-full text-xs font-mono font-bold px-2 py-1 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg outline-none text-slate-700 dark:text-slate-255"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Font selection & Color row */}
+                            <div className="grid grid-cols-2 gap-2">
+                              {/* Subtitle Custom Font */}
+                              <div className="space-y-1 text-left">
+                                <label className="text-[8.5px] font-black uppercase text-slate-450 tracking-wider block">Subtitle Font:</label>
+                                <select
+                                  value={sub.fontFamily}
+                                  onChange={(e) => {
+                                    setCustomSubtitles(customSubtitles.map((s) => s.id === sub.id ? { ...s, fontFamily: e.target.value } : s));
+                                    triggerBeepChime();
+                                  }}
+                                  className="w-full px-2 py-1.5 text-[10.5px] font-bold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-lg outline-none cursor-pointer"
+                                >
+                                  {CURATED_FONTS.map((font) => (
+                                    <option key={font.id} value={font.id} style={{ fontFamily: font.family }}>
+                                      {font.name}
+                                    </option>
+                                  ))}
+                                </select>
+                              </div>
+
+                              {/* Custom Subtitle Color */}
+                              <div className="space-y-1 text-left">
+                                <label className="text-[8.5px] font-black uppercase text-slate-450 tracking-wider block">Text Color:</label>
+                                <div className="flex items-center gap-1.5">
+                                  <input
+                                    type="color"
+                                    value={sub.color}
+                                    onChange={(e) => {
+                                      setCustomSubtitles(customSubtitles.map((s) => s.id === sub.id ? { ...s, color: e.target.value } : s));
+                                    }}
+                                    className="w-6 h-6 p-0 border-0 rounded bg-transparent cursor-pointer shadow-sm"
+                                  />
+                                  <input
+                                    type="text"
+                                    value={sub.color}
+                                    maxLength={7}
+                                    onChange={(e) => {
+                                      setCustomSubtitles(customSubtitles.map((s) => s.id === sub.id ? { ...s, color: e.target.value } : s));
+                                    }}
+                                    className="w-full text-[10.5px] font-mono font-bold px-1.5 py-1 border border-slate-200 dark:border-slate-850 bg-white dark:bg-slate-950 rounded text-slate-700 dark:text-slate-255 outline-none"
+                                  />
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Position & Font Size Row */}
+                            <div className="grid grid-cols-2 gap-2">
+                              {/* Y position slider */}
+                              <div className="space-y-1 text-left">
+                                <div className="flex items-center justify-between text-[8.5px] font-black uppercase text-slate-450 tracking-wider">
+                                  <span>Y-Position:</span>
+                                  <span className="font-mono text-indigo-500 font-extrabold">{sub.yPosition}%</span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min={5}
+                                  max={95}
+                                  step={1}
+                                  value={sub.yPosition}
+                                  onChange={(e) => {
+                                    setCustomSubtitles(customSubtitles.map((s) => s.id === sub.id ? { ...s, yPosition: parseInt(e.target.value) } : s));
+                                  }}
+                                  className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                                />
+                              </div>
+
+                              {/* Font Size slider */}
+                              <div className="space-y-1 text-left">
+                                <div className="flex items-center justify-between text-[8.5px] font-black uppercase text-slate-450 tracking-wider">
+                                  <span>Font Size:</span>
+                                  <span className="font-mono text-indigo-500 font-extrabold">{sub.fontSize}px</span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min={12}
+                                  max={64}
+                                  step={1}
+                                  value={sub.fontSize}
+                                  onChange={(e) => {
+                                    setCustomSubtitles(customSubtitles.map((s) => s.id === sub.id ? { ...s, fontSize: parseInt(e.target.value) } : s));
+                                  }}
+                                  className="w-full h-1 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500"
+                                />
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Alignment & Position Overlays Sub-Grid */}
               <div className="space-y-2.5 pt-1.5 border-t border-slate-100 dark:border-slate-800">

@@ -1,0 +1,35 @@
+{
+  "collections": {
+    "users": {
+      "description": "User profile records containing account details and subscription statuses.",
+      "schema": {
+        "uid": "string",
+        "email": "string",
+        "displayName": "string",
+        "subscriptionStatus": "string",
+        "createdAt": "timestamp"
+      }
+    },
+    "videos": {
+      "description": "Video creations made by users via Veo AI or kinetic animatics.",
+      "schema": {
+        "id": "string",
+        "userId": "string",
+        "operationName": "string",
+        "prompt": "string",
+        "enhancedPrompt": "string?",
+        "videoUrl": "string?",
+        "videoBlobData": "string?",
+        "format": "string",
+        "resolution": "string",
+        "slidesCount": "number",
+        "duration": "number",
+        "thumbnail": "string",
+        "name": "string",
+        "timestamp": "string",
+        "status": "string",
+        "createdAt": "timestamp"
+      }
+    }
+  }
+}

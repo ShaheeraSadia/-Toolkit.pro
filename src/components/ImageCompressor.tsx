@@ -164,6 +164,35 @@ export const getFilterCSS = (filterName?: string): string => {
   }
 };
 
+export const getCustomFilterString = (
+  grayscale?: number,
+  sepia?: number,
+  contrast?: number,
+  blur?: number,
+  brightness?: number,
+  saturate?: number,
+  invert?: number
+): string => {
+  const g = grayscale !== undefined ? grayscale : 0;
+  const s = sepia !== undefined ? sepia : 0;
+  const c = contrast !== undefined ? contrast : 100;
+  const b = blur !== undefined ? blur : 0;
+  const br = brightness !== undefined ? brightness : 100;
+  const sat = saturate !== undefined ? saturate : 100;
+  const inv = invert !== undefined ? invert : 0;
+
+  const parts = [];
+  if (g > 0) parts.push(`grayscale(${g}%)`);
+  if (s > 0) parts.push(`sepia(${s}%)`);
+  if (c !== 100) parts.push(`contrast(${c}%)`);
+  if (b > 0) parts.push(`blur(${b}px)`);
+  if (br !== 100) parts.push(`brightness(${br}%)`);
+  if (sat !== 100) parts.push(`saturate(${sat}%)`);
+  if (inv > 0) parts.push(`invert(${inv}%)`);
+
+  return parts.length > 0 ? parts.join(" ") : "none";
+};
+
 export interface QueueItem {
   id: string;
   file: File;
@@ -184,6 +213,13 @@ export interface QueueItem {
   cropHeight?: number;
   rotation?: number;
   filter?: "none" | "grayscale" | "sepia" | "invert" | "blur" | "high-contrast" | "vintage" | "cool" | "warm" | "noir";
+  filterGrayscale?: number;
+  filterSepia?: number;
+  filterContrast?: number;
+  filterBlur?: number;
+  filterBrightness?: number;
+  filterSaturate?: number;
+  filterInvert?: number;
 }
 
 export interface CompressionSession {
@@ -1042,7 +1078,14 @@ export default function ImageCompressor({
           cropWidth: item.cropWidth,
           cropHeight: item.cropHeight,
           rotation: item.rotation,
-          filter: item.filter || "none"
+          filter: item.filter || "none",
+          filterGrayscale: item.filterGrayscale !== undefined ? item.filterGrayscale : 0,
+          filterSepia: item.filterSepia !== undefined ? item.filterSepia : 0,
+          filterContrast: item.filterContrast !== undefined ? item.filterContrast : 100,
+          filterBlur: item.filterBlur !== undefined ? item.filterBlur : 0,
+          filterBrightness: item.filterBrightness !== undefined ? item.filterBrightness : 100,
+          filterSaturate: item.filterSaturate !== undefined ? item.filterSaturate : 100,
+          filterInvert: item.filterInvert !== undefined ? item.filterInvert : 0
         }));
 
         const draftPayload = {
@@ -1159,6 +1202,13 @@ export default function ImageCompressor({
           cropHeight: item.cropHeight,
           rotation: item.rotation,
           filter: item.filter || "none",
+          filterGrayscale: item.filterGrayscale !== undefined ? item.filterGrayscale : 0,
+          filterSepia: item.filterSepia !== undefined ? item.filterSepia : 0,
+          filterContrast: item.filterContrast !== undefined ? item.filterContrast : 100,
+          filterBlur: item.filterBlur !== undefined ? item.filterBlur : 0,
+          filterBrightness: item.filterBrightness !== undefined ? item.filterBrightness : 100,
+          filterSaturate: item.filterSaturate !== undefined ? item.filterSaturate : 100,
+          filterInvert: item.filterInvert !== undefined ? item.filterInvert : 0,
           isCompressing: false,
           isSaving: false,
           saveStatus: null,
@@ -1253,6 +1303,13 @@ export default function ImageCompressor({
           cropHeight: item.cropHeight,
           rotation: item.rotation,
           filter: item.filter || "none",
+          filterGrayscale: item.filterGrayscale !== undefined ? item.filterGrayscale : 0,
+          filterSepia: item.filterSepia !== undefined ? item.filterSepia : 0,
+          filterContrast: item.filterContrast !== undefined ? item.filterContrast : 100,
+          filterBlur: item.filterBlur !== undefined ? item.filterBlur : 0,
+          filterBrightness: item.filterBrightness !== undefined ? item.filterBrightness : 100,
+          filterSaturate: item.filterSaturate !== undefined ? item.filterSaturate : 100,
+          filterInvert: item.filterInvert !== undefined ? item.filterInvert : 0,
           compressedResult: item.compressedResult ? {
             fileName: item.compressedResult.fileName,
             originalSize: item.compressedResult.originalSize,
@@ -1300,6 +1357,13 @@ export default function ImageCompressor({
           cropHeight: item.cropHeight,
           rotation: item.rotation,
           filter: item.filter || "none",
+          filterGrayscale: item.filterGrayscale !== undefined ? item.filterGrayscale : 0,
+          filterSepia: item.filterSepia !== undefined ? item.filterSepia : 0,
+          filterContrast: item.filterContrast !== undefined ? item.filterContrast : 100,
+          filterBlur: item.filterBlur !== undefined ? item.filterBlur : 0,
+          filterBrightness: item.filterBrightness !== undefined ? item.filterBrightness : 100,
+          filterSaturate: item.filterSaturate !== undefined ? item.filterSaturate : 100,
+          filterInvert: item.filterInvert !== undefined ? item.filterInvert : 0,
           isCompressing: false,
           isSaving: false,
           saveStatus: null,
@@ -1381,6 +1445,14 @@ export default function ImageCompressor({
   const [customAspectW, setCustomAspectW] = useState<string>("4");
   const [customAspectH, setCustomAspectH] = useState<string>("3");
   const [imgFilter, setImgFilter] = useState<"none" | "grayscale" | "sepia" | "invert" | "blur" | "high-contrast" | "vintage" | "cool" | "warm" | "noir">("none");
+  const [filterGrayscale, setFilterGrayscale] = useState<number>(0);
+  const [filterSepia, setFilterSepia] = useState<number>(0);
+  const [filterContrast, setFilterContrast] = useState<number>(100);
+  const [filterBlur, setFilterBlur] = useState<number>(0);
+  const [filterBrightness, setFilterBrightness] = useState<number>(100);
+  const [filterSaturate, setFilterSaturate] = useState<number>(100);
+  const [filterInvert, setFilterInvert] = useState<number>(0);
+  const [filterPanelTab, setFilterPanelTab] = useState<"presets" | "sliders">("presets");
   
   // Drag-to-crop visual interaction states
   const [dragMode, setDragMode] = useState<"none" | "move" | "resize">("none");
@@ -1672,6 +1744,13 @@ export default function ImageCompressor({
       setIsSaving(activeItem.isSaving);
       setSaveStatus(activeItem.saveStatus);
       setImgFilter(activeItem.filter || "none");
+      setFilterGrayscale(activeItem.filterGrayscale !== undefined ? activeItem.filterGrayscale : 0);
+      setFilterSepia(activeItem.filterSepia !== undefined ? activeItem.filterSepia : 0);
+      setFilterContrast(activeItem.filterContrast !== undefined ? activeItem.filterContrast : 100);
+      setFilterBlur(activeItem.filterBlur !== undefined ? activeItem.filterBlur : 0);
+      setFilterBrightness(activeItem.filterBrightness !== undefined ? activeItem.filterBrightness : 100);
+      setFilterSaturate(activeItem.filterSaturate !== undefined ? activeItem.filterSaturate : 100);
+      setFilterInvert(activeItem.filterInvert !== undefined ? activeItem.filterInvert : 0);
     } else {
       setOriginalFile(null);
       setOriginalUrl(null);
@@ -1682,6 +1761,13 @@ export default function ImageCompressor({
       setIsSaving(false);
       setSaveStatus(null);
       setImgFilter("none");
+      setFilterGrayscale(0);
+      setFilterSepia(0);
+      setFilterContrast(100);
+      setFilterBlur(0);
+      setFilterBrightness(100);
+      setFilterSaturate(100);
+      setFilterInvert(0);
     }
   }, [activeItem, selectedId, queue]);
 
@@ -2274,9 +2360,119 @@ export default function ImageCompressor({
   const handleFilterChange = (val: "none" | "grayscale" | "sepia" | "invert" | "blur" | "high-contrast" | "vintage" | "cool" | "warm" | "noir") => {
     saveToUndoActiveItem();
     setImgFilter(val);
-    if (selectedId) {
-      setQueue(prev => prev.map(item => item.id === selectedId ? { ...item, filter: val, compressedResult: null } : item));
+    
+    // Reset sliders to preset default values
+    let grayscale = 0;
+    let sepia = 0;
+    let contrast = 100;
+    let blur = 0;
+    let brightness = 100;
+    let saturate = 100;
+    let invert = 0;
+
+    switch (val) {
+      case "grayscale":
+        grayscale = 100;
+        break;
+      case "sepia":
+        sepia = 100;
+        break;
+      case "invert":
+        invert = 100;
+        break;
+      case "blur":
+        blur = 4;
+        break;
+      case "high-contrast":
+        contrast = 180;
+        brightness = 105;
+        break;
+      case "vintage":
+        sepia = 40;
+        contrast = 120;
+        saturate = 130;
+        break;
+      case "cool":
+        brightness = 102;
+        saturate = 95;
+        break;
+      case "warm":
+        sepia = 15;
+        saturate = 115;
+        break;
+      case "noir":
+        grayscale = 100;
+        contrast = 140;
+        brightness = 95;
+        break;
+      default:
+        break;
     }
+
+    setFilterGrayscale(grayscale);
+    setFilterSepia(sepia);
+    setFilterContrast(contrast);
+    setFilterBlur(blur);
+    setFilterBrightness(brightness);
+    setFilterSaturate(saturate);
+    setFilterInvert(invert);
+
+    if (selectedId) {
+      setQueue(prev => prev.map(item => item.id === selectedId ? {
+        ...item,
+        filter: val,
+        filterGrayscale: grayscale,
+        filterSepia: sepia,
+        filterContrast: contrast,
+        filterBlur: blur,
+        filterBrightness: brightness,
+        filterSaturate: saturate,
+        filterInvert: invert,
+        compressedResult: null
+      } : item));
+    }
+  };
+
+  const handleFilterSliderChange = (
+    key: "filterGrayscale" | "filterSepia" | "filterContrast" | "filterBlur" | "filterBrightness" | "filterSaturate" | "filterInvert",
+    val: number
+  ) => {
+    saveToUndoActiveItem();
+    if (key === "filterGrayscale") setFilterGrayscale(val);
+    else if (key === "filterSepia") setFilterSepia(val);
+    else if (key === "filterContrast") setFilterContrast(val);
+    else if (key === "filterBlur") setFilterBlur(val);
+    else if (key === "filterBrightness") setFilterBrightness(val);
+    else if (key === "filterSaturate") setFilterSaturate(val);
+    else if (key === "filterInvert") setFilterInvert(val);
+    
+    setImgFilter("none");
+
+    if (selectedId) {
+      setQueue(prev => prev.map(item => item.id === selectedId ? {
+        ...item,
+        [key]: val,
+        filter: "none",
+        compressedResult: null
+      } : item));
+    }
+  };
+
+  const getActiveItemFilterCSS = () => {
+    if (!activeItem) return "none";
+    return getCustomFilterString(
+      filterGrayscale,
+      filterSepia,
+      filterContrast,
+      filterBlur,
+      filterBrightness,
+      filterSaturate,
+      filterInvert
+    );
+  };
+
+  const getFilterCSS = (filterName?: string): string => {
+    return getActiveItemFilterCSS();
   };
 
   // Quality sync for the currently selected item
@@ -2818,16 +3014,19 @@ export default function ImageCompressor({
         }
         
         // Apply visual filter before drawing if set!
-        if (item.filter && item.filter !== "none") {
-          if (item.filter === "grayscale") ctx.filter = "grayscale(100%)";
-          else if (item.filter === "sepia") ctx.filter = "sepia(100%)";
-          else if (item.filter === "invert") ctx.filter = "invert(100%)";
-          else if (item.filter === "blur") ctx.filter = "blur(4px)";
-          else if (item.filter === "high-contrast") ctx.filter = "contrast(180%) brightness(105%)";
-          else if (item.filter === "vintage") ctx.filter = "sepia(40%) contrast(120%) saturate(130%)";
-          else if (item.filter === "cool") ctx.filter = "saturate(95%) hue-rotate(15deg) brightness(102%)";
-          else if (item.filter === "warm") ctx.filter = "saturate(115%) sepia(15%) hue-rotate(-8deg)";
-          else if (item.filter === "noir") ctx.filter = "grayscale(100%) contrast(140%) brightness(95%)";
+        const itemFilterString = getCustomFilterString(
+          item.filterGrayscale !== undefined ? item.filterGrayscale : 0,
+          item.filterSepia !== undefined ? item.filterSepia : 0,
+          item.filterContrast !== undefined ? item.filterContrast : 100,
+          item.filterBlur !== undefined ? item.filterBlur : 0,
+          item.filterBrightness !== undefined ? item.filterBrightness : 100,
+          item.filterSaturate !== undefined ? item.filterSaturate : 100,
+          item.filterInvert !== undefined ? item.filterInvert : 0
+        );
+        if (itemFilterString !== "none") {
+          ctx.filter = itemFilterString;
+        } else if (item.filter && item.filter !== "none") {
+          ctx.filter = getFilterCSS(item.filter);
         }
         
         ctx.drawImage(img, sx, sy, sWidth, sHeight, -sWidth / 2, -sHeight / 2, sWidth, sHeight);
@@ -7243,59 +7442,291 @@ export default function ImageCompressor({
                   <div className="w-full mt-4 bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-800 rounded-2xl p-4 text-left space-y-2.5">
                     <div className="flex items-center justify-between">
                       <span className="text-[11px] font-black uppercase text-slate-700 dark:text-slate-300 tracking-wider flex items-center gap-1.5 selection:bg-indigo-500">
-                        ✨ Image Visual Filters
+                        ✨ Image Visual Filters Studio
                       </span>
                       <span className="text-[9.5px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 bg-indigo-50 dark:bg-indigo-950/60 px-2 py-0.5 rounded leading-none">
-                        Active: {imgFilter === "none" ? "Raw Default" : imgFilter}
+                        Active: {imgFilter === "none" ? "Custom Adjustments" : imgFilter}
                       </span>
                     </div>
                     <p className="text-[10px] text-slate-500 dark:text-slate-400 leading-snug">
-                       Apply a custom artistic palette directly to the image pixels before encoding.
+                       Apply professional presets or fine-tune individual color channel values directly before file compression.
                     </p>
-                    
-                    <div className="grid grid-cols-5 gap-2 pt-1">
-                      {[
-                        { id: "none", label: "None", filterStyle: "none" },
-                        { id: "grayscale", label: "Grayscale", filterStyle: "grayscale(100%)" },
-                        { id: "sepia", label: "Sepia", filterStyle: "sepia(100%)" },
-                        { id: "invert", label: "Invert", filterStyle: "invert(100%)" },
-                        { id: "blur", label: "Blur", filterStyle: "blur(2px)" },
-                        { id: "high-contrast", label: "High Contrast", filterStyle: "contrast(180%) brightness(105%)" },
-                        { id: "vintage", label: "Vintage Retro", filterStyle: "sepia(40%) contrast(120%) saturate(130%)" },
-                        { id: "cool", label: "Cool Cyan", filterStyle: "saturate(95%) hue-rotate(15deg) brightness(102%)" },
-                        { id: "warm", label: "Warm Golden", filterStyle: "saturate(115%) sepia(15%) hue-rotate(-8deg)" },
-                        { id: "noir", label: "Cinematic Noir", filterStyle: "grayscale(100%) contrast(140%) brightness(95%)" },
-                      ].map((item) => {
-                        const isActive = imgFilter === item.id;
-                        return (
-                          <button
-                            key={item.id}
-                            type="button"
-                            onClick={() => handleFilterChange(item.id as any)}
-                            className={`flex flex-col items-center p-1.5 rounded-xl border transition-all duration-200 text-center relative overflow-hidden group cursor-pointer ${
-                              isActive
-                                ? "bg-indigo-50/50 dark:bg-indigo-950/20 border-indigo-500 ring-1 ring-indigo-500/50 shadow-3xs"
-                                : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-705 hover:bg-slate-100/50 dark:hover:bg-slate-900/60"
-                            }`}
-                          >
-                            {/* Filter Preview micro viewport */}
-                            <div className="w-full aspect-video rounded-lg overflow-hidden bg-slate-900 relative">
-                              <img
-                                src={originalUrl || activeItem.thumbnailUrl || undefined}
-                                alt={item.label}
-                                className="w-full h-full object-cover select-none pointer-events-none scale-110"
-                                style={{ filter: item.filterStyle }}
-                                referrerPolicy="no-referrer"
-                              />
-                            </div>
-                            
-                            <span className={`text-[9px] mt-1.5 font-bold ${isActive ? "text-indigo-600 dark:text-indigo-400 font-extrabold" : "text-slate-600 dark:text-slate-400"}`}>
-                              {item.label}
-                            </span>
-                          </button>
-                        );
-                      })}
+
+                    {/* Filter Tab Switcher */}
+                    <div className="flex border-b border-slate-200/80 dark:border-slate-800 pb-2 mb-2 items-center justify-between">
+                      <div className="flex space-x-1 bg-slate-150/85 dark:bg-slate-950 p-0.5 rounded-lg border border-slate-200 dark:border-slate-800/80">
+                        <button
+                          type="button"
+                          onClick={() => setFilterPanelTab("presets")}
+                          className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
+                            filterPanelTab === "presets"
+                              ? "bg-white dark:bg-slate-850 shadow-xs text-indigo-600 dark:text-indigo-400 font-extrabold"
+                              : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+                          }`}
+                        >
+                          Preset Filters
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setFilterPanelTab("sliders")}
+                          className={`px-3 py-1 text-[10px] font-bold rounded-md transition-all cursor-pointer ${
+                            filterPanelTab === "sliders"
+                              ? "bg-white dark:bg-slate-850 shadow-xs text-indigo-600 dark:text-indigo-400 font-extrabold"
+                              : "text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200"
+                          }`}
+                        >
+                          Custom Adjustments
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleFilterChange("none")}
+                        className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 flex items-center gap-1 bg-white dark:bg-slate-950 hover:bg-slate-50 dark:hover:bg-slate-900 border border-slate-200 dark:border-slate-800 px-2 py-1 rounded-lg shadow-3xs cursor-pointer transition-colors"
+                        title="Reset all effects back to standard original"
+                      >
+                        Reset All Filters
+                      </button>
                     </div>
+                    
+                    {filterPanelTab === "presets" ? (
+                      <div className="grid grid-cols-5 gap-2 pt-1 animate-in fade-in duration-200">
+                        {[
+                          { id: "none", label: "None", filterStyle: "none" },
+                          { id: "grayscale", label: "Grayscale", filterStyle: "grayscale(100%)" },
+                          { id: "sepia", label: "Sepia", filterStyle: "sepia(100%)" },
+                          { id: "invert", label: "Invert", filterStyle: "invert(100%)" },
+                          { id: "blur", label: "Blur", filterStyle: "blur(2px)" },
+                          { id: "high-contrast", label: "High Contrast", filterStyle: "contrast(180%) brightness(105%)" },
+                          { id: "vintage", label: "Vintage Retro", filterStyle: "sepia(40%) contrast(120%) saturate(130%)" },
+                          { id: "cool", label: "Cool Cyan", filterStyle: "saturate(95%) hue-rotate(15deg) brightness(102%)" },
+                          { id: "warm", label: "Warm Golden", filterStyle: "saturate(115%) sepia(15%) hue-rotate(-8deg)" },
+                          { id: "noir", label: "Cinematic Noir", filterStyle: "grayscale(100%) contrast(140%) brightness(95%)" },
+                        ].map((item) => {
+                          const isActive = imgFilter === item.id;
+                          return (
+                            <button
+                              key={item.id}
+                              type="button"
+                              onClick={() => handleFilterChange(item.id as any)}
+                              className={`flex flex-col items-center p-1.5 rounded-xl border transition-all duration-200 text-center relative overflow-hidden group cursor-pointer ${
+                                isActive
+                                  ? "bg-indigo-50/50 dark:bg-indigo-950/20 border-indigo-500 ring-1 ring-indigo-500/50 shadow-3xs"
+                                  : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-800 hover:border-slate-300 dark:hover:border-slate-705 hover:bg-slate-100/50 dark:hover:bg-slate-900/60"
+                              }`}
+                            >
+                              {/* Filter Preview micro viewport */}
+                              <div className="w-full aspect-video rounded-lg overflow-hidden bg-slate-900 relative">
+                                <img
+                                  src={originalUrl || activeItem.thumbnailUrl || undefined}
+                                  alt={item.label}
+                                  className="w-full h-full object-cover select-none pointer-events-none scale-110"
+                                  style={{ filter: item.filterStyle }}
+                                  referrerPolicy="no-referrer"
+                                />
+                              </div>
+                              
+                              <span className={`text-[9px] mt-1.5 font-bold ${isActive ? "text-indigo-600 dark:text-indigo-400 font-extrabold" : "text-slate-600 dark:text-slate-400"}`}>
+                                {item.label}
+                              </span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="space-y-3 pt-2 animate-in fade-in duration-200">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-3">
+                          {/* Grayscale Slider */}
+                          <div className="space-y-1 bg-white/40 dark:bg-slate-950/40 p-2.5 rounded-xl border border-slate-200/50 dark:border-slate-800/40">
+                            <div className="flex items-center justify-between text-[10px] font-bold">
+                              <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1">🌓 Grayscale</span>
+                              <div className="flex items-center space-x-1.5">
+                                <span className="font-mono text-indigo-600 dark:text-indigo-400">{filterGrayscale}%</span>
+                                {filterGrayscale > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleFilterSliderChange("filterGrayscale", 0)}
+                                    className="text-[9px] font-black text-rose-500 hover:text-rose-600 uppercase cursor-pointer"
+                                  >
+                                    Reset
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={filterGrayscale}
+                              onChange={(e) => handleFilterSliderChange("filterGrayscale", parseInt(e.target.value))}
+                              className="w-full accent-indigo-600 h-1 bg-slate-200 dark:bg-slate-800 rounded-lg cursor-pointer appearance-none"
+                            />
+                          </div>
+
+                          {/* Sepia Slider */}
+                          <div className="space-y-1 bg-white/40 dark:bg-slate-950/40 p-2.5 rounded-xl border border-slate-200/50 dark:border-slate-800/40">
+                            <div className="flex items-center justify-between text-[10px] font-bold">
+                              <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1">🍂 Sepia</span>
+                              <div className="flex items-center space-x-1.5">
+                                <span className="font-mono text-indigo-600 dark:text-indigo-400">{filterSepia}%</span>
+                                {filterSepia > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleFilterSliderChange("filterSepia", 0)}
+                                    className="text-[9px] font-black text-rose-500 hover:text-rose-600 uppercase cursor-pointer"
+                                  >
+                                    Reset
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={filterSepia}
+                              onChange={(e) => handleFilterSliderChange("filterSepia", parseInt(e.target.value))}
+                              className="w-full accent-indigo-600 h-1 bg-slate-200 dark:bg-slate-800 rounded-lg cursor-pointer appearance-none"
+                            />
+                          </div>
+
+                          {/* Contrast Slider */}
+                          <div className="space-y-1 bg-white/40 dark:bg-slate-950/40 p-2.5 rounded-xl border border-slate-200/50 dark:border-slate-800/40">
+                            <div className="flex items-center justify-between text-[10px] font-bold">
+                              <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1">🔆 Contrast</span>
+                              <div className="flex items-center space-x-1.5">
+                                <span className="font-mono text-indigo-600 dark:text-indigo-400">{filterContrast}%</span>
+                                {filterContrast !== 100 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleFilterSliderChange("filterContrast", 100)}
+                                    className="text-[9px] font-black text-rose-500 hover:text-rose-600 uppercase cursor-pointer"
+                                  >
+                                    Reset
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            <input
+                              type="range"
+                              min="50"
+                              max="200"
+                              value={filterContrast}
+                              onChange={(e) => handleFilterSliderChange("filterContrast", parseInt(e.target.value))}
+                              className="w-full accent-indigo-600 h-1 bg-slate-200 dark:bg-slate-800 rounded-lg cursor-pointer appearance-none"
+                            />
+                          </div>
+
+                          {/* Blur Slider */}
+                          <div className="space-y-1 bg-white/40 dark:bg-slate-950/40 p-2.5 rounded-xl border border-slate-200/50 dark:border-slate-800/40">
+                            <div className="flex items-center justify-between text-[10px] font-bold">
+                              <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1">💧 Blur</span>
+                              <div className="flex items-center space-x-1.5">
+                                <span className="font-mono text-indigo-600 dark:text-indigo-400">{filterBlur}px</span>
+                                {filterBlur > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleFilterSliderChange("filterBlur", 0)}
+                                    className="text-[9px] font-black text-rose-500 hover:text-rose-600 uppercase cursor-pointer"
+                                  >
+                                    Reset
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="10"
+                              value={filterBlur}
+                              onChange={(e) => handleFilterSliderChange("filterBlur", parseInt(e.target.value))}
+                              className="w-full accent-indigo-600 h-1 bg-slate-200 dark:bg-slate-800 rounded-lg cursor-pointer appearance-none"
+                            />
+                          </div>
+
+                          {/* Brightness Slider */}
+                          <div className="space-y-1 bg-white/40 dark:bg-slate-950/40 p-2.5 rounded-xl border border-slate-200/50 dark:border-slate-800/40">
+                            <div className="flex items-center justify-between text-[10px] font-bold">
+                              <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1">☀️ Brightness</span>
+                              <div className="flex items-center space-x-1.5">
+                                <span className="font-mono text-indigo-600 dark:text-indigo-400">{filterBrightness}%</span>
+                                {filterBrightness !== 100 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleFilterSliderChange("filterBrightness", 100)}
+                                    className="text-[9px] font-black text-rose-500 hover:text-rose-600 uppercase cursor-pointer"
+                                  >
+                                    Reset
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            <input
+                              type="range"
+                              min="50"
+                              max="150"
+                              value={filterBrightness}
+                              onChange={(e) => handleFilterSliderChange("filterBrightness", parseInt(e.target.value))}
+                              className="w-full accent-indigo-600 h-1 bg-slate-200 dark:bg-slate-800 rounded-lg cursor-pointer appearance-none"
+                            />
+                          </div>
+
+                          {/* Saturation Slider */}
+                          <div className="space-y-1 bg-white/40 dark:bg-slate-950/40 p-2.5 rounded-xl border border-slate-200/50 dark:border-slate-800/40">
+                            <div className="flex items-center justify-between text-[10px] font-bold">
+                              <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1">🎨 Saturation</span>
+                              <div className="flex items-center space-x-1.5">
+                                <span className="font-mono text-indigo-600 dark:text-indigo-400">{filterSaturate}%</span>
+                                {filterSaturate !== 100 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleFilterSliderChange("filterSaturate", 100)}
+                                    className="text-[9px] font-black text-rose-500 hover:text-rose-600 uppercase cursor-pointer"
+                                  >
+                                    Reset
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            <input
+                              type="range"
+                              min="50"
+                              max="200"
+                              value={filterSaturate}
+                              onChange={(e) => handleFilterSliderChange("filterSaturate", parseInt(e.target.value))}
+                              className="w-full accent-indigo-600 h-1 bg-slate-200 dark:bg-slate-800 rounded-lg cursor-pointer appearance-none"
+                            />
+                          </div>
+
+                          {/* Invert Slider */}
+                          <div className="space-y-1 bg-white/40 dark:bg-slate-950/40 p-2.5 rounded-xl border border-slate-200/50 dark:border-slate-800/40">
+                            <div className="flex items-center justify-between text-[10px] font-bold">
+                              <span className="text-slate-600 dark:text-slate-300 flex items-center gap-1">🔄 Inversion</span>
+                              <div className="flex items-center space-x-1.5">
+                                <span className="font-mono text-indigo-600 dark:text-indigo-400">{filterInvert}%</span>
+                                {filterInvert > 0 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleFilterSliderChange("filterInvert", 0)}
+                                    className="text-[9px] font-black text-rose-500 hover:text-rose-600 uppercase cursor-pointer"
+                                  >
+                                    Reset
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                            <input
+                              type="range"
+                              min="0"
+                              max="100"
+                              value={filterInvert}
+                              onChange={(e) => handleFilterSliderChange("filterInvert", parseInt(e.target.value))}
+                              className="w-full accent-indigo-600 h-1 bg-slate-200 dark:bg-slate-800 rounded-lg cursor-pointer appearance-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
 
                   <div className="mt-4 flex items-center justify-center bg-indigo-50 dark:bg-indigo-950/20 text-indigo-705 dark:text-indigo-400 px-3.5 py-1.5 rounded-full text-[10px] font-semibold gap-1.5">
