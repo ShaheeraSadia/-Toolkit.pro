@@ -591,8 +591,15 @@ app.post("/api/video/generate", async (req, res) => {
       loopVideo = false,
       stylePreset = "auto",
       cameraDirection = "auto",
-      motionIntensity = 5
+      motionIntensity = 5,
+      motion_bucket_id,
+      steps,
+      audio_sync
     } = req.body;
+
+    if (motion_bucket_id !== undefined || steps !== undefined || audio_sync !== undefined) {
+      console.log(`[Veo generation overrides] motion_bucket_id: ${motion_bucket_id}, steps: ${steps}, audio_sync: ${audio_sync}`);
+    }
     
     // Choose model based on user preference and selected quality mode
     let model = "veo-3.1-lite-generate-preview";
@@ -733,6 +740,113 @@ app.post("/api/video/generate", async (req, res) => {
     });
   } catch (error: any) {
     console.error("Veo video generation error:", error);
+    return res.status(500).json({ 
+      error: error.message || "Video generation failed due to a server-side error." 
+    });
+  }
+});
+
+// API route alias for direct compatibility with custom payloads (motion_bucket_id, steps, audio_sync)
+app.post("/api/generate-video", async (req, res) => {
+  try {
+    const activeApiKey = process.env.GEMINI_API_KEY;
+    if (!activeApiKey) {
+      return res.status(500).json({ 
+        error: "GEMINI_API_KEY is not configured in the host environment or Secrets panel." 
+      });
+    }
+
+    if (!ai) {
+      ai = new GoogleGenAI({
+        apiKey: activeApiKey,
+        httpOptions: {
+          headers: {
+            "User-Agent": "aistudio-build",
+          },
+        },
+      });
+    }
+
+    const { 
+      prompt, 
+      image_url,
+      image,
+      negative_prompt,
+      motion_bucket_id = 140,
+      steps = 30,
+      fps = 24,
+      audio_sync = true,
+      modelChoice = "veo-3.1-lite-generate-preview",
+      aspectRatio = "16:9"
+    } = req.body;
+
+    let model = "veo-3.1-lite-generate-preview";
+    if (modelChoice === "veo-core" || modelChoice === "veo-3.1-generate-preview") {
+      model = "veo-3.1-generate-preview";
+    }
+
+    let finalPrompt = prompt || "Cinematic masterpiece video, professional lighting, photorealistic";
+    if (negative_prompt) {
+      finalPrompt += `, negative: ${negative_prompt}`;
+    }
+
+    const videoConfig: any = {
+      numberOfVideos: 1,
+      resolution: "720p",
+      aspectRatio: aspectRatio,
+      // map motion_bucket_id (0-255) to motionIntensity (1-10)
+      motionIntensity: Math.min(10, Math.max(1, Math.round((motion_bucket_id || 140) / 25)))
+    };
+
+    const payload: any = {
+      model,
+      prompt: finalPrompt,
+      config: videoConfig
+    };
+
+    const sourceImage = image || image_url;
+    if (sourceImage) {
+      let imageBytes = sourceImage;
+      let mimeType = "image/png";
+
+      if (typeof sourceImage === "string" && sourceImage.startsWith("http")) {
+        try {
+          const fetchRes = await fetch(sourceImage);
+          if (fetchRes.ok) {
+            const arrayBuffer = await fetchRes.arrayBuffer();
+            const buffer = Buffer.from(arrayBuffer);
+            imageBytes = buffer.toString("base64");
+            mimeType = fetchRes.headers.get("content-type") || "image/png";
+          }
+        } catch (e) {
+          console.warn("Failed to fetch image_url on server:", e);
+        }
+      } else if (typeof sourceImage === "string" && sourceImage.includes(";base64,")) {
+        const parts = sourceImage.split(";base64,");
+        mimeType = parts[0].replace("data:", "");
+        imageBytes = parts[1];
+      }
+
+      payload.image = {
+        imageBytes,
+        mimeType
+      };
+    }
+
+    console.log("Calling ai.models.generateVideos via /api/generate-video with model:", model);
+    const operation = await ai.models.generateVideos(payload);
+
+    return res.json({ 
+      operationName: operation.name,
+      enhancedPrompt: finalPrompt,
+      status: "Initializing Motion Vector...",
+      motion_bucket_id,
+      steps,
+      audio_sync,
+      fps
+    });
+  } catch (error: any) {
+    console.error("Direct generate-video error:", error);
     return res.status(500).json({ 
       error: error.message || "Video generation failed due to a server-side error." 
     });

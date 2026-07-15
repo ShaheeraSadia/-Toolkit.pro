@@ -1,4 +1,4 @@
- import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 // @ts-ignore
 import garreyExplorerUrl from "../assets/images/garrey_explorer_1783014281882.jpg";
 // @ts-ignore
@@ -2435,6 +2435,10 @@ export default function ImageToVideo({
   const [isTrimmingInProgress, setIsTrimmingInProgress] = useState<boolean>(false);
   const [trimProgress, setTrimProgress] = useState<number>(0);
 
+  // Creations Gallery Filter States
+  const [creationsSearch, setCreationsSearch] = useState<string>("");
+  const [creationsFilter, setCreationsFilter] = useState<string>("all");
+
   // Background Audio Overlay tool state
   const [overlayAudioVideoId, setOverlayAudioVideoId] = useState<string | null>(null);
   const [selectedOverlayAudioUrl, setSelectedOverlayAudioUrl] = useState<string>("");
@@ -4433,7 +4437,10 @@ export default function ImageToVideo({
                 loopVideo: loopVideo,
                 stylePreset: aiStylePreset,
                 cameraDirection: aiCameraDirection,
-                motionIntensity: aiMotionIntensity
+                motionIntensity: aiMotionIntensity,
+                motion_bucket_id: 140,
+                steps: 30,
+                audio_sync: true
               })
             });
 
@@ -4799,7 +4806,10 @@ export default function ImageToVideo({
             image: seedImageBase64 || undefined,
             stylePreset: aiStylePreset,
             cameraDirection: aiCameraDirection,
-            motionIntensity: aiMotionIntensity
+            motionIntensity: aiMotionIntensity,
+            motion_bucket_id: 140, // 140 creates visible motion flow
+            steps: 30,             // 30 steps stabilizes the image and eliminates beeping artifacts
+            audio_sync: true       // Syncs audio frames correctly
           })
         });
 
@@ -9904,11 +9914,11 @@ export default function ImageToVideo({
                         type="button"
                         onClick={() => {
                           if (exportedVideoBlob) {
-                            const videoNameWithExtension = `${exportFileName.replace(/\s+/g, "_")}.webm`;
+                            const videoNameWithExtension = `${exportFileName.replace(/\s+/g, "_")}.mp4`;
                             triggerFileDownload(exportedVideoBlob, videoNameWithExtension);
                             setToastMessage({
-                              text: "📥 Downloading Video!",
-                              sub: "Your high-fidelity masterwork file download has resumed.",
+                              text: "📥 Downloading .MP4 Video!",
+                              sub: "Your high-fidelity .MP4 masterwork file download has started.",
                               success: true
                             });
 
@@ -9923,7 +9933,7 @@ export default function ImageToVideo({
                         className="py-2 bg-gradient-to-r from-emerald-600 to-emerald-700 hover:from-emerald-500 hover:to-emerald-650 text-white rounded-xl text-[10px] font-black uppercase tracking-widest transition-all cursor-pointer flex items-center justify-center gap-1 select-none shadow-md shadow-emerald-500/15"
                       >
                         <Download className="w-3.5 h-3.5" />
-                        <span>Download File</span>
+                        <span>Download as .MP4</span>
                       </button>
                       <button
                         type="button"
@@ -11594,35 +11604,51 @@ export default function ImageToVideo({
 
                           {/* Fade In / Out Toggles */}
                           <div className="flex items-center justify-between gap-4 pt-1.5 border-t border-indigo-100/30 dark:border-indigo-900/20 text-[8px] sm:text-[8.5px]">
-                            <label className="flex items-center gap-1.5 cursor-pointer select-none text-slate-600 dark:text-slate-350 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-                              <input
-                                type="checkbox"
-                                checked={audioFadeIn}
-                                onChange={(e) => {
-                                  setAudioFadeIn(e.target.checked);
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAudioFadeIn(!audioFadeIn);
                                   triggerBeepChime();
                                 }}
-                                className="rounded border-slate-300 dark:border-slate-850 text-indigo-600 focus:ring-indigo-500 h-3 w-3 sm:h-3.5 sm:w-3.5 cursor-pointer"
-                              />
-                              <span className="font-extrabold">
+                                className={`relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                  audioFadeIn ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-slate-800'
+                                }`}
+                                title="Toggle Fade In transition for background music"
+                              >
+                                <span
+                                  className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                                    audioFadeIn ? 'translate-x-3.5' : 'translate-x-0'
+                                  }`}
+                                />
+                              </button>
+                              <span className="font-extrabold text-slate-650 dark:text-slate-350 select-none">
                                 Fade In (آواز کا آغاز)
                               </span>
-                            </label>
+                            </div>
 
-                            <label className="flex items-center gap-1.5 cursor-pointer select-none text-slate-600 dark:text-slate-350 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors">
-                              <input
-                                type="checkbox"
-                                checked={audioFadeOut}
-                                onChange={(e) => {
-                                  setAudioFadeOut(e.target.checked);
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setAudioFadeOut(!audioFadeOut);
                                   triggerBeepChime();
                                 }}
-                                className="rounded border-slate-300 dark:border-slate-850 text-indigo-600 focus:ring-indigo-500 h-3 w-3 sm:h-3.5 sm:w-3.5 cursor-pointer"
-                              />
-                              <span className="font-extrabold">
+                                className={`relative inline-flex h-4.5 w-8 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                                  audioFadeOut ? 'bg-indigo-600' : 'bg-slate-200 dark:bg-slate-800'
+                                }`}
+                                title="Toggle Fade Out transition for background music"
+                              >
+                                <span
+                                  className={`pointer-events-none inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow-xs ring-0 transition duration-200 ease-in-out ${
+                                    audioFadeOut ? 'translate-x-3.5' : 'translate-x-0'
+                                  }`}
+                                />
+                              </button>
+                              <span className="font-extrabold text-slate-650 dark:text-slate-350 select-none">
                                 Fade Out (آواز کا اختتام)
                               </span>
-                            </label>
+                            </div>
                           </div>
                         </div>
                       )}
@@ -13858,13 +13884,19 @@ export default function ImageToVideo({
           </button>
         </div>
 
-        {/* Section: Recently Generated Videos History */}
-        <div className="border border-slate-150 dark:border-slate-850 p-5 rounded-3xl bg-slate-50/50 dark:bg-slate-900/10 space-y-4">
-          <div className="border-b border-slate-150 dark:border-slate-800/80 pb-3 flex items-center justify-between">
-            <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
-              <History className="w-4 h-4 text-indigo-500 animate-pulse" />
-              <span>Recently Generated Videos</span>
-            </h4>
+        {/* Section: My Creations Gallery */}
+        <div className="border border-slate-150 dark:border-slate-850 p-6 rounded-3xl bg-slate-50/50 dark:bg-slate-900/10 space-y-5">
+          <div className="border-b border-slate-150 dark:border-slate-800/80 pb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div>
+              <h4 className="text-xs font-black uppercase tracking-wider text-slate-400 flex items-center gap-2">
+                <Sparkles className="w-4 h-4 text-indigo-500 animate-pulse" />
+                <span>My Creations Gallery</span>
+              </h4>
+              <p className="text-[9.5px] text-slate-450 dark:text-slate-500 mt-0.5 font-medium leading-tight">
+                Stored in local storage • {videoHistory.length} items total
+              </p>
+            </div>
+            
             {videoHistory.length > 0 && (
               <button
                 type="button"
@@ -13872,476 +13904,568 @@ export default function ImageToVideo({
                   setVideoHistory([]);
                   triggerBeepChime();
                   setToastMessage({
-                    text: "🗑️ History Cleared",
-                    sub: "Your video history log has been cleared.",
+                    text: "🗑️ Gallery Cleared",
+                    sub: "All stored creations have been cleared.",
                     success: true
                   });
                 }}
-                className="text-[9px] font-black uppercase tracking-wider text-rose-550 dark:text-rose-450 hover:underline cursor-pointer flex items-center gap-1 select-none font-sans"
+                className="text-[9px] font-black uppercase tracking-wider text-rose-550 dark:text-rose-450 hover:underline cursor-pointer flex items-center gap-1 select-none font-sans sm:self-start"
               >
                 <Trash2 className="w-3 h-3" />
-                <span>Clear</span>
+                <span>Clear Gallery</span>
               </button>
             )}
           </div>
 
+          {videoHistory.length > 0 && (
+            <div className="flex flex-col sm:flex-row gap-2.5 items-stretch sm:items-center">
+              {/* Search input */}
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-2.5 w-3.5 h-3.5 text-slate-400" />
+                <input
+                  type="text"
+                  placeholder="Search creations..."
+                  value={creationsSearch}
+                  onChange={(e) => setCreationsSearch(e.target.value)}
+                  className="w-full text-[11px] pl-9 pr-3 py-2 bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800/80 rounded-xl focus:outline-hidden text-slate-800 dark:text-slate-150 placeholder-slate-400 font-medium"
+                />
+              </div>
+
+              {/* Filtering category buttons */}
+              <div className="flex flex-wrap gap-1.5 bg-slate-100/50 dark:bg-slate-950/40 p-1 rounded-xl border border-slate-200/50 dark:border-slate-800/60">
+                {[
+                  { id: "all", label: "All" },
+                  { id: "mp4", label: "MP4" },
+                  { id: "gif", label: "GIF" },
+                  { id: "webm", label: "WebM" },
+                  { id: "previous", label: "Sessions" }
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    type="button"
+                    onClick={() => {
+                      setCreationsFilter(tab.id);
+                      triggerBeepChime();
+                    }}
+                    className={`px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider cursor-pointer transition-all ${
+                      creationsFilter === tab.id
+                        ? "bg-white dark:bg-slate-900 text-indigo-650 dark:text-indigo-400 shadow-3xs"
+                        : "text-slate-400 dark:text-slate-550 hover:text-slate-600 dark:hover:text-slate-300"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           {videoHistory.length === 0 ? (
-            <div className="py-6 px-4 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-white/40 dark:bg-slate-950/20">
-              <Film className="w-6 h-6 text-slate-355 dark:text-slate-600 mx-auto mb-2" />
-              <p className="text-[11px] font-bold text-slate-600 dark:text-slate-400">No generated videos yet</p>
-              <p className="text-[9px] text-slate-450 dark:text-slate-500 mt-1 leading-normal">
-                Your completed CapCut-style exports will appear here for instant playback.
+            <div className="py-8 px-4 text-center rounded-2xl border border-dashed border-slate-200 dark:border-slate-800 bg-white/40 dark:bg-slate-950/20">
+              <Film className="w-7 h-7 text-slate-355 dark:text-slate-600 mx-auto mb-2" />
+              <p className="text-[11.5px] font-bold text-slate-600 dark:text-slate-400">No creations saved yet</p>
+              <p className="text-[9px] text-slate-450 dark:text-slate-500 mt-1 leading-normal max-w-[280px] mx-auto">
+                Generate high-quality Veo AI clips or render timelines to start compiling your visual gallery.
               </p>
             </div>
           ) : (
-            <div className="space-y-2.5 max-h-[300px] overflow-y-auto pr-1.5 custom-scrollbar">
-              {videoHistory.map((item) => {
-                const isTrimmingActive = trimmingVideoId === item.id;
+            (() => {
+              const filtered = videoHistory.filter((item) => {
+                const matchesSearch = item.name.toLowerCase().includes(creationsSearch.toLowerCase()) ||
+                                      (item.resolution && item.resolution.toLowerCase().includes(creationsSearch.toLowerCase()));
+                if (creationsFilter === "all") return matchesSearch;
+                if (creationsFilter === "mp4") return matchesSearch && item.format === "mp4";
+                if (creationsFilter === "gif") return matchesSearch && item.format === "gif";
+                if (creationsFilter === "webm") return matchesSearch && item.format === "webm";
+                if (creationsFilter === "previous") return matchesSearch && item.isFromPreviousSession;
+                return matchesSearch;
+              });
+
+              if (filtered.length === 0) {
                 return (
-                  <div
-                    key={item.id}
-                    className="group relative flex flex-col p-2.5 rounded-2xl border border-slate-150 dark:border-slate-850 bg-white dark:bg-slate-950 hover:border-indigo-450 dark:hover:border-indigo-750 transition-all shadow-3xs hover:shadow-2xs"
-                  >
-                    <div className="flex items-start gap-3 w-full">
-                      {/* Thumbnail */}
-                      <div className="relative w-12 h-12 rounded-lg overflow-hidden bg-slate-900 shrink-0 border border-slate-100 dark:border-slate-850">
-                        {item.thumbnail ? (
-                          <img
-                            src={item.thumbnail}
-                            alt="Thumbnail"
-                            className="w-full h-full object-cover"
-                            referrerPolicy="no-referrer"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center bg-slate-100 dark:bg-slate-900 text-[10px] text-slate-400">
-                            🎬
-                          </div>
-                        )}
-                        <div className="absolute inset-0 bg-black/35 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
-                          <Play className="w-4 h-4 text-white fill-current" />
-                        </div>
-                      </div>
-
-                      {/* Details */}
-                      <div className="flex-1 min-w-0 text-left">
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <span className="text-[8px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded-md leading-none bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400 font-mono">
-                            {item.format}
-                          </span>
-                          <span className="text-[8.5px] font-mono font-bold text-slate-400">
-                            {item.resolution}
-                          </span>
-                          <span className="text-[8.5px] font-mono font-bold text-slate-450 dark:text-slate-500 ml-auto shrink-0">
-                            {item.timestamp}
-                          </span>
-                        </div>
-
-                        <h5 className="text-[10.5px] font-black text-slate-700 dark:text-slate-200 truncate mt-1" title={item.name}>
-                          {item.name}
-                        </h5>
-
-                        <div className="flex items-center justify-between mt-1 pt-1 border-t border-slate-100 dark:border-slate-900">
-                          <span className="text-[8px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">
-                            ⏱️ {item.duration.toFixed(1)}s • {item.slidesCount} slides
-                          </span>
-                          
-                          <div className="flex items-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => {
-                                if (item.isFromPreviousSession && !item.url) {
-                                  setToastMessage({
-                                    text: "🔒 Re-render Needed",
-                                    sub: "To play or view this video from a previous session, please hit 'Create Video Now' to re-render in your current browser session.",
-                                    success: false
-                                  });
-                                  triggerBeepChime();
-                                  return;
-                                }
-                                setExportedVideoUrl(item.url);
-                                setCreatedVideoPlayerFilter(item.filter);
-                                setShowFinalOutput(true);
-                                triggerBeepChime();
-                              }}
-                              className="px-2 py-0.5 bg-indigo-600 hover:bg-indigo-500 text-white rounded-md text-[8.5px] font-extrabold uppercase tracking-wider cursor-pointer transition-all active:scale-95 flex items-center gap-1 select-none font-sans"
-                            >
-                              <Play className="w-2 h-2 fill-current" />
-                              <span>Play</span>
-                            </button>
-
-                            {/* Trim / Crop Button if video is active */}
-                            {item.url && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  if (isTrimmingActive) {
-                                    setTrimmingVideoId(null);
-                                  } else {
-                                    setTrimmingVideoId(item.id);
-                                    setTrimStart(0);
-                                    setTrimEnd(item.duration);
-                                  }
-                                  setOverlayAudioVideoId(null);
-                                  triggerBeepChime();
-                                }}
-                                className={`px-2 py-0.5 rounded-md text-[8.5px] font-extrabold uppercase tracking-wider cursor-pointer transition-all active:scale-95 flex items-center gap-1 select-none font-sans ${
-                                  isTrimmingActive
-                                    ? "bg-amber-500 text-white hover:bg-amber-600"
-                                    : "bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/50"
-                                }`}
-                                title="Trim video segment"
-                              >
-                                <Scissors className="w-2.5 h-2.5" />
-                                <span>Trim</span>
-                              </button>
-                            )}
-
-                            {/* Audio Overlay Button if video is active */}
-                            {item.url && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const isOverlayActive = overlayAudioVideoId === item.id;
-                                  if (isOverlayActive) {
-                                    setOverlayAudioVideoId(null);
-                                  } else {
-                                    setOverlayAudioVideoId(item.id);
-                                    setTrimmingVideoId(null);
-                                    if (!selectedOverlayAudioUrl && CURATED_MP3_LIBRARY.length > 0) {
-                                      setSelectedOverlayAudioUrl(CURATED_MP3_LIBRARY[0].url);
-                                      setSelectedOverlayAudioName(CURATED_MP3_LIBRARY[0].name);
-                                    }
-                                  }
-                                  triggerBeepChime();
-                                }}
-                                className={`px-2 py-0.5 rounded-md text-[8.5px] font-extrabold uppercase tracking-wider cursor-pointer transition-all active:scale-95 flex items-center gap-1 select-none font-sans ${
-                                  overlayAudioVideoId === item.id
-                                    ? "bg-emerald-500 text-white hover:bg-emerald-600"
-                                    : "bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/50"
-                                }`}
-                                title="Overlay background audio track"
-                              >
-                                <Music className="w-2.5 h-2.5" />
-                                <span>Add Audio</span>
-                              </button>
-                            )}
-
-                            {/* Extract & Download Frames as ZIP button */}
-                            {item.url && (
-                              <button
-                                type="button"
-                                disabled={isExtractingFrames}
-                                onClick={() => handleDownloadFramesZip(item)}
-                                className={`px-2 py-0.5 rounded-md text-[8.5px] font-extrabold uppercase tracking-wider cursor-pointer transition-all active:scale-95 flex items-center gap-1 select-none font-sans ${
-                                  isExtractingFrames
-                                    ? "bg-slate-150 dark:bg-slate-850 text-slate-400 cursor-not-allowed"
-                                    : "bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/40 dark:hover:bg-indigo-950/80 dark:text-indigo-300 border border-indigo-100/50 dark:border-indigo-900/30"
-                                }`}
-                                title="Extract individual frames of this video as a ZIP archive"
-                              >
-                                {isExtractingFrames ? (
-                                  <>
-                                    <RefreshCw className="w-2.5 h-2.5 animate-spin" />
-                                    <span>Extracting ({extractProgress}%)</span>
-                                  </>
-                                ) : (
-                                  <>
-                                    <Layers className="w-2.5 h-2.5" />
-                                    <span>Download Frames</span>
-                                  </>
-                                )}
-                              </button>
-                            )}
-
-                            {/* Direct Download option if blob is still active */}
-                            {item.url && (
-                              <button
-                                type="button"
-                                onClick={() => {
-                                  const a = document.createElement("a");
-                                  a.href = item.url;
-                                  a.download = item.name;
-                                  a.click();
-                                  triggerBeepChime();
-                                }}
-                                className="p-1 hover:bg-slate-100 dark:hover:bg-slate-900 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 rounded-lg cursor-pointer transition-all"
-                                title="Download video file directly"
-                              >
-                                <Download className="w-3 h-3" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Expandable Trim Editor Panel */}
-                    {isTrimmingActive && (
-                      <div className="mt-2.5 pt-2.5 border-t border-dashed border-slate-200 dark:border-slate-800 space-y-3 text-left w-full">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[9px] font-black uppercase tracking-wider text-amber-500 flex items-center gap-1.5">
-                            <Scissors className="w-3 h-3 text-amber-500" />
-                            <span>Interactive Segment Editor</span>
-                          </span>
-                          <span className="text-[8.5px] font-mono text-slate-400 font-bold bg-slate-50 dark:bg-slate-900/50 px-1.5 py-0.5 rounded border border-slate-100 dark:border-slate-800">
-                            Slice: {trimStart.toFixed(1)}s - {trimEnd.toFixed(1)}s ({Math.max(0, trimEnd - trimStart).toFixed(1)}s)
-                          </span>
-                        </div>
-
-                        {/* Video loop timeline viewer */}
-                        <div className="relative rounded-xl overflow-hidden bg-slate-950 aspect-video max-h-[120px] mx-auto border border-slate-900 flex items-center justify-center">
-                          <video
-                            src={item.url}
-                            autoPlay
-                            loop
-                            muted
-                            playsInline
-                            className="w-full h-full object-contain"
-                            ref={(el) => {
-                              if (el) {
-                                const handleTimeUpdate = () => {
-                                  if (el.currentTime < trimStart) {
-                                    el.currentTime = trimStart;
-                                  }
-                                  if (el.currentTime > trimEnd) {
-                                    el.currentTime = trimStart;
-                                  }
-                                };
-                                el.ontimeupdate = handleTimeUpdate;
-                              }
-                            }}
-                          />
-                          <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-black/65 text-[7.5px] text-white font-mono font-black uppercase tracking-widest select-none">
-                            Live Segment Preview
-                          </div>
-                        </div>
-
-                        {/* Dual Timeline Sliders */}
-                        <div className="grid grid-cols-2 gap-3">
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-[8px] text-slate-400 uppercase font-bold">
-                              <span>Start Point:</span>
-                              <span className="font-mono text-slate-600 dark:text-slate-350">{trimStart.toFixed(1)}s</span>
-                            </div>
-                            <input
-                              type="range"
-                              min={0}
-                              max={item.duration}
-                              step={0.1}
-                              value={trimStart}
-                              onChange={(e) => {
-                                const val = parseFloat(e.target.value);
-                                setTrimStart(Math.min(val, trimEnd - 0.1));
-                              }}
-                              className="w-full h-1 bg-slate-100 dark:bg-slate-900 rounded-lg appearance-none cursor-pointer accent-amber-500 focus:outline-none"
-                            />
-                          </div>
-
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-[8px] text-slate-400 uppercase font-bold">
-                              <span>End Point:</span>
-                              <span className="font-mono text-slate-600 dark:text-slate-350">{trimEnd.toFixed(1)}s</span>
-                            </div>
-                            <input
-                              type="range"
-                              min={0}
-                              max={item.duration}
-                              step={0.1}
-                              value={trimEnd}
-                              onChange={(e) => {
-                                const val = parseFloat(e.target.value);
-                                setTrimEnd(Math.max(val, trimStart + 0.1));
-                              }}
-                              className="w-full h-1 bg-slate-100 dark:bg-slate-900 rounded-lg appearance-none cursor-pointer accent-amber-500 focus:outline-none"
-                            />
-                          </div>
-                        </div>
-
-                        {/* Capture Rendering progress bar */}
-                        {isTrimmingInProgress ? (
-                          <div className="space-y-1.5 pt-1">
-                            <div className="flex justify-between text-[8px] font-black uppercase tracking-wider text-amber-500">
-                              <span>Extracting video slice...</span>
-                              <span>{trimProgress}%</span>
-                            </div>
-                            <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all duration-100 animate-pulse"
-                                style={{ width: `${trimProgress}%` }}
-                              />
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2 pt-1">
-                            <button
-                              type="button"
-                              onClick={() => handleTrimVideo(item.id)}
-                              className="flex-1 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl text-[9.5px] font-black uppercase tracking-wider cursor-pointer transition-all active:scale-97 flex items-center justify-center gap-1 shadow-sm select-none font-sans"
-                            >
-                              <Scissors className="w-3 h-3" />
-                              <span>Export Trimmed Clip</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setTrimmingVideoId(null);
-                                triggerBeepChime();
-                              }}
-                              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-xl text-[9.5px] font-bold uppercase tracking-wider cursor-pointer transition-all select-none font-sans border border-slate-200/50 dark:border-slate-800"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {/* Expandable Audio Overlay Panel */}
-                    {overlayAudioVideoId === item.id && (
-                      <div className="mt-2.5 pt-2.5 border-t border-dashed border-slate-200 dark:border-slate-800 space-y-3 text-left w-full">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[9px] font-black uppercase tracking-wider text-emerald-500 flex items-center gap-1.5">
-                            <Music className="w-3 h-3 text-emerald-500 animate-pulse" />
-                            <span>Background Audio Overlayer</span>
-                          </span>
-                        </div>
-
-                        {/* Dropdown to select royalty-free audio tracks */}
-                        <div className="space-y-1">
-                          <label className="text-[8.5px] font-black uppercase text-slate-400">Select Royalty-Free Track:</label>
-                          <select
-                            value={selectedOverlayAudioUrl}
-                            onChange={(e) => {
-                              const url = e.target.value;
-                              setSelectedOverlayAudioUrl(url);
-                              const match = CURATED_MP3_LIBRARY.find(t => t.url === url);
-                              if (match) {
-                                setSelectedOverlayAudioName(match.name);
-                              } else {
-                                setSelectedOverlayAudioName("Custom Audio Track");
-                              }
-                              triggerBeepChime();
-                            }}
-                            className="w-full text-[10.5px] p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-hidden text-slate-800 dark:text-slate-100"
-                          >
-                            {CURATED_MP3_LIBRARY.map((track) => (
-                              <option key={track.id} value={track.url}>
-                                {track.emoji} {track.name} ({track.duration}) — {track.genre}
-                              </option>
-                            ))}
-                            {selectedOverlayAudioUrl && !CURATED_MP3_LIBRARY.some(t => t.url === selectedOverlayAudioUrl) && (
-                              <option value={selectedOverlayAudioUrl}>
-                                🎧 {selectedOverlayAudioName || "Custom Track"}
-                              </option>
-                            )}
-                          </select>
-                        </div>
-
-                        {/* File upload selector to upload user's own MP3/WAV */}
-                        <div className="bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-150 dark:border-slate-850 flex items-center justify-between gap-3">
-                          <div className="text-left">
-                            <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 block">Or upload your own:</span>
-                            <span className="text-[10px] text-slate-600 dark:text-slate-300 font-medium truncate max-w-[180px] block">
-                              {selectedOverlayAudioUrl && !CURATED_MP3_LIBRARY.some(t => t.url === selectedOverlayAudioUrl) 
-                                ? selectedOverlayAudioName 
-                                : "No custom file chosen"}
-                            </span>
-                          </div>
-                          <label className="px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-750 text-[9px] font-black uppercase tracking-wider rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer select-none">
-                            Upload File
-                            <input
-                              type="file"
-                              accept="audio/*"
-                              className="hidden"
-                              onChange={(e) => {
-                                const file = e.target.files?.[0];
-                                if (!file) return;
-                                const url = URL.createObjectURL(file);
-                                setSelectedOverlayAudioUrl(url);
-                                setSelectedOverlayAudioName(file.name);
-                                triggerBeepChime();
-                              }}
-                            />
-                          </label>
-                        </div>
-
-                        {/* Volume Mix Controls */}
-                        <div className="grid grid-cols-2 gap-3 bg-slate-50 dark:bg-slate-900/20 p-2.5 rounded-xl border border-slate-150 dark:border-slate-850">
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-[8px] text-slate-400 uppercase font-bold">
-                              <span>Orig. Video Vol:</span>
-                              <span className="font-mono text-slate-600 dark:text-slate-350">{Math.round(overlayOriginalVolume * 100)}%</span>
-                            </div>
-                            <input
-                              type="range"
-                              min={0}
-                              max={1}
-                              step={0.05}
-                              value={overlayOriginalVolume}
-                              onChange={(e) => setOverlayOriginalVolume(parseFloat(e.target.value))}
-                              className="w-full h-1 bg-slate-100 dark:bg-slate-900 rounded-lg appearance-none cursor-pointer accent-emerald-500 focus:outline-none"
-                            />
-                          </div>
-
-                          <div className="space-y-1">
-                            <div className="flex items-center justify-between text-[8px] text-slate-400 uppercase font-bold">
-                              <span>Music Track Vol:</span>
-                              <span className="font-mono text-slate-600 dark:text-slate-350">{Math.round(overlayAudioVolume * 100)}%</span>
-                            </div>
-                            <input
-                              type="range"
-                              min={0}
-                              max={1}
-                              step={0.05}
-                              value={overlayAudioVolume}
-                              onChange={(e) => setOverlayAudioVolume(parseFloat(e.target.value))}
-                              className="w-full h-1 bg-slate-100 dark:bg-slate-900 rounded-lg appearance-none cursor-pointer accent-emerald-500 focus:outline-none"
-                            />
-                          </div>
-                        </div>
-
-                        {/* Overlay capturing rendering progress bar */}
-                        {isOverlayingInProgress ? (
-                          <div className="space-y-1.5 pt-1">
-                            <div className="flex justify-between text-[8px] font-black uppercase tracking-wider text-emerald-500">
-                              <span>Multiplexing & baking tracks...</span>
-                              <span>{overlayProgress}%</span>
-                            </div>
-                            <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-gradient-to-r from-emerald-400 to-indigo-500 transition-all duration-100 animate-pulse"
-                                style={{ width: `${overlayProgress}%` }}
-                              />
-                            </div>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-2 pt-1">
-                            <button
-                              type="button"
-                              onClick={() => handleOverlayAudio(item.id)}
-                              className="flex-1 py-1.5 bg-gradient-to-r from-emerald-500 to-indigo-600 hover:from-emerald-600 hover:to-indigo-700 text-white rounded-xl text-[9.5px] font-black uppercase tracking-wider cursor-pointer transition-all active:scale-97 flex items-center justify-center gap-1 shadow-sm select-none font-sans"
-                            >
-                              <Music className="w-3 h-3" />
-                              <span>Bake & Export Video</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setOverlayAudioVideoId(null);
-                                triggerBeepChime();
-                              }}
-                              className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-xl text-[9.5px] font-bold uppercase tracking-wider cursor-pointer transition-all select-none font-sans border border-slate-200/50 dark:border-slate-800"
-                            >
-                              Cancel
-                            </button>
-                          </div>
-                        )}
-                      </div>
-                    )}
+                  <div className="py-6 text-center text-slate-400 text-[10px]">
+                    No creations matches your search criteria.
                   </div>
                 );
-              })}
-            </div>
+              }
+
+              return (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[480px] overflow-y-auto pr-1.5 custom-scrollbar">
+                  {filtered.map((item) => {
+                    const isTrimmingActive = trimmingVideoId === item.id;
+                    return (
+                      <div
+                        key={item.id}
+                        className="group relative flex flex-col p-3 rounded-2xl border border-slate-150 dark:border-slate-850 bg-white dark:bg-slate-950 hover:border-indigo-450 dark:hover:border-indigo-750 transition-all shadow-3xs hover:shadow-2xs"
+                      >
+                        <div className="flex gap-3.5 w-full">
+                          {/* Thumbnail Display with Play Hover Overlay */}
+                          <div 
+                            onClick={() => {
+                              if (item.isFromPreviousSession && !item.url) {
+                                setToastMessage({
+                                  text: "🔒 Re-render Needed",
+                                  sub: "This session's playback URL has expired. Please hit 'Create Video Now' to re-render or play back.",
+                                  success: false
+                                });
+                                triggerBeepChime();
+                                return;
+                              }
+                              setExportedVideoUrl(item.url);
+                              setCreatedVideoPlayerFilter(item.filter);
+                              setShowFinalOutput(true);
+                              triggerBeepChime();
+                            }}
+                            className="relative w-16 h-16 rounded-xl overflow-hidden bg-slate-900 shrink-0 border border-slate-100 dark:border-slate-850 cursor-pointer"
+                          >
+                            {item.thumbnail ? (
+                              <img
+                                src={item.thumbnail}
+                                alt="Thumbnail"
+                                className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                                referrerPolicy="no-referrer"
+                              />
+                            ) : (
+                              <div className="w-full h-full flex items-center justify-center bg-slate-100 dark:bg-slate-900 text-[12px] text-slate-400">
+                                🎬
+                              </div>
+                            )}
+                            <div className="absolute inset-0 bg-black/40 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <Play className="w-5 h-5 text-white fill-current" />
+                            </div>
+                          </div>
+
+                          {/* Detail & Tags Block */}
+                          <div className="flex-1 min-w-0 text-left flex flex-col justify-between">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <span className="text-[8px] font-black tracking-widest uppercase px-1.5 py-0.5 rounded-md leading-none bg-indigo-50 text-indigo-600 dark:bg-indigo-950/50 dark:text-indigo-400 font-mono">
+                                  {item.format}
+                                </span>
+                                <span className="text-[8.5px] font-mono font-bold text-slate-400">
+                                  {item.resolution}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setVideoHistory((prev) => prev.filter((v) => v.id !== item.id));
+                                    triggerBeepChime();
+                                    setToastMessage({
+                                      text: "🗑️ Item Removed",
+                                      sub: "Removed from creation history.",
+                                      success: true
+                                    });
+                                  }}
+                                  className="ml-auto text-slate-355 hover:text-rose-500 transition-colors p-1"
+                                  title="Remove from history"
+                                >
+                                  <Trash2 className="w-3 h-3" />
+                                </button>
+                              </div>
+
+                              <h5 className="text-[11px] font-black text-slate-700 dark:text-slate-200 truncate pr-4" title={item.name}>
+                                {item.name}
+                              </h5>
+                              
+                              <p className="text-[8.5px] text-slate-400 dark:text-slate-500 font-bold uppercase tracking-wider">
+                                ⏱️ {item.duration.toFixed(1)}s • {item.slidesCount} slides • {item.timestamp}
+                              </p>
+                            </div>
+
+                            {/* Actions Group */}
+                            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  if (item.isFromPreviousSession && !item.url) {
+                                    setToastMessage({
+                                      text: "🔒 Re-render Needed",
+                                      sub: "Please hit 'Create Video Now' to re-render in your current browser session.",
+                                      success: false
+                                    });
+                                    triggerBeepChime();
+                                    return;
+                                  }
+                                  setExportedVideoUrl(item.url);
+                                  setCreatedVideoPlayerFilter(item.filter);
+                                  setShowFinalOutput(true);
+                                  triggerBeepChime();
+                                }}
+                                className="px-2 py-1 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-[8.5px] font-extrabold uppercase tracking-wider cursor-pointer transition-all active:scale-95 flex items-center gap-1 select-none font-sans"
+                              >
+                                <Play className="w-2.5 h-2.5 fill-current" />
+                                <span>Play</span>
+                              </button>
+
+                              {/* Trim segment (only if URL active) */}
+                              {item.url && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    if (isTrimmingActive) {
+                                      setTrimmingVideoId(null);
+                                    } else {
+                                      setTrimmingVideoId(item.id);
+                                      setTrimStart(0);
+                                      setTrimEnd(item.duration);
+                                    }
+                                    setOverlayAudioVideoId(null);
+                                    triggerBeepChime();
+                                  }}
+                                  className={`px-2 py-1 rounded-lg text-[8.5px] font-extrabold uppercase tracking-wider cursor-pointer transition-all active:scale-95 flex items-center gap-1 select-none font-sans ${
+                                    isTrimmingActive
+                                      ? "bg-amber-500 text-white hover:bg-amber-600"
+                                      : "bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/50"
+                                  }`}
+                                  title="Trim video segment"
+                                >
+                                  <Scissors className="w-2.5 h-2.5" />
+                                  <span>Trim</span>
+                                </button>
+                              )}
+
+                              {/* Audio Overlay (only if URL active) */}
+                              {item.url && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const isOverlayActive = overlayAudioVideoId === item.id;
+                                    if (isOverlayActive) {
+                                      setOverlayAudioVideoId(null);
+                                    } else {
+                                      setOverlayAudioVideoId(item.id);
+                                      setTrimmingVideoId(null);
+                                      if (!selectedOverlayAudioUrl && CURATED_MP3_LIBRARY.length > 0) {
+                                        setSelectedOverlayAudioUrl(CURATED_MP3_LIBRARY[0].url);
+                                        setSelectedOverlayAudioName(CURATED_MP3_LIBRARY[0].name);
+                                      }
+                                    }
+                                    triggerBeepChime();
+                                  }}
+                                  className={`px-2 py-1 rounded-lg text-[8.5px] font-extrabold uppercase tracking-wider cursor-pointer transition-all active:scale-95 flex items-center gap-1 select-none font-sans ${
+                                    overlayAudioVideoId === item.id
+                                      ? "bg-emerald-500 text-white hover:bg-emerald-600"
+                                      : "bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/50"
+                                  }`}
+                                  title="Overlay background audio track"
+                                >
+                                  <Music className="w-2.5 h-2.5" />
+                                  <span>Audio</span>
+                                </button>
+                              )}
+
+                              {/* Frames Extract */}
+                              {item.url && (
+                                <button
+                                  type="button"
+                                  disabled={isExtractingFrames}
+                                  onClick={() => handleDownloadFramesZip(item)}
+                                  className={`px-2 py-1 rounded-lg text-[8.5px] font-extrabold uppercase tracking-wider cursor-pointer transition-all active:scale-95 flex items-center gap-1 select-none font-sans ${
+                                    isExtractingFrames
+                                      ? "bg-slate-150 dark:bg-slate-850 text-slate-400 cursor-not-allowed"
+                                      : "bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-slate-300 border border-slate-200/50 dark:border-slate-700/50"
+                                  }`}
+                                  title="Extract individual frames of this video as a ZIP archive"
+                                >
+                                  <Layers className="w-2.5 h-2.5" />
+                                  <span>Frames</span>
+                                </button>
+                              )}
+
+                              {/* Direct browser file download */}
+                              {item.url ? (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const a = document.createElement("a");
+                                    a.href = item.url;
+                                    a.download = item.name;
+                                    a.click();
+                                    triggerBeepChime();
+                                  }}
+                                  className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-900 text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 rounded-lg cursor-pointer transition-all ml-auto"
+                                  title="Download video file directly"
+                                >
+                                  <Download className="w-3.5 h-3.5" />
+                                </button>
+                              ) : (
+                                <span className="ml-auto text-[8px] font-bold text-amber-500/85 uppercase">
+                                  Previous Session
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Expandable Trim Editor Panel */}
+                        {isTrimmingActive && (
+                          <div className="mt-2.5 pt-2.5 border-t border-dashed border-slate-200 dark:border-slate-800 space-y-3 text-left w-full">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[9px] font-black uppercase tracking-wider text-amber-500 flex items-center gap-1.5">
+                                <Scissors className="w-3 h-3 text-amber-500" />
+                                <span>Interactive Segment Editor</span>
+                              </span>
+                              <span className="text-[8.5px] font-mono text-slate-400 font-bold bg-slate-50 dark:bg-slate-900/50 px-1.5 py-0.5 rounded border border-slate-100 dark:border-slate-800">
+                                Slice: {trimStart.toFixed(1)}s - {trimEnd.toFixed(1)}s ({Math.max(0, trimEnd - trimStart).toFixed(1)}s)
+                              </span>
+                            </div>
+
+                            {/* Video loop timeline viewer */}
+                            <div className="relative rounded-xl overflow-hidden bg-slate-950 aspect-video max-h-[120px] mx-auto border border-slate-900 flex items-center justify-center">
+                              <video
+                                src={item.url}
+                                autoPlay
+                                loop
+                                muted
+                                playsInline
+                                className="w-full h-full object-contain"
+                                ref={(el) => {
+                                  if (el) {
+                                    const handleTimeUpdate = () => {
+                                      if (el.currentTime < trimStart) {
+                                        el.currentTime = trimStart;
+                                      }
+                                      if (el.currentTime > trimEnd) {
+                                        el.currentTime = trimStart;
+                                      }
+                                    };
+                                    el.ontimeupdate = handleTimeUpdate;
+                                  }
+                                }}
+                              />
+                              <div className="absolute top-2 left-2 px-1.5 py-0.5 rounded-md bg-black/65 text-[7.5px] text-white font-mono font-black uppercase tracking-widest select-none">
+                                Live Segment Preview
+                              </div>
+                            </div>
+
+                            {/* Dual Timeline Sliders */}
+                            <div className="grid grid-cols-2 gap-3">
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between text-[8px] text-slate-400 uppercase font-bold">
+                                  <span>Start Point:</span>
+                                  <span className="font-mono text-slate-600 dark:text-slate-350">{trimStart.toFixed(1)}s</span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min={0}
+                                  max={item.duration}
+                                  step={0.1}
+                                  value={trimStart}
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value);
+                                    setTrimStart(Math.min(val, trimEnd - 0.1));
+                                  }}
+                                  className="w-full h-1 bg-slate-100 dark:bg-slate-900 rounded-lg appearance-none cursor-pointer accent-amber-500 focus:outline-none"
+                                />
+                              </div>
+
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between text-[8px] text-slate-400 uppercase font-bold">
+                                  <span>End Point:</span>
+                                  <span className="font-mono text-slate-600 dark:text-slate-350">{trimEnd.toFixed(1)}s</span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min={0}
+                                  max={item.duration}
+                                  step={0.1}
+                                  value={trimEnd}
+                                  onChange={(e) => {
+                                    const val = parseFloat(e.target.value);
+                                    setTrimEnd(Math.max(val, trimStart + 0.1));
+                                  }}
+                                  className="w-full h-1 bg-slate-100 dark:bg-slate-900 rounded-lg appearance-none cursor-pointer accent-amber-500 focus:outline-none"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Capture Rendering progress bar */}
+                            {isTrimmingInProgress ? (
+                              <div className="space-y-1.5 pt-1">
+                                <div className="flex justify-between text-[8px] font-black uppercase tracking-wider text-amber-500">
+                                  <span>Extracting video slice...</span>
+                                  <span>{trimProgress}%</span>
+                                </div>
+                                <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-gradient-to-r from-amber-400 to-orange-500 transition-all duration-100 animate-pulse"
+                                    style={{ width: `${trimProgress}%` }}
+                                  />
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleTrimVideo(item.id)}
+                                  className="flex-1 py-1.5 bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-600 hover:to-amber-700 text-white rounded-xl text-[9.5px] font-black uppercase tracking-wider cursor-pointer transition-all active:scale-97 flex items-center justify-center gap-1 shadow-sm select-none font-sans"
+                                >
+                                  <Scissors className="w-3 h-3" />
+                                  <span>Export Trimmed Clip</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setTrimmingVideoId(null);
+                                    triggerBeepChime();
+                                  }}
+                                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-xl text-[9.5px] font-bold uppercase tracking-wider cursor-pointer transition-all select-none font-sans border border-slate-200/50 dark:border-slate-800"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
+                        {/* Expandable Audio Overlay Panel */}
+                        {overlayAudioVideoId === item.id && (
+                          <div className="mt-2.5 pt-2.5 border-t border-dashed border-slate-200 dark:border-slate-800 space-y-3 text-left w-full">
+                            <div className="flex items-center justify-between">
+                              <span className="text-[9px] font-black uppercase tracking-wider text-emerald-500 flex items-center gap-1.5">
+                                <Music className="w-3 h-3 text-emerald-500 animate-pulse" />
+                                <span>Background Audio Overlayer</span>
+                              </span>
+                            </div>
+
+                            {/* Dropdown to select royalty-free audio tracks */}
+                            <div className="space-y-1">
+                              <label className="text-[8.5px] font-black uppercase text-slate-400">Select Royalty-Free Track:</label>
+                              <select
+                                value={selectedOverlayAudioUrl}
+                                onChange={(e) => {
+                                  const url = e.target.value;
+                                  setSelectedOverlayAudioUrl(url);
+                                  const match = CURATED_MP3_LIBRARY.find(t => t.url === url);
+                                  if (match) {
+                                    setSelectedOverlayAudioName(match.name);
+                                  } else {
+                                    setSelectedOverlayAudioName("Custom Audio Track");
+                                  }
+                                  triggerBeepChime();
+                                }}
+                                className="w-full text-[10.5px] p-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl focus:outline-hidden text-slate-800 dark:text-slate-100"
+                              >
+                                {CURATED_MP3_LIBRARY.map((track) => (
+                                  <option key={track.id} value={track.url}>
+                                    {track.emoji} {track.name} ({track.duration}) — {track.genre}
+                                  </option>
+                                ))}
+                                {selectedOverlayAudioUrl && !CURATED_MP3_LIBRARY.some(t => t.url === selectedOverlayAudioUrl) && (
+                                  <option value={selectedOverlayAudioUrl}>
+                                    🎧 {selectedOverlayAudioName || "Custom Track"}
+                                  </option>
+                                )}
+                              </select>
+                            </div>
+
+                            {/* File upload selector to upload user's own MP3/WAV */}
+                            <div className="bg-slate-50 dark:bg-slate-900/40 p-2.5 rounded-xl border border-slate-150 dark:border-slate-850 flex items-center justify-between gap-3">
+                              <div className="text-left">
+                                <span className="text-[8px] font-bold uppercase tracking-wider text-slate-400 block">Or upload your own:</span>
+                                <span className="text-[10px] text-slate-600 dark:text-slate-350 font-medium truncate max-w-[180px] block">
+                                  {selectedOverlayAudioUrl && !CURATED_MP3_LIBRARY.some(t => t.url === selectedOverlayAudioUrl) 
+                                    ? selectedOverlayAudioName 
+                                    : "No custom file chosen"}
+                                </span>
+                              </div>
+                              <label className="px-2.5 py-1 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-750 text-[9px] font-black uppercase tracking-wider rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer select-none">
+                                Upload File
+                                <input
+                                  type="file"
+                                  accept="audio/*"
+                                  className="hidden"
+                                  onChange={(e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    const url = URL.createObjectURL(file);
+                                    setSelectedOverlayAudioUrl(url);
+                                    setSelectedOverlayAudioName(file.name);
+                                    triggerBeepChime();
+                                  }}
+                                />
+                              </label>
+                            </div>
+
+                            {/* Volume Mix Controls */}
+                            <div className="grid grid-cols-2 gap-3 bg-slate-50 dark:bg-slate-900/20 p-2.5 rounded-xl border border-slate-150 dark:border-slate-850">
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between text-[8px] text-slate-400 uppercase font-bold">
+                                  <span>Orig. Video Vol:</span>
+                                  <span className="font-mono text-slate-600 dark:text-slate-350">{Math.round(overlayOriginalVolume * 100)}%</span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min={0}
+                                  max={1}
+                                  step={0.05}
+                                  value={overlayOriginalVolume}
+                                  onChange={(e) => setOverlayOriginalVolume(parseFloat(e.target.value))}
+                                  className="w-full h-1 bg-slate-100 dark:bg-slate-900 rounded-lg appearance-none cursor-pointer accent-emerald-500 focus:outline-none"
+                                />
+                              </div>
+
+                              <div className="space-y-1">
+                                <div className="flex items-center justify-between text-[8px] text-slate-400 uppercase font-bold">
+                                  <span>Music Track Vol:</span>
+                                  <span className="font-mono text-slate-600 dark:text-slate-350">{Math.round(overlayAudioVolume * 100)}%</span>
+                                </div>
+                                <input
+                                  type="range"
+                                  min={0}
+                                  max={1}
+                                  step={0.05}
+                                  value={overlayAudioVolume}
+                                  onChange={(e) => setOverlayAudioVolume(parseFloat(e.target.value))}
+                                  className="w-full h-1 bg-slate-100 dark:bg-slate-900 rounded-lg appearance-none cursor-pointer accent-emerald-500 focus:outline-none"
+                                />
+                              </div>
+                            </div>
+
+                            {/* Overlay capturing rendering progress bar */}
+                            {isOverlayingInProgress ? (
+                              <div className="space-y-1.5 pt-1">
+                                <div className="flex justify-between text-[8px] font-black uppercase tracking-wider text-emerald-500">
+                                  <span>Multiplexing & baking tracks...</span>
+                                  <span>{overlayProgress}%</span>
+                                </div>
+                                <div className="w-full h-1.5 bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden">
+                                  <div
+                                    className="h-full bg-gradient-to-r from-emerald-400 to-indigo-500 transition-all duration-100 animate-pulse"
+                                    style={{ width: `${overlayProgress}%` }}
+                                  />
+                                </div>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-2 pt-1">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOverlayAudio(item.id)}
+                                  className="flex-1 py-1.5 bg-gradient-to-r from-emerald-500 to-indigo-600 hover:from-emerald-600 hover:to-indigo-700 text-white rounded-xl text-[9.5px] font-black uppercase tracking-wider cursor-pointer transition-all active:scale-97 flex items-center justify-center gap-1 shadow-sm select-none font-sans"
+                                >
+                                  <Music className="w-3 h-3" />
+                                  <span>Bake & Export Video</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setOverlayAudioVideoId(null);
+                                    triggerBeepChime();
+                                  }}
+                                  className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-xl text-[9.5px] font-bold uppercase tracking-wider cursor-pointer transition-all select-none font-sans border border-slate-200/50 dark:border-slate-800"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              );
+            })()
           )}
         </div>
 
