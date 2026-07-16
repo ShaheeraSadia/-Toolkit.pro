@@ -275,6 +275,7 @@ export interface PrinterPreset {
   bleedWidth?: number;
   orientation?: "portrait" | "landscape";
   icon: string;
+  category: "Standard" | "Professional" | "Specialty";
 }
 
 export const PRINTER_PRESETS: PrinterPreset[] = [
@@ -288,6 +289,7 @@ export const PRINTER_PRESETS: PrinterPreset[] = [
     bleed: false,
     bleedWidth: 0,
     icon: "🖨️",
+    category: "Standard",
   },
   {
     id: "professional-offset",
@@ -299,6 +301,7 @@ export const PRINTER_PRESETS: PrinterPreset[] = [
     bleed: true,
     bleedWidth: 3,
     icon: "🏭",
+    category: "Professional",
   },
   {
     id: "standard-pdf",
@@ -310,6 +313,7 @@ export const PRINTER_PRESETS: PrinterPreset[] = [
     bleed: false,
     bleedWidth: 0,
     icon: "📄",
+    category: "Standard",
   },
   {
     id: "full-bleed-poster",
@@ -321,6 +325,7 @@ export const PRINTER_PRESETS: PrinterPreset[] = [
     bleed: true,
     bleedWidth: 5,
     icon: "🎨",
+    category: "Specialty",
   }
 ];
 
@@ -616,6 +621,7 @@ export default function App() {
         bleedWidth: 0,
         orientation: "portrait",
         icon: "🖨️",
+        category: "Standard",
       },
       {
         id: "professional-offset",
@@ -628,6 +634,7 @@ export default function App() {
         bleedWidth: 3,
         orientation: "portrait",
         icon: "🏭",
+        category: "Professional",
       },
       {
         id: "standard-pdf",
@@ -640,6 +647,7 @@ export default function App() {
         bleedWidth: 0,
         orientation: "portrait",
         icon: "📄",
+        category: "Standard",
       },
       {
         id: "full-bleed-poster",
@@ -652,6 +660,7 @@ export default function App() {
         bleedWidth: 5,
         orientation: "landscape",
         icon: "🎨",
+        category: "Specialty",
       }
     ];
   });
@@ -660,6 +669,7 @@ export default function App() {
   const [newPresetName, setNewPresetName] = useState<string>("");
   const [newPresetDesc, setNewPresetDesc] = useState<string>("");
   const [newPresetIcon, setNewPresetIcon] = useState<string>("🖨️");
+  const [newPresetCategory, setNewPresetCategory] = useState<"Standard" | "Professional" | "Specialty">("Standard");
 
   const savePresets = (newPresets: PrinterPreset[]) => {
     setPrinterPresets(newPresets);
@@ -685,7 +695,8 @@ export default function App() {
       bleed: showBleed,
       bleedWidth: printBleedWidth,
       orientation: printOrientation,
-      icon: newPresetIcon
+      icon: newPresetIcon,
+      category: newPresetCategory
     };
 
     const updated = [...printerPresets, newPreset];
@@ -696,6 +707,7 @@ export default function App() {
     setNewPresetName("");
     setNewPresetDesc("");
     setNewPresetIcon("🖨️");
+    setNewPresetCategory("Standard");
     setIsSavingPreset(false);
   };
 
@@ -2820,12 +2832,33 @@ export default function App() {
                         }}
                         className="w-full px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none cursor-pointer"
                       >
-                        {printerPresets.map((p) => (
-                          <option key={p.id} value={p.id}>
-                            {p.icon} {p.name}
-                          </option>
-                        ))}
-                        <option value="custom">⚙️ Custom Settings</option>
+                        <optgroup label="Standard" className="text-slate-400 font-bold bg-white dark:bg-slate-950">
+                          {printerPresets.filter(p => !p.category || p.category === "Standard").map((p) => (
+                            <option key={p.id} value={p.id} className="text-slate-800 dark:text-slate-200">
+                              {p.icon} {p.name}
+                            </option>
+                          ))}
+                        </optgroup>
+                        
+                        <optgroup label="Professional" className="text-slate-400 font-bold bg-white dark:bg-slate-950">
+                          {printerPresets.filter(p => p.category === "Professional").map((p) => (
+                            <option key={p.id} value={p.id} className="text-slate-800 dark:text-slate-200">
+                              {p.icon} {p.name}
+                            </option>
+                          ))}
+                        </optgroup>
+
+                        <optgroup label="Specialty" className="text-slate-400 font-bold bg-white dark:bg-slate-950">
+                          {printerPresets.filter(p => p.category === "Specialty").map((p) => (
+                            <option key={p.id} value={p.id} className="text-slate-800 dark:text-slate-200">
+                              {p.icon} {p.name}
+                            </option>
+                          ))}
+                        </optgroup>
+
+                        <optgroup label="Custom Options" className="text-slate-400 font-bold bg-white dark:bg-slate-950">
+                          <option value="custom" className="text-slate-850 dark:text-slate-100">⚙️ Custom Settings</option>
+                        </optgroup>
                       </select>
                     </div>
                     {/* Dynamic description info */}
@@ -2873,6 +2906,26 @@ export default function App() {
                         </div>
 
                         <div className="space-y-1">
+                          <label className="block text-[8px] font-bold text-slate-400">Category</label>
+                          <div className="flex gap-1">
+                            {(["Standard", "Professional", "Specialty"] as const).map((cat) => (
+                              <button
+                                key={cat}
+                                type="button"
+                                onClick={() => setNewPresetCategory(cat)}
+                                className={`flex-1 py-1 px-1.5 rounded-md text-[9px] font-bold transition-all ${
+                                  newPresetCategory === cat
+                                    ? "bg-indigo-600 text-white shadow-3xs"
+                                    : "bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-850 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                }`}
+                              >
+                                {cat}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <div className="space-y-1">
                           <label className="block text-[8px] font-bold text-slate-400">Choose Icon</label>
                           <div className="flex gap-1">
                             {["🖨️", "🏭", "📄", "🎨", "🏷️", "🌟"].map((emoji) => (
@@ -2897,6 +2950,7 @@ export default function App() {
                               setIsSavingPreset(false);
                               setNewPresetName("");
                               setNewPresetDesc("");
+                              setNewPresetCategory("Standard");
                             }}
                             className="flex-1 py-1 text-[9px] font-bold text-slate-500 hover:bg-slate-150 dark:hover:bg-slate-900 rounded-md cursor-pointer border border-transparent"
                           >

@@ -559,6 +559,29 @@ RULES:
   }
 });
 
+// Helper to parse and format raw Google GenAI SDK error messages elegantly
+function formatGoogleGenAIError(error: any): string {
+  if (!error) return "Video generation failed due to a server-side error.";
+  let message = error.message || "";
+  
+  if (typeof message === "string" && message.trim().startsWith("{")) {
+    try {
+      const parsed = JSON.parse(message);
+      if (parsed.error && parsed.error.message) {
+        message = parsed.error.message;
+      }
+    } catch (e) {
+      // ignore parsing failures
+    }
+  }
+  
+  if (message.includes("RESOURCE_EXHAUSTED") || message.includes("quota") || message.includes("429")) {
+    return "You have exceeded your Gemini / Veo API quota. Please check your plan and billing details in Google AI Studio, or try again later.";
+  }
+  
+  return message || error.toString();
+}
+
 // API route to initiate Veo AI video generation
 app.post("/api/video/generate", async (req, res) => {
   try {
@@ -766,8 +789,9 @@ app.post("/api/video/generate", async (req, res) => {
     });
   } catch (error: any) {
     console.error("Veo video generation error:", error);
+    const cleanMsg = formatGoogleGenAIError(error);
     return res.status(500).json({ 
-      error: error.message || "Video generation failed due to a server-side error." 
+      error: cleanMsg 
     });
   }
 });
@@ -881,8 +905,9 @@ app.post("/api/generate-video", async (req, res) => {
     });
   } catch (error: any) {
     console.error("Direct generate-video error:", error);
+    const cleanMsg = formatGoogleGenAIError(error);
     return res.status(500).json({ 
-      error: error.message || "Video generation failed due to a server-side error." 
+      error: cleanMsg 
     });
   }
 });
