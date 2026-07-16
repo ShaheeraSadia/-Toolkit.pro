@@ -619,7 +619,8 @@ app.post("/api/video/generate", async (req, res) => {
       motion_bucket_id,
       steps,
       audio_sync,
-      videoStyle = "Cinematic"
+      videoStyle = "Cinematic",
+      videoDuration = 8
     } = req.body;
 
     if (motion_bucket_id !== undefined || steps !== undefined || audio_sync !== undefined) {
@@ -628,8 +629,12 @@ app.post("/api/video/generate", async (req, res) => {
     
     // Choose model based on user preference and selected quality mode
     let model = "veo-3.1-lite-generate-preview";
-    if (modelChoice === "veo-core" || modelChoice === "gemini-pro" || modelChoice === "veo-3.1-generate-preview" || videoQuality === "high") {
+    if (modelChoice === "omni-flash" || videoQuality === "omni") {
+      model = "omni-flash";
+    } else if (modelChoice === "veo-core" || modelChoice === "veo-3.1-generate-preview" || videoQuality === "high") {
       model = "veo-3.1-generate-preview";
+    } else if (modelChoice === "veo-3.1-fast-generate-preview" || videoQuality === "fast") {
+      model = "veo-3.1-fast-generate-preview";
     } else if (videoQuality === "performance") {
       model = "veo-3.1-lite-generate-preview";
     }
@@ -754,7 +759,8 @@ app.post("/api/video/generate", async (req, res) => {
     const videoConfig: any = {
       numberOfVideos: 1,
       resolution: resolution || "720p",
-      aspectRatio: aspectRatio || "16:9"
+      aspectRatio: aspectRatio || "16:9",
+      durationSeconds: Number(videoDuration) || 8
     };
 
     const payload: any = {
@@ -775,6 +781,12 @@ app.post("/api/video/generate", async (req, res) => {
       }
 
       payload.image = {
+        imageBytes,
+        mimeType
+      };
+
+      // Set inputImage inside config for strict new-model schema alignment
+      videoConfig.inputImage = {
         imageBytes,
         mimeType
       };

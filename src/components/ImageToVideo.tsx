@@ -22,6 +22,7 @@ import {
   Pause,
   Volume2,
   VolumeX,
+  Music,
   Maximize2,
   RefreshCw,
   Search,
@@ -36,7 +37,13 @@ import {
   Sliders,
   Sparkle,
   AlertTriangle,
-  ExternalLink
+  ExternalLink,
+  Camera,
+  Cpu,
+  Zap,
+  Layers,
+  Compass,
+  Type
 } from "lucide-react";
 
 interface ImageToVideoProps {
@@ -270,6 +277,85 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
   const [motionIntensity, setMotionIntensity] = useState(5);
   const [loopVideo, setLoopVideo] = useState(false);
   const [videoStyle, setVideoStyle] = useState("Cinematic");
+  const [enhancePrompt, setEnhancePrompt] = useState(true);
+  const [videoQuality, setVideoQuality] = useState("performance");
+  const [videoDuration, setVideoDuration] = useState(8);
+  const [videoRealismStyle, setVideoRealismStyle] = useState("none");
+  const [stylePreset, setStylePreset] = useState("auto");
+  const [cameraDirection, setCameraDirection] = useState("auto");
+
+  // AI Image Generation States
+  const [activeImageTab, setActiveImageTab] = useState<"upload" | "ai">("upload");
+  const [aiImagePrompt, setAiImagePrompt] = useState("");
+  const [aiImageStyle, setAiImageStyle] = useState("cinematic");
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [aiImageSize, setAiImageSize] = useState("1K");
+  const [aiImageModel, setAiImageModel] = useState("gemini-3.1-flash-image");
+  const [aiSuccessMsg, setAiSuccessMsg] = useState<string | null>(null);
+
+  // Surprise Image Prompts List
+  const surpriseImagePrompts = [
+    "A mystical ancient temple floating high in the sky among fluffy pastel pink clouds at golden hour",
+    "A retro-futuristic Cyberpunk street vendor cooking steaming hot noodles under glowing neon sign boards in the rain",
+    "A cozy miniature cabin nestled inside a hollow mossy oak tree in an enchanted glowing forest with fireflies",
+    "An ultra-detailed underwater city of glass domes with colorful coral reefs, glowing sea life, and a giant whale swimming above",
+    "A steampunk locomotive traveling across a stone bridge high in the mountains surrounded by thick volumetric clouds",
+    "A majestic white stag with glowing antlers standing in a serene misty forest with beams of morning light filtering through",
+    "A futuristic scientific research greenhouse filled with strange bioluminescent flora and cosmic sky background",
+    "An elegant glass bottle floating in space containing a tiny swirling nebula of stars and purple stardust",
+    "A whimsical treehouse overlooking a vast lavender valley with a large glowing moon rising behind it",
+    "A magnificent glowing phoenix rising from ashes and embers with vibrant fire wings, extreme visual details"
+  ];
+
+  const handleSurpriseImagePrompt = () => {
+    const randomIndex = Math.floor(Math.random() * surpriseImagePrompts.length);
+    setAiImagePrompt(surpriseImagePrompts[randomIndex]);
+  };
+
+  const handleGenerateAIImage = async () => {
+    if (!aiImagePrompt.trim()) return;
+    setIsGeneratingImage(true);
+    setAiSuccessMsg(null);
+    setErrorMsg(null);
+    try {
+      const response = await fetch("/api/image/generate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          prompt: aiImagePrompt.trim(),
+          aspectRatio: aspectRatio, // align with current video's aspect ratio for perfect composition!
+          style: aiImageStyle,
+          modelChoice: aiImageModel,
+          imageSize: aiImageSize,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to generate image.");
+      }
+
+      const data = await response.json();
+      if (data.imageUrl) {
+        setImage(data.imageUrl); // load generated image as the seed frame!
+        setAiSuccessMsg("✨ Image generated successfully and loaded as the seed image for your video!");
+        
+        // Auto-fill video prompt if it is currently empty, to give the user a ready-made animation idea!
+        if (!prompt.trim()) {
+          setPrompt(`Cinematic motion of ${aiImagePrompt.trim()}. Smooth camera panning, deep volumetric lighting, highly active physics.`);
+        }
+      } else {
+        throw new Error("No image data returned from server.");
+      }
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(`AI Image Generation failed: ${err.message}`);
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
 
   // Status/Generation States
   const [isGenerating, setIsGenerating] = useState(false);
@@ -283,6 +369,50 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
   const [videoPlaying, setVideoPlaying] = useState(false);
   const [videoMuted, setVideoMuted] = useState(false);
   const videoRef = useRef<HTMLVideoElement | null>(null);
+
+  // Background Music States
+  const [selectedMusicUrl, setSelectedMusicUrl] = useState<string>("");
+  const [customMusicName, setCustomMusicName] = useState<string | null>(null);
+  const [musicVolume, setMusicVolume] = useState<number>(0.5); // 0 to 1
+  const [isMusicEnabled, setIsMusicEnabled] = useState<boolean>(true);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const audioInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Text Overlay States
+  const [overlayText, setOverlayText] = useState("");
+  const [overlayFontSize, setOverlayFontSize] = useState(28); // in px
+  const [overlayColor, setOverlayColor] = useState("#ffffff");
+  const [overlayPosition, setOverlayPosition] = useState("bottom-center");
+  const [overlayFontFamily, setOverlayFontFamily] = useState("sans"); // sans, serif, mono, display
+  const [overlayShadow, setOverlayShadow] = useState(true);
+  const [overlayOpacity, setOverlayOpacity] = useState(1.0);
+
+  const presetTracks = [
+    { id: "none", name: "🚫 No Background Music", url: "" },
+    { id: "cinematic", name: "🎬 Cinematic Ambient Dream", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
+    { id: "lofi", name: "☕ Cozy Chill Lofi Beat", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
+    { id: "synthwave", name: "🌆 Neon Retro Synthwave", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3" },
+    { id: "cyberpunk", name: "🤖 Dark Cyberpunk Industrial", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3" },
+    { id: "cosmic", name: "✨ Deep Space Cosmic Pad", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-16.mp3" },
+  ];
+
+  const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const url = URL.createObjectURL(file);
+    setCustomMusicName(file.name);
+    setSelectedMusicUrl(url);
+    setIsMusicEnabled(true);
+  };
+
+  const handleRemoveCustomAudio = () => {
+    setCustomMusicName(null);
+    setSelectedMusicUrl("");
+    if (audioInputRef.current) {
+      audioInputRef.current.value = "";
+    }
+  };
 
   // Gallery/History States
   const [creations, setCreations] = useState<VideoCreation[]>([]);
@@ -305,6 +435,112 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
     }
     return rawMessage;
   };
+
+  // Helper for text overlay positioning
+  const getPositionStyles = (pos: string) => {
+    switch (pos) {
+      case "top-left": return { top: "8%", left: "8%" };
+      case "top-center": return { top: "8%", left: "50%", transform: "translateX(-50%)", textAlign: "center" as const };
+      case "top-right": return { top: "8%", right: "8%", textAlign: "right" as const };
+      case "middle-left": return { top: "50%", left: "8%", transform: "translateY(-50%)" };
+      case "middle-center": return { top: "50%", left: "50%", transform: "translate(-50%, -50%)", textAlign: "center" as const };
+      case "middle-right": return { top: "50%", right: "8%", transform: "translateY(-50%)", textAlign: "right" as const };
+      case "bottom-left": return { bottom: "8%", left: "8%" };
+      case "bottom-center": return { bottom: "8%", left: "50%", transform: "translateX(-50%)", textAlign: "center" as const };
+      case "bottom-right": return { bottom: "8%", right: "8%", textAlign: "right" as const };
+      default: return { bottom: "8%", left: "50%", transform: "translateX(-50%)", textAlign: "center" as const };
+    }
+  };
+
+  const renderTextOverlay = () => {
+    if (!overlayText.trim()) return null;
+
+    const posStyle = getPositionStyles(overlayPosition);
+    let fontFamilyClass = "font-sans";
+    if (overlayFontFamily === "serif") fontFamilyClass = "font-serif";
+    else if (overlayFontFamily === "mono") fontFamilyClass = "font-mono";
+    else if (overlayFontFamily === "display") fontFamilyClass = "font-extrabold tracking-tight";
+    else if (overlayFontFamily === "meme") fontFamilyClass = "font-black uppercase tracking-wide";
+
+    return (
+      <div className="absolute inset-0 pointer-events-none flex p-6 z-10 select-none">
+        <div
+          style={{
+            ...posStyle,
+            fontSize: `${overlayFontSize}px`,
+            color: overlayColor,
+            opacity: overlayOpacity,
+            lineHeight: 1.2,
+            textShadow: overlayShadow
+              ? "2px 2px 4px rgba(0, 0, 0, 0.9), -1px -1px 0 rgba(0, 0, 0, 0.8), 1px -1px 0 rgba(0, 0, 0, 0.8), -1px 1px 0 rgba(0, 0, 0, 0.8), 1px 1px 0 rgba(0, 0, 0, 0.8)"
+              : "none",
+            position: "absolute",
+          }}
+          className={`${fontFamilyClass} whitespace-pre-wrap max-w-[85%] break-words`}
+        >
+          {overlayText}
+        </div>
+      </div>
+    );
+  };
+
+  // Sync background music with video playback
+  useEffect(() => {
+    if (!audioRef.current) return;
+    
+    const activeUrl = selectedMusicUrl;
+    if (activeUrl) {
+      if (audioRef.current.src !== activeUrl) {
+        audioRef.current.src = activeUrl;
+        audioRef.current.load();
+      }
+      
+      audioRef.current.volume = musicVolume;
+      audioRef.current.muted = videoMuted || !isMusicEnabled;
+      
+      if (videoPlaying && isMusicEnabled) {
+        audioRef.current.play().catch((err) => console.log("Audio play error:", err));
+      } else {
+        audioRef.current.pause();
+      }
+    } else {
+      audioRef.current.pause();
+    }
+  }, [selectedMusicUrl, videoPlaying, musicVolume, videoMuted, isMusicEnabled]);
+
+  // Handle video element time synchronization so they loop together!
+  useEffect(() => {
+    const videoEl = videoRef.current;
+    if (!videoEl) return;
+
+    const handleVideoPlay = () => {
+      if (audioRef.current && selectedMusicUrl && isMusicEnabled) {
+        audioRef.current.play().catch(() => {});
+      }
+    };
+
+    const handleVideoPause = () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+    };
+
+    const handleVideoTimeUpdate = () => {
+      if (videoEl.currentTime < 0.2 && audioRef.current && isMusicEnabled) {
+        audioRef.current.currentTime = 0;
+      }
+    };
+
+    videoEl.addEventListener("play", handleVideoPlay);
+    videoEl.addEventListener("pause", handleVideoPause);
+    videoEl.addEventListener("timeupdate", handleVideoTimeUpdate);
+
+    return () => {
+      videoEl.removeEventListener("play", handleVideoPlay);
+      videoEl.removeEventListener("pause", handleVideoPause);
+      videoEl.removeEventListener("timeupdate", handleVideoTimeUpdate);
+    };
+  }, [currentVideoUrl, selectedMusicUrl, isMusicEnabled]);
 
   // Sync History from Firestore or LocalStorage
   useEffect(() => {
@@ -420,12 +656,18 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
         body: JSON.stringify({
           prompt: prompt.trim(),
           image: image, // Base64 data URL
-          motion_bucket_id: 140, // Enhanced motion as requested
-          modelChoice: "veo-3.1-lite-generate-preview", // Veo Lite for preview
-          aspectRatio,
-          videoQuality: "performance",
+          enhancePrompt,
+          videoQuality,
+          videoDuration,
+          videoRealismStyle: videoRealismStyle === "none" ? undefined : videoRealismStyle,
+          loopVideo,
+          stylePreset,
+          cameraDirection,
+          motionIntensity,
+          videoStyle,
           resolution,
-          videoStyle
+          aspectRatio,
+          modelChoice: videoQuality === "high" ? "veo-core" : "veo-3.1-lite-generate-preview"
         })
       });
 
@@ -526,8 +768,16 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
         createdAt: Date.now(),
         aspectRatio,
         resolution,
-        videoStyle
-      };
+        videoStyle,
+        // Custom premium parameters
+        enhancePrompt,
+        videoQuality,
+        videoDuration,
+        videoRealismStyle,
+        stylePreset,
+        cameraDirection,
+        motionIntensity
+      } as any;
 
       if (user) {
         // Save to Firestore
@@ -721,133 +971,347 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
     if (item.videoStyle) {
       setVideoStyle(item.videoStyle);
     }
+    
+    // Restore advanced parameters if they are stored in the historical creation
+    const extItem = item as any;
+    if (extItem.enhancePrompt !== undefined) setEnhancePrompt(extItem.enhancePrompt);
+    if (extItem.videoQuality !== undefined) setVideoQuality(extItem.videoQuality);
+    if (extItem.videoDuration !== undefined) setVideoDuration(extItem.videoDuration);
+    if (extItem.videoRealismStyle !== undefined) setVideoRealismStyle(extItem.videoRealismStyle);
+    if (extItem.stylePreset !== undefined) setStylePreset(extItem.stylePreset);
+    if (extItem.cameraDirection !== undefined) setCameraDirection(extItem.cameraDirection);
+    if (extItem.motionIntensity !== undefined) setMotionIntensity(extItem.motionIntensity);
+
     setShowGallery(false);
   };
 
   return (
     <div id="image-to-video-container" className="flex flex-col lg:flex-row min-h-screen bg-slate-900 text-slate-100">
+      {/* Hidden background music player */}
+      <audio ref={audioRef} loop className="hidden" />
       
       {/* SIDEBAR: Configuration Panel & Utilities */}
-      <aside id="video-creator-sidebar" className="w-full lg:w-80 bg-slate-950 border-b lg:border-b-0 lg:border-r border-slate-800 p-6 flex flex-col gap-6 shrink-0">
+      <aside id="video-creator-sidebar" className="w-full lg:w-85 bg-slate-950 border-b lg:border-b-0 lg:border-r border-slate-800 p-5 flex flex-col gap-5 shrink-0 lg:overflow-y-auto lg:max-h-screen custom-scrollbar">
         <div className="flex items-center gap-3">
-          <div className="p-2 bg-indigo-600 rounded-lg text-white">
-            <Video className="w-6 h-6" />
+          <div className="p-2.5 bg-gradient-to-br from-indigo-500 to-indigo-700 rounded-xl text-white shadow-md shadow-indigo-500/10">
+            <Video className="w-5.5 h-5.5 animate-pulse" />
           </div>
           <div>
-            <h2 className="font-bold text-lg tracking-tight text-white">Veo Studio</h2>
-            <p className="text-xs text-slate-400">Google Veo Engine v3.1</p>
+            <h2 className="font-bold text-base tracking-tight text-white flex items-center gap-1.5">
+              Veo Director Studio
+            </h2>
+            <p className="text-[11px] text-slate-400 font-mono uppercase tracking-wider">Engine v3.1 Elite</p>
           </div>
         </div>
 
-        <hr className="border-slate-800" />
+        <hr className="border-slate-800/80" />
 
         {/* Aspect Ratio Selector */}
-        <div className="flex flex-col gap-2">
-          <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-            <Sliders className="w-4 h-4 text-indigo-400" />
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-semibold text-slate-300 flex items-center gap-2">
+            <Sliders className="w-3.5 h-3.5 text-indigo-400" />
             Aspect Ratio
           </label>
           <div className="grid grid-cols-2 gap-2">
             <button
+              type="button"
               onClick={() => setAspectRatio("16:9")}
-              className={`py-2 px-3 text-sm rounded-lg border transition-all flex flex-col items-center gap-1 ${
+              className={`py-2 px-2 text-xs rounded-xl border transition-all flex flex-col items-center gap-1 ${
                 aspectRatio === "16:9"
-                  ? "bg-indigo-600/20 border-indigo-500 text-indigo-300"
-                  : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
+                  ? "bg-indigo-600/15 border-indigo-500 text-indigo-300"
+                  : "bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-300"
               }`}
             >
-              <span className="w-6 h-3.5 border border-current rounded-sm block opacity-70"></span>
+              <span className="w-5 h-3 border border-current rounded-[1px] block opacity-70"></span>
               16:9 Landscape
             </button>
             <button
+              type="button"
               onClick={() => setAspectRatio("9:16")}
-              className={`py-2 px-3 text-sm rounded-lg border transition-all flex flex-col items-center gap-1 ${
+              className={`py-2 px-2 text-xs rounded-xl border transition-all flex flex-col items-center gap-1 ${
                 aspectRatio === "9:16"
-                  ? "bg-indigo-600/20 border-indigo-500 text-indigo-300"
-                  : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
+                  ? "bg-indigo-600/15 border-indigo-500 text-indigo-300"
+                  : "bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-300"
               }`}
             >
-              <span className="w-3.5 h-6 border border-current rounded-sm block opacity-70"></span>
+              <span className="w-3 h-5 border border-current rounded-[1px] block opacity-70"></span>
               9:16 Portrait
             </button>
           </div>
         </div>
 
+        {/* Video Quality Engine Mode */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-semibold text-slate-300 flex items-center gap-2">
+            <Cpu className="w-3.5 h-3.5 text-indigo-400" />
+            Rendering Engine
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              onClick={() => setVideoQuality("performance")}
+              className={`py-2 px-1 text-xs font-medium rounded-xl border transition-all flex flex-col items-center text-center ${
+                videoQuality === "performance"
+                  ? "bg-indigo-600/15 border-indigo-500 text-indigo-300"
+                  : "bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-300"
+              }`}
+            >
+              <span className="text-[10px] font-bold">Veo Lite</span>
+              <span className="text-[9px] text-slate-500 mt-0.5">Fast Preview</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setVideoQuality("fast")}
+              className={`py-2 px-1 text-xs font-medium rounded-xl border transition-all flex flex-col items-center text-center ${
+                videoQuality === "fast"
+                  ? "bg-indigo-600/15 border-indigo-500 text-indigo-300"
+                  : "bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-300"
+              }`}
+            >
+              <span className="text-[10px] font-bold">Veo Fast</span>
+              <span className="text-[9px] text-slate-500 mt-0.5">High Speed</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setVideoQuality("high")}
+              className={`py-2 px-1 text-xs font-medium rounded-xl border transition-all flex flex-col items-center text-center ${
+                videoQuality === "high"
+                  ? "bg-indigo-600/15 border-indigo-500 text-indigo-300"
+                  : "bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-300"
+              }`}
+            >
+              <span className="text-[10px] font-bold">Veo Core</span>
+              <span className="text-[9px] text-slate-500 mt-0.5">HQ Cinematic</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setVideoQuality("omni")}
+              className={`py-2 px-1 text-xs font-medium rounded-xl border transition-all flex flex-col items-center text-center ${
+                videoQuality === "omni"
+                  ? "bg-indigo-600/15 border-indigo-500 text-indigo-300"
+                  : "bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-300"
+              }`}
+            >
+              <span className="text-[10px] font-bold">Omni Flash</span>
+              <span className="text-[9px] text-indigo-400 mt-0.5">🎙️ Video + Audio</span>
+            </button>
+          </div>
+        </div>
+
+        {/* Video Duration */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-semibold text-slate-300 flex items-center gap-2">
+            <Clock className="w-3.5 h-3.5 text-indigo-400" />
+            Video Duration
+          </label>
+          <div className="grid grid-cols-3 gap-1.5">
+            {[4, 6, 8].map((sec) => (
+              <button
+                type="button"
+                key={sec}
+                onClick={() => setVideoDuration(sec)}
+                className={`py-1.5 px-1 text-xs font-mono rounded-xl border transition-all text-center ${
+                  videoDuration === sec
+                    ? "bg-indigo-600/15 border-indigo-500 text-indigo-300 font-bold"
+                    : "bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-300"
+                }`}
+              >
+                {sec}s
+              </button>
+            ))}
+          </div>
+        </div>
+
         {/* Resolution Options */}
-        <div className="flex flex-col gap-2">
-          <label className="text-sm font-semibold text-slate-300">Resolution</label>
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-semibold text-slate-300 flex items-center gap-2">
+            <Layers className="w-3.5 h-3.5 text-indigo-400" />
+            Format Resolution
+          </label>
           <div className="grid grid-cols-2 gap-2">
             {["720p", "1080p"].map((res) => (
               <button
+                type="button"
                 key={res}
                 onClick={() => setResolution(res)}
-                className={`py-2 px-3 text-xs font-mono rounded-lg border transition-all ${
+                className={`py-2 px-2 text-xs font-mono rounded-xl border transition-all ${
                   resolution === res
-                    ? "bg-indigo-600/20 border-indigo-500 text-indigo-300 font-medium"
-                    : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
+                    ? "bg-indigo-600/15 border-indigo-500 text-indigo-300 font-medium"
+                    : "bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-300"
                 }`}
               >
-                {res === "720p" ? "720p (Fast)" : "1080p (HQ)"}
+                {res === "720p" ? "720p Standard" : "1080p High-Def"}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Video Style Selector */}
-        <div className="flex flex-col gap-2">
-          <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-            <Sparkle className="w-4 h-4 text-indigo-400" />
-            Video Style
+        {/* AI Prompt Enhancer Toggle */}
+        <div className="p-3 bg-slate-900/60 border border-slate-800 rounded-xl flex flex-col gap-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-300 flex items-center gap-1.5">
+              <Zap className="w-3.5 h-3.5 text-indigo-400" />
+              AI Prompt Enhancer
+            </span>
+            <label className="relative inline-flex items-center cursor-pointer select-none">
+              <input
+                type="checkbox"
+                checked={enhancePrompt}
+                onChange={(e) => setEnhancePrompt(e.target.checked)}
+                className="sr-only peer"
+              />
+              <div className="w-8 h-4.5 bg-slate-800 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-slate-400 after:border-slate-300 after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-indigo-600 peer-checked:after:bg-white peer-checked:after:border-transparent"></div>
+            </label>
+          </div>
+          <p className="text-[10px] text-slate-500 leading-relaxed">
+            Automatically expands simple ideas into high-fidelity cinematic prompt structures using Google Gemini.
+          </p>
+        </div>
+
+        {/* Video Style Preset Selector */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-semibold text-slate-300 flex items-center gap-2">
+            <Sparkle className="w-3.5 h-3.5 text-indigo-400" />
+            Cinematic Style Preset
           </label>
-          <div className="grid grid-cols-2 gap-2">
-            {["Cinematic", "Cartoon", "Realistic", "Sketch"].map((style) => (
-              <button
-                key={style}
-                onClick={() => setVideoStyle(style)}
-                className={`py-2 px-3 text-xs rounded-lg border transition-all font-medium ${
-                  videoStyle === style
-                    ? "bg-indigo-600/20 border-indigo-500 text-indigo-300"
-                    : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
-                }`}
-              >
-                {style}
-              </button>
-            ))}
+          <div className="relative">
+            <select
+              value={stylePreset}
+              onChange={(e) => {
+                setStylePreset(e.target.value);
+                // Sync old videoStyle state if cinematic/cartoon/sketch/realistic selected
+                const mapped: Record<string, string> = {
+                  "cinematic": "Cinematic",
+                  "anime": "Cartoon",
+                  "sketch": "Sketch",
+                  "realistic-3d": "Realistic"
+                };
+                if (mapped[e.target.value]) {
+                  setVideoStyle(mapped[e.target.value]);
+                }
+              }}
+              className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-xl py-2 px-3 text-xs text-slate-200 focus:ring-0 focus:outline-none cursor-pointer transition-all appearance-none"
+            >
+              <option value="auto">🎨 Auto / Theme Natural</option>
+              <option value="cinematic">🎬 Modern Cinematic Film</option>
+              <option value="cyberpunk">🌆 Cyberpunk Neon World</option>
+              <option value="anime">🌸 Aesthetic Hand-drawn Anime</option>
+              <option value="studio-ghibli">🌿 Whimsical Studio Ghibli</option>
+              <option value="vhs">📼 90s Analog VHS Tape</option>
+              <option value="realistic-3d">💎 Unreal Engine Octane 3D</option>
+              <option value="fantasy-dream">✨ Whimsical Fantasy Dream</option>
+              <option value="film-noir">🕵️ Dramatic 40s Film Noir</option>
+              <option value="nature-8k">🌲 National Geographic 8K</option>
+              <option value="sketch">✏️ Graphite Pencil Sketch</option>
+              <option value="oil-painting">🖼️ Classical Canvas Oil Paint</option>
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-500 text-[10px]">
+              ▼
+            </div>
           </div>
         </div>
 
-        {/* Motion Level Selector */}
-        <div className="flex flex-col gap-2">
-          <div className="flex justify-between items-center text-sm font-semibold text-slate-300">
-            <span>Motion Bucket ID</span>
-            <span className="text-indigo-400 font-mono text-xs">140 (Standard Peak)</span>
+        {/* Camera Direction Trigger */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-semibold text-slate-300 flex items-center gap-2">
+            <Camera className="w-3.5 h-3.5 text-indigo-400" />
+            Camera Movement Director
+          </label>
+          <div className="relative">
+            <select
+              value={cameraDirection}
+              onChange={(e) => setCameraDirection(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-xl py-2 px-3 text-xs text-slate-200 focus:ring-0 focus:outline-none cursor-pointer transition-all appearance-none"
+            >
+              <option value="auto">🎥 Dynamic / Automatic Motion</option>
+              <option value="zoom-in">🔍 Slow Dolly Zoom-In</option>
+              <option value="zoom-out">🔄 Slow Dolly Zoom-Out</option>
+              <option value="pan-left">⬅️ Horizontal Pan Left</option>
+              <option value="pan-right">➡️ Horizontal Pan Right</option>
+              <option value="tilt-up">⬆️ Vertical Pedestal Tilt Up</option>
+              <option value="tilt-down">⬇️ Vertical Pedestal Tilt Down</option>
+              <option value="orbit">🔄 sweeping 360° Crane Orbit</option>
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-500 text-[10px]">
+              ▼
+            </div>
           </div>
-          <p className="text-xs text-slate-500 leading-normal">
-            Using Google's optimal motion vector coordinates for ultra-realistic kinetic physics and dramatic cinematic camera movements.
+        </div>
+
+        {/* Realism Profile Engine */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-semibold text-slate-300 flex items-center gap-2">
+            <Compass className="w-3.5 h-3.5 text-indigo-400" />
+            Reality Engine Heuristics
+          </label>
+          <div className="relative">
+            <select
+              value={videoRealismStyle}
+              onChange={(e) => setVideoRealismStyle(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-xl py-2 px-3 text-xs text-slate-200 focus:ring-0 focus:outline-none cursor-pointer transition-all appearance-none"
+            >
+              <option value="none">✨ Standard (Artistic & Render-Friendly)</option>
+              <option value="documentary">🌿 RAW Documentary Heuristics (Natural Textures)</option>
+              <option value="imax">🎞️ 70mm IMAX Format (Deep Focus & Volumetric Dust)</option>
+              <option value="analog_film">📸 Kodak 35mm Vintage Film (Warm Organics & Grain)</option>
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-500 text-[10px]">
+              ▼
+            </div>
+          </div>
+        </div>
+
+        {/* Dynamic Motion Level Slider */}
+        <div className="flex flex-col gap-1.5">
+          <div className="flex justify-between items-center text-xs font-semibold text-slate-300">
+            <span>Motion Level / Physics Intensity</span>
+            <span className="text-indigo-400 font-mono text-[10px]">
+              {motionIntensity <= 3
+                ? "Subtle Drift"
+                : motionIntensity >= 8
+                ? "Hyper-Kinetic"
+                : "Cinematic Pace"} ({motionIntensity})
+            </span>
+          </div>
+          <div className="flex items-center gap-3 bg-slate-900/60 p-2.5 border border-slate-800/80 rounded-xl">
+            <input
+              type="range"
+              min="1"
+              max="10"
+              value={motionIntensity}
+              onChange={(e) => setMotionIntensity(parseInt(e.target.value))}
+              className="flex-1 accent-indigo-500 h-1 bg-slate-800 rounded-lg cursor-pointer"
+            />
+          </div>
+          <p className="text-[10px] text-slate-500 leading-normal">
+            Controls subject kinetic energy, wind speeds, and volumetric fluid drift speeds in rendering.
           </p>
         </div>
 
         {/* Loop setting */}
-        <label className="flex items-center gap-3 cursor-pointer p-3 bg-slate-900 border border-slate-800 rounded-lg hover:border-slate-700 transition-all select-none">
+        <label className="flex items-start gap-3 cursor-pointer p-3 bg-slate-900/40 border border-slate-850 rounded-xl hover:border-slate-800 transition-all select-none">
           <input
             type="checkbox"
             checked={loopVideo}
             onChange={(e) => setLoopVideo(e.target.checked)}
-            className="w-4 h-4 text-indigo-600 border-slate-700 bg-slate-950 rounded focus:ring-indigo-500"
+            className="w-4 h-4 text-indigo-600 border-slate-700 bg-slate-950 rounded focus:ring-indigo-500 mt-0.5"
           />
           <div className="flex flex-col">
-            <span className="text-sm font-medium text-slate-300">Infinite Loop Video</span>
-            <span className="text-xs text-slate-500">Perfectly aligns start and end frames</span>
+            <span className="text-xs font-semibold text-slate-300">Infinite Loop Video</span>
+            <span className="text-[10px] text-slate-500 leading-relaxed mt-0.5">
+              Aligns start and end physics states for perfect continuous looping.
+            </span>
           </div>
         </label>
 
-        <div className="mt-auto flex flex-col gap-3">
+        <div className="mt-auto pt-3 flex flex-col gap-2">
           <button
+            type="button"
             onClick={() => setShowGallery(true)}
-            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 transition-all text-sm font-medium"
+            className="w-full flex items-center justify-center gap-2 py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-800 border border-slate-800/80 text-slate-200 transition-all text-xs font-medium shadow-md"
           >
-            <History className="w-4 h-4 text-indigo-400" />
-            Studio Video Library ({creations.length})
+            <History className="w-3.5 h-3.5 text-indigo-400" />
+            Studio History Library ({creations.length})
           </button>
         </div>
       </aside>
@@ -956,71 +1420,242 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
           {/* LEFT COLUMN: Input Forms (Upload & Prompt) */}
           <div className="lg:col-span-5 flex flex-col gap-6">
             
-            {/* Image Upload Box */}
-            <div className="flex flex-col gap-2">
-              <label className="text-sm font-semibold text-slate-300 flex justify-between items-center">
-                <span>Seed Image (Starting Frame)</span>
+            {/* Dual Tab Seed Image Interface */}
+            <div className="flex flex-col gap-3">
+              <div className="flex items-center justify-between">
+                <label className="text-sm font-semibold text-slate-300">Seed Image (Starting Frame)</label>
                 <span className="text-xs text-slate-500">Optional but recommended</span>
-              </label>
+              </div>
 
-              <div
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                onClick={() => fileInputRef.current?.click()}
-                className={`relative border-2 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center gap-3 transition-all cursor-pointer min-h-[220px] bg-slate-950 select-none ${
-                  image
-                    ? "border-emerald-500/40 bg-emerald-500/[0.02]"
-                    : isDragging
-                    ? "border-indigo-500 bg-indigo-500/[0.02] scale-[1.01]"
-                    : "border-slate-800 hover:border-slate-700 hover:bg-slate-900/50"
-                }`}
-              >
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  onChange={handleFileSelect}
-                  accept="image/*"
-                  className="hidden"
-                />
+              {/* Segmented Control Tabs */}
+              <div className="grid grid-cols-2 p-1 bg-slate-950 rounded-xl border border-slate-800">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveImageTab("upload");
+                    setAiSuccessMsg(null);
+                  }}
+                  className={`py-1.5 px-3 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                    activeImageTab === "upload"
+                      ? "bg-indigo-600 text-white shadow-md"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <Upload className="w-3.5 h-3.5" />
+                  Upload Image
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveImageTab("ai");
+                    setAiSuccessMsg(null);
+                  }}
+                  className={`py-1.5 px-3 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                    activeImageTab === "ai"
+                      ? "bg-indigo-600 text-white shadow-md"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
+                  AI Image Generator
+                </button>
+              </div>
 
-                {image ? (
-                  <div className="absolute inset-0 p-3 flex flex-col justify-between">
-                    <div className="relative w-full h-full rounded-lg overflow-hidden border border-slate-800">
+              {/* Tab Content */}
+              {activeImageTab === "upload" ? (
+                /* Upload Tab */
+                <div
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                  onClick={() => fileInputRef.current?.click()}
+                  className={`relative border-2 border-dashed rounded-2xl p-6 flex flex-col items-center justify-center gap-3 transition-all cursor-pointer min-h-[220px] bg-slate-950 select-none ${
+                    image
+                      ? "border-emerald-500/40 bg-emerald-500/[0.02]"
+                      : isDragging
+                      ? "border-indigo-500 bg-indigo-500/[0.02] scale-[1.01]"
+                      : "border-slate-800 hover:border-slate-700 hover:bg-slate-900/50"
+                  }`}
+                >
+                  <input
+                    type="file"
+                    ref={fileInputRef}
+                    onChange={handleFileSelect}
+                    accept="image/*"
+                    className="hidden"
+                  />
+
+                  {image ? (
+                    <div className="absolute inset-0 p-3 flex flex-col justify-between">
+                      <div className="relative w-full h-full rounded-lg overflow-hidden border border-slate-800">
+                        <img
+                          src={image}
+                          alt="Seed Preview"
+                          className="w-full h-full object-contain bg-slate-900"
+                          referrerPolicy="no-referrer"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemoveImage();
+                        }}
+                        className="absolute top-5 right-5 p-2 rounded-full bg-slate-950/80 hover:bg-rose-600 text-slate-300 hover:text-white transition-all shadow-lg animate-fade-in"
+                        title="Remove image"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="p-4 bg-slate-900 rounded-full text-slate-400 border border-slate-800">
+                        <Upload className="w-6 h-6 text-indigo-400" />
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm font-semibold text-slate-200">Drag & Drop Seed Image here</p>
+                        <p className="text-xs text-slate-500 mt-1">or click to browse your computer</p>
+                      </div>
+                      <div className="text-[10px] text-slate-500 bg-slate-900 px-3 py-1 rounded-full border border-slate-800/60 font-mono">
+                        PNG, JPG, WEBP • Max 15MB
+                      </div>
+                    </>
+                  )}
+                </div>
+              ) : (
+                /* AI Image Generator Tab */
+                <div className="border border-slate-800 rounded-2xl p-5 bg-slate-950 flex flex-col gap-4">
+                  {image && (
+                    <div className="relative aspect-video rounded-xl overflow-hidden border border-slate-800 bg-slate-900 group">
                       <img
                         src={image}
-                        alt="Seed Preview"
+                        alt="AI Generated Seed Preview"
                         className="w-full h-full object-contain bg-slate-900"
                         referrerPolicy="no-referrer"
                       />
+                      <div className="absolute inset-x-0 bottom-0 bg-slate-950/90 p-2 flex items-center justify-between border-t border-slate-800/60">
+                        <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1 pl-1">
+                          <Check className="w-3.5 h-3.5" />
+                          Active Seed Frame Loaded
+                        </span>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveImage();
+                          }}
+                          className="text-[10px] font-bold text-rose-400 hover:text-rose-300 px-2 py-0.5"
+                        >
+                          Clear
+                        </button>
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleRemoveImage();
-                      }}
-                      className="absolute top-5 right-5 p-2 rounded-full bg-slate-950/80 hover:bg-rose-600 text-slate-300 hover:text-white transition-all shadow-lg"
-                      title="Remove image"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
+                  )}
+
+                  {aiSuccessMsg && (
+                    <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 px-3 py-2 rounded-xl text-xs flex items-center gap-2">
+                      <Check className="w-4 h-4 shrink-0" />
+                      <span className="font-medium">{aiSuccessMsg}</span>
+                    </div>
+                  )}
+
+                  {/* AI Image prompt input */}
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex justify-between items-center">
+                      <span className="text-xs font-semibold text-slate-300">Describe the Image</span>
+                      <button
+                        type="button"
+                        onClick={handleSurpriseImagePrompt}
+                        className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-all"
+                      >
+                        <Sparkles className="w-3 h-3" />
+                        Random Prompt
+                      </button>
+                    </div>
+                    <div className="relative">
+                      <textarea
+                        value={aiImagePrompt}
+                        onChange={(e) => setAiImagePrompt(e.target.value)}
+                        placeholder="Describe what you want to see (e.g., A majestic dragon flying over a medieval castle at sunset...)"
+                        className="w-full min-h-[90px] bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-xl p-3 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-0 resize-none transition-all"
+                        maxLength={300}
+                      />
+                      <span className="absolute bottom-2 right-2.5 text-[9px] font-mono text-slate-600 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800">
+                        {aiImagePrompt.length}/300
+                      </span>
+                    </div>
                   </div>
-                ) : (
-                  <>
-                    <div className="p-4 bg-slate-900 rounded-full text-slate-400 border border-slate-800">
-                      <Upload className="w-6 h-6 text-indigo-400" />
+
+                  {/* Style & Model selectors */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* Style Selection */}
+                    <div className="flex flex-col gap-1.5">
+                      <span className="text-xs font-semibold text-slate-300">Visual Aesthetic Style</span>
+                      <div className="relative">
+                        <select
+                          value={aiImageStyle}
+                          onChange={(e) => setAiImageStyle(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-xl py-2 px-3 text-xs text-slate-200 focus:ring-0 focus:outline-none cursor-pointer appearance-none transition-all"
+                        >
+                          <option value="none">🎨 Default / No Style</option>
+                          <option value="cinematic">🎬 Cinematic Film</option>
+                          <option value="cyberpunk_neon">🌆 Cyberpunk Neon</option>
+                          <option value="anime">🌸 Hand-drawn Anime</option>
+                          <option value="studio_ghibli">🌿 Studio Ghibli Vibes</option>
+                          <option value="retro_vhs">📼 1980s VHS Tape</option>
+                          <option value="render_3d">💎 Unreal 3D Render</option>
+                          <option value="fantasy_dream">✨ Whimsical Fantasy</option>
+                          <option value="film_noir">🕵️ Film Noir (B&W)</option>
+                          <option value="nature_8k">🌲 National Geographic 8K</option>
+                          <option value="sketch">✏️ Graphite Pencil Sketch</option>
+                          <option value="oil_painting">🖼️ Classical Oil Painting</option>
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-500 text-[9px]">
+                          ▼
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-center">
-                      <p className="text-sm font-semibold text-slate-200">Drag & Drop Seed Image here</p>
-                      <p className="text-xs text-slate-500 mt-1">or click to browse your computer</p>
+
+                    {/* Model Selection */}
+                    <div className="flex flex-col gap-1.5">
+                      <span className="text-xs font-semibold text-slate-300">Generator Model</span>
+                      <div className="relative">
+                        <select
+                          value={aiImageModel}
+                          onChange={(e) => setAiImageModel(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-xl py-2 px-3 text-xs text-slate-200 focus:ring-0 focus:outline-none cursor-pointer appearance-none transition-all"
+                        >
+                          <option value="gemini-3.1-flash-image">⚡ Imagen 3 (High-Fidelity)</option>
+                          <option value="gemini-3.1-flash-lite-image">🚀 Imagen 3 Lite (Fast)</option>
+                        </select>
+                        <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-500 text-[9px]">
+                          ▼
+                        </div>
+                      </div>
                     </div>
-                    <div className="text-[10px] text-slate-500 bg-slate-900 px-3 py-1 rounded-full border border-slate-800/60 font-mono">
-                      PNG, JPG, WEBP • Max 15MB
-                    </div>
-                  </>
-                )}
-              </div>
+                  </div>
+
+                  {/* Trigger Button */}
+                  <button
+                    type="button"
+                    onClick={handleGenerateAIImage}
+                    disabled={isGeneratingImage || !aiImagePrompt.trim()}
+                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 disabled:from-slate-800 disabled:to-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold transition-all shadow-md flex items-center justify-center gap-1.5 mt-1"
+                  >
+                    {isGeneratingImage ? (
+                      <>
+                        <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                        <span>Generating Image...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
+                        <span>Generate & Load Seed Image</span>
+                      </>
+                    )}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* Prompt Textarea */}
@@ -1049,6 +1684,369 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                   {prompt.length}/500
                 </span>
               </div>
+            </div>
+
+            {/* Motion Intensity & Speed Control Slider */}
+            <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-5 flex flex-col gap-3">
+              <div className="flex justify-between items-center">
+                <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-amber-400 fill-amber-400/20" />
+                  Motion Intensity & Speed
+                </label>
+                <span className={`text-[11px] font-mono font-bold px-2.5 py-0.5 rounded-full border transition-all duration-300 ${
+                  motionIntensity <= 3
+                    ? "bg-sky-500/10 border-sky-500/20 text-sky-400"
+                    : motionIntensity >= 8
+                    ? "bg-amber-500/10 border-amber-500/20 text-amber-400 animate-pulse"
+                    : "bg-indigo-500/10 border-indigo-500/20 text-indigo-400"
+                }`}>
+                  {motionIntensity <= 3 ? "Subtle Drift" : motionIntensity >= 8 ? "Hyper-Kinetic" : "Cinematic Pace"} ({motionIntensity}/10)
+                </span>
+              </div>
+
+              <div className="flex items-center gap-4 bg-slate-900/40 p-3.5 rounded-xl border border-slate-800/60">
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider select-none">Slow</span>
+                <input
+                  type="range"
+                  min="1"
+                  max="10"
+                  value={motionIntensity}
+                  onChange={(e) => setMotionIntensity(parseInt(e.target.value))}
+                  className="flex-1 accent-indigo-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                  style={{
+                    background: `linear-gradient(to right, rgb(99, 102, 241) 0%, rgb(99, 102, 241) ${(motionIntensity - 1) * 11.11}%, rgb(30, 41, 59) ${(motionIntensity - 1) * 11.11}%, rgb(30, 41, 59) 100%)`
+                  }}
+                />
+                <span className="text-[10px] text-slate-500 font-bold uppercase tracking-wider select-none">Fast</span>
+              </div>
+
+              <p className="text-xs text-slate-400 leading-relaxed min-h-[32px] transition-all duration-300">
+                {motionIntensity <= 3
+                  ? "✨ Perfect for ambient scenes. Emphasizes slow-moving clouds, gentle breeze, quiet candle flames, or micro-expressions."
+                  : motionIntensity >= 8
+                  ? "🔥 Highly kinetic render. Best for high-speed action, racing, swirling dust storms, collapsing structures, and explosions."
+                  : "🎬 Balanced camera tracking and natural-speed physics. Keeps subject and object velocities true to reality."}
+              </p>
+            </div>
+
+            {/* Background Music Soundscape Selection & Volume */}
+            <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-5 flex flex-col gap-4">
+              <div className="flex justify-between items-center">
+                <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                  <Music className="w-4 h-4 text-indigo-400" />
+                  Background Music Soundscape
+                </label>
+                
+                {/* Audio Enabled Toggle/Mute switch */}
+                <button
+                  type="button"
+                  onClick={() => setIsMusicEnabled(!isMusicEnabled)}
+                  disabled={!selectedMusicUrl}
+                  className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border transition-all ${
+                    !selectedMusicUrl
+                      ? "bg-slate-900 border-slate-800/40 text-slate-600 cursor-not-allowed"
+                      : isMusicEnabled
+                      ? "bg-indigo-600/10 border-indigo-500/20 text-indigo-400 hover:bg-indigo-600/20"
+                      : "bg-rose-500/10 border-rose-500/20 text-rose-400 hover:bg-rose-500/20"
+                  }`}
+                >
+                  {!selectedMusicUrl ? "No Track Selected" : isMusicEnabled ? "🔊 Music Active" : "🔇 Music Muted"}
+                </button>
+              </div>
+
+              {/* Music dropdown / custom file upload */}
+              <div className="flex flex-col gap-3">
+                {/* Preset Selector */}
+                <div className="relative">
+                  <select
+                    value={presetTracks.some(t => t.url === selectedMusicUrl && selectedMusicUrl !== "") ? selectedMusicUrl : (customMusicName ? "custom" : "")}
+                    onChange={(e) => {
+                      const value = e.target.value;
+                      if (value === "custom") {
+                        audioInputRef.current?.click();
+                      } else {
+                        setSelectedMusicUrl(value);
+                        if (value !== "") {
+                          setIsMusicEnabled(true);
+                        }
+                      }
+                    }}
+                    className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-xl py-2.5 px-3.5 pr-8 text-xs text-slate-200 focus:ring-0 focus:outline-none cursor-pointer appearance-none transition-all"
+                  >
+                    <option value="">🚫 No Background Music</option>
+                    <optgroup label="✨ Atmospheric Preset Ambient Loops">
+                      {presetTracks.filter(t => t.url !== "").map((track) => (
+                        <option key={track.id} value={track.url}>
+                          {track.name}
+                        </option>
+                      ))}
+                    </optgroup>
+                    <optgroup label="🎵 Custom Tracks">
+                      {customMusicName ? (
+                        <option value="custom">📁 Custom: {customMusicName}</option>
+                      ) : (
+                        <option value="custom">➕ Upload your own MP3/WAV...</option>
+                      )}
+                    </optgroup>
+                  </select>
+                  <div className="pointer-events-none absolute inset-y-0 right-3.5 flex items-center text-slate-500 text-[10px]">
+                    ▼
+                  </div>
+                </div>
+
+                {/* Hidden Audio file input */}
+                <input
+                  type="file"
+                  ref={audioInputRef}
+                  onChange={handleAudioUpload}
+                  accept="audio/mp3,audio/mpeg,audio/wav,audio/ogg"
+                  className="hidden"
+                />
+
+                {/* Custom Audio Selected State Panel */}
+                {customMusicName && (
+                  <div className="bg-indigo-500/[0.03] border border-indigo-500/20 rounded-xl px-3.5 py-2 flex items-center justify-between text-xs text-indigo-300 animate-fade-in">
+                    <span className="truncate max-w-[80%] font-medium flex items-center gap-1.5">
+                      <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                      Loaded: {customMusicName}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={handleRemoveCustomAudio}
+                      className="text-[10px] font-bold text-rose-400 hover:text-rose-300 transition-all hover:underline pl-2 shrink-0"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                )}
+
+                {/* Volume Slider control */}
+                {selectedMusicUrl && (
+                  <div className="flex flex-col gap-1.5 bg-slate-900/30 p-3 rounded-xl border border-slate-800/40 animate-fade-in">
+                    <div className="flex justify-between items-center text-[11px] text-slate-400 font-medium">
+                      <span className="flex items-center gap-1">
+                        {musicVolume === 0 || !isMusicEnabled ? (
+                          <VolumeX className="w-3.5 h-3.5 text-slate-500" />
+                        ) : (
+                          <Volume2 className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
+                        )}
+                        Background Music Volume
+                      </span>
+                      <span className="font-mono font-bold text-indigo-400">
+                        {isMusicEnabled ? `${Math.round(musicVolume * 100)}%` : "0% (Muted)"}
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-3">
+                      <input
+                        type="range"
+                        min="0"
+                        max="1"
+                        step="0.05"
+                        value={musicVolume}
+                        onChange={(e) => {
+                          setMusicVolume(parseFloat(e.target.value));
+                          if (parseFloat(e.target.value) > 0) {
+                            setIsMusicEnabled(true);
+                          }
+                        }}
+                        className="flex-1 accent-indigo-500 h-1 bg-slate-800 rounded-lg cursor-pointer"
+                        style={{
+                          background: `linear-gradient(to right, rgb(99, 102, 241) 0%, rgb(99, 102, 241) ${musicVolume * 100}%, rgb(30, 41, 59) ${musicVolume * 100}%, rgb(30, 41, 59) 100%)`
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Custom Text Overlay Controls Card */}
+            <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-5 flex flex-col gap-4">
+              <div className="flex justify-between items-center">
+                <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                  <Type className="w-4 h-4 text-indigo-400" />
+                  Custom Text Overlay
+                </label>
+                {overlayText && (
+                  <button
+                    type="button"
+                    onClick={() => setOverlayText("")}
+                    className="text-[10px] text-rose-400 hover:text-rose-300 transition-all font-bold hover:underline"
+                  >
+                    Clear Text
+                  </button>
+                )}
+              </div>
+
+              {/* Text Input */}
+              <div className="relative">
+                <textarea
+                  value={overlayText}
+                  onChange={(e) => setOverlayText(e.target.value)}
+                  placeholder="Enter custom overlay text/subtitles..."
+                  className="w-full min-h-[70px] bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-xl p-3 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-0 resize-none transition-all"
+                  maxLength={150}
+                />
+                <span className="absolute bottom-2 right-2.5 text-[9px] font-mono text-slate-600 bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800">
+                  {overlayText.length}/150
+                </span>
+              </div>
+
+              {overlayText && (
+                <div className="flex flex-col gap-4 animate-fade-in">
+                  
+                  {/* Grid Layout of Controls: Position on left, styling on right */}
+                  <div className="grid grid-cols-2 gap-4">
+                    
+                    {/* Position Selector */}
+                    <div className="flex flex-col gap-1.5">
+                      <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Position</span>
+                      <div className="flex items-center gap-3">
+                        <div className="grid grid-cols-3 gap-1 w-20 h-20 bg-slate-900 p-1.5 rounded-lg border border-slate-800 shrink-0">
+                          {["top-left", "top-center", "top-right", "middle-left", "middle-center", "middle-right", "bottom-left", "bottom-center", "bottom-right"].map((pos) => (
+                            <button
+                              key={pos}
+                              type="button"
+                              onClick={() => setOverlayPosition(pos)}
+                              className={`w-full h-full rounded transition-all ${
+                                overlayPosition === pos
+                                  ? "bg-indigo-500 shadow-sm shadow-indigo-500/30"
+                                  : "bg-slate-950 hover:bg-slate-800"
+                              }`}
+                              title={`Align ${pos.replace("-", " ")}`}
+                            />
+                          ))}
+                        </div>
+                        <span className="text-[10px] font-mono text-slate-400 capitalize">
+                          {overlayPosition.replace("-", " ")}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Font Family & Shadow Switch */}
+                    <div className="flex flex-col gap-3">
+                      <div className="flex flex-col gap-1.5">
+                        <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">Font Style</span>
+                        <select
+                          value={overlayFontFamily}
+                          onChange={(e) => setOverlayFontFamily(e.target.value)}
+                          className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-lg py-1.5 px-2 text-[11px] text-slate-200 cursor-pointer appearance-none transition-all focus:ring-0 focus:outline-none"
+                        >
+                          <option value="sans">Modern Sans (Inter)</option>
+                          <option value="serif">Elegant Serif (Editorial)</option>
+                          <option value="mono">Compact Mono (Tech)</option>
+                          <option value="display">Cinematic Display</option>
+                          <option value="meme">Bold Meme (Impact)</option>
+                        </select>
+                      </div>
+
+                      {/* Text Shadow Switch */}
+                      <div className="flex items-center justify-between bg-slate-900/60 px-3 py-1.5 rounded-lg border border-slate-800/40">
+                        <span className="text-[10px] text-slate-400">Text Shadow</span>
+                        <button
+                          type="button"
+                          onClick={() => setOverlayShadow(!overlayShadow)}
+                          className={`w-8 h-4 rounded-full transition-all relative ${
+                            overlayShadow ? "bg-indigo-600" : "bg-slate-800"
+                          }`}
+                        >
+                          <div className={`w-3.5 h-3.5 rounded-full bg-white absolute top-[1px] transition-all ${
+                            overlayShadow ? "left-[15px]" : "left-[1px]"
+                          }`} />
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Font Size & Opacity sliders */}
+                  <div className="flex flex-col gap-3 bg-slate-900/40 p-3 rounded-xl border border-slate-800/40">
+                    
+                    {/* Font Size slider */}
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between items-center text-[10px] text-slate-400">
+                        <span>Font Size</span>
+                        <span className="font-mono font-bold text-indigo-400">{overlayFontSize}px</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="12"
+                        max="64"
+                        step="1"
+                        value={overlayFontSize}
+                        onChange={(e) => setOverlayFontSize(parseInt(e.target.value))}
+                        className="w-full accent-indigo-500 h-1 bg-slate-800 rounded-lg cursor-pointer"
+                        style={{
+                          background: `linear-gradient(to right, rgb(99, 102, 241) 0%, rgb(99, 102, 241) ${((overlayFontSize - 12) / 52) * 100}%, rgb(30, 41, 59) ${((overlayFontSize - 12) / 52) * 100}%, rgb(30, 41, 59) 100%)`
+                        }}
+                      />
+                    </div>
+
+                    {/* Opacity slider */}
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between items-center text-[10px] text-slate-400">
+                        <span>Opacity</span>
+                        <span className="font-mono font-bold text-indigo-400">{Math.round(overlayOpacity * 100)}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="0.1"
+                        max="1"
+                        step="0.05"
+                        value={overlayOpacity}
+                        onChange={(e) => setOverlayOpacity(parseFloat(e.target.value))}
+                        className="w-full accent-indigo-500 h-1 bg-slate-800 rounded-lg cursor-pointer"
+                        style={{
+                          background: `linear-gradient(to right, rgb(99, 102, 241) 0%, rgb(99, 102, 241) ${overlayOpacity * 100}%, rgb(30, 41, 59) ${overlayOpacity * 100}%, rgb(30, 41, 59) 100%)`
+                        }}
+                      />
+                    </div>
+
+                    {/* Color selector */}
+                    <div className="flex flex-col gap-1.5 mt-1">
+                      <span className="text-[10px] text-slate-400">Font Color</span>
+                      <div className="flex items-center gap-2">
+                        {/* Preset color buttons */}
+                        {["#ffffff", "#facc15", "#22d3ee", "#e879f9", "#34d399", "#000000"].map((color) => (
+                          <button
+                            key={color}
+                            type="button"
+                            onClick={() => setOverlayColor(color)}
+                            className={`w-5 h-5 rounded-full border transition-all ${
+                              overlayColor.toLowerCase() === color.toLowerCase()
+                                ? "border-indigo-400 scale-110 shadow"
+                                : "border-slate-800 hover:scale-105"
+                            }`}
+                            style={{ backgroundColor: color }}
+                            title={color}
+                          />
+                        ))}
+                        {/* Custom Color Picker input */}
+                        <div className="flex items-center gap-1.5 ml-auto">
+                          <input
+                            type="color"
+                            value={overlayColor}
+                            onChange={(e) => setOverlayColor(e.target.value)}
+                            className="w-6 h-6 rounded bg-transparent border-0 cursor-pointer p-0"
+                          />
+                          <input
+                            type="text"
+                            maxLength={7}
+                            value={overlayColor}
+                            onChange={(e) => {
+                              const value = e.target.value;
+                              if (value.startsWith("#") && value.length <= 7) {
+                                setOverlayColor(value);
+                              }
+                            }}
+                            className="w-14 bg-slate-900 border border-slate-800 rounded text-[10px] text-center font-mono py-0.5 text-slate-300 focus:outline-none"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Generate Action Button */}
@@ -1137,8 +2135,11 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                     className="w-full h-full object-contain cursor-pointer"
                   />
 
+                  {/* Custom Text Overlay */}
+                  {renderTextOverlay()}
+
                   {/* HTML Overlay Controls */}
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-5 opacity-0 group-hover/video:opacity-100 transition-all flex items-center justify-between gap-4">
+                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-5 opacity-0 group-hover/video:opacity-100 transition-all flex items-center justify-between gap-4 z-20">
                     <div className="flex items-center gap-3">
                       <button
                         onClick={handleTogglePlay}
@@ -1167,6 +2168,24 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                         <Maximize2 className="w-4 h-4" />
                       </button>
                     </div>
+                  </div>
+                </div>
+              ) : image ? (
+                /* Case 2.5: Render active seed image preview with overlay before video generation */
+                <div className="relative w-full h-full flex items-center justify-center bg-black group/image">
+                  <img
+                    src={image}
+                    alt="Active Seed Frame Preview"
+                    className="w-full h-full object-contain select-none"
+                    referrerPolicy="no-referrer"
+                  />
+
+                  {/* Custom Text Overlay */}
+                  {renderTextOverlay()}
+
+                  {/* Active Indicator */}
+                  <div className="absolute top-4 right-4 bg-indigo-600/90 text-white text-[9px] font-mono font-bold tracking-wider py-1 px-2.5 rounded-full border border-indigo-500 shadow-lg select-none z-20">
+                    🖼️ Active Seed Frame
                   </div>
                 </div>
               ) : (

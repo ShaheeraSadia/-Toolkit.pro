@@ -2833,27 +2833,45 @@ export default function App() {
                         className="w-full px-3 py-2 text-xs font-bold text-slate-800 dark:text-slate-200 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none cursor-pointer"
                       >
                         <optgroup label="Standard" className="text-slate-400 font-bold bg-white dark:bg-slate-950">
-                          {printerPresets.filter(p => !p.category || p.category === "Standard").map((p) => (
-                            <option key={p.id} value={p.id} className="text-slate-800 dark:text-slate-200">
-                              {p.icon} {p.name}
+                          {printerPresets.filter(p => !p.category || p.category === "Standard").length > 0 ? (
+                            printerPresets.filter(p => !p.category || p.category === "Standard").map((p) => (
+                              <option key={p.id} value={p.id} className="text-slate-800 dark:text-slate-200">
+                                {p.icon} {p.name}
+                              </option>
+                            ))
+                          ) : (
+                            <option disabled className="text-slate-400 dark:text-slate-600 italic">
+                              No Standard presets available
                             </option>
-                          ))}
+                          )}
                         </optgroup>
                         
                         <optgroup label="Professional" className="text-slate-400 font-bold bg-white dark:bg-slate-950">
-                          {printerPresets.filter(p => p.category === "Professional").map((p) => (
-                            <option key={p.id} value={p.id} className="text-slate-800 dark:text-slate-200">
-                              {p.icon} {p.name}
+                          {printerPresets.filter(p => p.category === "Professional").length > 0 ? (
+                            printerPresets.filter(p => p.category === "Professional").map((p) => (
+                              <option key={p.id} value={p.id} className="text-slate-800 dark:text-slate-200">
+                                {p.icon} {p.name}
+                              </option>
+                            ))
+                          ) : (
+                            <option disabled className="text-slate-400 dark:text-slate-600 italic">
+                              No Professional presets available
                             </option>
-                          ))}
+                          )}
                         </optgroup>
 
                         <optgroup label="Specialty" className="text-slate-400 font-bold bg-white dark:bg-slate-950">
-                          {printerPresets.filter(p => p.category === "Specialty").map((p) => (
-                            <option key={p.id} value={p.id} className="text-slate-800 dark:text-slate-200">
-                              {p.icon} {p.name}
+                          {printerPresets.filter(p => p.category === "Specialty").length > 0 ? (
+                            printerPresets.filter(p => p.category === "Specialty").map((p) => (
+                              <option key={p.id} value={p.id} className="text-slate-800 dark:text-slate-200">
+                                {p.icon} {p.name}
+                              </option>
+                            ))
+                          ) : (
+                            <option disabled className="text-slate-400 dark:text-slate-600 italic">
+                              No Specialty presets available
                             </option>
-                          ))}
+                          )}
                         </optgroup>
 
                         <optgroup label="Custom Options" className="text-slate-400 font-bold bg-white dark:bg-slate-950">
