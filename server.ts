@@ -3,7 +3,7 @@ import path from "path";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, GenerateVideosOperation } from "@google/genai";
 import dotenv from "dotenv";
-import { generateSitemapXml } from "./sitemap.xml";
+import { generateSitemapXml } from "./sitemap.xml.ts";
 
 dotenv.config();
 
