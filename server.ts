@@ -25,8 +25,9 @@ if (apiKey) {
 const app = express();
 const PORT = 3000;
 
-// Enable JSON bodies
-app.use(express.json());
+// Enable JSON and URL-encoded bodies with increased size limits for base64 image uploads
+app.use(express.json({ limit: "50mb" }));
+app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // Dynamic XML Sitemap Generator endpoint for search engines indexation
 app.get("/sitemap.xml", (req, res) => {
