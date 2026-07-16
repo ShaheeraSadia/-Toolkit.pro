@@ -595,7 +595,8 @@ app.post("/api/video/generate", async (req, res) => {
       motionIntensity = 5,
       motion_bucket_id,
       steps,
-      audio_sync
+      audio_sync,
+      videoStyle = "Cinematic"
     } = req.body;
 
     if (motion_bucket_id !== undefined || steps !== undefined || audio_sync !== undefined) {
@@ -612,6 +613,21 @@ app.post("/api/video/generate", async (req, res) => {
 
     let finalPrompt = prompt || "Cinematic masterpiece video, professional lighting, photorealistic";
 
+    // Build style preset instructions based on videoStyle
+    let customStyleDetails = "";
+    if (videoStyle) {
+      const lowerStyle = videoStyle.toLowerCase();
+      if (lowerStyle === "cinematic") {
+        customStyleDetails = "strictly cinematic photorealism, professional cinema color grading, anamorphic depth, 8k resolution, theatrical ambient lighting";
+      } else if (lowerStyle === "cartoon" || lowerStyle === "anime") {
+        customStyleDetails = "gorgeous hand-drawn cartoon anime aesthetic, high-fidelity modern illustration, cell-shaded, cinematic anime keyframe";
+      } else if (lowerStyle === "realistic" || lowerStyle === "realistic-3d") {
+        customStyleDetails = "hyper-detailed 3D octane render style, raytraced ambient occlusion, Unreal Engine 5 realism, pristine raytraced reflections, realistic lifelike textures";
+      } else if (lowerStyle === "sketch") {
+        customStyleDetails = "intricate hand-drawn monochrome pencil sketch on fine textured paper, detailed graphite shading, clean artistic pencil line art";
+      }
+    }
+
     // Auto-enhance prompt if requested
     if (enhancePrompt && prompt) {
       try {
@@ -621,6 +637,11 @@ app.post("/api/video/generate", async (req, res) => {
           systemPromptDetail = "Write an exceptionally rich, highly detailed cinematic masterpiece prompt for a video generator like Veo based on: \"" + prompt + "\". Include advanced photographic descriptors, volumetric lighting, hyper-realistic textures, intricate micro-movements, professional color grading, and maximum environmental depth. Under 80 words. No intro or conversational filler, just the prompt.";
         } else if (videoQuality === "performance") {
           systemPromptDetail = "Write a fast-rendering, clean visual scene prompt for a video generator like Veo based on: \"" + prompt + "\". Keep focus on clear subjects, bright clean lighting, and simple linear movements. Under 40 words. No intro, just the prompt.";
+        }
+
+        // Apply videoStyle custom style details
+        if (customStyleDetails) {
+          systemPromptDetail += `\n\nSTYLE INSTRUCTION: Ensure the visual aesthetics strictly adhere to: ${customStyleDetails}. Ensure everything matches this stylistic look.`;
         }
 
         // Apply style preset instructions if active
@@ -697,6 +718,11 @@ app.post("/api/video/generate", async (req, res) => {
       }
     }
 
+    // If prompt was not auto-enhanced, append custom style descriptors directly
+    if ((!enhancePrompt || finalPrompt === prompt) && customStyleDetails && prompt) {
+      finalPrompt += `, styled in ${customStyleDetails}`;
+    }
+
     // Append strong looping suffix to ensure the video generation engine produces matching start and end states
     if (loopVideo) {
       finalPrompt += ", seamless loop, perfectly looping, starting and ending frames match perfectly, infinite looping animation";
@@ -705,8 +731,7 @@ app.post("/api/video/generate", async (req, res) => {
     const videoConfig: any = {
       numberOfVideos: 1,
       resolution: resolution || "720p",
-      aspectRatio: aspectRatio || "16:9",
-      loop: loopVideo
+      aspectRatio: aspectRatio || "16:9"
     };
 
     const payload: any = {
@@ -791,12 +816,20 @@ app.post("/api/generate-video", async (req, res) => {
       finalPrompt += `, negative: ${negative_prompt}`;
     }
 
+    // Map motion_bucket_id (0-255) to prompt-based motion instructions
+    const motionInt = Math.min(10, Math.max(1, Math.round((motion_bucket_id || 140) / 25)));
+    if (motionInt >= 8) {
+      finalPrompt += ", highly dynamic cinematic motion, hyperactive physics, fast pacing";
+    } else if (motionInt <= 3) {
+      finalPrompt += ", extremely subtle cinematic motion, gentle slow motion, serene movement";
+    } else {
+      finalPrompt += ", natural steady cinematic movement, balanced pacing";
+    }
+
     const videoConfig: any = {
       numberOfVideos: 1,
       resolution: "720p",
-      aspectRatio: aspectRatio,
-      // map motion_bucket_id (0-255) to motionIntensity (1-10)
-      motionIntensity: Math.min(10, Math.max(1, Math.round((motion_bucket_id || 140) / 25)))
+      aspectRatio: aspectRatio
     };
 
     const payload: any = {

@@ -55,6 +55,7 @@ interface VideoCreation {
   aspectRatio: string;
   resolution: string;
   duration?: number;
+  videoStyle?: string;
 }
 
 const PRESET_PROMPTS = [
@@ -266,6 +267,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
   const [resolution, setResolution] = useState("720p");
   const [motionIntensity, setMotionIntensity] = useState(5);
   const [loopVideo, setLoopVideo] = useState(false);
+  const [videoStyle, setVideoStyle] = useState("Cinematic");
 
   // Status/Generation States
   const [isGenerating, setIsGenerating] = useState(false);
@@ -420,13 +422,27 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
           modelChoice: "veo-3.1-lite-generate-preview", // Veo Lite for preview
           aspectRatio,
           videoQuality: "performance",
-          resolution
+          resolution,
+          videoStyle
         })
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || "Failed to initiate video generation.");
+        let errMsg = `Failed to initiate video generation (HTTP ${response.status} ${response.statusText})`;
+        try {
+          const errorData = await response.json();
+          if (errorData && errorData.error) {
+            errMsg = errorData.error;
+          }
+        } catch (e) {
+          try {
+            const rawText = await response.text();
+            if (rawText && rawText.length < 200) {
+              errMsg += `: ${rawText}`;
+            }
+          } catch (_) {}
+        }
+        throw new Error(errMsg);
       }
 
       const data = await response.json();
@@ -507,7 +523,8 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
         operationName: operationName,
         createdAt: Date.now(),
         aspectRatio,
-        resolution
+        resolution,
+        videoStyle
       };
 
       if (user) {
@@ -699,6 +716,9 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
     }
     setAspectRatio(item.aspectRatio);
     setResolution(item.resolution);
+    if (item.videoStyle) {
+      setVideoStyle(item.videoStyle);
+    }
     setShowGallery(false);
   };
 
@@ -766,6 +786,29 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                 }`}
               >
                 {res === "720p" ? "720p (Fast)" : "1080p (HQ)"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Video Style Selector */}
+        <div className="flex flex-col gap-2">
+          <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+            <Sparkle className="w-4 h-4 text-indigo-400" />
+            Video Style
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            {["Cinematic", "Cartoon", "Realistic", "Sketch"].map((style) => (
+              <button
+                key={style}
+                onClick={() => setVideoStyle(style)}
+                className={`py-2 px-3 text-xs rounded-lg border transition-all font-medium ${
+                  videoStyle === style
+                    ? "bg-indigo-600/20 border-indigo-500 text-indigo-300"
+                    : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700"
+                }`}
+              >
+                {style}
               </button>
             ))}
           </div>
