@@ -1,7 +1,9 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { User } from "firebase/auth";
 import { DriveFile, ActiveTab, RecentActivity } from "./types";
 import { initAuth, googleSignIn, logout, getAccessToken } from "./firebase";
+import { collection, addDoc, getDocs, deleteDoc, doc, query, where, updateDoc } from "firebase/firestore";
+import { db } from "./firebase";
 import { listDriveFiles } from "./lib/drive";
 import Navbar from "./components/Navbar";
 import QuoteDesigner from "./components/QuoteDesigner";
@@ -21,6 +23,9 @@ import UsageInsightsWidget from "./components/UsageInsightsWidget";
 import AppTourOverlay from "./components/AppTourOverlay";
 import FeedbackModal from "./components/FeedbackModal";
 import AndroidWorkspace from "./components/AndroidWorkspace";
+import PDFTools from "./components/PDFTools";
+import ImageConverter from "./components/ImageConverter";
+import BackgroundRemover from "./components/BackgroundRemover";
 import { motion, AnimatePresence } from "motion/react";
 // @ts-ignore
 import brandLogo from "./assets/images/toolkit_pro_logo_1781887052514.jpg";
@@ -68,6 +73,12 @@ import {
   Award,
   Trash2,
   RefreshCw,
+  Search,
+  Eraser,
+  FileText,
+  FolderOpen,
+  Plus,
+  GripVertical,
 } from "lucide-react";
 
 function renderTabPreview(tabId: string) {
@@ -335,6 +346,230 @@ export default function App() {
   const [needsAuth, setNeedsAuth] = useState<boolean>(true);
   const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string | null>(null);
+
+  interface SavedProject {
+    id: string;
+    name: string;
+    toolType: "quote" | "qr" | "palette";
+    createdAt: string;
+    data: any;
+    order?: number;
+  }
+
+  const [savedProjects, setSavedProjects] = useState<SavedProject[]>([]);
+  const [isSavingProject, setIsSavingProject] = useState(false);
+  const [isLoadingProjects, setIsLoadingProjects] = useState(false);
+  const [projectError, setProjectError] = useState<string | null>(null);
+
+  const fetchProjects = async () => {
+    setIsLoadingProjects(true);
+    setProjectError(null);
+    try {
+      if (user) {
+        // Fetch from Firestore
+        const q = query(collection(db, "projects"), where("userId", "==", user.uid));
+        const querySnapshot = await getDocs(q);
+        const projects: SavedProject[] = [];
+        querySnapshot.forEach((d) => {
+          const data = d.data();
+          projects.push({
+            id: d.id,
+            name: data.name,
+            toolType: data.toolType,
+            createdAt: data.createdAt,
+            data: data.data,
+            order: data.order !== undefined ? data.order : 0,
+          });
+        });
+        // Sort by order ascending
+        projects.sort((a, b) => (a.order !== undefined ? a.order : 0) - (b.order !== undefined ? b.order : 0));
+        setSavedProjects(projects);
+      } else {
+        // Fetch from localStorage
+        const stored = localStorage.getItem("toolkit-pro-local-projects");
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          parsed.sort((a: any, b: any) => (a.order !== undefined ? a.order : 0) - (b.order !== undefined ? b.order : 0));
+          setSavedProjects(parsed);
+        } else {
+          setSavedProjects([]);
+        }
+      }
+    } catch (err: any) {
+      console.error("Failed to fetch projects:", err);
+      setProjectError(err.message || "Failed to load projects.");
+    } finally {
+      setIsLoadingProjects(false);
+    }
+  };
+
+  const handleSaveProject = async (name: string, toolType: string) => {
+    if (!name.trim()) return;
+    setIsSavingProject(true);
+    setProjectError(null);
+    try {
+      let projectData: any = {};
+      
+      // Grab state data based on tool type
+      if (toolType === "quote") {
+        const text = localStorage.getItem("toolkit-pro-quote-text") || "Design your story";
+        const author = localStorage.getItem("toolkit-pro-quote-author") || "Anonymous";
+        const bgType = localStorage.getItem("toolkit-pro-quote-bgType") || "gradient";
+        const scale = localStorage.getItem("toolkit-pro-quote-scale") || "1";
+        projectData = { text, author, bgType, scale };
+      } else if (toolType === "qr") {
+        const text = localStorage.getItem("toolkit-pro-qr-text") || "https://google.com";
+        const ecc = localStorage.getItem("toolkit-pro-qr-ecc") || "H";
+        const fgColor = localStorage.getItem("toolkit-pro-qr-fgColor") || "#000000";
+        projectData = { text, ecc, fgColor };
+      } else if (toolType === "palette") {
+        const recentPalette = localStorage.getItem("toolkit-pro-recent-palette") || "[]";
+        projectData = { palette: JSON.parse(recentPalette) };
+      }
+
+      const orderVal = savedProjects.length;
+
+      const newProject = {
+        name,
+        toolType: toolType as any,
+        createdAt: new Date().toISOString(),
+        data: projectData,
+        order: orderVal,
+      };
+
+      if (user) {
+        // Save to Firestore
+        const docRef = await addDoc(collection(db, "projects"), {
+          ...newProject,
+          userId: user.uid,
+        });
+        setSavedProjects(prev => [...prev, { id: docRef.id, ...newProject }]);
+      } else {
+        // Save to localStorage
+        const stored = localStorage.getItem("toolkit-pro-local-projects");
+        const projects = stored ? JSON.parse(stored) : [];
+        const projectWithId = { id: Math.random().toString(36).substr(2, 9), ...newProject };
+        projects.push(projectWithId);
+        localStorage.setItem("toolkit-pro-local-projects", JSON.stringify(projects));
+        setSavedProjects(projects);
+      }
+    } catch (err: any) {
+      console.error("Failed to save project:", err);
+      setProjectError(err.message || "Failed to save project.");
+    } finally {
+      setIsSavingProject(false);
+    }
+  };
+
+  const handleLoadProject = (project: SavedProject) => {
+    // Set active tab to launch the corresponding tool
+    setActiveTab(project.toolType as any);
+    setIsSitemapView(false);
+
+    // Apply the saved state back to localStorage
+    if (project.toolType === "quote") {
+      if (project.data.text) localStorage.setItem("toolkit-pro-quote-text", project.data.text);
+      if (project.data.author) localStorage.setItem("toolkit-pro-quote-author", project.data.author);
+      if (project.data.bgType) localStorage.setItem("toolkit-pro-quote-bgType", project.data.bgType);
+      if (project.data.scale) localStorage.setItem("toolkit-pro-quote-scale", project.data.scale);
+    } else if (project.toolType === "qr") {
+      if (project.data.text) localStorage.setItem("toolkit-pro-qr-text", project.data.text);
+      if (project.data.ecc) localStorage.setItem("toolkit-pro-qr-ecc", project.data.ecc);
+      if (project.data.fgColor) localStorage.setItem("toolkit-pro-qr-fgColor", project.data.fgColor);
+    } else if (project.toolType === "palette") {
+      if (project.data.palette) localStorage.setItem("toolkit-pro-recent-palette", JSON.stringify(project.data.palette));
+    }
+
+    // Fire a custom event to notify components to re-render
+    window.dispatchEvent(new Event("toolkit-project-loaded"));
+  };
+
+  const handleDeleteProject = async (projectId: string) => {
+    if (!window.confirm("Are you sure you want to delete this project?")) return;
+    try {
+      if (user) {
+        // Delete from Firestore
+        await deleteDoc(doc(db, "projects", projectId));
+        setSavedProjects(prev => prev.filter(p => p.id !== projectId));
+      } else {
+        // Delete from localStorage
+        const stored = localStorage.getItem("toolkit-pro-local-projects");
+        if (stored) {
+          const projects = JSON.parse(stored);
+          const filtered = projects.filter((p: any) => p.id !== projectId);
+          localStorage.setItem("toolkit-pro-local-projects", JSON.stringify(filtered));
+          setSavedProjects(filtered);
+        }
+      }
+    } catch (err: any) {
+      console.error("Failed to delete project:", err);
+      setProjectError(err.message || "Failed to delete project.");
+    }
+  };
+
+  const [draggedProjectIndex, setDraggedProjectIndex] = useState<number | null>(null);
+  const [dragOverProjectIndex, setDragOverProjectIndex] = useState<number | null>(null);
+
+  const handleProjectDragStart = (e: React.DragEvent, index: number) => {
+    setDraggedProjectIndex(index);
+    e.dataTransfer.effectAllowed = "move";
+  };
+
+  const handleProjectDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedProjectIndex === null || draggedProjectIndex === index) return;
+    setDragOverProjectIndex(index);
+  };
+
+  const handleProjectDrop = async (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    if (draggedProjectIndex === null || draggedProjectIndex === targetIndex) {
+      setDraggedProjectIndex(null);
+      setDragOverProjectIndex(null);
+      return;
+    }
+
+    const reordered = [...savedProjects];
+    const [removed] = reordered.splice(draggedProjectIndex, 1);
+    reordered.splice(targetIndex, 0, removed);
+
+    // Update order values
+    const updatedProjects = reordered.map((proj, idx) => ({
+      ...proj,
+      order: idx,
+    }));
+
+    setSavedProjects(updatedProjects);
+    setDraggedProjectIndex(null);
+    setDragOverProjectIndex(null);
+
+    // Update persistence
+    try {
+      if (user) {
+        // Update order field in each Firestore document
+        const promises = updatedProjects.map((proj) => {
+          const docRef = doc(db, "projects", proj.id);
+          return updateDoc(docRef, { order: proj.order });
+        });
+        await Promise.all(promises);
+      } else {
+        // Update in localStorage
+        localStorage.setItem("toolkit-pro-local-projects", JSON.stringify(updatedProjects));
+      }
+    } catch (err: any) {
+      console.error("Failed to update project order persistence:", err);
+      setProjectError(err.message || "Failed to save reordered projects list.");
+    }
+  };
+
+  const handleProjectDragEnd = () => {
+    setDraggedProjectIndex(null);
+    setDragOverProjectIndex(null);
+  };
+
+  useEffect(() => {
+    fetchProjects();
+  }, [user]);
   const [hasDeferredPrompt, setHasDeferredPrompt] = useState<boolean>(() => {
     return typeof window !== "undefined" && !!window.deferredInstallPrompt;
   });
@@ -490,6 +725,8 @@ export default function App() {
   const handleToggleTheme = () => {
     setTheme((prev) => (prev === "light" ? "dark" : "light"));
   };
+
+  const [homeSearchQuery, setHomeSearchQuery] = useState("");
 
   const [highContrast, setHighContrast] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
@@ -1175,7 +1412,10 @@ export default function App() {
       drive: "Drive",
       resources: "Guides",
       legal: "Legal",
-      android: "Android Studio"
+      android: "Android Studio",
+      pdf: "PDF Suite",
+      converter: "Converter",
+      bgremover: "BG Remover"
     };
 
     const colors: Record<ActiveTab, string> = {
@@ -1188,10 +1428,13 @@ export default function App() {
       drive: "rgba(59, 130, 246, 0.85)",     // Blue
       resources: "rgba(245, 158, 11, 0.85)",   // Amber
       legal: "rgba(244, 63, 94, 0.85)",       // Rose
-      android: "rgba(16, 185, 129, 0.85)"     // Emerald
+      android: "rgba(16, 185, 129, 0.85)",     // Emerald
+      pdf: "rgba(239, 68, 68, 0.85)",         // Red
+      converter: "rgba(20, 184, 166, 0.85)",   // Teal
+      bgremover: "rgba(236, 72, 153, 0.85)"   // Pink
     };
 
-    const tabs: ActiveTab[] = ["quote", "compress", "qr", "palette", "video", "drive", "resources", "legal", "android"];
+    const tabs: ActiveTab[] = ["quote", "compress", "qr", "palette", "video", "drive", "resources", "legal", "android", "pdf", "converter", "bgremover"];
     return tabs.map((tab) => ({
       tool: tab,
       label: labels[tab],
@@ -1267,7 +1510,10 @@ export default function App() {
       drive: "Drive Panel",
       resources: "Guides & SEO",
       legal: "Compliance",
-      android: "Android App Studio"
+      android: "Android App Studio",
+      pdf: "PDF Tools Suite",
+      converter: "Image Converter",
+      bgremover: "Background Remover"
     };
 
     const tabIcons: Record<ActiveTab, RecentActivity["icon"]> = {
@@ -1280,7 +1526,10 @@ export default function App() {
       drive: "Cloud",
       resources: "BookOpen",
       legal: "ShieldCheck",
-      android: "Smartphone"
+      android: "Smartphone",
+      pdf: "FileText",
+      converter: "RefreshCw",
+      bgremover: "Eraser"
     };
 
     if (activeTab === "home") return;
@@ -1434,7 +1683,10 @@ export default function App() {
             drive: "Drive Explorer",
             resources: "Guides & SEO",
             legal: "Compliance",
-            android: "Android App Studio"
+            android: "Android App Studio",
+            pdf: "PDF Tools Suite",
+            converter: "Image Converter",
+            bgremover: "Background Remover"
           };
           triggerShortcutFeedback(`Alt + ${e.key} (${tabLabelMap[targetTab]})`);
         }
@@ -1614,6 +1866,9 @@ export default function App() {
                     { id: "qr", label: "QR Generator", icon: QrCode, desc: "ECC scan patterns" },
                     { id: "palette", label: "Color Extractor", icon: Pipette, desc: "Analyze hex spectrums" },
                     { id: "video", label: "Video Creator", icon: Video, desc: "Timeline loop tools" },
+                    { id: "pdf", label: "PDF Tools Suite", icon: FileText, desc: "Compile raw files to PDF", badge: "NEW" },
+                    { id: "converter", label: "Image Converter", icon: RefreshCw, desc: "Format conversion scale", badge: "NEW" },
+                    { id: "bgremover", label: "Background Remover", icon: Eraser, desc: "Isolate subject matte", badge: "NEW" },
                     { id: "android", label: "Android App Studio", icon: Smartphone, desc: "Veo 3.1 & Native Room DB", badge: "VEO" },
                     { id: "drive", label: "Drive Panel", icon: Cloud, desc: "Cloud files index", badge: files.length > 0 ? files.length : undefined },
                     { id: "resources", label: "Guides & SEO", icon: BookOpen, desc: "Sitemaps & templates" },
@@ -2037,6 +2292,130 @@ export default function App() {
                 </div>
               </div>
 
+              {/* INTERACTIVE SEARCH & FULL TOOLS CATALOG */}
+              <div className="space-y-4 select-none">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                  <div>
+                    <h3 className={`text-sm font-black uppercase tracking-tight flex items-center gap-1.5 ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                      <Search className="w-4.5 h-4.5 text-indigo-500 animate-pulse" />
+                      Search & Explore Tools Catalog
+                    </h3>
+                    <p className="text-[10px] text-slate-400 mt-0.5">
+                      Type name or keyword to instantly find and launch any professional creator tool.
+                    </p>
+                  </div>
+                  
+                  {/* High fidelity styled Search Input */}
+                  <div className="relative w-full md:w-80">
+                    <input
+                      type="text"
+                      placeholder="Search tools... (e.g., PDF, converter, crop)"
+                      value={homeSearchQuery}
+                      onChange={(e) => setHomeSearchQuery(e.target.value)}
+                      className={`w-full pl-9 pr-8 py-2 rounded-xl text-xs font-semibold focus:outline-none transition-all ${
+                        theme === "dark"
+                          ? "bg-slate-900 border border-slate-800 text-slate-100 placeholder-slate-500 focus:border-indigo-500"
+                          : "bg-white border border-slate-200 text-slate-800 placeholder-slate-400 focus:border-indigo-500 shadow-3xs"
+                      }`}
+                    />
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                    {homeSearchQuery && (
+                      <button
+                        onClick={() => setHomeSearchQuery("")}
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 px-1.5 py-0.5 rounded-md text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
+                      >
+                        Clear
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Grid layout of all catalog items */}
+                {(() => {
+                  const ALL_CATALOG_TOOLS = [
+                    { id: "quote", label: "Quote Designer", desc: "Craft stunning typographical quote cards with customizable backdrop noise and blur.", badge: "Design", icon: Quote },
+                    { id: "compress", label: "Image Compressor", desc: "Optimize and minimize JPG, PNG, and WebP asset bundles with precise EXIF preservation.", badge: "Optimize", icon: FileImage },
+                    { id: "qr", label: "QR Generator", desc: "Encode dynamic links, text, and coordinates with robust error correction level settings.", badge: "ECC Code", icon: QrCode },
+                    { id: "palette", label: "Color Extractor", desc: "Extract dominant color palettes, sample hex spectrums, and check WCAG contrast rules.", badge: "Spectrums", icon: Pipette },
+                    { id: "video", label: "AI Video Creator", desc: "Animate static seed frames into cinematic horizontal/vertical landscape motion videos.", badge: "Motion", icon: Video },
+                    { id: "pdf", label: "PDF Tools Suite", desc: "Compile raw image folders to PDF, design text documents, and export high-fidelity vectors.", badge: "Document", icon: FileText },
+                    { id: "converter", label: "Image Converter", desc: "Convert image files between WebP, PNG, JPEG, and BMP formats with scale dimensions.", badge: "Convert", icon: RefreshCw },
+                    { id: "bgremover", label: "Background Remover", desc: "Isolate subject matte layers using a color dropper or green screen keying.", badge: "Isolate", icon: Eraser },
+                    { id: "drive", label: "Google Drive Sync", desc: "Synchronize, backup, and restore your design canvas assets to cloud-secured folders.", badge: "Backup", icon: Cloud },
+                    { id: "android", label: "Android App Studio", desc: "Configure app manifests, compile resources, and generate APK metadata assets.", badge: "Mobile", icon: Smartphone }
+                  ];
+
+                  const filtered = ALL_CATALOG_TOOLS.filter(tool => {
+                    const query = homeSearchQuery.toLowerCase().trim();
+                    if (!query) return true;
+                    return tool.label.toLowerCase().includes(query) || 
+                           tool.desc.toLowerCase().includes(query) || 
+                           tool.badge.toLowerCase().includes(query);
+                  });
+
+                  if (filtered.length === 0) {
+                    return (
+                      <div className={`p-8 text-center rounded-3xl border ${
+                        theme === "dark" ? "bg-slate-900/40 border-slate-850" : "bg-slate-50 border-slate-200"
+                      }`}>
+                        <p className="text-xs text-slate-400">No matching tools found for "{homeSearchQuery}". Try another keyword!</p>
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                      {filtered.map((tool) => {
+                        const Icon = tool.icon;
+                        return (
+                          <div
+                            key={tool.id}
+                            onClick={() => {
+                              setActiveTab(tool.id as any);
+                              setIsSitemapView(false);
+                            }}
+                            className={`p-4 rounded-3xl border transition-all duration-300 hover:scale-102 flex flex-col justify-between group h-44 cursor-pointer relative overflow-hidden ${
+                              theme === "dark"
+                                ? "bg-gradient-to-b from-slate-900 to-slate-950 border-slate-855 hover:border-slate-700 hover:shadow-xl hover:shadow-indigo-500/5 text-slate-100"
+                                : "bg-white border-slate-200 hover:border-indigo-200 hover:shadow-lg hover:shadow-slate-200/50 text-slate-700"
+                            }`}
+                          >
+                            {/* Decorative background accent blob on hover */}
+                            <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                            
+                            <div className="space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <div className="p-2 bg-indigo-500/10 text-indigo-500 group-hover:bg-indigo-50 group-hover:text-white rounded-xl transition-all duration-300">
+                                  <Icon className="w-4 h-4" />
+                                </div>
+                                <span className={`text-[8.5px] font-black uppercase font-mono px-2 py-0.5 rounded-full ${
+                                  theme === "dark" ? "bg-slate-900 text-slate-400 border border-slate-800" : "bg-slate-100 text-slate-500"
+                                }`}>
+                                  {tool.badge}
+                                </span>
+                              </div>
+                              <h4 className={`text-xs font-black tracking-tight leading-snug mt-1.5 group-hover:text-indigo-500 transition-colors ${
+                                theme === "dark" ? "text-white" : "text-slate-900"
+                              }`}>
+                                {tool.label}
+                              </h4>
+                              <p className="text-[10px] text-slate-400 dark:text-slate-405 leading-normal group-hover:text-slate-500 transition-colors line-clamp-3">
+                                {tool.desc}
+                              </p>
+                            </div>
+
+                            <div className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 group-hover:text-indigo-500 transition-colors pt-2">
+                              <span>Launch Space</span>
+                              <ArrowRight className="w-2.5 h-2.5 transform group-hover:translate-x-0.5 transition-transform" />
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  );
+                })()}
+              </div>
+
               {/* Dynamic AdSense Leaderboard Placement Box */}
               <div className="w-full select-none" id="home-adsense-leaderboard-wrapper">
                 <AdSenseMock slot="top-leaderboard-home" type="leaderboard" />
@@ -2142,6 +2521,158 @@ export default function App() {
                     <span className="text-emerald-500 font-black">100% Client-side</span>
                   </div>
                 </div>
+              </div>
+
+              {/* CREATOR PROJECTS HUB */}
+              <div className={`border rounded-3xl p-6 transition-colors duration-200 select-none ${
+                theme === "dark"
+                  ? "bg-gradient-to-br from-slate-900 to-slate-950 border-slate-850"
+                  : "bg-white border-slate-200/70 shadow-3xs"
+              }`}>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/55 border border-indigo-100/30">
+                        <FolderOpen className="w-4 h-4 text-indigo-500" />
+                      </div>
+                      <h3 className={`text-xs font-black uppercase tracking-wider ${theme === "dark" ? "text-slate-200" : "text-slate-800"}`}>
+                        Creator Projects & Workspaces
+                      </h3>
+                      {user ? (
+                        <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase font-mono px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-200/20">
+                          ☁️ Cloud Sync Active
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase font-mono px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-955/40 text-amber-600 dark:text-amber-400 border border-amber-200/20">
+                          💾 Offline Mode
+                        </span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-slate-400 dark:text-slate-505 mt-1">
+                      {user 
+                        ? "Your projects are stored securely in the cloud and synced across devices." 
+                        : "Your projects are saved locally in this browser. Authorize Drive/Login to sync to the cloud!"}
+                    </p>
+                  </div>
+
+                  {/* Create New Project Trigger */}
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => {
+                        const name = window.prompt("Enter project name:");
+                        if (!name) return;
+                        const toolType = window.prompt("Enter tool type ('quote', 'qr', 'palette'):");
+                        if (toolType !== "quote" && toolType !== "qr" && toolType !== "palette") {
+                          alert("Invalid tool type. Please choose 'quote', 'qr', or 'palette'.");
+                          return;
+                        }
+                        handleSaveProject(name, toolType);
+                      }}
+                      disabled={isSavingProject}
+                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-sm cursor-pointer disabled:opacity-50"
+                    >
+                      <Plus className="w-3.5 h-3.5" />
+                      <span>Save Current Workspace</span>
+                    </button>
+                  </div>
+                </div>
+
+                {projectError && (
+                  <div className="p-3 mb-4 rounded-xl bg-rose-50 dark:bg-rose-955/10 text-[11px] font-semibold text-rose-600 dark:text-rose-400 border border-rose-200/30">
+                    {projectError}
+                  </div>
+                )}
+
+                {isLoadingProjects ? (
+                  <div className="py-12 text-center flex flex-col items-center justify-center">
+                    <Loader2 className="w-8 h-8 text-indigo-500 animate-spin mb-2" />
+                    <span className="text-xs text-slate-400">Loading workspaces...</span>
+                  </div>
+                ) : savedProjects.length === 0 ? (
+                  <div className="py-10 text-center flex flex-col items-center justify-center max-w-sm mx-auto">
+                    <div className="w-12 h-12 bg-slate-50 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 rounded-2xl flex items-center justify-center mb-3 text-slate-400">
+                      <FolderOpen className="w-5 h-5" />
+                    </div>
+                    <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-tight">No saved projects yet</h4>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-550 mt-1 leading-relaxed">
+                      Make designs in Quote Creator, QR Matrix, or Palette Extractor, and click "Save Current Workspace" to build your project list!
+                    </p>
+                  </div>
+                ) : (
+                  <div>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-500 mb-4 uppercase font-bold tracking-wider flex items-center gap-1.5">
+                      <GripVertical className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
+                      <span>Drag and drop cards to reorder your workspace hierarchy</span>
+                    </p>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {savedProjects.map((project, idx) => {
+                        const isDragging = draggedProjectIndex === idx;
+                        const isDragOver = dragOverProjectIndex === idx;
+
+                        return (
+                          <div
+                            key={project.id}
+                            draggable
+                            onDragStart={(e) => handleProjectDragStart(e, idx)}
+                            onDragOver={(e) => handleProjectDragOver(e, idx)}
+                            onDrop={(e) => handleProjectDrop(e, idx)}
+                            onDragEnd={handleProjectDragEnd}
+                            className={`p-4 rounded-2xl border transition-all duration-200 flex flex-col justify-between group relative overflow-hidden cursor-grab active:cursor-grabbing ${
+                              isDragging ? "opacity-30 scale-95 border-indigo-400/50" : ""
+                            } ${
+                              isDragOver
+                                ? "border-indigo-500 bg-indigo-50/10 dark:bg-indigo-950/20 scale-102 border-dashed"
+                                : theme === "dark"
+                                  ? "bg-slate-900/40 border-slate-805 text-slate-300 hover:border-slate-700"
+                                  : "bg-slate-50/40 border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300"
+                            }`}
+                          >
+                            <div>
+                              <div className="flex items-center justify-between mb-2">
+                                <span className={`text-[8.5px] font-black uppercase font-mono px-2 py-0.5 rounded leading-none ${
+                                  project.toolType === "quote" 
+                                    ? "bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400" 
+                                    : project.toolType === "qr"
+                                      ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"
+                                      : "bg-amber-100 dark:bg-amber-955/40 text-amber-600 dark:text-amber-400"
+                                }`}>
+                                  {project.toolType === "quote" ? "Quote Designer" : project.toolType === "qr" ? "QR Matrix" : "Color Extractor"}
+                                </span>
+                                <div className="flex items-center gap-1.5">
+                                  <span className="text-[9px] text-slate-400 dark:text-slate-505 font-mono">
+                                    {new Date(project.createdAt).toLocaleDateString()}
+                                  </span>
+                                  <GripVertical className="w-3.5 h-3.5 text-slate-400 dark:text-slate-600 cursor-grab group-hover:text-indigo-400 transition-colors" />
+                                </div>
+                              </div>
+                              <h4 className={`text-xs font-black tracking-tight uppercase leading-snug ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                                {project.name}
+                              </h4>
+                            </div>
+
+                            <div className="flex items-center justify-between gap-3 pt-4 mt-2 border-t border-slate-100 dark:border-slate-800/60">
+                              <button
+                                onClick={() => handleLoadProject(project)}
+                                className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 cursor-pointer"
+                              >
+                                <span>Load Project</span>
+                                <ArrowUpRight className="w-3 h-3" />
+                              </button>
+
+                              <button
+                                onClick={() => handleDeleteProject(project.id)}
+                                className="p-1 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-500 cursor-pointer transition-colors"
+                                title="Delete project"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Interactive Session Insights & Activity Streams row */}
@@ -2362,6 +2893,18 @@ export default function App() {
 
                         {activeTab === "android" && (
                           <AndroidWorkspace theme={theme} />
+                        )}
+
+                        {activeTab === "pdf" && (
+                          <PDFTools theme={theme} />
+                        )}
+
+                        {activeTab === "converter" && (
+                          <ImageConverter theme={theme} />
+                        )}
+
+                        {activeTab === "bgremover" && (
+                          <BackgroundRemover theme={theme} />
                         )}
                       </>
                     )}

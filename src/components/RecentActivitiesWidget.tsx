@@ -14,7 +14,10 @@ import {
   Sparkles,
   ChevronRight,
   Video,
-  Smartphone
+  Smartphone,
+  FileText,
+  RefreshCw,
+  Eraser
 } from "lucide-react";
 import { RecentActivity, ActiveTab } from "../types";
 
@@ -37,7 +40,10 @@ const iconMap: Record<RecentActivity["icon"], React.ComponentType<any>> = {
   Download,
   Sparkles,
   Video,
-  Smartphone
+  Smartphone,
+  FileText,
+  RefreshCw,
+  Eraser
 };
 
 const tabLabelMap: Record<ActiveTab, string> = {
@@ -50,7 +56,10 @@ const tabLabelMap: Record<ActiveTab, string> = {
   drive: "Drive Explorer",
   resources: "Guides & SEO",
   legal: "Compliance",
-  android: "Android App Studio"
+  android: "Android App Studio",
+  pdf: "PDF Tools Suite",
+  converter: "Image Converter",
+  bgremover: "Background Remover"
 };
 
 export default function RecentActivitiesWidget({

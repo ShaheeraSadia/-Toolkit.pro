@@ -38,7 +38,10 @@ import {
   Trees,
   Flame,
   Home,
-  Contrast
+  Contrast,
+  Eraser,
+  FileText,
+  RefreshCw
 } from "lucide-react";
 
 import { ActiveTab } from "../types";
@@ -248,7 +251,10 @@ export default function Navbar({
     drive: { label: "Cloud Workspace", icon: Cloud, color: "text-sky-600 dark:text-sky-400 bg-sky-55/60 dark:bg-sky-955/40 border border-sky-100/50 dark:border-sky-900/30", desc: "Browse files via Google Drive" },
     resources: { label: "Guides & Articles Hub", icon: BookOpen, color: "text-teal-600 dark:text-teal-400 bg-teal-55/60 dark:bg-teal-955/40 border border-teal-100/50 dark:border-teal-900/30", desc: "SEO publications & manuals" },
     legal: { label: "Legal & Support Center", icon: ShieldCheck, color: "text-slate-600 dark:text-slate-400 bg-slate-55/60 dark:bg-slate-955/40 border border-slate-100/50 dark:border-slate-800/30", desc: "AdSense policies & direct support" },
-    android: { label: "Android App Studio", icon: Smartphone, color: "text-emerald-600 dark:text-emerald-400 bg-emerald-55/60 dark:bg-emerald-955/40 border border-emerald-100/50 dark:border-emerald-900/30", desc: "Simulate Android app with Veo 3.1 & Room DB" }
+    android: { label: "Android App Studio", icon: Smartphone, color: "text-emerald-600 dark:text-emerald-400 bg-emerald-55/60 dark:bg-emerald-955/40 border border-emerald-100/50 dark:border-emerald-900/30", desc: "Simulate Android app with Veo 3.1 & Room DB" },
+    pdf: { label: "PDF Tools Suite", icon: FileText, color: "text-red-600 dark:text-red-400 bg-red-55/60 dark:bg-red-955/40 border border-red-100/50 dark:border-red-900/30", desc: "Compile raw files to PDF and design documents" },
+    converter: { label: "Image Converter", icon: RefreshCw, color: "text-teal-600 dark:text-teal-400 bg-teal-55/60 dark:bg-teal-955/40 border border-teal-100/50 dark:border-teal-900/30", desc: "Format conversion and image scaling" },
+    bgremover: { label: "Background Remover", icon: Eraser, color: "text-pink-600 dark:text-pink-400 bg-pink-55/60 dark:bg-pink-955/40 border border-pink-100/50 dark:border-pink-900/30", desc: "Isolate subject matte using color keying" }
   };
 
   const [recentTabs, setRecentTabs] = useState<ActiveTab[]>(() => {
@@ -942,12 +948,18 @@ export default function Navbar({
             </button>
           </div>
           
-          <div className="grid grid-cols-2 gap-2.5 select-none font-sans">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 select-none font-sans">
             {[
-              { id: "quote", label: "Quote Cards", icon: Quote },
+              { id: "home", label: "Home", icon: Home },
+              { id: "quote", label: "Quotes", icon: Quote },
               { id: "compress", label: "Compressor", icon: FileImage },
               { id: "qr", label: "QR Matrix", icon: QrCode },
               { id: "palette", label: "Palette Ext", icon: Pipette },
+              { id: "video", label: "AI Video", icon: Video },
+              { id: "pdf", label: "PDF Suite", icon: FileText },
+              { id: "converter", label: "Converter", icon: RefreshCw },
+              { id: "bgremover", label: "BG Remover", icon: Eraser },
+              { id: "android", label: "Android", icon: Smartphone },
             ].map((t) => {
               const Icon = t.icon;
               const isSelected = activeTab === t.id;

@@ -1512,7 +1512,7 @@ export default function ImageCompressor({
   };
 
   // Live Compression Preview States
-  const [isLivePreviewEnabled, setIsLivePreviewEnabled] = useState<boolean>(false);
+  const [isLivePreviewEnabled, setIsLivePreviewEnabled] = useState<boolean>(true);
   const [liveCompressedResult, setLiveCompressedResult] = useState<CompressionResult | null>(null);
   const [isLiveCompressing, setIsLiveCompressing] = useState<boolean>(false);
 

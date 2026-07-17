@@ -96,7 +96,7 @@ function GalleryCard({
   onUpdateCreation
 }: GalleryCardProps) {
   const [videoSrc, setVideoSrc] = useState<string | null>(
-    item.videoUrl && item.videoUrl.startsWith("blob:") ? item.videoUrl : null
+    item.videoUrl && (item.videoUrl.startsWith("blob:") || item.videoUrl.startsWith("http")) ? item.videoUrl : null
   );
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -104,7 +104,7 @@ function GalleryCard({
 
   // Automatically try to load if the URL is already present and valid
   useEffect(() => {
-    if (item.videoUrl && item.videoUrl.startsWith("blob:")) {
+    if (item.videoUrl && (item.videoUrl.startsWith("blob:") || item.videoUrl.startsWith("http"))) {
       setVideoSrc(item.videoUrl);
     }
   }, [item.videoUrl]);
@@ -283,6 +283,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
   const [videoRealismStyle, setVideoRealismStyle] = useState("none");
   const [stylePreset, setStylePreset] = useState("auto");
   const [cameraDirection, setCameraDirection] = useState("auto");
+  const [transitionType, setTransitionType] = useState("fade");
 
   // AI Image Generation States
   const [activeImageTab, setActiveImageTab] = useState<"upload" | "ai">("upload");
@@ -362,6 +363,19 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
   const [generationStep, setGenerationStep] = useState("");
   const [generationProgress, setGenerationProgress] = useState(0);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const [simulationMode, setSimulationMode] = useState<boolean>(() => {
+    return localStorage.getItem("veo-simulation-failsafe") === "true";
+  });
+
+  const toggleSimulationMode = () => {
+    const newValue = !simulationMode;
+    setSimulationMode(newValue);
+    localStorage.setItem("veo-simulation-failsafe", newValue ? "true" : "false");
+    if (newValue) {
+      setErrorMsg(null);
+    }
+  };
 
   // Output/Preview States
   const [currentVideoUrl, setCurrentVideoUrl] = useState<string | null>(null);
@@ -648,6 +662,93 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
     setGenerationProgress(5);
     setGenerationStep("Analyzing inputs and building motion vectors...");
 
+    if (simulationMode) {
+      try {
+        setGenerationProgress(15);
+        setGenerationStep("Analyzing inputs and building motion vectors [SIMULATED]...");
+        await new Promise((r) => setTimeout(r, 800));
+
+        setGenerationProgress(35);
+        setGenerationStep("Spawning Google Veo neural engine network [SIMULATED]...");
+        await new Promise((r) => setTimeout(r, 1000));
+
+        setGenerationProgress(60);
+        setGenerationStep("Rendering high-motion frames... 4s elapsed (60% finished) [SIMULATED]...");
+        await new Promise((r) => setTimeout(r, 1200));
+
+        setGenerationProgress(85);
+        setGenerationStep("Synthesizing volumetric lighting & motion vectors... (85% finished) [SIMULATED]...");
+        await new Promise((r) => setTimeout(r, 1000));
+
+        setGenerationProgress(95);
+        setGenerationStep("Video generated! Compiling binary payload [SIMULATED]...");
+        await new Promise((r) => setTimeout(r, 800));
+        
+        let selectedSimUrl = "https://assets.mixkit.co/videos/preview/mixkit-abstract-laser-lights-background-loop-41908-large.mp4";
+        const lcPrompt = prompt.toLowerCase();
+        
+        if (lcPrompt.includes("forest") || lcPrompt.includes("tree") || lcPrompt.includes("nature") || lcPrompt.includes("sunflower") || lcPrompt.includes("flower") || lcPrompt.includes("river") || lcPrompt.includes("lake")) {
+          selectedSimUrl = "https://assets.mixkit.co/videos/preview/mixkit-forest-stream-in-the-sunlight-529-large.mp4";
+        } else if (lcPrompt.includes("space") || lcPrompt.includes("star") || lcPrompt.includes("galaxy") || lcPrompt.includes("sky") || lcPrompt.includes("dragon") || lcPrompt.includes("cosmic")) {
+          selectedSimUrl = "https://assets.mixkit.co/videos/preview/mixkit-starry-night-sky-over-a-silent-lake-42502-large.mp4";
+        } else if (lcPrompt.includes("cyberpunk") || lcPrompt.includes("neon") || lcPrompt.includes("city") || lcPrompt.includes("street") || lcPrompt.includes("tokyo")) {
+          selectedSimUrl = "https://assets.mixkit.co/videos/preview/mixkit-neon-light-reflections-on-wet-asphalt-at-night-42617-large.mp4";
+        } else if (lcPrompt.includes("ocean") || lcPrompt.includes("water") || lcPrompt.includes("sea") || lcPrompt.includes("wave") || lcPrompt.includes("beach")) {
+          selectedSimUrl = "https://assets.mixkit.co/videos/preview/mixkit-waves-crashing-on-rocks-from-above-41857-large.mp4";
+        } else if (videoStyle?.toLowerCase() === "cartoon" || videoStyle?.toLowerCase() === "anime" || stylePreset === "anime") {
+          selectedSimUrl = "https://assets.mixkit.co/videos/preview/mixkit-hand-drawn-retro-futuristic-cityscape-43187-large.mp4";
+        } else if (lcPrompt.includes("fire") || lcPrompt.includes("flame") || lcPrompt.includes("lava") || lcPrompt.includes("explosion")) {
+          selectedSimUrl = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4";
+        }
+
+        const videoUrl = selectedSimUrl;
+        setCurrentVideoUrl(videoUrl);
+        setGenerationProgress(100);
+        setGenerationStep("Video ready!");
+
+        const newCreation: any = {
+          id: `creation-sim-${Date.now()}-${Math.random().toString(36).substr(2, 5)}`,
+          userId: user?.uid || undefined,
+          prompt: prompt.trim() || "Generated high motion scene [Simulated]",
+          imageUrl: image || undefined,
+          videoUrl: videoUrl,
+          operationName: `sim-op-${Date.now()}`,
+          createdAt: Date.now(),
+          aspectRatio,
+          resolution,
+          videoStyle,
+          enhancePrompt,
+          videoQuality,
+          videoDuration,
+          videoRealismStyle,
+          stylePreset,
+          cameraDirection,
+          motionIntensity
+        };
+
+        if (user) {
+          await setDoc(doc(db, "video_creations", newCreation.id), newCreation);
+        } else {
+          const updatedLocal = [newCreation, ...creations];
+          saveLocalHistory(updatedLocal);
+        }
+
+        setTimeout(() => {
+          if (videoRef.current) {
+            videoRef.current.play().catch((e) => console.log("Auto-play blocked:", e));
+            setVideoPlaying(true);
+          }
+        }, 500);
+
+      } catch (err: any) {
+        console.error("Simulation error:", err);
+        setErrorMsg(`Simulation failed: ${err.message}`);
+      } finally {
+        setIsGenerating(false);
+      }
+      return;
+    }
+
     try {
       // 1. Start generation on the backend
       const response = await fetch("/api/video/generate", {
@@ -663,6 +764,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
           loopVideo,
           stylePreset,
           cameraDirection,
+          transitionType,
           motionIntensity,
           videoStyle,
           resolution,
@@ -810,8 +912,8 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
     setCurrentVideoUrl(null);
     setCurrentOperationName(item.operationName || null);
 
-    // If we already have a functional object URL, try playing it
-    if (item.videoUrl && item.videoUrl.startsWith("blob:")) {
+    // If we already have a functional object URL or direct video URL, try playing it
+    if (item.videoUrl && (item.videoUrl.startsWith("blob:") || item.videoUrl.startsWith("http"))) {
       setCurrentVideoUrl(item.videoUrl);
       setShowGallery(false);
       return;
@@ -980,6 +1082,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
     if (extItem.videoRealismStyle !== undefined) setVideoRealismStyle(extItem.videoRealismStyle);
     if (extItem.stylePreset !== undefined) setStylePreset(extItem.stylePreset);
     if (extItem.cameraDirection !== undefined) setCameraDirection(extItem.cameraDirection);
+    if (extItem.transitionType !== undefined) setTransitionType(extItem.transitionType);
     if (extItem.motionIntensity !== undefined) setMotionIntensity(extItem.motionIntensity);
 
     setShowGallery(false);
@@ -1238,6 +1341,31 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
           </div>
         </div>
 
+        {/* Transition Type Dropdown */}
+        <div className="flex flex-col gap-1.5">
+          <label className="text-xs font-semibold text-slate-300 flex items-center gap-2">
+            <Layers className="w-3.5 h-3.5 text-indigo-400" />
+            Transition Type
+          </label>
+          <div className="relative">
+            <select
+              value={transitionType}
+              onChange={(e) => setTransitionType(e.target.value)}
+              className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-xl py-2 px-3 text-xs text-slate-200 focus:ring-0 focus:outline-none cursor-pointer transition-all appearance-none"
+            >
+              <option value="fade">🌟 Elegant Cross Fade</option>
+              <option value="slide-left">⬅️ Slide Left Transition</option>
+              <option value="slide-right">➡️ Slide Right Transition</option>
+              <option value="dissolve">🌫️ Soft Cloud Dissolve</option>
+              <option value="zoom-in">🔍 Dynamic Zoom Cut</option>
+              <option value="none">🚫 Instant Cut / No Transition</option>
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-500 text-[10px]">
+              ▼
+            </div>
+          </div>
+        </div>
+
         {/* Realism Profile Engine */}
         <div className="flex flex-col gap-1.5">
           <label className="text-xs font-semibold text-slate-300 flex items-center gap-2">
@@ -1322,15 +1450,40 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
         {/* Header Section */}
         <header className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-slate-800 pb-6">
           <div>
-            <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-white flex items-center gap-2.5">
+            <h1 className="text-2xl lg:text-3xl font-bold tracking-tight text-white flex flex-wrap items-center gap-2.5">
               Video Creator
               <span className="text-xs font-mono font-normal bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 py-1 px-2.5 rounded-full">
                 Real Veo Motion
               </span>
+              {simulationMode && (
+                <span className="text-[10px] font-mono font-bold bg-amber-500/15 text-amber-300 border border-amber-500/30 py-1 px-2.5 rounded-full animate-pulse flex items-center gap-1">
+                  ✨ Failsafe Demo Active
+                </span>
+              )}
             </h1>
             <p className="text-sm text-slate-400 mt-1">
               Transform static images into highly active, movie-grade animated clips with Google Veo.
             </p>
+          </div>
+
+          <div className="flex items-center gap-3 bg-slate-900/60 p-2 rounded-xl border border-slate-800/80">
+            <div className="flex flex-col items-end text-right">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-300">Failsafe Demo Mode</span>
+              <span className="text-[9px] text-slate-500">Bypass Google quota limits</span>
+            </div>
+            <button
+              type="button"
+              onClick={toggleSimulationMode}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                simulationMode ? "bg-amber-500" : "bg-slate-700"
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-slate-950 shadow ring-0 transition duration-200 ease-in-out ${
+                  simulationMode ? "translate-x-5" : "translate-x-0"
+                }`}
+              />
+            </button>
           </div>
         </header>
 
@@ -1370,6 +1523,16 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        toggleSimulationMode();
+                        setErrorMsg(null);
+                      }}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 border border-indigo-500/40 text-white text-xs font-black rounded-lg transition-all shadow-lg shadow-indigo-600/20 uppercase tracking-wider cursor-pointer"
+                    >
+                      <span>✨ Activate Failsafe Demo Mode</span>
+                    </button>
                     <a 
                       href="https://ai.google.dev/gemini-api/docs/rate-limits" 
                       target="_blank" 
@@ -1400,16 +1563,85 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
             );
           }
 
+          const isKeyError = errorMsg.toLowerCase().includes("api_key") || 
+                             errorMsg.toLowerCase().includes("configured") || 
+                             errorMsg.toLowerCase().includes("secrets");
+
           return (
-            <div className="bg-rose-500/10 border border-rose-500/20 text-rose-300 px-4 py-3 rounded-xl text-sm flex items-start gap-3">
-              <HelpCircle className="w-5 h-5 shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <span className="font-semibold">Generation Issue: </span>
-                {errorMsg}
+            <div className="bg-rose-500/10 border border-rose-500/20 text-rose-200 p-5 rounded-2xl flex flex-col sm:flex-row items-start gap-4 shadow-xl">
+              <div className="p-3 bg-rose-500/10 rounded-xl text-rose-400 shrink-0 border border-rose-500/20">
+                <AlertTriangle className="w-6 h-6" />
               </div>
-              <button onClick={() => setErrorMsg(null)} className="text-rose-400 hover:text-rose-200">
-                <X className="w-4 h-4" />
-              </button>
+              <div className="flex-1 space-y-3">
+                <div>
+                  <h3 className="font-bold text-base text-rose-300">
+                    {isKeyError ? "API Credentials Misconfigured" : "Generation Process Failed"}
+                  </h3>
+                  <p className="text-xs text-slate-300 mt-1 leading-relaxed">
+                    The backend encountered an error attempting to process the Veo animation workflow:
+                  </p>
+                  <p className="text-xs font-mono bg-rose-950/40 border border-rose-900/30 p-2.5 rounded-lg text-rose-300 mt-2 whitespace-pre-wrap">
+                    {errorMsg}
+                  </p>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-slate-950/60 p-4 rounded-xl border border-slate-800/80">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Potential Root Causes</span>
+                    <ul className="text-[11px] text-slate-400 list-disc list-inside space-y-0.5 leading-relaxed">
+                      {isKeyError ? (
+                        <>
+                          <li>Gemini API key is not defined in Settings &gt; Secrets</li>
+                          <li>Environment variable has expired or is invalid</li>
+                        </>
+                      ) : (
+                        <>
+                          <li>Uploaded image is too heavy or has unsupported format</li>
+                          <li>Google servers experienced transient downtime</li>
+                          <li>API model choice or configuration mismatches</li>
+                        </>
+                      )}
+                    </ul>
+                  </div>
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Recommended Actions</span>
+                    <ul className="text-[11px] text-slate-400 list-disc list-inside space-y-0.5 leading-relaxed">
+                      {isKeyError ? (
+                        <>
+                          <li>Open the Settings menu &gt; Secrets in your workspace</li>
+                          <li>Verify GEMINI_API_KEY value is saved</li>
+                        </>
+                      ) : (
+                        <>
+                          <li>Toggle on the <strong>Failsafe Demo Mode</strong> to bypass restrictions</li>
+                          <li>Try with a smaller JPG/PNG image</li>
+                          <li>Reduce output duration or resolution settings</li>
+                        </>
+                      )}
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2.5 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      toggleSimulationMode();
+                      setErrorMsg(null);
+                    }}
+                    className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-600 hover:bg-indigo-500 border border-indigo-500/40 text-white text-xs font-black rounded-lg transition-all shadow-lg shadow-indigo-600/20 uppercase tracking-wider cursor-pointer"
+                  >
+                    <span>✨ Activate Failsafe Demo Mode</span>
+                  </button>
+                  <button 
+                    type="button"
+                    onClick={() => setErrorMsg(null)}
+                    className="px-3 py-1.5 text-xs text-slate-400 hover:text-slate-200 font-semibold ml-auto transition-all cursor-pointer"
+                  >
+                    Dismiss Error
+                  </button>
+                </div>
+              </div>
             </div>
           );
         })()}

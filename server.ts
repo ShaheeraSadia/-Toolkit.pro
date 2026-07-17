@@ -587,12 +587,19 @@ app.post("/api/video/generate", async (req, res) => {
   try {
     const activeApiKey = process.env.GEMINI_API_KEY;
     if (!activeApiKey) {
+      console.error("[Veo server] ERROR: GEMINI_API_KEY is not defined in the environment variables!");
       return res.status(500).json({ 
         error: "GEMINI_API_KEY is not configured in the host environment or Secrets panel." 
       });
     }
 
+    const maskedKey = activeApiKey.length > 8 
+      ? `${activeApiKey.slice(0, 6)}...${activeApiKey.slice(-4)}` 
+      : "***REDACTED***";
+    console.log(`[Veo server] GEMINI_API_KEY retrieved successfully (Length: ${activeApiKey.length}, Masked: ${maskedKey})`);
+
     if (!ai) {
+      console.log("[Veo server] Initializing GoogleGenAI client...");
       ai = new GoogleGenAI({
         apiKey: activeApiKey,
         httpOptions: {
@@ -792,16 +799,47 @@ app.post("/api/video/generate", async (req, res) => {
       };
     }
 
-    console.log("Calling ai.models.generateVideos with model:", model);
-    const operation = await ai.models.generateVideos(payload);
+    // Prepare a safe, clean copy of the payload for console debugging
+    const debugPayload = {
+      model: payload.model,
+      prompt: payload.prompt,
+      config: {
+        ...payload.config,
+        ...(payload.config?.inputImage ? {
+          inputImage: {
+            mimeType: payload.config.inputImage.mimeType,
+            imageBytes: `[BASE64_TRUNCATED, LENGTH: ${payload.config.inputImage.imageBytes?.length || 0}]`
+          }
+        } : {})
+      },
+      ...(payload.image ? {
+        image: {
+          mimeType: payload.image.mimeType,
+          imageBytes: `[BASE64_TRUNCATED, LENGTH: ${payload.image.imageBytes?.length || 0}]`
+        }
+      } : {})
+    };
+
+    console.log("[Veo server] Executing ai.models.generateVideos with the following sanitized payload:");
+    console.log(JSON.stringify(debugPayload, null, 2));
+
+    let operation;
+    try {
+      operation = await ai.models.generateVideos(payload);
+      console.log("[Veo server] API call succeeded! Received Operation Name:", operation?.name);
+    } catch (apiError: any) {
+      console.error("[Veo server] Error returned directly from GoogleGenAI API call:", apiError);
+      throw apiError; // bubble up to general catch block
+    }
 
     return res.json({ 
       operationName: operation.name,
       enhancedPrompt: finalPrompt !== prompt ? finalPrompt : undefined
     });
   } catch (error: any) {
-    console.error("Veo video generation error:", error);
+    console.error("[Veo server] Veo video generation error occurred:", error);
     const cleanMsg = formatGoogleGenAIError(error);
+    console.log("[Veo server] Formatted user-facing error message:", cleanMsg);
     return res.status(500).json({ 
       error: cleanMsg 
     });
@@ -813,12 +851,19 @@ app.post("/api/generate-video", async (req, res) => {
   try {
     const activeApiKey = process.env.GEMINI_API_KEY;
     if (!activeApiKey) {
+      console.error("[Veo server direct] ERROR: GEMINI_API_KEY is not defined in the environment variables!");
       return res.status(500).json({ 
         error: "GEMINI_API_KEY is not configured in the host environment or Secrets panel." 
       });
     }
 
+    const maskedKey = activeApiKey.length > 8 
+      ? `${activeApiKey.slice(0, 6)}...${activeApiKey.slice(-4)}` 
+      : "***REDACTED***";
+    console.log(`[Veo server direct] GEMINI_API_KEY retrieved successfully (Length: ${activeApiKey.length}, Masked: ${maskedKey})`);
+
     if (!ai) {
+      console.log("[Veo server direct] Initializing GoogleGenAI client...");
       ai = new GoogleGenAI({
         apiKey: activeApiKey,
         httpOptions: {
@@ -903,8 +948,30 @@ app.post("/api/generate-video", async (req, res) => {
       };
     }
 
-    console.log("Calling ai.models.generateVideos via /api/generate-video with model:", model);
-    const operation = await ai.models.generateVideos(payload);
+    // Prepare a safe, clean copy of the payload for console debugging
+    const debugPayload = {
+      model: payload.model,
+      prompt: payload.prompt,
+      config: payload.config,
+      ...(payload.image ? {
+        image: {
+          mimeType: payload.image.mimeType,
+          imageBytes: `[BASE64_TRUNCATED, LENGTH: ${payload.image.imageBytes?.length || 0}]`
+        }
+      } : {})
+    };
+
+    console.log("[Veo server direct] Executing ai.models.generateVideos with the following sanitized payload:");
+    console.log(JSON.stringify(debugPayload, null, 2));
+
+    let operation;
+    try {
+      operation = await ai.models.generateVideos(payload);
+      console.log("[Veo server direct] API call succeeded! Received Operation Name:", operation?.name);
+    } catch (apiError: any) {
+      console.error("[Veo server direct] Error returned directly from GoogleGenAI API call:", apiError);
+      throw apiError; // bubble up to general catch block
+    }
 
     return res.json({ 
       operationName: operation.name,
@@ -916,8 +983,9 @@ app.post("/api/generate-video", async (req, res) => {
       fps
     });
   } catch (error: any) {
-    console.error("Direct generate-video error:", error);
+    console.error("[Veo server direct] Direct generate-video error:", error);
     const cleanMsg = formatGoogleGenAIError(error);
+    console.log("[Veo server direct] Formatted user-facing error message:", cleanMsg);
     return res.status(500).json({ 
       error: cleanMsg 
     });
