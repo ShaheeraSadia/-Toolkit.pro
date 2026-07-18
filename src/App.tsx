@@ -829,6 +829,16 @@ export default function App() {
   const [printPageMargins, setPrintPageMargins] = useState<"standard" | "minimum" | "none">("minimum");
   const [centerDesign, setCenterDesign] = useState<boolean>(true);
   const [printOrientation, setPrintOrientation] = useState<"portrait" | "landscape">("portrait");
+  const [spinAngle, setSpinAngle] = useState<number>(0);
+
+  useEffect(() => {
+    if (isPrintPreviewOpen) {
+      setSpinAngle(prev => prev + 360);
+    } else {
+      setSpinAngle(0);
+    }
+  }, [printOrientation, isPrintPreviewOpen]);
+
   const [previewScale, setPreviewScale] = useState<number>(0.85);
   const [previewHtml, setPreviewHtml] = useState<string>("");
   const [showCropMarks, setShowCropMarks] = useState<boolean>(true);
@@ -907,6 +917,7 @@ export default function App() {
   const [newPresetDesc, setNewPresetDesc] = useState<string>("");
   const [newPresetIcon, setNewPresetIcon] = useState<string>("🖨️");
   const [newPresetCategory, setNewPresetCategory] = useState<"Standard" | "Professional" | "Specialty">("Standard");
+  const [presetError, setPresetError] = useState<string | null>(null);
 
   const savePresets = (newPresets: PrinterPreset[]) => {
     setPrinterPresets(newPresets);
@@ -919,9 +930,10 @@ export default function App() {
 
   const handleAddPreset = () => {
     if (!newPresetName.trim()) {
-      alert("Please enter a name for your preset.");
+      setPresetError("Please enter a name for your preset.");
       return;
     }
+    setPresetError(null);
     const newPreset: PrinterPreset = {
       id: `preset-${Date.now()}`,
       name: newPresetName.trim(),
@@ -3429,14 +3441,28 @@ export default function App() {
                         : printerPresets.find(p => p.id === selectedPresetId)?.description}
                     </p>
 
-                    {/* Inline Preset Addition Form */}
-                    {selectedPresetId === "custom" && !isSavingPreset && (
+                    {/* Delete Custom Preset button */}
+                    {!["home-inkjet", "professional-offset", "standard-pdf", "full-bleed-poster", "custom"].includes(selectedPresetId) && (
                       <button
                         type="button"
-                        onClick={() => setIsSavingPreset(true)}
+                        onClick={() => handleDeletePreset(selectedPresetId)}
+                        className="mt-1.5 w-full py-1 bg-rose-500/10 hover:bg-rose-500/20 dark:bg-rose-950/20 dark:hover:bg-rose-950/40 border border-rose-500/20 dark:border-rose-900/30 text-[9px] font-bold text-rose-600 dark:text-rose-400 rounded-lg flex items-center justify-center gap-1 cursor-pointer transition-colors"
+                      >
+                        🗑️ Delete Custom Preset
+                      </button>
+                    )}
+
+                    {/* Inline Preset Addition Form Trigger */}
+                    {!isSavingPreset && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsSavingPreset(true);
+                          setPresetError(null);
+                        }}
                         className="mt-1.5 w-full py-1.5 bg-indigo-50/50 hover:bg-indigo-50 dark:bg-indigo-950/10 dark:hover:bg-indigo-950/25 border border-indigo-100 dark:border-indigo-900 text-[10px] font-black text-indigo-650 dark:text-indigo-400 rounded-lg flex items-center justify-center gap-1 cursor-pointer transition-colors"
                       >
-                        ✨ Save Current as Preset
+                        ✨ {selectedPresetId === "custom" ? "Save Current as Preset" : "Save as New Custom Preset"}
                       </button>
                     )}
 
@@ -3504,6 +3530,12 @@ export default function App() {
                           </div>
                         </div>
 
+                        {presetError && (
+                          <div className="text-[9px] text-rose-600 dark:text-rose-400 font-bold bg-rose-500/10 px-2.5 py-1.5 rounded-lg border border-rose-500/20 mt-1">
+                            ⚠️ {presetError}
+                          </div>
+                        )}
+
                         <div className="flex gap-1.5 pt-1">
                           <button
                             type="button"
@@ -3512,6 +3544,7 @@ export default function App() {
                               setNewPresetName("");
                               setNewPresetDesc("");
                               setNewPresetCategory("Standard");
+                              setPresetError(null);
                             }}
                             className="flex-1 py-1 text-[9px] font-bold text-slate-500 hover:bg-slate-150 dark:hover:bg-slate-900 rounded-md cursor-pointer border border-transparent"
                           >
@@ -3867,12 +3900,19 @@ export default function App() {
                       </>
                     )}
 
-                    <div
-                      className={`relative bg-white shadow-2xl rounded-sm transition-all duration-300 origin-center select-none overflow-hidden ${
-                        printOrientation === "portrait"
-                          ? "w-[440px] h-[622px]"
-                          : "w-[622px] h-[440px]"
-                      }`}
+                    <motion.div
+                      animate={{
+                        width: printOrientation === "portrait" ? 440 : 622,
+                        height: printOrientation === "portrait" ? 622 : 440,
+                        rotate: spinAngle,
+                      }}
+                      transition={{
+                        type: "spring",
+                        stiffness: 90,
+                        damping: 15,
+                        mass: 0.9
+                      }}
+                      className="relative bg-white shadow-2xl rounded-sm origin-center select-none overflow-hidden"
                       style={{
                         padding:
                           printPageMargins === "standard"
@@ -3963,7 +4003,7 @@ export default function App() {
                         }
                       `}} />
                     )}
-                  </div>
+                  </motion.div>
                 </div>
               </div>
 

@@ -47,7 +47,9 @@ import {
   Scissors,
   Key,
   Eye,
-  EyeOff
+  EyeOff,
+  Plus,
+  Minus
 } from "lucide-react";
 
 // Utility to construct fetch headers automatically injecting the custom Gemini API key if present
@@ -431,7 +433,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
   const [aiImageStyle, setAiImageStyle] = useState("cinematic");
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
   const [aiImageSize, setAiImageSize] = useState("1K");
-  const [aiImageModel, setAiImageModel] = useState("gemini-3.1-flash-image");
+  const [aiImageModel, setAiImageModel] = useState("flux");
   const [aiSuccessMsg, setAiSuccessMsg] = useState<string | null>(null);
 
   // Surprise Image Prompts List
@@ -448,6 +450,36 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
     "A magnificent glowing phoenix rising from ashes and embers with vibrant fire wings, extreme visual details"
   ];
 
+  const STYLE_PHRASES: Record<string, string> = {
+    cinematic: "cinematic masterpiece, dramatic lighting, highly detailed 8k, volumetric atmosphere, film grain",
+    anime: "gorgeous anime key art style, vibrant hand-drawn, cozy lighting, beautiful detailed aesthetics",
+    oil_painting: "textured oil painting brushstrokes, classical fine art canvas, rich moody impasto technique, warm lighting",
+    sketch: "highly detailed graphite pencil sketch, fine paper texture, clean hand-drawn monochrome shading",
+    render_3d: "hyperrealistic octane 3D render, raytraced ambient occlusion, unreal engine 5 fidelity, neon glow, detailed materials",
+    retro_vhs: "retro 1980s vhs camcorder look, vintage analog noise, nostalgic warm neon chromatic glow, tape scanlines",
+    cyberpunk_neon: "futuristic cyberpunk neon cityscape, highly detailed octane render, volumetric lighting, rich vivid colors, blade runner style",
+    fantasy_dream: "dreamy surrealist landscape, levitating islands, sparkling cosmic particles, hyper-detailed magical fantasy art, bioluminescent plants",
+    studio_ghibli: "gorgeous hand-drawn anime background, Studio Ghibli vibes, soft pastoral lighting, lush green meadows, nostalgic clouds",
+    film_noir: "classic 1940s film noir, dark moody shadows, high-contrast black and white, volumetric rain mist, smoke haze, dramatic silhouette lighting",
+    nature_8k: "photorealistic national geographic photography, high dynamic range, breathtaking outdoor scenic view, extreme details, morning mist, 8k resolution"
+  };
+
+  const convertUrlToBase64 = async (url: string): Promise<string> => {
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Failed to fetch image from provider (HTTP ${response.status})`);
+    }
+    const blob = await response.blob();
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        resolve(reader.result as string);
+      };
+      reader.onerror = () => reject(new Error("Failed to convert image blob to data URL"));
+      reader.readAsDataURL(blob);
+    });
+  };
+
   const handleSurpriseImagePrompt = () => {
     const randomIndex = Math.floor(Math.random() * surpriseImagePrompts.length);
     setAiImagePrompt(surpriseImagePrompts[randomIndex]);
@@ -459,56 +491,79 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
     setAiSuccessMsg(null);
     setErrorMsg(null);
     try {
-      const response = await fetch("/api/image/generate", {
-        method: "POST",
-        headers: getHeaders(),
-        body: JSON.stringify({
-          prompt: aiImagePrompt.trim(),
-          aspectRatio: aspectRatio, // align with current video's aspect ratio for perfect composition!
-          style: aiImageStyle,
-          modelChoice: aiImageModel,
-          imageSize: aiImageSize,
-        }),
-      });
-
-      if (!response.ok) {
-        let errMsg = `Failed to generate image (HTTP ${response.status} ${response.statusText})`;
-        try {
-          const errorData = await response.json();
-          if (errorData && errorData.error) {
-            errMsg = errorData.error;
-          }
-        } catch (e) {
-          try {
-            const rawText = await response.text();
-            if (rawText && rawText.length < 200) {
-              errMsg += `: ${rawText}`;
-            }
-          } catch (_) {}
-        }
-        throw new Error(errMsg);
+      // 1. Apply style phrase helper
+      let fullPrompt = aiImagePrompt.trim();
+      const styleDesc = STYLE_PHRASES[aiImageStyle];
+      if (aiImageStyle !== "none" && styleDesc) {
+        fullPrompt = `${aiImagePrompt.trim()}, in style of ${styleDesc}`;
       }
 
-      let data;
-      try {
-        data = await response.json();
-      } catch (jsonErr) {
-        throw new Error("Invalid response received from server (not valid JSON).");
+      // 2. Resolve dimensions based on aspect ratio
+      let width = 1024;
+      let height = 1024;
+      if (aspectRatio === "16:9") {
+        width = 1024;
+        height = 576;
+      } else if (aspectRatio === "9:16") {
+        width = 576;
+        height = 1024;
       }
-      if (data.imageUrl) {
-        setImage(data.imageUrl); // load generated image as the seed frame!
-        setAiSuccessMsg("✨ Image generated successfully and loaded as the seed image for your video!");
-        
-        // Auto-fill video prompt if it is currently empty, to give the user a ready-made animation idea!
-        if (!prompt.trim()) {
-          setPrompt(`Cinematic motion of ${aiImagePrompt.trim()}. Smooth camera panning, deep volumetric lighting, highly active physics.`);
-        }
-      } else {
-        throw new Error("No image data returned from server.");
+
+      // 3. Construct Pollinations URL with requested model
+      const pollModel = aiImageModel === "turbo" ? "turbo" : "flux";
+      const pollinationsUrl = `https://image.pollinations.ai/p/${encodeURIComponent(fullPrompt)}?width=${width}&height=${height}&model=${pollModel}`;
+
+      console.log("Generating via Pollinations AI:", pollinationsUrl);
+
+      // 4. Convert to Base64 so the video generation backend parses it seamlessly
+      const base64DataUrl = await convertUrlToBase64(pollinationsUrl);
+
+      setImage(base64DataUrl); // load generated image as the seed frame!
+      setAiSuccessMsg("✨ Image generated successfully via Pollinations AI (Flux) and loaded as the seed image for your video!");
+      
+      // Auto-fill video prompt if it is currently empty, to give the user a ready-made animation idea!
+      if (!prompt.trim()) {
+        setPrompt(`Cinematic motion of ${aiImagePrompt.trim()}. Smooth camera panning, deep volumetric lighting, highly active physics.`);
       }
     } catch (err: any) {
-      console.error(err);
-      setErrorMsg(`AI Image Generation failed: ${err.message}`);
+      console.error("Pollinations generation failed:", err);
+      setErrorMsg(`AI Image Generation failed: ${err.message}. Please verify your network connection.`);
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
+
+  const handleQuickGenerateAIImage = async () => {
+    if (!prompt.trim()) {
+      setErrorMsg("Please write a Cinematic Motion Prompt first, so we can use it to generate your AI image!");
+      return;
+    }
+    setIsGeneratingImage(true);
+    setAiSuccessMsg(null);
+    setErrorMsg(null);
+    try {
+      // Resolve dimensions based on aspect ratio
+      let width = 1024;
+      let height = 1024;
+      if (aspectRatio === "16:9") {
+        width = 1024;
+        height = 576;
+      } else if (aspectRatio === "9:16") {
+        width = 576;
+        height = 1024;
+      }
+
+      const pollinationsUrl = `https://image.pollinations.ai/p/${encodeURIComponent(prompt.trim())}?width=${width}&height=${height}&model=flux`;
+
+      console.log("Quick Generating via Pollinations AI:", pollinationsUrl);
+
+      const base64DataUrl = await convertUrlToBase64(pollinationsUrl);
+
+      setImage(base64DataUrl); // load generated image as the seed frame!
+      setAiSuccessMsg("✨ Image generated successfully from your cinematic prompt via Pollinations AI (Flux) and loaded as the seed frame!");
+    } catch (err: any) {
+      console.error("Quick Pollinations generation failed:", err);
+      setErrorMsg(`AI Image Generation failed: ${err.message}. Please verify your network connection.`);
     } finally {
       setIsGeneratingImage(false);
     }
@@ -532,6 +587,13 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
       setErrorMsg(null);
     }
   };
+
+  // Pre-fill AI image generator prompt with the motion prompt when switching to the AI tab
+  useEffect(() => {
+    if (activeImageTab === "ai" && !aiImagePrompt.trim() && prompt.trim()) {
+      setAiImagePrompt(prompt.trim());
+    }
+  }, [activeImageTab, prompt]);
 
   // Output/Preview States
   const [currentVideoUrl, setCurrentVideoUrl] = useState<string | null>(null);
@@ -1438,11 +1500,11 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
               Gemini / Veo API Key
             </span>
             <span className="text-[9px] px-2 py-0.5 bg-indigo-500/10 text-indigo-300 rounded-full font-semibold border border-indigo-500/20">
-              بائی پاس کوٹہ
+              Bypass Quota
             </span>
           </div>
           <p className="text-[11px] text-slate-400 leading-relaxed">
-            سرور پر <span className="text-amber-400">Quota Limit (429)</span> سے بچنے کے لیے اپنا گوگل جیمنائی API Key درج کریں۔ یہ کی آپ کے براؤزر میں ہی محفوظ رہے گی۔
+            To avoid server <span className="text-amber-400">Quota Limit (429)</span> errors, please enter your own Google Gemini API Key. This key is saved securely inside your browser.
           </p>
           <div className="relative">
             <input
@@ -1464,10 +1526,10 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
             <a
               href="https://aistudio.google.com/"
               target="_blank"
-              referrerPolicy="no-referrer"
-              className="text-indigo-400 hover:text-indigo-300 flex items-center gap-1 hover:underline font-medium"
+              rel="noopener noreferrer"
+              className="text-indigo-400 hover:text-indigo-300 flex items-center gap-1 hover:underline font-bold cursor-pointer select-none transition-all hover:scale-[1.02] active:scale-[0.98]"
             >
-              Get Free API Key <ExternalLink className="w-2.5 h-2.5" />
+              Get Free API Key <ExternalLink className="w-2.5 h-2.5 text-indigo-400 animate-pulse" />
             </a>
             {customApiKey && (
               <button
@@ -2163,9 +2225,26 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                         <p className="text-sm font-semibold text-slate-200">Drag & Drop Seed Image here</p>
                         <p className="text-xs text-slate-500 mt-1">or click to browse your computer</p>
                       </div>
-                      <div className="text-[10px] text-slate-500 bg-slate-900 px-3 py-1 rounded-full border border-slate-800/60 font-mono">
+                      <div className="text-[10px] text-slate-500 bg-slate-900 px-3 py-1 rounded-full border border-slate-800/60 font-mono mb-1">
                         PNG, JPG, WEBP • Max 15MB
                       </div>
+                      <div className="flex items-center gap-2 w-full max-w-[200px] my-1">
+                        <div className="h-px bg-slate-800/80 flex-1"></div>
+                        <span className="text-[9px] text-slate-600 font-bold uppercase tracking-wider">OR</span>
+                        <div className="h-px bg-slate-800/80 flex-1"></div>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setActiveImageTab("ai");
+                          setAiSuccessMsg(null);
+                        }}
+                        className="py-1.5 px-3 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 hover:text-indigo-300 rounded-xl border border-indigo-500/20 text-[11px] font-bold flex items-center gap-1.5 transition-all shadow-sm cursor-pointer hover:scale-[1.02]"
+                      >
+                        <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
+                        Generate with AI
+                      </button>
                     </>
                   )}
                 </div>
@@ -2272,8 +2351,8 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                           onChange={(e) => setAiImageModel(e.target.value)}
                           className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-xl py-2 px-3 text-xs text-slate-200 focus:ring-0 focus:outline-none cursor-pointer appearance-none transition-all"
                         >
-                          <option value="gemini-3.1-flash-image">⚡ Imagen 3 (High-Fidelity)</option>
-                          <option value="gemini-3.1-flash-lite-image">🚀 Imagen 3 Lite (Fast)</option>
+                          <option value="flux">🔮 Flux (Premium & Detailed)</option>
+                          <option value="turbo">⚡ Turbo (Super Fast)</option>
                         </select>
                         <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-500 text-[9px]">
                           ▼
@@ -2330,6 +2409,31 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                 <span className="absolute bottom-3 right-3 text-[10px] font-mono text-slate-500 bg-slate-900/60 px-2 py-0.5 rounded border border-slate-800">
                   {prompt.length}/500
                 </span>
+              </div>
+
+              {/* Quick AI Image Generation from Prompt */}
+              <div className="flex items-center justify-between text-xs mt-1 px-1 gap-2">
+                <span className="text-[11px] text-slate-500">
+                  {image ? "✅ Seed frame loaded" : "💡 no seed image yet"}
+                </span>
+                <button
+                  type="button"
+                  onClick={handleQuickGenerateAIImage}
+                  disabled={isGeneratingImage || !prompt.trim()}
+                  className="py-1.5 px-3 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 hover:text-indigo-300 rounded-xl border border-indigo-500/20 text-xs font-bold flex items-center gap-1.5 transition-all disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer hover:scale-[1.01]"
+                >
+                  {isGeneratingImage ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-indigo-400" />
+                      <span>Generating Seed Image...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
+                      <span>Generate AI Seed Image</span>
+                    </>
+                  )}
+                </button>
               </div>
             </div>
 
@@ -2925,92 +3029,259 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
 
             {/* SEGMENT RANGE SLIDER / TRIMMER CARD */}
             {currentVideoUrl && (
-              <div className="bg-slate-900/40 border border-slate-800 p-4 rounded-2xl space-y-3.5 mt-2 shadow-inner">
+              <div id="timeline-trimmer-studio" className="bg-slate-900/40 border border-slate-800 p-5 rounded-2xl space-y-4 mt-2 shadow-inner">
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div className="flex items-center gap-2">
-                    <Scissors className="w-4 h-4 text-indigo-400" />
-                    <span className="text-xs font-semibold text-slate-300">Select Video Clip Segment</span>
+                    <Scissors className="w-4 h-4 text-indigo-400 animate-pulse" />
+                    <span className="text-xs font-bold text-slate-200">Interactive Clip Trimming Studio</span>
                   </div>
-                  <span className="text-[10px] bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 py-0.5 px-2.5 rounded-full font-mono">
-                    Segment: {trimStart.toFixed(1)}s - {trimEnd.toFixed(1)}s ({(trimEnd - trimStart).toFixed(1)}s Clip)
-                  </span>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Start Point Slider */}
-                  <div className="space-y-1.5 bg-slate-950/40 p-3 rounded-xl border border-slate-800/40">
-                    <div className="flex items-center justify-between text-[11px] text-slate-400">
-                      <span>Start Point:</span>
-                      <span className="font-mono text-indigo-300 font-bold">{trimStart.toFixed(1)}s</span>
-                    </div>
-                    <input
-                      type="range"
-                      min="0"
-                      max={(trimEnd - 0.1).toFixed(1)}
-                      step="0.1"
-                      value={trimStart}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value);
-                        setTrimStart(val);
-                        if (videoRef.current) {
-                          videoRef.current.currentTime = val;
-                        }
-                      }}
-                      className="w-full accent-indigo-500 h-1 bg-slate-800 rounded-lg cursor-pointer"
-                    />
-                  </div>
-
-                  {/* End Point Slider */}
-                  <div className="space-y-1.5 bg-slate-950/40 p-3 rounded-xl border border-slate-800/40">
-                    <div className="flex items-center justify-between text-[11px] text-slate-400">
-                      <span>End Point:</span>
-                      <span className="font-mono text-indigo-300 font-bold">{trimEnd.toFixed(1)}s</span>
-                    </div>
-                    <input
-                      type="range"
-                      min={(trimStart + 0.1).toFixed(1)}
-                      max={actualVideoDuration.toFixed(1)}
-                      step="0.1"
-                      value={trimEnd}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value);
-                        setTrimEnd(val);
-                        if (videoRef.current && videoRef.current.currentTime > val) {
-                          videoRef.current.currentTime = trimStart;
-                        }
-                      }}
-                      className="w-full accent-indigo-500 h-1 bg-slate-800 rounded-lg cursor-pointer"
-                    />
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-[10px] bg-indigo-500/10 border border-indigo-500/20 text-indigo-300 py-1 px-3 rounded-full font-mono font-medium">
+                      Active Clip: {trimStart.toFixed(1)}s - {trimEnd.toFixed(1)}s ({(trimEnd - trimStart).toFixed(1)}s Clip)
+                    </span>
+                    <span className="text-[9px] bg-slate-800 text-slate-400 py-1 px-2 rounded-full font-mono">
+                      {((trimEnd - trimStart) / actualVideoDuration * 100).toFixed(0)}% length
+                    </span>
                   </div>
                 </div>
 
-                {/* Interactive visual timeline track */}
-                <div className="space-y-1.5 pt-1">
-                  <div className="flex justify-between text-[9px] text-slate-500 font-mono">
+                {/* Timeline presets for quick actions */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-[10px] text-slate-500 font-semibold mr-1">Presets:</span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTrimStart(0);
+                      setTrimEnd(actualVideoDuration);
+                      if (videoRef.current) videoRef.current.currentTime = 0;
+                    }}
+                    className="text-[10px] py-1 px-2.5 bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-white rounded-lg border border-slate-700/60 transition-all font-medium cursor-pointer"
+                  >
+                    Full Video
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTrimStart(0);
+                      setTrimEnd(actualVideoDuration / 2);
+                      if (videoRef.current) videoRef.current.currentTime = 0;
+                    }}
+                    className="text-[10px] py-1 px-2.5 bg-slate-800 hover:bg-indigo-950/40 hover:text-indigo-300 rounded-lg border border-slate-700/60 hover:border-indigo-500/30 transition-all font-medium cursor-pointer"
+                  >
+                    First Half (50%)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTrimStart(actualVideoDuration / 2);
+                      setTrimEnd(actualVideoDuration);
+                      if (videoRef.current) videoRef.current.currentTime = actualVideoDuration / 2;
+                    }}
+                    className="text-[10px] py-1 px-2.5 bg-slate-800 hover:bg-indigo-950/40 hover:text-indigo-300 rounded-lg border border-slate-700/60 hover:border-indigo-500/30 transition-all font-medium cursor-pointer"
+                  >
+                    Last Half (50%)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setTrimStart(0);
+                      setTrimEnd(Math.min(3, actualVideoDuration));
+                      if (videoRef.current) videoRef.current.currentTime = 0;
+                    }}
+                    className="text-[10px] py-1 px-2.5 bg-slate-800 hover:bg-indigo-950/40 hover:text-indigo-300 rounded-lg border border-slate-700/60 hover:border-indigo-500/30 transition-all font-medium cursor-pointer"
+                  >
+                    Short Intro (3s)
+                  </button>
+                </div>
+
+                {/* THE INTERACTIVE VISUAL WAVEFORM & SCRUBBING TIMELINE */}
+                <div className="space-y-1.5">
+                  <div className="flex justify-between text-[10px] text-slate-500 font-mono px-0.5">
                     <span>0.0s</span>
-                    <span>Playback Head: {currentTime.toFixed(1)}s</span>
+                    <span className="text-yellow-400 font-medium">Scrub Playhead: {currentTime.toFixed(2)}s</span>
                     <span>{actualVideoDuration.toFixed(1)}s</span>
                   </div>
-                  <div className="relative w-full h-2.5 bg-slate-950 rounded-full border border-slate-800/80 overflow-hidden">
-                    {/* Selected Active Trim Zone */}
+
+                  <div 
+                    onClick={(e) => {
+                      if (!videoRef.current || !actualVideoDuration) return;
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      const clickX = e.clientX - rect.left;
+                      const width = rect.width;
+                      const percentage = Math.max(0, Math.min(1, clickX / width));
+                      const newTime = percentage * actualVideoDuration;
+                      videoRef.current.currentTime = newTime;
+                      setCurrentTime(newTime);
+                    }}
+                    className="relative w-full h-14 bg-slate-950 rounded-xl border border-slate-800 overflow-hidden cursor-pointer flex items-end justify-between px-3 pb-2 pt-4 group/timeline select-none shadow-inner"
+                  >
+                    {/* Selected Active Trim Zone Overlay */}
                     <div
-                      className="absolute top-0 bottom-0 bg-indigo-500/20 border-x border-indigo-500/40"
+                      className="absolute top-0 bottom-0 bg-indigo-500/10 border-x-2 border-indigo-500/30 transition-all"
                       style={{
                         left: `${(trimStart / actualVideoDuration) * 100}%`,
                         width: `${((trimEnd - trimStart) / actualVideoDuration) * 100}%`
                       }}
                     />
-                    {/* Live Playhead Indicator Dot */}
+
+                    {/* Waveform visual elements */}
+                    {Array.from({ length: 44 }).map((_, idx) => {
+                      const ratio = idx / 44;
+                      const itemTime = ratio * actualVideoDuration;
+                      const isInsideTrim = itemTime >= trimStart && itemTime <= trimEnd;
+                      // Generative math for mock heights
+                      const height = 12 + Math.sin(idx * 0.45) * 8 + Math.cos(idx * 0.2) * 6;
+                      return (
+                        <div
+                          key={idx}
+                          style={{ height: `${Math.max(4, height)}px` }}
+                          className={`w-[3px] rounded-full transition-colors duration-150 ${
+                            isInsideTrim
+                              ? "bg-indigo-400 group-hover/timeline:bg-indigo-300"
+                              : "bg-slate-800"
+                          }`}
+                        />
+                      );
+                    })}
+
+                    {/* Bright yellow playback head indicator */}
                     <div
-                      className="absolute top-1/2 -translate-y-1/2 w-2.5 h-2.5 rounded-full bg-indigo-400 shadow-lg shadow-indigo-500/80 transition-all duration-75"
+                      className="absolute top-0 bottom-0 w-[2px] bg-yellow-400 shadow-[0_0_8px_rgba(250,204,21,0.85)] z-20 pointer-events-none"
                       style={{
-                        left: `calc(${(currentTime / actualVideoDuration) * 100}% - 5px)`
+                        left: `${(currentTime / actualVideoDuration) * 100}%`
+                      }}
+                    />
+
+                    {/* Micro playhead handle at top */}
+                    <div
+                      className="absolute top-0 w-2 h-2 bg-yellow-400 rounded-b-full shadow z-20 pointer-events-none"
+                      style={{
+                        left: `calc(${(currentTime / actualVideoDuration) * 100}% - 4px)`
                       }}
                     />
                   </div>
-                  <p className="text-[10px] text-slate-500 leading-normal">
-                    Drag the sliders to crop the active looping playzone. Your downloaded MP4 filename will automatically include these segment boundaries.
+                  <p className="text-[10px] text-slate-500 text-center select-none font-medium">
+                    ☝️ Click or drag anywhere on the timeline above to scrub the playhead.
                   </p>
+                </div>
+
+                {/* DOUBLE SLIDERS & FINE TUNERS GRID */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Start Point Controller */}
+                  <div className="space-y-2 bg-slate-950/50 p-3 rounded-xl border border-slate-800/60">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] text-slate-400 font-medium">Clip Start Trim</span>
+                      <span className="font-mono text-indigo-300 text-xs font-bold bg-indigo-500/10 py-0.5 px-1.5 rounded border border-indigo-500/20">
+                        {trimStart.toFixed(1)}s
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newVal = Math.max(0, trimStart - 0.1);
+                          setTrimStart(parseFloat(newVal.toFixed(1)));
+                          if (videoRef.current) videoRef.current.currentTime = newVal;
+                        }}
+                        disabled={trimStart <= 0}
+                        className="p-1 bg-slate-900 hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed border border-slate-800 text-slate-400 hover:text-slate-200 rounded transition-colors"
+                        title="Decrease start by 0.1s"
+                      >
+                        <Minus className="w-3.5 h-3.5" />
+                      </button>
+
+                      <input
+                        type="range"
+                        min="0"
+                        max={(trimEnd - 0.1).toFixed(1)}
+                        step="0.1"
+                        value={trimStart}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          setTrimStart(val);
+                          if (videoRef.current) {
+                            videoRef.current.currentTime = val;
+                          }
+                        }}
+                        className="flex-1 accent-indigo-500 h-1 bg-slate-800 rounded-lg cursor-pointer"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newVal = Math.min(trimEnd - 0.1, trimStart + 0.1);
+                          setTrimStart(parseFloat(newVal.toFixed(1)));
+                          if (videoRef.current) videoRef.current.currentTime = newVal;
+                        }}
+                        disabled={trimStart >= trimEnd - 0.1}
+                        className="p-1 bg-slate-900 hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed border border-slate-800 text-slate-400 hover:text-slate-200 rounded transition-colors"
+                        title="Increase start by 0.1s"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* End Point Controller */}
+                  <div className="space-y-2 bg-slate-950/50 p-3 rounded-xl border border-slate-800/60">
+                    <div className="flex items-center justify-between">
+                      <span className="text-[11px] text-slate-400 font-medium">Clip End Trim</span>
+                      <span className="font-mono text-indigo-300 text-xs font-bold bg-indigo-500/10 py-0.5 px-1.5 rounded border border-indigo-500/20">
+                        {trimEnd.toFixed(1)}s
+                      </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newVal = Math.max(trimStart + 0.1, trimEnd - 0.1);
+                          setTrimEnd(parseFloat(newVal.toFixed(1)));
+                          if (videoRef.current && videoRef.current.currentTime > newVal) {
+                            videoRef.current.currentTime = trimStart;
+                          }
+                        }}
+                        disabled={trimEnd <= trimStart + 0.1}
+                        className="p-1 bg-slate-900 hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed border border-slate-800 text-slate-400 hover:text-slate-200 rounded transition-colors"
+                        title="Decrease end by 0.1s"
+                      >
+                        <Minus className="w-3.5 h-3.5" />
+                      </button>
+
+                      <input
+                        type="range"
+                        min={(trimStart + 0.1).toFixed(1)}
+                        max={actualVideoDuration.toFixed(1)}
+                        step="0.1"
+                        value={trimEnd}
+                        onChange={(e) => {
+                          const val = parseFloat(e.target.value);
+                          setTrimEnd(val);
+                          if (videoRef.current && videoRef.current.currentTime > val) {
+                            videoRef.current.currentTime = trimStart;
+                          }
+                        }}
+                        className="flex-1 accent-indigo-500 h-1 bg-slate-800 rounded-lg cursor-pointer"
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const newVal = Math.min(actualVideoDuration, trimEnd + 0.1);
+                          setTrimEnd(parseFloat(newVal.toFixed(1)));
+                          if (videoRef.current && videoRef.current.currentTime > newVal) {
+                            videoRef.current.currentTime = trimStart;
+                          }
+                        }}
+                        disabled={trimEnd >= actualVideoDuration}
+                        className="p-1 bg-slate-900 hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed border border-slate-800 text-slate-400 hover:text-slate-200 rounded transition-colors"
+                        title="Increase end by 0.1s"
+                      >
+                        <Plus className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
                 </div>
               </div>
             )}
