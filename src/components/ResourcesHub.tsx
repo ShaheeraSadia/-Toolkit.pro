@@ -366,11 +366,17 @@ export default function ResourcesHub({
     setAiGenerationError(null);
     try {
       const activePreset = SEO_PAGE_PRESETS.find(p => p.id === selectedSeoPage) || SEO_PAGE_PRESETS[0];
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      const customKey = localStorage.getItem("custom_gemini_api_key");
+      if (customKey && customKey.trim()) {
+        headers["X-Gemini-API-Key"] = customKey.trim();
+      }
+
       const resp = await fetch("/api/seo/generate", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify({
           pagePreset: activePreset.name,
           brandName: seoBrandName,

@@ -22,6 +22,30 @@ if (apiKey) {
   });
 }
 
+function getActiveApiKey(req: express.Request): string {
+  const customKey = req.headers["x-gemini-api-key"] || req.body?.customApiKey;
+  const activeApiKey = typeof customKey === "string" && customKey.trim()
+    ? customKey.trim()
+    : process.env.GEMINI_API_KEY;
+
+  if (!activeApiKey) {
+    throw new Error("GEMINI_API_KEY is not configured in the host environment or Secrets panel, and no custom API Key was provided.");
+  }
+  return activeApiKey;
+}
+
+function getAiClient(req: express.Request): GoogleGenAI {
+  const activeApiKey = getActiveApiKey(req);
+  return new GoogleGenAI({
+    apiKey: activeApiKey,
+    httpOptions: {
+      headers: {
+        "User-Agent": "aistudio-build",
+      },
+    },
+  });
+}
+
 const app = express();
 const PORT = 3000;
 
@@ -38,25 +62,7 @@ app.get("/sitemap.xml", (req, res) => {
 // API route to generate SEO optimized templates via the Gemini API
 app.post("/api/seo/generate", async (req, res) => {
   try {
-    const activeApiKey = process.env.GEMINI_API_KEY;
-    if (!activeApiKey) {
-      return res.status(500).json({ 
-        error: "GEMINI_API_KEY is not configured in the host environment or Secrets panel." 
-      });
-    }
-
-    // Lazy load / re-assign if config changes
-    if (!ai) {
-      ai = new GoogleGenAI({
-        apiKey: activeApiKey,
-        httpOptions: {
-          headers: {
-            "User-Agent": "aistudio-build",
-          },
-        },
-      });
-    }
-
+    const ai = getAiClient(req);
     const { pagePreset, brandName, focusKeyword, userGoal, currentTitle, currentDesc } = req.body;
 
     const systemInstruction = `You are an elite search-engine optimization (SEO) specialist, high-converting copywriter, and digital marketer.
@@ -110,24 +116,7 @@ RULES:
 // API route to suggest creative, thematic names for color palettes using Gemini API
 app.post("/api/palette/suggest-names", async (req, res) => {
   try {
-    const activeApiKey = process.env.GEMINI_API_KEY;
-    if (!activeApiKey) {
-      return res.status(500).json({ 
-        error: "GEMINI_API_KEY is not configured in the host environment or Secrets panel." 
-      });
-    }
-
-    if (!ai) {
-      ai = new GoogleGenAI({
-        apiKey: activeApiKey,
-        httpOptions: {
-          headers: {
-            "User-Agent": "aistudio-build",
-          },
-        },
-      });
-    }
-
+    const ai = getAiClient(req);
     const { colors } = req.body;
     if (!colors || !Array.isArray(colors) || colors.length === 0) {
       return res.status(400).json({ error: "A non-empty colors array is required." });
@@ -180,24 +169,7 @@ Each item in the array must have:
 // API route to suggest highly cinematic and detailed expansions for AI video prompt subjects using Gemini API
 app.post("/api/video/enhance-prompt", async (req, res) => {
   try {
-    const activeApiKey = process.env.GEMINI_API_KEY;
-    if (!activeApiKey) {
-      return res.status(500).json({ 
-        error: "GEMINI_API_KEY is not configured in the host environment or Secrets panel." 
-      });
-    }
-
-    if (!ai) {
-      ai = new GoogleGenAI({
-        apiKey: activeApiKey,
-        httpOptions: {
-          headers: {
-            "User-Agent": "aistudio-build",
-          },
-        },
-      });
-    }
-
+    const ai = getAiClient(req);
     const { subject, style, camera } = req.body;
     if (!subject) {
       return res.status(400).json({ error: "A non-empty subject description is required to enhance." });
@@ -237,24 +209,7 @@ The camera motion is: "${camera || "Slow Zoom"}".`;
 // API route to enhance an image prompt using Gemini AI
 app.post("/api/image/enhance-prompt", async (req, res) => {
   try {
-    const activeApiKey = process.env.GEMINI_API_KEY;
-    if (!activeApiKey) {
-      return res.status(500).json({ 
-        error: "GEMINI_API_KEY is not configured in the host environment or Secrets panel." 
-      });
-    }
-
-    if (!ai) {
-      ai = new GoogleGenAI({
-        apiKey: activeApiKey,
-        httpOptions: {
-          headers: {
-            "User-Agent": "aistudio-build",
-          },
-        },
-      });
-    }
-
+    const ai = getAiClient(req);
     const { prompt, style } = req.body;
     if (!prompt) {
       return res.status(400).json({ error: "A non-empty prompt is required to enhance." });
@@ -294,24 +249,7 @@ RULES:
 // API route to generate images using the gemini-3.1-flash-lite-image model
 app.post("/api/image/generate", async (req, res) => {
   try {
-    const activeApiKey = process.env.GEMINI_API_KEY;
-    if (!activeApiKey) {
-      return res.status(500).json({ 
-        error: "GEMINI_API_KEY is not configured in the host environment or Secrets panel." 
-      });
-    }
-
-    if (!ai) {
-      ai = new GoogleGenAI({
-        apiKey: activeApiKey,
-        httpOptions: {
-          headers: {
-            "User-Agent": "aistudio-build",
-          },
-        },
-      });
-    }
-
+    const ai = getAiClient(req);
     const { prompt, aspectRatio = "1:1", style = "none", modelChoice = "gemini-3.1-flash-lite-image", imageSize = "1K", enableSearch = false } = req.body;
     if (!prompt) {
       return res.status(400).json({ error: "A prompt description is required to generate an image." });
@@ -409,24 +347,7 @@ app.post("/api/image/generate", async (req, res) => {
 // API route to generate cinematic attributes, captions, and Unsplash search tags based on user prompt
 app.post("/api/video/generate-scene", async (req, res) => {
   try {
-    const activeApiKey = process.env.GEMINI_API_KEY;
-    if (!activeApiKey) {
-      return res.status(500).json({ 
-        error: "GEMINI_API_KEY is not configured in the host environment or Secrets panel." 
-      });
-    }
-
-    if (!ai) {
-      ai = new GoogleGenAI({
-        apiKey: activeApiKey,
-        httpOptions: {
-          headers: {
-            "User-Agent": "aistudio-build",
-          },
-        },
-      });
-    }
-
+    const ai = getAiClient(req);
     const { prompt } = req.body;
     if (!prompt) {
       return res.status(400).json({ error: "A non-empty prompt is required to generate a scene." });
@@ -474,24 +395,7 @@ Ensure all parameters are perfectly aligned with the mood, colors, and action sp
 // API route to auto-generate beautiful subtitle captions based on a prompt or audio track details
 app.post("/api/video/generate-subtitles", async (req, res) => {
   try {
-    const activeApiKey = process.env.GEMINI_API_KEY;
-    if (!activeApiKey) {
-      return res.status(500).json({ 
-        error: "GEMINI_API_KEY is not configured in the host environment or Secrets panel." 
-      });
-    }
-
-    if (!ai) {
-      ai = new GoogleGenAI({
-        apiKey: activeApiKey,
-        httpOptions: {
-          headers: {
-            "User-Agent": "aistudio-build",
-          },
-        },
-      });
-    }
-
+    const ai = getAiClient(req);
     const { mode, prompt, audioName, audioGenre, audioDescription, numSlides, slideContexts } = req.body;
     const slidesCount = numSlides || 1;
     const slidesInfo = slideContexts && Array.isArray(slideContexts) ? slideContexts : [];
@@ -585,30 +489,13 @@ function formatGoogleGenAIError(error: any): string {
 // API route to initiate Veo AI video generation
 app.post("/api/video/generate", async (req, res) => {
   try {
-    const activeApiKey = process.env.GEMINI_API_KEY;
-    if (!activeApiKey) {
-      console.error("[Veo server] ERROR: GEMINI_API_KEY is not defined in the environment variables!");
-      return res.status(500).json({ 
-        error: "GEMINI_API_KEY is not configured in the host environment or Secrets panel." 
-      });
-    }
+    const activeApiKey = getActiveApiKey(req);
+    const ai = getAiClient(req);
 
     const maskedKey = activeApiKey.length > 8 
       ? `${activeApiKey.slice(0, 6)}...${activeApiKey.slice(-4)}` 
       : "***REDACTED***";
     console.log(`[Veo server] GEMINI_API_KEY retrieved successfully (Length: ${activeApiKey.length}, Masked: ${maskedKey})`);
-
-    if (!ai) {
-      console.log("[Veo server] Initializing GoogleGenAI client...");
-      ai = new GoogleGenAI({
-        apiKey: activeApiKey,
-        httpOptions: {
-          headers: {
-            "User-Agent": "aistudio-build",
-          },
-        },
-      });
-    }
 
     const { 
       prompt, 
@@ -849,30 +736,13 @@ app.post("/api/video/generate", async (req, res) => {
 // API route alias for direct compatibility with custom payloads (motion_bucket_id, steps, audio_sync)
 app.post("/api/generate-video", async (req, res) => {
   try {
-    const activeApiKey = process.env.GEMINI_API_KEY;
-    if (!activeApiKey) {
-      console.error("[Veo server direct] ERROR: GEMINI_API_KEY is not defined in the environment variables!");
-      return res.status(500).json({ 
-        error: "GEMINI_API_KEY is not configured in the host environment or Secrets panel." 
-      });
-    }
+    const activeApiKey = getActiveApiKey(req);
+    const ai = getAiClient(req);
 
     const maskedKey = activeApiKey.length > 8 
       ? `${activeApiKey.slice(0, 6)}...${activeApiKey.slice(-4)}` 
       : "***REDACTED***";
     console.log(`[Veo server direct] GEMINI_API_KEY retrieved successfully (Length: ${activeApiKey.length}, Masked: ${maskedKey})`);
-
-    if (!ai) {
-      console.log("[Veo server direct] Initializing GoogleGenAI client...");
-      ai = new GoogleGenAI({
-        apiKey: activeApiKey,
-        httpOptions: {
-          headers: {
-            "User-Agent": "aistudio-build",
-          },
-        },
-      });
-    }
 
     const { 
       prompt, 
@@ -995,24 +865,7 @@ app.post("/api/generate-video", async (req, res) => {
 // API route to poll the status of a Veo AI video generation
 app.post("/api/video/status", async (req, res) => {
   try {
-    const activeApiKey = process.env.GEMINI_API_KEY;
-    if (!activeApiKey) {
-      return res.status(500).json({ 
-        error: "GEMINI_API_KEY is not configured." 
-      });
-    }
-
-    if (!ai) {
-      ai = new GoogleGenAI({
-        apiKey: activeApiKey,
-        httpOptions: {
-          headers: {
-            "User-Agent": "aistudio-build",
-          },
-        },
-      });
-    }
-
+    const ai = getAiClient(req);
     const { operationName } = req.body;
     if (!operationName) {
       return res.status(400).json({ error: "operationName is required in the body." });
@@ -1039,24 +892,8 @@ app.post("/api/video/status", async (req, res) => {
 // API route to stream/download the generated Veo video binary
 app.post("/api/video/download", async (req, res) => {
   try {
-    const activeApiKey = process.env.GEMINI_API_KEY;
-    if (!activeApiKey) {
-      return res.status(500).json({ 
-        error: "GEMINI_API_KEY is not configured." 
-      });
-    }
-
-    if (!ai) {
-      ai = new GoogleGenAI({
-        apiKey: activeApiKey,
-        httpOptions: {
-          headers: {
-            "User-Agent": "aistudio-build",
-          },
-        },
-      });
-    }
-
+    const activeApiKey = getActiveApiKey(req);
+    const ai = getAiClient(req);
     const { operationName } = req.body;
     if (!operationName) {
       return res.status(400).json({ error: "operationName is required." });

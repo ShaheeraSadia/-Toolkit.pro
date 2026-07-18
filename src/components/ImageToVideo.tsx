@@ -44,8 +44,24 @@ import {
   Layers,
   Compass,
   Type,
-  Scissors
+  Scissors,
+  Key,
+  Eye,
+  EyeOff
 } from "lucide-react";
+
+// Utility to construct fetch headers automatically injecting the custom Gemini API key if present
+const getHeaders = (additionalHeaders: Record<string, string> = {}): Record<string, string> => {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    ...additionalHeaders,
+  };
+  const key = localStorage.getItem("custom_gemini_api_key");
+  if (key && key.trim()) {
+    headers["X-Gemini-API-Key"] = key.trim();
+  }
+  return headers;
+};
 
 interface ImageToVideoProps {
   user: User | null;
@@ -188,7 +204,7 @@ function GalleryCard({
     try {
       const downloadRes = await fetch("/api/video/download", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getHeaders(),
         body: JSON.stringify({ operationName: item.operationName })
       });
 
@@ -350,6 +366,17 @@ function GalleryCard({
 }
 
 export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogin }: ImageToVideoProps) {
+  // Custom API Key from local storage (allows users to bypass shared model quotas)
+  const [customApiKey, setCustomApiKeyState] = useState<string>(() => {
+    return localStorage.getItem("custom_gemini_api_key") || "";
+  });
+  const [showApiKey, setShowApiKey] = useState(false);
+
+  const handleCustomApiKeyChange = (val: string) => {
+    setCustomApiKeyState(val);
+    localStorage.setItem("custom_gemini_api_key", val.trim());
+  };
+
   // General Creator States
   const [prompt, setPrompt] = useState("");
   const [image, setImage] = useState<string | null>(null); // Base64 data URL
@@ -434,9 +461,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
     try {
       const response = await fetch("/api/image/generate", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: getHeaders(),
         body: JSON.stringify({
           prompt: aiImagePrompt.trim(),
           aspectRatio: aspectRatio, // align with current video's aspect ratio for perfect composition!
@@ -911,7 +936,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
       // 1. Start generation on the backend
       const response = await fetch("/api/video/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getHeaders(),
         body: JSON.stringify({
           prompt: prompt.trim(),
           image: image, // Base64 data URL
@@ -969,7 +994,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
 
         const statusRes = await fetch("/api/video/status", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: getHeaders(),
           body: JSON.stringify({ operationName })
         });
 
@@ -1008,7 +1033,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
       // 3. Download the final generated video file from the server
       const downloadRes = await fetch("/api/video/download", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getHeaders(),
         body: JSON.stringify({ operationName })
       });
 
@@ -1200,7 +1225,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
     try {
       const downloadRes = await fetch("/api/video/download", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: getHeaders(),
         body: JSON.stringify({ operationName: item.operationName })
       });
 
@@ -1400,6 +1425,58 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
               Veo Director Studio
             </h2>
             <p className="text-[11px] text-slate-400 font-mono uppercase tracking-wider">Engine v3.1 Elite</p>
+          </div>
+        </div>
+
+        <hr className="border-slate-800/80" />
+
+        {/* API KEY CONFIGURATION - Allows users to bypass shared quotas */}
+        <div id="gemini-api-key-panel" className="bg-slate-900/40 border border-indigo-500/20 rounded-2xl p-4 flex flex-col gap-3 shadow-inner">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-semibold text-slate-200 flex items-center gap-2">
+              <Key className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
+              Gemini / Veo API Key
+            </span>
+            <span className="text-[9px] px-2 py-0.5 bg-indigo-500/10 text-indigo-300 rounded-full font-semibold border border-indigo-500/20">
+              بائی پاس کوٹہ
+            </span>
+          </div>
+          <p className="text-[11px] text-slate-400 leading-relaxed">
+            سرور پر <span className="text-amber-400">Quota Limit (429)</span> سے بچنے کے لیے اپنا گوگل جیمنائی API Key درج کریں۔ یہ کی آپ کے براؤزر میں ہی محفوظ رہے گی۔
+          </p>
+          <div className="relative">
+            <input
+              type={showApiKey ? "text" : "password"}
+              value={customApiKey}
+              onChange={(e) => handleCustomApiKeyChange(e.target.value)}
+              placeholder="AIzaSy..."
+              className="w-full bg-slate-950/80 border border-slate-800 focus:border-indigo-500/75 rounded-xl px-3.5 py-2 text-xs font-mono text-indigo-300 placeholder:text-slate-700 focus:outline-none transition-all pr-10"
+            />
+            <button
+              type="button"
+              onClick={() => setShowApiKey(!showApiKey)}
+              className="absolute right-3 top-2 text-slate-500 hover:text-indigo-400 transition-colors h-6 flex items-center justify-center"
+            >
+              {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
+          <div className="flex items-center justify-between text-[10px]">
+            <a
+              href="https://aistudio.google.com/"
+              target="_blank"
+              referrerPolicy="no-referrer"
+              className="text-indigo-400 hover:text-indigo-300 flex items-center gap-1 hover:underline font-medium"
+            >
+              Get Free API Key <ExternalLink className="w-2.5 h-2.5" />
+            </a>
+            {customApiKey && (
+              <button
+                onClick={() => handleCustomApiKeyChange("")}
+                className="text-rose-400 hover:text-rose-300 transition-colors font-medium hover:underline"
+              >
+                Clear Key
+              </button>
+            )}
           </div>
         </div>
 

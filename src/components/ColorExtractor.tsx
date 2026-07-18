@@ -1307,11 +1307,17 @@ export default function ColorExtractor({
     setNamingError(null);
 
     try {
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+      const customKey = localStorage.getItem("custom_gemini_api_key");
+      if (customKey && customKey.trim()) {
+        headers["X-Gemini-API-Key"] = customKey.trim();
+      }
+
       const response = await fetch("/api/palette/suggest-names", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify({ colors: activePalette }),
       });
 
