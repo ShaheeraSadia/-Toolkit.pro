@@ -60,6 +60,7 @@ interface VideoCreation {
   prompt: string;
   imageUrl?: string;
   videoUrl?: string; // Local Object URL (temporary) or streaming URL
+  posterFrameUrl?: string; // Automatically extracted thumbnail/poster frame Base64
   operationName?: string; // Saved to fetch/download again on demand
   createdAt: number;
   aspectRatio: string;
@@ -86,6 +87,69 @@ interface GalleryCardProps {
   user: User | null;
   onUpdateCreation: (updated: VideoCreation) => void;
 }
+
+// Helper function to extract a poster frame (thumbnail) from a video URL safely in the browser
+const generateVideoPosterFrame = (videoUrl: string, seekTime: number = 0.5): Promise<string> => {
+  return new Promise((resolve) => {
+    const video = document.createElement("video");
+    video.src = videoUrl;
+    video.crossOrigin = "anonymous";
+    video.muted = true;
+    video.playsInline = true;
+    
+    const timeoutId = setTimeout(() => {
+      cleanup();
+      resolve("");
+    }, 6000);
+
+    const cleanup = () => {
+      clearTimeout(timeoutId);
+      video.removeEventListener("loadeddata", onLoadedData);
+      video.removeEventListener("seeked", onSeeked);
+      video.removeEventListener("error", onError);
+      video.src = "";
+      try {
+        video.load();
+      } catch (_) {}
+    };
+
+    const onLoadedData = () => {
+      video.currentTime = seekTime;
+    };
+
+    const onSeeked = () => {
+      try {
+        const canvas = document.createElement("canvas");
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 360;
+        const ctx = canvas.getContext("2d");
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL("image/jpeg", 0.85);
+          cleanup();
+          resolve(dataUrl);
+          return;
+        }
+      } catch (err) {
+        console.warn("Failed to capture video poster frame on canvas:", err);
+      }
+      cleanup();
+      resolve("");
+    };
+
+    const onError = (e: any) => {
+      console.warn("Video load error during poster frame extraction:", e);
+      cleanup();
+      resolve("");
+    };
+
+    video.addEventListener("loadeddata", onLoadedData);
+    video.addEventListener("seeked", onSeeked);
+    video.addEventListener("error", onError);
+
+    video.load();
+  });
+};
 
 function GalleryCard({
   item,
@@ -136,10 +200,20 @@ function GalleryCard({
       const objectUrl = URL.createObjectURL(videoBlob);
       setVideoSrc(objectUrl);
       
+      let updatedPosterFrame = item.posterFrameUrl;
+      if (!updatedPosterFrame) {
+        try {
+          updatedPosterFrame = await generateVideoPosterFrame(objectUrl, 0.5);
+        } catch (e) {
+          console.warn("Failed to generate poster frame for loaded video:", e);
+        }
+      }
+
       // Save it back to parent
       onUpdateCreation({
         ...item,
-        videoUrl: objectUrl
+        videoUrl: objectUrl,
+        ...(updatedPosterFrame ? { posterFrameUrl: updatedPosterFrame } : {})
       });
     } catch (err: any) {
       console.warn("Failed to retrieve video bytes:", err);
@@ -187,6 +261,13 @@ function GalleryCard({
             muted
             playsInline
             className="w-full h-full object-cover group-hover:scale-105 transition-all duration-500"
+          />
+        ) : item.posterFrameUrl ? (
+          <img
+            src={item.posterFrameUrl}
+            alt="Poster Frame"
+            className="w-full h-full object-cover group-hover:scale-105 transition-all duration-300"
+            referrerPolicy="no-referrer"
           />
         ) : item.imageUrl ? (
           <img
@@ -366,11 +447,29 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
       });
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to generate image.");
+        let errMsg = `Failed to generate image (HTTP ${response.status} ${response.statusText})`;
+        try {
+          const errorData = await response.json();
+          if (errorData && errorData.error) {
+            errMsg = errorData.error;
+          }
+        } catch (e) {
+          try {
+            const rawText = await response.text();
+            if (rawText && rawText.length < 200) {
+              errMsg += `: ${rawText}`;
+            }
+          } catch (_) {}
+        }
+        throw new Error(errMsg);
       }
 
-      const data = await response.json();
+      let data;
+      try {
+        data = await response.json();
+      } catch (jsonErr) {
+        throw new Error("Invalid response received from server (not valid JSON).");
+      }
       if (data.imageUrl) {
         setImage(data.imageUrl); // load generated image as the seed frame!
         setAiSuccessMsg("✨ Image generated successfully and loaded as the seed image for your video!");
@@ -751,6 +850,16 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
 
         const videoUrl = selectedSimUrl;
         setCurrentVideoUrl(videoUrl);
+        setGenerationProgress(98);
+        setGenerationStep("Extracting poster frame...");
+
+        let posterFrameUrl: string | undefined = undefined;
+        try {
+          posterFrameUrl = await generateVideoPosterFrame(videoUrl, 0.5);
+        } catch (postErr) {
+          console.warn("Could not generate poster frame for simulation:", postErr);
+        }
+
         setGenerationProgress(100);
         setGenerationStep("Video ready!");
 
@@ -760,6 +869,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
           prompt: prompt.trim() || "Generated high motion scene [Simulated]",
           imageUrl: image || undefined,
           videoUrl: videoUrl,
+          posterFrameUrl: posterFrameUrl,
           operationName: `sim-op-${Date.now()}`,
           createdAt: Date.now(),
           aspectRatio,
@@ -864,7 +974,13 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
         });
 
         if (statusRes.ok) {
-          const statusData = await statusRes.json();
+          let statusData;
+          try {
+            statusData = await statusRes.json();
+          } catch (err) {
+            console.warn("Unable to parse status response as JSON:", err);
+            continue;
+          }
           if (statusData.error) {
             throw new Error(statusData.error.message || "Veo model execution error.");
           }
@@ -904,6 +1020,16 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
       const videoUrl = URL.createObjectURL(videoBlob);
 
       setCurrentVideoUrl(videoUrl);
+      setGenerationProgress(98);
+      setGenerationStep("Extracting poster frame...");
+
+      let posterFrameUrl: string | undefined = undefined;
+      try {
+        posterFrameUrl = await generateVideoPosterFrame(videoUrl, 0.5);
+      } catch (postErr) {
+        console.warn("Could not generate poster frame:", postErr);
+      }
+
       setGenerationProgress(100);
       setGenerationStep("Video ready!");
 
@@ -914,6 +1040,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
         prompt: prompt.trim() || "Generated high motion scene",
         imageUrl: image || undefined,
         videoUrl: videoUrl, // Current session Object URL
+        posterFrameUrl: posterFrameUrl,
         operationName: operationName,
         createdAt: Date.now(),
         aspectRatio,
@@ -990,6 +1117,16 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
 
         const videoUrl = selectedSimUrl;
         setCurrentVideoUrl(videoUrl);
+        setGenerationProgress(98);
+        setGenerationStep("Extracting poster frame...");
+
+        let posterFrameUrl: string | undefined = undefined;
+        try {
+          posterFrameUrl = await generateVideoPosterFrame(videoUrl, 0.5);
+        } catch (postErr) {
+          console.warn("Could not generate poster frame for simulation:", postErr);
+        }
+
         setGenerationProgress(100);
         setGenerationStep("Video ready!");
 
@@ -999,6 +1136,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
           prompt: prompt.trim() || "Generated high motion scene [Simulated]",
           imageUrl: image || undefined,
           videoUrl: videoUrl,
+          posterFrameUrl: posterFrameUrl,
           operationName: `sim-op-${Date.now()}`,
           createdAt: Date.now(),
           aspectRatio,
