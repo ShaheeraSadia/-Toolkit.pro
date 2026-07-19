@@ -672,6 +672,26 @@ export default function QuoteDesigner({
     }
   }, [config]);
 
+  // Handle files loaded from Drive Gallery or other tool triggers
+  useEffect(() => {
+    const handleDriveFile = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && customEvent.detail.targetTab === "quote") {
+        const { file } = customEvent.detail;
+        if (file && file.dataUrl) {
+          setBgImage(file.dataUrl);
+          setConfig(prev => ({
+            ...prev,
+            bgStyle: "image",
+            bgValue: file.dataUrl
+          }));
+        }
+      }
+    };
+    window.addEventListener("toolkit-use-drive-file", handleDriveFile);
+    return () => window.removeEventListener("toolkit-use-drive-file", handleDriveFile);
+  }, []);
+
   useEffect(() => {
     if (typeof window !== "undefined") {
       if (bgImage) {

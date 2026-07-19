@@ -35,6 +35,22 @@ export default function BackgroundRemover({ theme }: BackgroundRemoverProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const previewCanvasRef = useRef<HTMLCanvasElement>(null);
 
+  useEffect(() => {
+    const handleDriveFile = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && customEvent.detail.targetTab === "bgremover") {
+        const { file } = customEvent.detail;
+        if (file && file.dataUrl) {
+          setSourceImg(file.dataUrl);
+          setSourceName(file.name);
+          setOutputUrl(null); // Reset output when new image loaded
+        }
+      }
+    };
+    window.addEventListener("toolkit-use-drive-file", handleDriveFile);
+    return () => window.removeEventListener("toolkit-use-drive-file", handleDriveFile);
+  }, []);
+
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;

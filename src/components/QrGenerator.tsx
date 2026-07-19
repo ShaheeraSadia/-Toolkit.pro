@@ -732,6 +732,23 @@ export default function QrGenerator({
 
   const [logoDataUrl, setLogoDataUrl] = useState<string | null>(null);
   const [logoName, setLogoName] = useState<string>("");
+
+  useEffect(() => {
+    const handleDriveFile = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && customEvent.detail.targetTab === "qr") {
+        const { file } = customEvent.detail;
+        if (file && file.dataUrl) {
+          setLogoDataUrl(file.dataUrl);
+          setLogoName(file.name);
+          setUseLogo(true); // turn on logo usage
+        }
+      }
+    };
+    window.addEventListener("toolkit-use-drive-file", handleDriveFile);
+    return () => window.removeEventListener("toolkit-use-drive-file", handleDriveFile);
+  }, []);
+
   const [useLogo, setUseLogo] = useState<boolean>(true);
   const [logoDragActive, setLogoDragActive] = useState<boolean>(false);
   const [logoScale, setLogoScale] = useState<number>(() => {
@@ -1248,6 +1265,7 @@ export default function QrGenerator({
   const [printQrSizeMm, setPrintQrSizeMm] = useState<number>(50); // width of code in mm
   const [printGapSizeMm, setPrintGapSizeMm] = useState<number>(10); // gap between QRs in mm
   const [showCropMarks, setShowCropMarks] = useState<boolean>(true);
+  const [showPrintGrid, setShowPrintGrid] = useState<boolean>(false);
   const [cropMarkPaddingMm, setCropMarkPaddingMm] = useState<number>(3); // crop mark offset of QR in mm
   const [printLabelStyle, setPrintLabelStyle] = useState<"none" | "content" | "index">("none");
   const [selectedMultiQrIds, setSelectedMultiQrIds] = useState<string[]>([]);
@@ -6837,8 +6855,32 @@ export default function QrGenerator({
                 {/* 3. Crop guides & text labels */}
                 <div className="space-y-4 pt-1.5 border-t border-slate-100 dark:border-slate-850">
                   <span className="block text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest leading-none">
-                    3. Trim Marks & Description
+                    3. Trim Marks, Grid & Description
                   </span>
+
+                  {/* Layout Grid toggle */}
+                  <div className="flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/10 p-2.5 border border-slate-150 dark:border-slate-850 rounded-xl select-none" id="layout-grid-toggle-container">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-1.5 bg-indigo-50 dark:bg-indigo-950/40 text-indigo-650 dark:text-indigo-400 rounded-lg shrink-0">
+                        <Grid className="w-4 h-4" />
+                      </div>
+                      <div className="text-left font-sans">
+                        <span className="block text-[10.5px] font-extrabold text-slate-800 dark:text-slate-200 leading-tight">
+                          Show Layout Grid
+                        </span>
+                        <span className="text-[8px] text-slate-400 dark:text-slate-500 leading-tight block">
+                          Overlay non-printing grid for alignment
+                        </span>
+                      </div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      id="checkbox-show-print-grid"
+                      checked={showPrintGrid}
+                      onChange={(e) => setShowPrintGrid(e.target.checked)}
+                      className="accent-indigo-600 cursor-pointer w-4 h-4 rounded"
+                    />
+                  </div>
 
                   {/* Crop marks toggle */}
                   <div className="flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/10 p-2.5 border border-slate-150 dark:border-slate-850 rounded-xl select-none">
@@ -6993,6 +7035,33 @@ export default function QrGenerator({
                             padding: `${printMarginMm}mm`
                           }}
                         >
+                          {/* Non-printing Layout Grid Overlay */}
+                          {showPrintGrid && (
+                            <div 
+                              className="absolute inset-0 pointer-events-none select-none z-[5] print:hidden"
+                              style={{
+                                backgroundImage: `
+                                  linear-gradient(to right, rgba(99, 102, 241, 0.12) 1px, transparent 1px),
+                                  linear-gradient(to bottom, rgba(99, 102, 241, 0.12) 1px, transparent 1px),
+                                  linear-gradient(to right, rgba(99, 102, 241, 0.04) 1px, transparent 1px),
+                                  linear-gradient(to bottom, rgba(99, 102, 241, 0.04) 1px, transparent 1px)
+                                `,
+                                backgroundSize: "10mm 10mm, 10mm 10mm, 2mm 2mm, 2mm 2mm"
+                              }}
+                            >
+                              {/* Inner dashed boundary representing printable safety margins */}
+                              <div 
+                                className="absolute border border-dashed border-indigo-500/30"
+                                style={{
+                                  top: `${printMarginMm}mm`,
+                                  left: `${printMarginMm}mm`,
+                                  right: `${printMarginMm}mm`,
+                                  bottom: `${printMarginMm}mm`
+                                }}
+                              />
+                            </div>
+                          )}
+
                           {/* Inner page boundary grid container */}
                           <div 
                             className="w-full h-full flex flex-wrap content-start bg-white" 

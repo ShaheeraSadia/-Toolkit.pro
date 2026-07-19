@@ -427,6 +427,22 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
   const [cameraDirection, setCameraDirection] = useState("auto");
   const [transitionType, setTransitionType] = useState("fade");
 
+  // Handle files loaded from Drive Gallery or other tool triggers
+  useEffect(() => {
+    const handleDriveFile = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && customEvent.detail.targetTab === "video") {
+        const { file } = customEvent.detail;
+        if (file && file.dataUrl) {
+          setImage(file.dataUrl);
+          setActiveImageTab("upload"); // switch to upload tab to see the loaded image
+        }
+      }
+    };
+    window.addEventListener("toolkit-use-drive-file", handleDriveFile);
+    return () => window.removeEventListener("toolkit-use-drive-file", handleDriveFile);
+  }, []);
+
   // AI Image Generation States
   const [activeImageTab, setActiveImageTab] = useState<"upload" | "ai">("upload");
   const [aiImagePrompt, setAiImagePrompt] = useState("");
@@ -491,43 +507,34 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
     setAiSuccessMsg(null);
     setErrorMsg(null);
     try {
-      // 1. Apply style phrase helper
-      let fullPrompt = aiImagePrompt.trim();
-      const styleDesc = STYLE_PHRASES[aiImageStyle];
-      if (aiImageStyle !== "none" && styleDesc) {
-        fullPrompt = `${aiImagePrompt.trim()}, in style of ${styleDesc}`;
+      console.log("Generating via backend free-image-generate proxy...");
+      const response = await fetch("/api/image/generate-free", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: aiImagePrompt.trim(),
+          aspectRatio,
+          style: aiImageStyle,
+          modelChoice: aiImageModel,
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Server responded with ${response.status}`);
       }
 
-      // 2. Resolve dimensions based on aspect ratio
-      let width = 1024;
-      let height = 1024;
-      if (aspectRatio === "16:9") {
-        width = 1024;
-        height = 576;
-      } else if (aspectRatio === "9:16") {
-        width = 576;
-        height = 1024;
-      }
-
-      // 3. Construct Pollinations URL with requested model
-      const pollModel = aiImageModel === "turbo" ? "turbo" : "flux";
-      const pollinationsUrl = `https://image.pollinations.ai/p/${encodeURIComponent(fullPrompt)}?width=${width}&height=${height}&model=${pollModel}`;
-
-      console.log("Generating via Pollinations AI:", pollinationsUrl);
-
-      // 4. Convert to Base64 so the video generation backend parses it seamlessly
-      const base64DataUrl = await convertUrlToBase64(pollinationsUrl);
-
-      setImage(base64DataUrl); // load generated image as the seed frame!
-      setAiSuccessMsg("✨ Image generated successfully via Pollinations AI (Flux) and loaded as the seed image for your video!");
+      const data = await response.json();
+      setImage(data.imageUrl); // load generated image as the seed frame!
+      setAiSuccessMsg(`✨ Image generated successfully and loaded as the seed image!`);
       
       // Auto-fill video prompt if it is currently empty, to give the user a ready-made animation idea!
       if (!prompt.trim()) {
         setPrompt(`Cinematic motion of ${aiImagePrompt.trim()}. Smooth camera panning, deep volumetric lighting, highly active physics.`);
       }
     } catch (err: any) {
-      console.error("Pollinations generation failed:", err);
-      setErrorMsg(`AI Image Generation failed: ${err.message}. Please verify your network connection.`);
+      console.error("Free image generation failed:", err);
+      setErrorMsg(`AI Image Generation failed: ${err.message || "The generation server did not respond"}. Please try again.`);
     } finally {
       setIsGeneratingImage(false);
     }
@@ -542,28 +549,29 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
     setAiSuccessMsg(null);
     setErrorMsg(null);
     try {
-      // Resolve dimensions based on aspect ratio
-      let width = 1024;
-      let height = 1024;
-      if (aspectRatio === "16:9") {
-        width = 1024;
-        height = 576;
-      } else if (aspectRatio === "9:16") {
-        width = 576;
-        height = 1024;
+      console.log("Quick generating via backend free-image-generate proxy...");
+      const response = await fetch("/api/image/generate-free", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prompt: prompt.trim(),
+          aspectRatio,
+          style: "none",
+          modelChoice: "flux",
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || `Server responded with ${response.status}`);
       }
 
-      const pollinationsUrl = `https://image.pollinations.ai/p/${encodeURIComponent(prompt.trim())}?width=${width}&height=${height}&model=flux`;
-
-      console.log("Quick Generating via Pollinations AI:", pollinationsUrl);
-
-      const base64DataUrl = await convertUrlToBase64(pollinationsUrl);
-
-      setImage(base64DataUrl); // load generated image as the seed frame!
-      setAiSuccessMsg("✨ Image generated successfully from your cinematic prompt via Pollinations AI (Flux) and loaded as the seed frame!");
+      const data = await response.json();
+      setImage(data.imageUrl); // load generated image as the seed frame!
+      setAiSuccessMsg(`✨ Image generated successfully and loaded as the seed frame!`);
     } catch (err: any) {
-      console.error("Quick Pollinations generation failed:", err);
-      setErrorMsg(`AI Image Generation failed: ${err.message}. Please verify your network connection.`);
+      console.error("Quick free image generation failed:", err);
+      setErrorMsg(`AI Image Generation failed: ${err.message || "The generation server did not respond"}. Please try again.`);
     } finally {
       setIsGeneratingImage(false);
     }
@@ -2204,17 +2212,31 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                           referrerPolicy="no-referrer"
                         />
                       </div>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleRemoveImage();
-                        }}
-                        className="absolute top-5 right-5 p-2 rounded-full bg-slate-950/80 hover:bg-rose-600 text-slate-300 hover:text-white transition-all shadow-lg animate-fade-in"
-                        title="Remove image"
-                      >
-                        <X className="w-4 h-4" />
-                      </button>
+                      <div className="absolute top-5 right-5 flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            // secure download via backend proxy route!
+                            window.open(`/api/image/download?url=${encodeURIComponent(image)}`, "_blank");
+                          }}
+                          className="p-2 rounded-full bg-slate-950/80 hover:bg-indigo-600 text-slate-300 hover:text-white transition-all shadow-lg animate-fade-in"
+                          title="Download seed image"
+                        >
+                          <Download className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleRemoveImage();
+                          }}
+                          className="p-2 rounded-full bg-slate-950/80 hover:bg-rose-600 text-slate-300 hover:text-white transition-all shadow-lg animate-fade-in"
+                          title="Remove image"
+                        >
+                          <X className="w-4 h-4" />
+                        </button>
+                      </div>
                     </div>
                   ) : (
                     <>
@@ -2264,16 +2286,30 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                           <Check className="w-3.5 h-3.5" />
                           Active Seed Frame Loaded
                         </span>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleRemoveImage();
-                          }}
-                          className="text-[10px] font-bold text-rose-400 hover:text-rose-300 px-2 py-0.5"
-                        >
-                          Clear
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              // secure download via backend proxy route!
+                              window.open(`/api/image/download?url=${encodeURIComponent(image)}`, "_blank");
+                            }}
+                            className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 px-2 py-0.5 flex items-center gap-1 transition-colors"
+                          >
+                            <Download className="w-3 h-3" />
+                            Download
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveImage();
+                            }}
+                            className="text-[10px] font-bold text-rose-400 hover:text-rose-300 px-2 py-0.5 transition-colors"
+                          >
+                            Clear
+                          </button>
+                        </div>
                       </div>
                     </div>
                   )}

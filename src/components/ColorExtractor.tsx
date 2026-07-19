@@ -189,6 +189,22 @@ export default function ColorExtractor({
     }
   }, [imageUrl, fileName, palette]);
 
+  // Handle files loaded from Drive Gallery or other tool triggers
+  useEffect(() => {
+    const handleDriveFile = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && customEvent.detail.targetTab === "palette") {
+        const { file } = customEvent.detail;
+        if (file && file.dataUrl) {
+          setImageUrl(file.dataUrl);
+          setFileName(file.name);
+        }
+      }
+    };
+    window.addEventListener("toolkit-use-drive-file", handleDriveFile);
+    return () => window.removeEventListener("toolkit-use-drive-file", handleDriveFile);
+  }, []);
+
   const [hoverColor, setHoverColor] = useState<string | null>(null);
   const [copiedHex, setCopiedHex] = useState<string | null>(null);
   const [copiedJson, setCopiedJson] = useState<boolean>(false);

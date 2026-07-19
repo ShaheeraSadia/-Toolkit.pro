@@ -344,6 +344,118 @@ app.post("/api/image/generate", async (req, res) => {
   }
 });
 
+// API route to generate free images using Pollinations AI (Flux / Turbo) securely on the backend
+app.post("/api/image/generate-free", async (req, res) => {
+  try {
+    const { prompt, aspectRatio = "1:1", style = "none", modelChoice = "flux" } = req.body;
+    if (!prompt) {
+      return res.status(400).json({ error: "A prompt is required for free image generation." });
+    }
+
+    const stylePhrases: Record<string, string> = {
+      cinematic: "cinematic masterpiece, dramatic lighting, highly detailed 8k, volumetric atmosphere, film grain",
+      anime: "gorgeous anime key art style, vibrant hand-drawn, cozy lighting, beautiful detailed aesthetics",
+      oil_painting: "textured oil painting brushstrokes, classical fine art canvas, rich moody impasto technique, warm lighting",
+      sketch: "highly detailed graphite pencil sketch, fine paper texture, clean hand-drawn monochrome shading",
+      render_3d: "hyperrealistic octane 3D render, raytraced ambient occlusion, unreal engine 5 fidelity, neon glow, detailed materials",
+      retro_vhs: "retro 1980s vhs camcorder look, vintage analog noise, nostalgic warm neon chromatic glow, tape scanlines",
+      cyberpunk_neon: "futuristic cyberpunk neon cityscape, highly detailed octane render, volumetric lighting, rich vivid colors, blade runner style",
+      fantasy_dream: "dreamy surrealist landscape, levitating islands, sparkling cosmic particles, hyper-detailed magical fantasy art, bioluminescent plants",
+      studio_ghibli: "gorgeous hand-drawn anime background, Studio Ghibli vibes, soft pastoral lighting, lush green meadows, nostalgic clouds",
+      film_noir: "classic 1940s film noir, dark moody shadows, high-contrast black and white, volumetric rain mist, smoke haze, dramatic silhouette lighting",
+      nature_8k: "photorealistic national geographic photography, high dynamic range, breathtaking outdoor scenic view, extreme details, morning mist, 8k resolution"
+    };
+
+    let fullPrompt = prompt.trim();
+    if (style !== "none" && stylePhrases[style]) {
+      fullPrompt = `${prompt.trim()}, in style of ${stylePhrases[style]}`;
+    }
+
+    let width = 1024;
+    let height = 1024;
+    if (aspectRatio === "16:9") {
+      width = 1024;
+      height = 576;
+    } else if (aspectRatio === "9:16") {
+      width = 576;
+      height = 1024;
+    } else if (aspectRatio === "3:4") {
+      width = 768;
+      height = 1024;
+    } else if (aspectRatio === "4:3") {
+      width = 1024;
+      height = 768;
+    }
+
+    const selectedModel = modelChoice === "turbo" ? "turbo" : "flux";
+    const primaryUrl = `https://image.pollinations.ai/p/${encodeURIComponent(fullPrompt)}?width=${width}&height=${height}&model=${selectedModel}`;
+    const fallbackUrl = `https://image.pollinations.ai/p/${encodeURIComponent(fullPrompt)}?width=${width}&height=${height}&model=turbo`;
+
+    console.log(`[Free Image Gen] Fetching from primary url: ${primaryUrl}`);
+    let imgRes;
+    try {
+      imgRes = await fetch(primaryUrl);
+      if (!imgRes.ok) {
+        throw new Error(`Primary model failed with HTTP ${imgRes.status}`);
+      }
+    } catch (err) {
+      console.warn(`[Free Image Gen] Primary model ${selectedModel} failed, trying fallback turbo: ${fallbackUrl}`, err);
+      try {
+        imgRes = await fetch(fallbackUrl);
+        if (!imgRes.ok) {
+          throw new Error(`Fallback model failed with HTTP ${imgRes.status}`);
+        }
+      } catch (fallbackErr) {
+        throw new Error(`All free image models failed to respond. Please try again later.`);
+      }
+    }
+
+    const contentType = imgRes.headers.get("content-type") || "image/png";
+    const arrayBuffer = await imgRes.arrayBuffer();
+    const base64Data = Buffer.from(arrayBuffer).toString("base64");
+    const dataUrl = `data:${contentType};base64,${base64Data}`;
+
+    return res.json({ imageUrl: dataUrl, fullPrompt });
+  } catch (err: any) {
+    console.error("Free image generation failed:", err);
+    return res.status(500).json({ error: err.message || "Failed to generate free image." });
+  }
+});
+
+// API route to proxy and securely download any image URL or Base64 data URI
+app.get("/api/image/download", async (req, res) => {
+  try {
+    const { url } = req.query;
+    if (!url || typeof url !== "string") {
+      return res.status(400).json({ error: "url is required in query parameters." });
+    }
+
+    if (url.startsWith("data:")) {
+      const parts = url.split(";base64,");
+      const mimeType = parts[0].replace("data:", "");
+      const base64Data = parts[1];
+      const buffer = Buffer.from(base64Data, "base64");
+      res.setHeader("Content-Type", mimeType);
+      res.setHeader("Content-Disposition", `attachment; filename="toolkit-pro-${Date.now()}.png"`);
+      return res.send(buffer);
+    } else {
+      console.log(`[Veo server] Downloading and proxying remote image URL: ${url}`);
+      const imgRes = await fetch(url);
+      if (!imgRes.ok) {
+        return res.status(imgRes.status).json({ error: `Failed to fetch image: ${imgRes.statusText}` });
+      }
+      const contentType = imgRes.headers.get("content-type") || "image/png";
+      res.setHeader("Content-Type", contentType);
+      res.setHeader("Content-Disposition", `attachment; filename="toolkit-pro-${Date.now()}.png"`);
+      const arrayBuffer = await imgRes.arrayBuffer();
+      return res.send(Buffer.from(arrayBuffer));
+    }
+  } catch (err: any) {
+    console.error("Image proxy download failed:", err);
+    return res.status(500).json({ error: err.message || "Failed to download image." });
+  }
+});
+
 // API route to generate cinematic attributes, captions, and Unsplash search tags based on user prompt
 app.post("/api/video/generate-scene", async (req, res) => {
   try {
@@ -663,12 +775,32 @@ app.post("/api/video/generate", async (req, res) => {
       config: videoConfig
     };
 
-    // If starting image is provided (as base64 data URL or pure base64)
+    // If starting image is provided (as base64 data URL, pure base64, or direct HTTP/HTTPS URL)
     if (image) {
       let imageBytes = image;
       let mimeType = "image/png";
 
-      if (image.includes(";base64,")) {
+      if (image.startsWith("http://") || image.startsWith("https://")) {
+        try {
+          console.log(`[Veo server] Fetching image from remote URL: ${image}`);
+          const imgResponse = await fetch(image);
+          if (!imgResponse.ok) {
+            throw new Error(`Failed to fetch remote image (HTTP ${imgResponse.status})`);
+          }
+          const arrayBuffer = await imgResponse.arrayBuffer();
+          const buffer = Buffer.from(arrayBuffer);
+          imageBytes = buffer.toString("base64");
+          
+          // Try to get contentType from response headers
+          const contentType = imgResponse.headers.get("content-type");
+          if (contentType) {
+            mimeType = contentType;
+          }
+        } catch (fetchErr: any) {
+          console.error("[Veo server] Remote image fetch failed:", fetchErr);
+          return res.status(400).json({ error: `Failed to fetch remote seed image: ${fetchErr.message}` });
+        }
+      } else if (image.includes(";base64,")) {
         const parts = image.split(";base64,");
         mimeType = parts[0].replace("data:", "");
         imageBytes = parts[1];

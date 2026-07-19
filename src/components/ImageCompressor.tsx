@@ -11,6 +11,7 @@ import {
   FileImage, 
   Image as ImageIcon, 
   Sparkles, 
+  Zap,
   UploadCloud, 
   SlidersHorizontal, 
   ArrowRight, 
@@ -41,7 +42,10 @@ import {
   Layers,
   Undo,
   Smartphone,
-  ExternalLink
+  ExternalLink,
+  Search,
+  LayoutGrid,
+  ArrowUpDown
 } from "lucide-react";
 import ExifReader from "exifreader";
 import { RGBHistogram } from "./RGBHistogram";
@@ -220,6 +224,8 @@ export interface QueueItem {
   filterBrightness?: number;
   filterSaturate?: number;
   filterInvert?: number;
+  compressionPreset?: string;
+  maxSizeLimitKb?: number | null;
 }
 
 export interface CompressionSession {
@@ -1437,10 +1443,41 @@ export default function ImageCompressor({
     }
   }, [initialFiles]);
 
+  // Handle files loaded from Drive Gallery or other tool triggers
+  useEffect(() => {
+    const handleDriveFile = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && customEvent.detail.targetTab === "compress") {
+        const { file } = customEvent.detail;
+        if (file && file.dataUrl) {
+          try {
+            // Convert dataUrl to a standard File object
+            const arr = file.dataUrl.split(',');
+            const mime = arr[0].match(/:(.*?);/)[1];
+            const bstr = atob(arr[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while(n--) {
+              u8arr[n] = bstr.charCodeAt(n);
+            }
+            const fileObj = new File([u8arr], file.name, { type: mime });
+            processMultipleFiles([fileObj]);
+          } catch (err) {
+            console.error("Failed to load drive asset inside compressor:", err);
+          }
+        }
+      }
+    };
+    window.addEventListener("toolkit-use-drive-file", handleDriveFile);
+    return () => window.removeEventListener("toolkit-use-drive-file", handleDriveFile);
+  }, [processMultipleFiles]);
+
   // Core compatibility states synced dynamically with selected queue item
   const [originalFile, setOriginalFile] = useState<{ name: string; size: number; type: string } | null>(null);
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
   const [quality, setQuality] = useState<number>(0.75); // 10% to 100%
+  const [compressionPreset, setCompressionPreset] = useState<string>("custom"); // "custom" | "web" | "high" | "max"
+  const [maxSizeLimitKb, setMaxSizeLimitKb] = useState<number | null>(null); // limit in KB, or null for unlimited
   const [aspectRatio, setAspectRatio] = useState<string>("original");
   const [customAspectW, setCustomAspectW] = useState<string>("4");
   const [customAspectH, setCustomAspectH] = useState<string>("3");
@@ -1476,6 +1513,14 @@ export default function ImageCompressor({
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number }>({ x: 50, y: 50 });
   const [showDiffHeatmap, setShowDiffHeatmap] = useState<boolean>(false);
+
+  // Big Gallery States
+  const [isBigGalleryOpen, setIsBigGalleryOpen] = useState<boolean>(false);
+  const [galleryFilter, setGalleryFilter] = useState<"all" | "compressed" | "pending">("all");
+  const [gallerySearch, setGallerySearch] = useState<string>("");
+  const [gallerySort, setGallerySort] = useState<"name" | "originalSize" | "compressedSize" | "savings">("name");
+  const [galleryCompareId, setGalleryCompareId] = useState<string | null>(null);
+  const [gallerySliderPosition, setGallerySliderPosition] = useState<number>(50);
 
   // Smart quality suggestion states
   const [isAnalyzingComplexity, setIsAnalyzingComplexity] = useState<boolean>(false);
@@ -1738,6 +1783,8 @@ export default function ImageCompressor({
       });
       setOriginalUrl(activeItem.originalUrl);
       setQuality(activeItem.quality);
+      setCompressionPreset(activeItem.compressionPreset || "custom");
+      setMaxSizeLimitKb(activeItem.maxSizeLimitKb !== undefined ? activeItem.maxSizeLimitKb : null);
       setAspectRatio(activeItem.aspectRatio || "original");
       setCompressedResult(activeItem.compressedResult);
       setIsCompressing(activeItem.isCompressing);
@@ -1755,6 +1802,8 @@ export default function ImageCompressor({
       setOriginalFile(null);
       setOriginalUrl(null);
       setQuality(0.75);
+      setCompressionPreset("custom");
+      setMaxSizeLimitKb(null);
       setAspectRatio("original");
       setCompressedResult(null);
       setIsCompressing(false);
@@ -2176,6 +2225,8 @@ export default function ImageCompressor({
               originalUrl: rawDataUrl,
               thumbnailUrl: thumbnail,
               quality: 0.75, // default
+              compressionPreset: "custom",
+              maxSizeLimitKb: null,
               aspectRatio: "original",
               cropX: 0,
               cropY: 0,
@@ -2478,8 +2529,46 @@ export default function ImageCompressor({
   // Quality sync for the currently selected item
   const handleQualityChange = (val: number) => {
     setQuality(val);
+    setCompressionPreset("custom");
     if (selectedId) {
-      setQueue(prev => prev.map(item => item.id === selectedId ? { ...item, quality: val } : item));
+      setQueue(prev => prev.map(item => item.id === selectedId ? { ...item, quality: val, compressionPreset: "custom" } : item));
+    }
+  };
+
+  // Compression Preset change handler
+  const handlePresetChange = (presetKey: string) => {
+    setCompressionPreset(presetKey);
+    let targetQ = quality;
+    let targetLimit: number | null = null;
+
+    if (presetKey === "web") {
+      targetQ = 0.80;
+      targetLimit = 500; // 500 KB limit
+    } else if (presetKey === "high") {
+      targetQ = 0.95;
+      targetLimit = 2048; // 2 MB limit
+    } else if (presetKey === "max") {
+      targetQ = 0.35;
+      targetLimit = 100; // 100 KB limit
+    } else if (presetKey === "custom") {
+      targetLimit = null;
+    }
+
+    setQuality(targetQ);
+    setMaxSizeLimitKb(targetLimit);
+
+    if (selectedId) {
+      setQueue(prev => prev.map(item => {
+        if (item.id === selectedId) {
+          return {
+            ...item,
+            compressionPreset: presetKey,
+            quality: targetQ,
+            maxSizeLimitKb: targetLimit
+          };
+        }
+        return item;
+      }));
     }
   };
 
@@ -3176,9 +3265,42 @@ export default function ImageCompressor({
           });
         };
 
-        const compressedDataUrl = canvas.toDataURL(targetMime, targetQuality);
-        const base64Content = compressedDataUrl.substring(compressedDataUrl.indexOf(",") + 1);
-        const compressedSize = Math.round((base64Content.length * 3) / 4);
+        let finalDataUrl = canvas.toDataURL(targetMime, targetQuality);
+        let base64Content = finalDataUrl.substring(finalDataUrl.indexOf(",") + 1);
+        let finalSize = Math.round((base64Content.length * 3) / 4);
+
+        const activeLimitKb = item.maxSizeLimitKb !== undefined ? item.maxSizeLimitKb : maxSizeLimitKb;
+
+        if (activeLimitKb && activeLimitKb > 0 && finalSize > activeLimitKb * 1024) {
+          let optQuality = targetQuality;
+          let optScale = 1.0;
+          const maxIterations = 6;
+          
+          for (let iter = 0; iter < maxIterations; iter++) {
+            if (finalSize <= activeLimitKb * 1024) break;
+            
+            if (optQuality > 0.15) {
+              optQuality = Math.max(0.05, optQuality - 0.15);
+            } else {
+              optScale = Math.max(0.2, optScale - 0.15);
+            }
+            
+            const optCanvas = document.createElement("canvas");
+            optCanvas.width = Math.round(finalCanvasWidth * optScale);
+            optCanvas.height = Math.round(finalCanvasHeight * optScale);
+            const optCtx = optCanvas.getContext("2d");
+            if (optCtx) {
+              optCtx.drawImage(canvas, 0, 0, canvas.width, canvas.height, 0, 0, optCanvas.width, optCanvas.height);
+              const optDataUrl = optCanvas.toDataURL(targetMime, optQuality);
+              const optBase64 = optDataUrl.substring(optDataUrl.indexOf(",") + 1);
+              const optSize = Math.round((optBase64.length * 3) / 4);
+              
+              finalDataUrl = optDataUrl;
+              base64Content = optBase64;
+              finalSize = optSize;
+            }
+          }
+        }
 
         if (!stripExifMetadata && targetMime === "image/jpeg" && item.file) {
           const reader = new FileReader();
@@ -3195,14 +3317,14 @@ export default function ImageCompressor({
             } catch (err) {
               console.error("EXIF copy error, falling back to clean compressed image:", err);
             }
-            handleResult(compressedDataUrl, compressedSize);
+            handleResult(finalDataUrl, finalSize);
           };
           reader.onerror = () => {
-            handleResult(compressedDataUrl, compressedSize);
+            handleResult(finalDataUrl, finalSize);
           };
           reader.readAsArrayBuffer(item.file);
         } else {
-          handleResult(compressedDataUrl, compressedSize);
+          handleResult(finalDataUrl, finalSize);
         }
       };
 
@@ -4564,6 +4686,122 @@ export default function ImageCompressor({
           </div>
         </div>
 
+        {activeItem && !activeItem.compressedResult && (
+          <div 
+            className="bg-gradient-to-br from-indigo-50/50 via-white to-slate-50 dark:from-slate-905 dark:via-slate-950 dark:to-indigo-950/20 p-4 rounded-2xl border border-indigo-100 dark:border-indigo-900/40 space-y-4 shadow-sm font-sans text-left animate-in fade-in slide-in-from-bottom-2 duration-300"
+            id="active-file-pre-flight-inspector"
+          >
+            <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800/80 pb-2">
+              <h4 className="text-[11px] font-extrabold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
+                <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse shrink-0" />
+                <span>Pre-Compression Staged File</span>
+              </h4>
+              <span className="text-[9px] font-black bg-amber-50 dark:bg-amber-950/40 text-amber-705 dark:text-amber-405 px-2 py-0.5 rounded-md border border-amber-550/20">
+                Staged
+              </span>
+            </div>
+
+            <div className="flex gap-3">
+              {/* Image Thumbnail with zoom hover & orientation rotation */}
+              <div className="relative w-20 h-20 rounded-xl overflow-hidden bg-slate-900 flex-shrink-0 border border-slate-200/50 dark:border-slate-800/40 group/thumb flex items-center justify-center">
+                <img 
+                  src={activeItem.thumbnailUrl || activeItem.originalUrl} 
+                  alt="Pre-compression thumbnail" 
+                  className="w-full h-full object-cover transition-transform duration-300 group-hover/thumb:scale-110"
+                  style={{ transform: `rotate(${activeItem.rotation || 0}deg)` }}
+                  referrerPolicy="no-referrer"
+                />
+                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover/thumb:opacity-100 transition-opacity duration-150 flex items-center justify-center pointer-events-none">
+                  <span className="text-[8px] font-black text-white uppercase tracking-wider">Original</span>
+                </div>
+              </div>
+
+              {/* Technical file details */}
+              <div className="flex-1 min-w-0 flex flex-col justify-between">
+                <div>
+                  <h5 className="text-xs font-bold text-slate-850 dark:text-slate-100 truncate font-mono" title={activeItem.name}>
+                    {activeItem.name}
+                  </h5>
+                  <p className="text-[9px] text-slate-400 dark:text-slate-500 font-mono mt-0.5 truncate">
+                    Format: {activeItem.type || "Unknown"}
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-2 gap-x-2 gap-y-1 text-left mt-2 border-t border-slate-105 dark:border-slate-800/40 pt-1.5">
+                  <div>
+                    <span className="text-[8px] text-slate-400 dark:text-slate-500 block uppercase font-bold tracking-wider">File Size</span>
+                    <strong className="text-xs font-extrabold text-slate-855 dark:text-slate-200 font-mono">{formatFileSize(activeItem.size)}</strong>
+                  </div>
+                  <div>
+                    <span className="text-[8px] text-slate-400 dark:text-slate-500 block uppercase font-bold tracking-wider">Dimensions</span>
+                    <strong className="text-xs font-extrabold text-slate-855 dark:text-slate-200 font-mono">
+                      {exifDimensionsMap[activeItem.id] && exifDimensionsMap[activeItem.id].width > 0 ? (
+                        `${exifDimensionsMap[activeItem.id].width} × ${exifDimensionsMap[activeItem.id].height}`
+                      ) : (
+                        "Loading..."
+                      )}
+                    </strong>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Extra Technical Stats Block */}
+            <div className="bg-slate-100/50 dark:bg-slate-950/40 rounded-xl p-2.5 border border-slate-200/30 dark:border-slate-850/40 text-[10px] space-y-1.5">
+              <div className="flex justify-between items-center">
+                <span className="text-slate-505 dark:text-slate-400 font-medium">Resolution Megapixels:</span>
+                <span className="font-mono font-bold text-slate-705 dark:text-slate-300">
+                  {exifDimensionsMap[activeItem.id] && exifDimensionsMap[activeItem.id].width > 0 ? (
+                    `${((exifDimensionsMap[activeItem.id].width * exifDimensionsMap[activeItem.id].height) / 1000000).toFixed(1)} MP`
+                  ) : (
+                    "Calculating..."
+                  )}
+                </span>
+              </div>
+              <div className="flex justify-between items-center font-sans">
+                <span className="text-slate-505 dark:text-slate-400 font-medium">Staged Target Quality:</span>
+                <span className="font-mono font-extrabold text-indigo-600 dark:text-indigo-400">
+                  {Math.round((activeItem.quality || quality) * 100)}%
+                </span>
+              </div>
+              <div className="flex justify-between items-center font-sans">
+                <span className="text-slate-505 dark:text-slate-400 font-medium">Projected Saved Footprint:</span>
+                <span className="font-mono font-black text-emerald-600 dark:text-emerald-400">
+                  ~{Math.round((1 - (0.12 + (activeItem.quality || quality) * 0.48)) * 100)}% Shrunk
+                </span>
+              </div>
+              <div className="flex justify-between items-center font-sans">
+                <span className="text-slate-505 dark:text-slate-400 font-medium">Est. Optimized Weight:</span>
+                <span className="font-mono font-bold text-indigo-500 dark:text-indigo-305">
+                  ~{formatFileSize(Math.round(activeItem.size * (0.12 + (activeItem.quality || quality) * 0.48)))}
+                </span>
+              </div>
+            </div>
+
+            {/* Quick single-compression initiation row */}
+            <div className="flex items-center gap-2 pt-1">
+              <button
+                type="button"
+                onClick={handleCompress}
+                disabled={activeItem.isCompressing}
+                className="flex-1 py-2 rounded-xl bg-gradient-to-r from-emerald-400 to-teal-550 hover:from-emerald-500 hover:to-teal-500 dark:from-emerald-600 dark:to-teal-600 dark:hover:from-emerald-500 dark:hover:to-teal-500 text-slate-950 dark:text-slate-950 font-black text-[11px] uppercase tracking-wider transition-all hover:scale-[1.02] active:scale-98 flex items-center justify-center gap-1 cursor-pointer select-none"
+              >
+                {activeItem.isCompressing ? (
+                  <>
+                    <span className="w-3.5 h-3.5 border-2 border-slate-950 border-t-transparent rounded-full animate-spin shrink-0" />
+                    <span>Compressing...</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-3 h-3 fill-slate-950 text-slate-950 shrink-0" />
+                    <span>Initialize Compression</span>
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Real-time Compression Summary */}
         <div className="bg-white dark:bg-slate-950 p-4 rounded-xl border border-slate-200/50 dark:border-slate-800/80 space-y-3 shadow-sm font-sans text-left" id="compression-summary-realtime">
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
@@ -4705,8 +4943,19 @@ export default function ImageCompressor({
                 )}
                 <button
                   type="button"
+                  onClick={() => setIsBigGalleryOpen(true)}
+                  className="text-[10px] font-black text-indigo-650 dark:text-indigo-450 bg-indigo-500/10 dark:bg-indigo-950/40 hover:bg-indigo-600 hover:text-white dark:hover:bg-indigo-600 dark:hover:text-white px-2.5 py-1 rounded-lg transition-all cursor-pointer select-none flex items-center gap-1 shrink-0"
+                  title="Open beautiful grid-based Image Gallery to explore compressed results side-by-side"
+                  id="btn-open-big-gallery"
+                >
+                  <LayoutGrid className="w-3.5 h-3.5 text-indigo-500" />
+                  <span>Big Gallery</span>
+                </button>
+                <span className="text-slate-200 dark:text-slate-800">|</span>
+                <button
+                  type="button"
                   onClick={() => setIsExifModalOpen(true)}
-                  className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 dark:bg-emerald-950/40 hover:text-emerald-700 px-2.5 py-0.5 rounded-lg transition-all cursor-pointer select-none"
+                  className="text-[10px] font-bold text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 dark:bg-emerald-950/40 hover:text-emerald-700 px-2.5 py-1 rounded-lg transition-all cursor-pointer select-none"
                   title="View Exif & technical metadata for images in queue"
                   id="btn-open-exif-modal"
                 >
@@ -5617,7 +5866,73 @@ export default function ImageCompressor({
             </div>
 
             {/* Slider with Quality Score Gauge */}
-            <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-950 border border-slate-205 dark:border-slate-800/80 shadow-3xs text-left space-y-4">
+            <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-950 border border-slate-205 dark:border-slate-800/80 shadow-3xs text-left space-y-4 animate-in fade-in duration-300">
+              
+              {/* Compression Preset Selector Option */}
+              <div className="space-y-1.5 pb-3 border-b border-slate-100 dark:border-slate-900/60" id="compression-preset-control-group">
+                <div className="flex items-center justify-between">
+                  <label className="text-[11px] font-black uppercase text-slate-755 dark:text-slate-300 tracking-wider flex items-center gap-1.5">
+                    <Zap className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                    <span>Compression Preset</span>
+                  </label>
+                  {compressionPreset !== "custom" && (
+                    <span className="text-[9px] font-extrabold bg-indigo-50 dark:bg-indigo-950/40 text-indigo-655 dark:text-indigo-400 px-2 py-0.5 rounded-md border border-indigo-200/20">
+                      Standard
+                    </span>
+                  )}
+                </div>
+                <p className="text-[9.5px] text-slate-400 dark:text-slate-500 leading-snug">
+                  Select a preset to automatically optimize quality and set a file size threshold limit.
+                </p>
+                <select
+                  id="select-compression-preset"
+                  value={compressionPreset}
+                  onChange={(e) => handlePresetChange(e.target.value)}
+                  className="w-full bg-slate-50 dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 rounded-lg px-2.5 py-2 text-xs font-semibold text-slate-700 dark:text-slate-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 cursor-pointer transition-all"
+                >
+                  <option value="custom">Custom (Manual Control)</option>
+                  <option value="web">Web Optimized (80% Quality, 500 KB Max)</option>
+                  <option value="high">High Fidelity (95% Quality, 2.0 MB Max)</option>
+                  <option value="max">Maximum Compression (35% Quality, 100 KB Max)</option>
+                </select>
+
+                <div className="mt-2.5 flex items-center justify-between bg-slate-50/50 dark:bg-slate-900/20 p-2 rounded-xl border border-slate-100 dark:border-slate-850">
+                  <div className="flex items-center gap-1.5 min-w-0">
+                    <SlidersHorizontal className="w-3.5 h-3.5 text-slate-400 shrink-0" />
+                    <span className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">
+                      Target File Size Limit:
+                    </span>
+                  </div>
+                  
+                  <div className="flex items-center shrink-0">
+                    {compressionPreset === "custom" ? (
+                      <div className="flex items-center gap-1">
+                        <input
+                          type="number"
+                          min="0"
+                          placeholder="No limit"
+                          value={maxSizeLimitKb || ""}
+                          onChange={(e) => {
+                            const val = e.target.value ? parseInt(e.target.value, 10) : null;
+                            setMaxSizeLimitKb(val);
+                            if (selectedId) {
+                              setQueue(prev => prev.map(item => item.id === selectedId ? { ...item, maxSizeLimitKb: val } : item));
+                            }
+                          }}
+                          className="w-20 px-2 py-0.5 text-[10px] font-bold font-mono text-right bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-md focus:outline-none focus:ring-1 focus:ring-indigo-500"
+                          title="Target size in KB"
+                        />
+                        <span className="text-[9.5px] font-bold text-slate-400 dark:text-slate-500 font-mono ml-0.5">KB</span>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] font-black text-indigo-600 dark:text-indigo-400 font-mono bg-indigo-50/50 dark:bg-indigo-950/30 px-2 py-0.5 rounded border border-indigo-200/20">
+                        {maxSizeLimitKb ? `${maxSizeLimitKb} KB` : "Unlimited"}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              </div>
+
               <div className="flex items-center justify-between gap-3">
                 <div className="space-y-1 flex-1">
                   <label className="text-[11px] font-black uppercase text-slate-700 dark:text-slate-300 tracking-wider">
@@ -9223,6 +9538,486 @@ export default function ImageCompressor({
           </div>
         </div>
       )}
+
+      {/* Big Gallery Dialog Modal */}
+      {isBigGalleryOpen && (
+        <div className="fixed inset-0 z-[115] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+          <div className="bg-slate-50 dark:bg-slate-955 border border-slate-205 dark:border-slate-800/80 rounded-3xl shadow-2xl max-w-7xl w-full h-[90vh] flex flex-col overflow-hidden animate-scale-up relative font-sans">
+            {/* Header */}
+            <div className="p-5 bg-white dark:bg-slate-900 border-b border-slate-200/60 dark:border-slate-800/60 flex flex-col gap-4 shrink-0">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3 text-left">
+                  <div className="w-10 h-10 rounded-2xl bg-indigo-50 dark:bg-indigo-950/40 flex items-center justify-center text-indigo-650 dark:text-indigo-400 shrink-0 shadow-3xs">
+                    <LayoutGrid className="w-5 h-5 text-indigo-500" />
+                  </div>
+                  <div>
+                    <h3 className="text-sm sm:text-base font-black text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
+                      Big Image Gallery & Batch Explorer
+                    </h3>
+                    <p className="text-[10px] sm:text-xs text-slate-450 dark:text-slate-500 mt-0.5 font-medium">
+                      Explore detailed side-by-side specs, interactive pixel zooms, and direct-drive uploads
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setIsBigGalleryOpen(false)}
+                  className="p-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full cursor-pointer transition-all shrink-0"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Filters, Search & Sort Bar */}
+              <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3 text-xs">
+                {/* Search */}
+                <div className="relative flex-1 max-w-md">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 pointer-events-none text-slate-400">
+                    <Search className="w-4 h-4" />
+                  </span>
+                  <input
+                    type="text"
+                    value={gallerySearch}
+                    onChange={(e) => setGallerySearch(e.target.value)}
+                    placeholder="Search image by name..."
+                    className="w-full pl-9 pr-4 py-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-xs text-slate-705 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all font-medium"
+                  />
+                  {gallerySearch && (
+                    <button
+                      onClick={() => setGallerySearch("")}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-605"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Filter Tabs */}
+                <div className="flex items-center gap-1.5 p-1 bg-slate-50 dark:bg-slate-950 rounded-xl border border-slate-200/60 dark:border-slate-800/60 self-start lg:self-auto">
+                  <button
+                    onClick={() => setGalleryFilter("all")}
+                    className={`px-3 py-1.5 rounded-lg font-bold text-[10.5px] uppercase tracking-wider transition-all cursor-pointer ${
+                      galleryFilter === "all"
+                        ? "bg-white dark:bg-slate-900 text-indigo-600 dark:text-indigo-400 shadow-3xs"
+                        : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-350"
+                    }`}
+                  >
+                    All ({queue.length})
+                  </button>
+                  <button
+                    onClick={() => setGalleryFilter("compressed")}
+                    className={`px-3 py-1.5 rounded-lg font-bold text-[10.5px] uppercase tracking-wider transition-all cursor-pointer ${
+                      galleryFilter === "compressed"
+                        ? "bg-white dark:bg-slate-900 text-emerald-600 dark:text-emerald-455 shadow-3xs"
+                        : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-350"
+                    }`}
+                  >
+                    Compressed ({queue.filter(i => i.compressedResult).length})
+                  </button>
+                  <button
+                    onClick={() => setGalleryFilter("pending")}
+                    className={`px-3 py-1.5 rounded-lg font-bold text-[10.5px] uppercase tracking-wider transition-all cursor-pointer ${
+                      galleryFilter === "pending"
+                        ? "bg-white dark:bg-slate-900 text-amber-600 dark:text-amber-400 shadow-3xs"
+                        : "text-slate-500 hover:text-slate-700 dark:hover:text-slate-350"
+                    }`}
+                  >
+                    Pending ({queue.filter(i => !i.compressedResult).length})
+                  </button>
+                </div>
+
+                {/* Sorting and Batch actions */}
+                <div className="flex items-center gap-2.5 self-start lg:self-auto">
+                  <div className="relative flex items-center">
+                    <span className="absolute pl-2.5 pointer-events-none text-slate-400">
+                      <ArrowUpDown className="w-3.5 h-3.5" />
+                    </span>
+                    <select
+                      value={gallerySort}
+                      onChange={(e) => setGallerySort(e.target.value as any)}
+                      className="pl-8 pr-3 py-2 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-[11px] font-bold text-slate-750 dark:text-slate-200 focus:outline-none focus:ring-2 focus:ring-indigo-500/30 focus:border-indigo-500 transition-all cursor-pointer appearance-none uppercase tracking-wide"
+                    >
+                      <option value="name">Sort: Name A-Z</option>
+                      <option value="originalSize">Sort: Original Size</option>
+                      <option value="compressedSize">Sort: Optimized Size</option>
+                      <option value="savings">Sort: Weight Reduction %</option>
+                    </select>
+                  </div>
+
+                  <button
+                    onClick={async () => {
+                      setIsBigGalleryOpen(false);
+                      await handleDownloadAllAsZip();
+                    }}
+                    disabled={isZipping || queue.filter(item => item.compressedResult).length === 0}
+                    className="px-4 py-2 bg-indigo-600 hover:bg-indigo-550 disabled:opacity-50 text-white font-black uppercase tracking-wider text-[10px] rounded-xl cursor-pointer transition-all flex items-center gap-1.5 shadow-sm"
+                  >
+                    <FileArchive className="w-3.5 h-3.5" />
+                    <span>Download ZIP</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            {/* Gallery Grid Content Area */}
+            <div className="flex-1 overflow-y-auto p-6 scrollbar-thin">
+              {(() => {
+                // Filter and sort items
+                const searched = queue.filter(item => 
+                  item.name.toLowerCase().includes(gallerySearch.toLowerCase())
+                );
+
+                const filtered = searched.filter(item => {
+                  if (galleryFilter === "all") return true;
+                  if (galleryFilter === "compressed") return !!item.compressedResult;
+                  if (galleryFilter === "pending") return !item.compressedResult;
+                  return true;
+                });
+
+                const sorted = [...filtered].sort((a, b) => {
+                  if (gallerySort === "name") {
+                    return a.name.localeCompare(b.name);
+                  }
+                  if (gallerySort === "originalSize") {
+                    return b.size - a.size;
+                  }
+                  if (gallerySort === "compressedSize") {
+                    const sizeA = a.compressedResult?.compressedSize ?? a.size;
+                    const sizeB = b.compressedResult?.compressedSize ?? b.size;
+                    return sizeB - sizeA;
+                  }
+                  if (gallerySort === "savings") {
+                    const pctA = a.compressedResult?.savingPercentage ?? -1;
+                    const pctB = b.compressedResult?.savingPercentage ?? -1;
+                    return pctB - pctA;
+                  }
+                  return 0;
+                });
+
+                if (sorted.length === 0) {
+                  return (
+                    <div className="h-full flex flex-col items-center justify-center py-16 text-center">
+                      <div className="w-16 h-16 rounded-full border border-slate-200 dark:border-slate-800 flex items-center justify-center bg-white dark:bg-slate-900 text-slate-350 dark:text-slate-600 mb-4 shadow-sm animate-pulse">
+                        <ImageIcon className="w-8 h-8 stroke-1" />
+                      </div>
+                      <h4 className="text-sm font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                        No Assets Found
+                      </h4>
+                      <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1.5 max-w-xs leading-relaxed">
+                        {gallerySearch 
+                          ? "Adjust your search parameters or query filters to find other queued assets."
+                          : "Upload more media assets in your settings panel to populate this grid."}
+                      </p>
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-5 pb-6">
+                    {sorted.map((item) => {
+                      const hasResult = !!item.compressedResult;
+                      const sizeBefore = formatFileSize(item.size);
+                      const sizeAfter = hasResult && item.compressedResult ? formatFileSize(item.compressedResult.compressedSize) : "Pending";
+                      const savingPct = hasResult && item.compressedResult ? item.compressedResult.savingPercentage : 0;
+                      
+                      return (
+                        <div
+                          key={item.id}
+                          className={`bg-white dark:bg-slate-900 border ${
+                            selectedId === item.id 
+                              ? "border-indigo-500 ring-2 ring-indigo-500/20" 
+                              : "border-slate-200/60 dark:border-slate-800/80 hover:border-indigo-400 dark:hover:border-indigo-600"
+                          } rounded-2xl overflow-hidden shadow-3xs hover:shadow-md transition-all duration-300 flex flex-col group text-left relative`}
+                        >
+                          {/* Image Thumbnail wrapper */}
+                          <div className="relative h-40 bg-slate-105 dark:bg-slate-950 flex items-center justify-center overflow-hidden select-none border-b border-slate-100 dark:border-slate-850">
+                            <img
+                              src={item.thumbnailUrl || item.originalUrl}
+                              alt={item.name}
+                              className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+                              referrerPolicy="no-referrer"
+                            />
+                            
+                            {/* Format & saving badge overlays */}
+                            <div className="absolute top-2.5 left-2.5 flex flex-col gap-1.5 z-10">
+                              <span className="px-2 py-0.5 rounded-md bg-slate-900/85 backdrop-blur-md text-[9px] font-black uppercase text-white tracking-widest border border-white/10 shadow-3xs">
+                                {item.name.split(".").pop() || "IMG"}
+                              </span>
+                            </div>
+
+                            {hasResult ? (
+                              <div className="absolute top-2.5 right-2.5 z-10">
+                                <span className="px-2 py-0.5 rounded-md bg-emerald-500 text-white text-[9px] font-black uppercase tracking-wider shadow-3xs">
+                                  -{savingPct}% Saved
+                                </span>
+                              </div>
+                            ) : (
+                              <div className="absolute top-2.5 right-2.5 z-10">
+                                <span className="px-2 py-0.5 rounded-md bg-amber-500 text-white text-[9px] font-black uppercase tracking-wider shadow-3xs">
+                                  Pending
+                                </span>
+                              </div>
+                            )}
+
+                            {/* Hover overlay with action options */}
+                            <div className="absolute inset-0 bg-slate-950/70 opacity-0 group-hover:opacity-100 transition-opacity duration-200 flex flex-col items-center justify-center p-3 gap-2.5 z-25 text-xs">
+                              {hasResult ? (
+                                <button
+                                  onClick={() => setGalleryCompareId(item.id)}
+                                  className="w-full py-1.5 bg-white text-slate-950 hover:bg-slate-100 rounded-lg font-black uppercase tracking-wider text-[9.5px] cursor-pointer shadow-sm flex items-center justify-center gap-1 transition-all"
+                                >
+                                  <Eye className="w-3.5 h-3.5" />
+                                  <span>Split Comparison</span>
+                                </button>
+                              ) : (
+                                <button
+                                  onClick={async () => {
+                                    // Set this item active and compress
+                                    setSelectedId(item.id);
+                                    setTimeout(() => {
+                                      const btn = document.getElementById("btn-trigger-compression");
+                                      if (btn) btn.click();
+                                    }, 50);
+                                  }}
+                                  className="w-full py-1.5 bg-indigo-600 text-white hover:bg-indigo-550 rounded-lg font-black uppercase tracking-wider text-[9.5px] cursor-pointer shadow-sm flex items-center justify-center gap-1 transition-all"
+                                >
+                                  <Play className="w-3.5 h-3.5" />
+                                  <span>Compress Now</span>
+                                </button>
+                              )}
+
+                              <button
+                                onClick={() => {
+                                  setSelectedId(item.id);
+                                }}
+                                className="w-full py-1.5 bg-slate-800 text-slate-200 hover:bg-slate-700 rounded-lg font-black uppercase tracking-wider text-[9.5px] cursor-pointer shadow-sm flex items-center justify-center gap-1 transition-all"
+                              >
+                                <span>Focus Editor</span>
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* Image Info & Specs */}
+                          <div className="p-3.5 flex flex-col flex-1">
+                            <h4 className="text-[11px] font-extrabold text-slate-800 dark:text-slate-200 truncate select-all" title={item.name}>
+                              {item.name}
+                            </h4>
+
+                            <div className="mt-2.5 grid grid-cols-2 gap-2 text-[10px] font-medium text-slate-500 dark:text-slate-400">
+                              <div className="bg-slate-50 dark:bg-slate-950 p-1.5 rounded-lg border border-slate-100 dark:border-slate-850">
+                                <span className="text-[8px] uppercase font-bold text-slate-400 block tracking-wider mb-0.5">Original</span>
+                                <span className="font-mono text-[10px] text-slate-700 dark:text-slate-300 font-bold">{sizeBefore}</span>
+                              </div>
+                              <div className="bg-slate-50 dark:bg-slate-950 p-1.5 rounded-lg border border-slate-100 dark:border-slate-850">
+                                <span className="text-[8px] uppercase font-bold text-slate-400 block tracking-wider mb-0.5">Optimized</span>
+                                <span className={`font-mono text-[10px] font-bold ${hasResult ? "text-emerald-600 dark:text-emerald-400" : "text-slate-400"}`}>
+                                  {sizeAfter}
+                                </span>
+                              </div>
+                            </div>
+
+                            {/* Footer Quick Action Buttons */}
+                            <div className="mt-3 pt-2.5 border-t border-slate-100 dark:border-slate-850 flex items-center justify-between gap-1.5 select-none">
+                              <button
+                                onClick={() => {
+                                  setSelectedId(item.id);
+                                }}
+                                className={`text-[10px] px-2.5 py-1 rounded-lg font-black uppercase tracking-wide transition-all ${
+                                  selectedId === item.id 
+                                    ? "bg-indigo-500/10 text-indigo-650 dark:text-indigo-400" 
+                                    : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-205"
+                                }`}
+                              >
+                                {selectedId === item.id ? "Active Editor" : "Select"}
+                              </button>
+
+                              <div className="flex items-center gap-1.5">
+                                {hasResult && item.compressedResult && (
+                                  <>
+                                    <button
+                                      onClick={() => {
+                                        triggerFileDownload(item.compressedResult!.dataUrl, item.compressedResult!.fileName);
+                                      }}
+                                      className="p-1 rounded bg-slate-100 hover:bg-indigo-50 hover:text-indigo-600 dark:bg-slate-805 dark:hover:bg-indigo-950/40 dark:hover:text-indigo-400 text-slate-550 dark:text-slate-400 transition-colors cursor-pointer"
+                                      title="Download Optimized Image"
+                                    >
+                                      <Download className="w-3.5 h-3.5" />
+                                    </button>
+
+                                    <button
+                                      onClick={(e) => handleSaveItemToDrive(item, e)}
+                                      disabled={item.isSaving}
+                                      className="p-1 rounded bg-slate-100 hover:bg-emerald-50 hover:text-emerald-600 dark:bg-slate-805 dark:hover:bg-emerald-950/40 dark:hover:text-emerald-400 text-slate-550 dark:text-slate-400 transition-colors cursor-pointer disabled:opacity-40"
+                                      title="Save to Google Drive"
+                                    >
+                                      {item.isSaving ? (
+                                        <RefreshCw className="w-3.5 h-3.5 text-emerald-500 animate-spin" />
+                                      ) : (
+                                        <Cloud className={`w-3.5 h-3.5 ${item.saveStatus?.success ? "text-emerald-500" : ""}`} />
+                                      )}
+                                    </button>
+                                  </>
+                                )}
+
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (item.isCompressing) return;
+                                    setQueue(prev => prev.filter(q => q.id !== item.id));
+                                    if (selectedId === item.id) {
+                                      const remaining = queue.filter(q => q.id !== item.id);
+                                      if (remaining.length > 0) {
+                                        setSelectedId(remaining[0].id);
+                                      } else {
+                                        setSelectedId("");
+                                      }
+                                    }
+                                  }}
+                                  disabled={item.isCompressing}
+                                  className="p-1 rounded bg-slate-105 hover:bg-rose-50 hover:text-rose-600 dark:bg-slate-805 dark:hover:bg-rose-950/30 dark:hover:text-rose-400 text-slate-405 dark:text-slate-500 transition-colors cursor-pointer"
+                                  title="Remove from queue"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+            </div>
+
+            {/* Help / Stat Bar Footer */}
+            <div className="p-4 bg-slate-100 dark:bg-slate-900 border-t border-slate-200/60 dark:border-slate-800/60 flex items-center justify-between shrink-0 font-sans text-[10px]">
+              <span className="text-slate-450 dark:text-slate-505 font-medium flex items-center gap-1 select-none">
+                💡 Press 'Split Comparison' on any optimized card to examine structural retention slide controls.
+              </span>
+              <button
+                type="button"
+                onClick={() => setIsBigGalleryOpen(false)}
+                className="px-4 py-2 bg-indigo-650 hover:bg-indigo-500 text-white font-extrabold uppercase tracking-widest text-[10px] rounded-xl cursor-pointer transition-colors shadow-2xs"
+              >
+                Close Gallery
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Gallery Lightbox Compare Slider */}
+      {galleryCompareId && (() => {
+        const item = queue.find(q => q.id === galleryCompareId);
+        if (!item || !item.compressedResult) return null;
+        
+        return (
+          <div className="fixed inset-0 z-[140] bg-slate-950/95 backdrop-blur-md flex flex-col items-center justify-center p-4">
+            {/* Header / Info bar */}
+            <div className="w-full max-w-5xl flex items-center justify-between text-white mb-3 font-sans select-none">
+              <div className="text-left">
+                <span className="text-[10px] font-black uppercase text-indigo-450 block tracking-widest">Pixel Comparison Lightbox</span>
+                <h4 className="text-xs sm:text-sm font-bold truncate max-w-md sm:max-w-xl text-slate-100">{item.name}</h4>
+              </div>
+
+              <button
+                onClick={() => setGalleryCompareId(null)}
+                className="p-2 text-slate-300 hover:text-white hover:bg-white/10 rounded-full transition-all cursor-pointer"
+                title="Close Lightbox"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            {/* Split Slider container */}
+            <div className="w-full max-w-5xl flex-1 max-h-[75vh] rounded-3xl overflow-hidden bg-slate-900 border border-slate-800/60 relative flex items-center justify-center shadow-2xl group select-none">
+              {/* Slider Move Area */}
+              <div 
+                className="absolute inset-0 cursor-ew-resize z-10"
+                onMouseMove={(e) => {
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  const x = e.clientX - rect.left;
+                  const pct = Math.max(0, Math.min(100, (x / rect.width) * 100));
+                  setGallerySliderPosition(pct);
+                }}
+                onTouchMove={(e) => {
+                  if (e.touches && e.touches[0]) {
+                    const rect = e.currentTarget.getBoundingClientRect();
+                    const x = e.touches[0].clientX - rect.left;
+                    const pct = Math.max(0, Math.min(100, (x / rect.width) * 100));
+                    setGallerySliderPosition(pct);
+                  }
+                }}
+              >
+                {/* Left/Before Image (Original) */}
+                <div className="absolute inset-0 w-full h-full pointer-events-none">
+                  <img
+                    src={item.originalUrl}
+                    alt="Original Image"
+                    className="absolute inset-0 w-full h-full object-contain"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute top-4 left-4 bg-slate-950/85 backdrop-blur-md px-3 py-1.5 rounded-xl text-[10px] font-black text-white tracking-wider border border-white/10 uppercase z-20 shadow-md">
+                    Original • {formatFileSize(item.size)}
+                  </div>
+                </div>
+
+                {/* Right/After Image (Compressed, Clipped) */}
+                <div 
+                  className="absolute inset-0 w-full h-full pointer-events-none"
+                  style={{ clipPath: `polygon(${gallerySliderPosition}% 0, 100% 0, 100% 100%, ${gallerySliderPosition}% 100%)` }}
+                >
+                  <img
+                    src={item.compressedResult.dataUrl}
+                    alt="Compressed Image"
+                    className="absolute inset-0 w-full h-full object-contain"
+                    referrerPolicy="no-referrer"
+                  />
+                  <div className="absolute top-4 right-4 bg-indigo-650/90 backdrop-blur-md px-3 py-1.5 rounded-xl text-[10px] font-black text-white tracking-wider border border-indigo-500/20 uppercase z-20 shadow-md">
+                    Optimized • {formatFileSize(item.compressedResult.compressedSize)} (-{item.compressedResult.savingPercentage}%)
+                  </div>
+                </div>
+
+                {/* Drag Handle splitter line */}
+                <div 
+                  className="absolute top-0 bottom-0 w-0.5 bg-white pointer-events-none z-30 shadow-lg"
+                  style={{ left: `${gallerySliderPosition}%` }}
+                >
+                  <div className="absolute top-1/2 -translate-y-1/2 -translate-x-1/2 w-8 h-8 rounded-full bg-indigo-600 text-white flex items-center justify-center border-2 border-white shadow-xl hover:scale-105 transition-all">
+                    <GripVertical className="w-4 h-4" />
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Info and buttons footer of lightbox */}
+            <div className="w-full max-w-5xl flex flex-col sm:flex-row items-center justify-between text-slate-400 text-[10px] font-medium mt-4 select-none gap-3">
+              <span>
+                💡 Slide your cursor or finger across the image workspace to explore differences down to the pixel.
+              </span>
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={() => {
+                    triggerFileDownload(item.compressedResult!.dataUrl, item.compressedResult!.fileName);
+                  }}
+                  className="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-100 rounded-xl font-bold uppercase tracking-wider text-[9px] cursor-pointer transition-all flex items-center gap-1 shrink-0"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  <span>Download Optimized File</span>
+                </button>
+                <button
+                  onClick={() => setGalleryCompareId(null)}
+                  className="px-4 py-2 bg-indigo-650 hover:bg-indigo-505 text-white rounded-xl font-bold uppercase tracking-wider text-[9px] cursor-pointer transition-all shrink-0"
+                >
+                  Return to Grid
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Batch Compression Summary Modal */}
       <AnimatePresence>

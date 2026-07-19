@@ -36,6 +36,24 @@ export default function ImageConverter({ theme }: ImageConverterProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
+  useEffect(() => {
+    const handleDriveFile = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && customEvent.detail.targetTab === "converter") {
+        const { file } = customEvent.detail;
+        if (file && file.dataUrl) {
+          setSourceImg(file.dataUrl);
+          setSourceName(file.name);
+          setSourceSize(file.size || 0);
+          setSourceMime(file.mimeType || "image/png");
+          setConvertedUrl(null); // Reset converted url when new file loaded
+        }
+      }
+    };
+    window.addEventListener("toolkit-use-drive-file", handleDriveFile);
+    return () => window.removeEventListener("toolkit-use-drive-file", handleDriveFile);
+  }, []);
+
   const formatBytes = (bytes: number) => {
     if (bytes === 0) return "0 Bytes";
     const k = 1024;

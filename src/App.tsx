@@ -79,6 +79,7 @@ import {
   FolderOpen,
   Plus,
   GripVertical,
+  Share2,
 } from "lucide-react";
 
 function renderTabPreview(tabId: string) {
@@ -346,6 +347,7 @@ export default function App() {
   const [needsAuth, setNeedsAuth] = useState<boolean>(true);
   const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [shareFeedback, setShareFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   interface SavedProject {
     id: string;
@@ -1277,6 +1279,60 @@ export default function App() {
         document.body.removeChild(iframe);
       }
     }, 10000);
+  };
+
+  const handleShareDesign = async () => {
+    const tabNames: Record<string, string> = {
+      quote: "Beautiful Quote Card",
+      qr: "Dynamic QR Matrix",
+      palette: "Median Extract Palette",
+      compress: "Image Compressor",
+      drive: "Cloud Drive Workspace",
+      video: "AI Image to Video Studio",
+      pdf: "PDF Utility Suite",
+      converter: "High-Fidelity Converter"
+    };
+    
+    const activeTabName = tabNames[activeTab] || "Creative Workspace";
+    const shareTitle = `Toolkit Pro Design - ${activeTabName}`;
+    const shareText = `Check out my customized ${activeTabName} design generated using Toolkit Pro!`;
+    const shareUrl = window.location.href;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: shareTitle,
+          text: shareText,
+          url: shareUrl,
+        });
+        setShareFeedback({ type: "success", text: "Successfully shared with your device!" });
+        setTimeout(() => setShareFeedback(null), 4000);
+      } catch (err: any) {
+        if (err.name !== "AbortError") {
+          console.error("Web Share failed:", err);
+          // Fallback to clipboard
+          try {
+            await navigator.clipboard.writeText(shareUrl);
+            setShareFeedback({ type: "success", text: "Link copied to clipboard!" });
+            setTimeout(() => setShareFeedback(null), 4000);
+          } catch (clipErr) {
+            setShareFeedback({ type: "error", text: "Could not share or copy link." });
+            setTimeout(() => setShareFeedback(null), 4000);
+          }
+        }
+      }
+    } else {
+      // Fallback: copy current page URL to clipboard
+      try {
+        await navigator.clipboard.writeText(shareUrl);
+        setShareFeedback({ type: "success", text: "App link copied to clipboard!" });
+        setTimeout(() => setShareFeedback(null), 4000);
+      } catch (err) {
+        console.error("Clipboard write failed:", err);
+        setShareFeedback({ type: "error", text: "Clipboard access denied. Please copy URL manually." });
+        setTimeout(() => setShareFeedback(null), 4000);
+      }
+    }
   };
 
   const [legalSubTab, setLegalSubTab] = useState<"privacy" | "terms" | "about" | "contact">(() => {
@@ -4013,6 +4069,22 @@ export default function App() {
                     <p>💡 Tip: Verify all design custom colors and font pairings look correct.</p>
                     <p className="mt-0.5">Physical size adjustments will map safely to actual printer papers.</p>
                   </div>
+                  <AnimatePresence>
+                    {shareFeedback && (
+                      <motion.div
+                        initial={{ opacity: 0, scale: 0.95, y: 5 }}
+                        animate={{ opacity: 1, scale: 1, y: 0 }}
+                        exit={{ opacity: 0, scale: 0.95, y: 5 }}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
+                          shareFeedback.type === "success" 
+                            ? "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20" 
+                            : "bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20"
+                        }`}
+                      >
+                        {shareFeedback.type === "success" ? "✨ " : "⚠️ "} {shareFeedback.text}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
                   <div className="flex items-center gap-2.5 w-full sm:w-auto">
                     <button
                       type="button"
@@ -4020,6 +4092,14 @@ export default function App() {
                       className="flex-1 sm:flex-none py-2 px-4 border border-slate-205 dark:border-slate-805 text-xs font-bold rounded-xl hover:bg-slate-50 dark:hover:bg-slate-900 transition-all cursor-pointer text-slate-700 dark:text-slate-300"
                     >
                       Close Preview
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleShareDesign}
+                      className="flex-1 sm:flex-none py-2 px-4 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/60 border border-indigo-200/40 dark:border-indigo-900/40 text-indigo-700 dark:text-indigo-300 text-xs font-black rounded-xl transition-all shadow-3xs flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Share2 className="w-3.5 h-3.5" />
+                      <span>Share Design</span>
                     </button>
                     <button
                       type="button"
