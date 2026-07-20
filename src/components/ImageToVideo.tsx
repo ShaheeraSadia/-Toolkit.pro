@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { User } from "firebase/auth";
 import { db } from "../firebase";
+import { DriveFile } from "../types";
 import {
   collection,
   doc,
@@ -70,6 +71,7 @@ interface ImageToVideoProps {
   accessToken: string | null;
   onRefreshDrive?: () => void;
   onLogin?: () => Promise<void>;
+  driveFiles?: DriveFile[];
 }
 
 interface VideoCreation {
@@ -93,6 +95,114 @@ const PRESET_PROMPTS = [
   "Extreme close up of a futuristic cyberpunk helmet reflecting neon Tokyo streetlights, rain droplets sliding down the visor, cinematic focus pull.",
   "A majestic golden retriever running through a vast field of yellow sunflowers under beautiful warm golden hour sunset, soft slow-motion, highly detailed fur.",
   "Surreal cosmic hourglass resting on white sand, galaxies swirling inside the glass bulbs, star particles falling slowly, slow zoom-out camera shot."
+];
+
+const PRESET_GALLERY_IMAGES = [
+  {
+    id: "preset-1",
+    name: "Ancient Mystical Temple",
+    category: "Fantasy",
+    url: "https://images.unsplash.com/photo-1518709268805-4e9042af9f23?auto=format&fit=crop&w=800&q=80",
+    description: "A mysterious floating temple engulfed by clouds."
+  },
+  {
+    id: "preset-2",
+    name: "Cyberpunk Alleyway",
+    category: "Sci-Fi",
+    url: "https://images.unsplash.com/photo-1508739773434-c26b3d09e071?auto=format&fit=crop&w=800&q=80",
+    description: "Vibrant neon-lit cyberpunk alleyway in rain."
+  },
+  {
+    id: "preset-3",
+    name: "Misty Pine Forest",
+    category: "Nature",
+    url: "https://images.unsplash.com/photo-1447752875215-b2761acb3c5d?auto=format&fit=crop&w=800&q=80",
+    description: "An atmospheric dense forest covered in soft morning fog."
+  },
+  {
+    id: "preset-4",
+    name: "Majestic Golden Dragon",
+    category: "Fantasy",
+    url: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=800&q=80",
+    description: "Golden light swirling in abstract artistic smoke shapes."
+  },
+  {
+    id: "preset-5",
+    name: "Cozy Lake Cabin",
+    category: "Nature",
+    url: "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=800&q=80",
+    description: "A peaceful retreat by a mirroring mountain lake."
+  },
+  {
+    id: "preset-6",
+    name: "Retro VHS Cityscape",
+    category: "Retro",
+    url: "https://images.unsplash.com/photo-1515263487990-61b07816b324?auto=format&fit=crop&w=800&q=80",
+    description: "Classic neon grid cityscape inspired by 80s outrun style."
+  },
+  {
+    id: "preset-7",
+    name: "Underwater Coral City",
+    category: "Sci-Fi",
+    url: "https://images.unsplash.com/photo-1544551763-46a013bb70d5?auto=format&fit=crop&w=800&q=80",
+    description: "Glowing deep ocean reef with futuristic biodomes."
+  },
+  {
+    id: "preset-8",
+    name: "Cosmic Star Nebula",
+    category: "Cosmic",
+    url: "https://images.unsplash.com/photo-1464802686167-b939a6910659?auto=format&fit=crop&w=800&q=80",
+    description: "An awe-inspiring vibrant stardust cloud deep in the galaxy."
+  },
+  {
+    id: "preset-9",
+    name: "Futuristic Martian Colony",
+    category: "Sci-Fi",
+    url: "https://images.unsplash.com/photo-1614728894747-a83421e2b9c9?auto=format&fit=crop&w=800&q=80",
+    description: "Dusty orange domes under a twin-moon Martian horizon."
+  },
+  {
+    id: "preset-10",
+    name: "Enchanted Elven Palace",
+    category: "Fantasy",
+    url: "https://images.unsplash.com/photo-1578632767115-351597cf2477?auto=format&fit=crop&w=800&q=80",
+    description: "Crystalline glowing towers winding around an ancient giant golden tree."
+  },
+  {
+    id: "preset-11",
+    name: "Interstellar Aurora Borealis",
+    category: "Cosmic",
+    url: "https://images.unsplash.com/photo-1579033461380-adb47c3eb938?auto=format&fit=crop&w=800&q=80",
+    description: "Vibrant cosmic emerald ribbons of light dancing above snow-capped peaks."
+  },
+  {
+    id: "preset-12",
+    name: "Autumn Sakura River",
+    category: "Nature",
+    url: "https://images.unsplash.com/photo-1528164344705-47542687000d?auto=format&fit=crop&w=800&q=80",
+    description: "Soft pink petals floating gently down a rapid crystal-clear stream in Kyoto."
+  },
+  {
+    id: "preset-13",
+    name: "Cyberpunk Arcade Neon",
+    category: "Retro",
+    url: "https://images.unsplash.com/photo-1511512578047-dfb367046420?auto=format&fit=crop&w=800&q=80",
+    description: "Rows of glowing vintage arcade cabinets washing a retro gaming lounge in deep magenta."
+  },
+  {
+    id: "preset-14",
+    name: "Tokyo Cyber-Streets",
+    category: "Sci-Fi",
+    url: "https://images.unsplash.com/photo-1540959733332-eab4deceeaf7?auto=format&fit=crop&w=800&q=80",
+    description: "Gleaming wet street asphalt mirroring huge holographic advertising displays."
+  },
+  {
+    id: "preset-15",
+    name: "Glowing Bio-luminescent Cave",
+    category: "Nature",
+    url: "https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=800&q=80",
+    description: "A secret subterranean beach illuminated by millions of glowing neon-blue planktons."
+  }
 ];
 
 interface GalleryCardProps {
@@ -367,7 +477,7 @@ function GalleryCard({
   );
 }
 
-export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogin }: ImageToVideoProps) {
+export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogin, driveFiles = [] }: ImageToVideoProps) {
   // Custom API Key from local storage (allows users to bypass shared model quotas)
   const [customApiKey, setCustomApiKeyState] = useState<string>(() => {
     return localStorage.getItem("custom_gemini_api_key") || "";
@@ -444,7 +554,9 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
   }, []);
 
   // AI Image Generation States
-  const [activeImageTab, setActiveImageTab] = useState<"upload" | "ai">("upload");
+  const [activeImageTab, setActiveImageTab] = useState<"upload" | "ai" | "gallery">("upload");
+  const [gallerySearchQuery, setGallerySearchQuery] = useState("");
+  const [galleryCategory, setGalleryCategory] = useState("All");
   const [aiImagePrompt, setAiImagePrompt] = useState("");
   const [aiImageStyle, setAiImageStyle] = useState("cinematic");
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
@@ -494,6 +606,46 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
       reader.onerror = () => reject(new Error("Failed to convert image blob to data URL"));
       reader.readAsDataURL(blob);
     });
+  };
+
+  const [isDownloadingDriveImg, setIsDownloadingDriveImg] = useState<string | null>(null);
+
+  const handleSelectDriveFile = async (file: DriveFile) => {
+    if (!accessToken) {
+      setErrorMsg("Please connect your Google Account first to use Google Drive assets.");
+      return;
+    }
+    setIsDownloadingDriveImg(file.id);
+    setErrorMsg(null);
+    setAiSuccessMsg(null);
+    try {
+      const response = await fetch(`https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      });
+      if (!response.ok) {
+        throw new Error(`Google Drive API returned status code ${response.status}`);
+      }
+      const blob = await response.blob();
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = () => reject(new Error("Failed to parse loaded drive image"));
+        reader.readAsDataURL(blob);
+      });
+      setImage(dataUrl);
+      setAiSuccessMsg(`✨ Loaded "${file.name}" from Google Drive successfully!`);
+      // Auto-fill video prompt if currently empty
+      if (!prompt.trim()) {
+        setPrompt(`Cinematic motion of ${file.name.split(".")[0]}. Smooth camera panning, deep cinematic lighting, rich details.`);
+      }
+    } catch (err: any) {
+      console.error("Google Drive selection failed:", err);
+      setErrorMsg(`Failed to load Google Drive file: ${err.message || "An unexpected error occurred"}.`);
+    } finally {
+      setIsDownloadingDriveImg(null);
+    }
   };
 
   const handleSurpriseImagePrompt = () => {
@@ -2145,7 +2297,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
               </div>
 
               {/* Segmented Control Tabs */}
-              <div className="grid grid-cols-2 p-1 bg-slate-950 rounded-xl border border-slate-800">
+              <div className="grid grid-cols-3 p-1 bg-slate-950 rounded-xl border border-slate-800">
                 <button
                   type="button"
                   onClick={() => {
@@ -2159,7 +2311,22 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                   }`}
                 >
                   <Upload className="w-3.5 h-3.5" />
-                  Upload Image
+                  Upload
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setActiveImageTab("gallery");
+                    setAiSuccessMsg(null);
+                  }}
+                  className={`py-1.5 px-3 text-xs font-semibold rounded-lg flex items-center justify-center gap-1.5 transition-all ${
+                    activeImageTab === "gallery"
+                      ? "bg-indigo-600 text-white shadow-md"
+                      : "text-slate-400 hover:text-slate-200"
+                  }`}
+                >
+                  <ImageIcon className="w-3.5 h-3.5" />
+                  Gallery
                 </button>
                 <button
                   type="button"
@@ -2174,7 +2341,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                   }`}
                 >
                   <Sparkles className="w-3.5 h-3.5 text-yellow-300" />
-                  AI Image Generator
+                  AI Gen
                 </button>
               </div>
 
@@ -2269,6 +2436,230 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                       </button>
                     </>
                   )}
+                </div>
+              ) : activeImageTab === "gallery" ? (
+                /* Image Gallery Tab (NEW!) */
+                <div className="border border-slate-800 rounded-2xl p-5 bg-slate-950 flex flex-col gap-4">
+                  {/* Active selection preview if loaded */}
+                  {image && (
+                    <div className="relative aspect-video rounded-xl overflow-hidden border border-slate-800 bg-slate-900 group">
+                      <img
+                        src={image}
+                        alt="Selected Seed Preview"
+                        className="w-full h-full object-contain bg-slate-900"
+                        referrerPolicy="no-referrer"
+                      />
+                      <div className="absolute inset-x-0 bottom-0 bg-slate-950/90 p-2 flex items-center justify-between border-t border-slate-800/60">
+                        <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1 pl-1">
+                          <Check className="w-3.5 h-3.5" />
+                          Active Seed Frame Loaded
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(`/api/image/download?url=${encodeURIComponent(image)}`, "_blank");
+                            }}
+                            className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 px-2 py-0.5 flex items-center gap-1 transition-colors"
+                          >
+                            <Download className="w-3 h-3" />
+                            Download
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleRemoveImage();
+                            }}
+                            className="text-[10px] font-bold text-rose-400 hover:text-rose-300 px-2 py-0.5 transition-colors"
+                          >
+                            Clear
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Search and Filters */}
+                  <div className="flex flex-col gap-3">
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+                      <input
+                        type="text"
+                        placeholder="Search stock presets or drive files..."
+                        value={gallerySearchQuery}
+                        onChange={(e) => setGallerySearchQuery(e.target.value)}
+                        className="w-full text-xs bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-xl pl-9 pr-4 py-2 text-slate-200 placeholder-slate-500 focus:outline-none focus:ring-0 transition-all"
+                      />
+                      {gallerySearchQuery && (
+                        <button
+                          onClick={() => setGallerySearchQuery("")}
+                          className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300"
+                        >
+                          <X className="w-3 h-3" />
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Categories Pills */}
+                    <div className="flex items-center gap-1.5 overflow-x-auto pb-1">
+                      {["All", "Fantasy", "Sci-Fi", "Nature", "Retro", "Cosmic", ...(driveFiles.filter(f => f.mimeType && f.mimeType.startsWith("image/")).length > 0 ? ["Google Drive"] : [])].map((cat) => (
+                        <button
+                          key={cat}
+                          type="button"
+                          onClick={() => setGalleryCategory(cat)}
+                          className={`text-[10px] font-bold px-2.5 py-1 rounded-full border transition-all shrink-0 ${
+                            galleryCategory === cat
+                              ? "bg-indigo-600 border-indigo-500 text-white shadow-sm"
+                              : "bg-slate-900 border-slate-800/80 text-slate-400 hover:text-slate-200"
+                          }`}
+                        >
+                          {cat}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Scrollable Grid */}
+                  <div className="max-h-[220px] overflow-y-auto pr-1.5 flex flex-col gap-3 custom-scrollbar">
+                    {/* Google Drive Images Sub-grid */}
+                    {(galleryCategory === "All" || galleryCategory === "Google Drive") && driveFiles.filter(f => f.mimeType && f.mimeType.startsWith("image/")).length > 0 && (
+                      <div className="flex flex-col gap-2">
+                        <span className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider flex items-center gap-1.5">
+                          <span className="w-1.5 h-1.5 rounded-full bg-indigo-400"></span>
+                          Google Drive Assets
+                        </span>
+                        <motion.div layout className="grid grid-cols-3 gap-2">
+                          <AnimatePresence mode="popLayout">
+                            {driveFiles
+                              .filter(f => f.mimeType && f.mimeType.startsWith("image/"))
+                              .filter(f => f.name.toLowerCase().includes(gallerySearchQuery.toLowerCase()))
+                              .map((file) => {
+                                const isSelected = image === file.thumbnailLink || image?.includes(file.id);
+                                return (
+                                  <motion.div
+                                    layout
+                                    initial={{ opacity: 0, scale: 0.95 }}
+                                    animate={{ opacity: 1, scale: 1 }}
+                                    exit={{ opacity: 0, scale: 0.95 }}
+                                    transition={{ duration: 0.2 }}
+                                    key={file.id}
+                                    onClick={() => handleSelectDriveFile(file)}
+                                    className={`group relative aspect-video rounded-lg overflow-hidden border cursor-pointer bg-slate-900 transition-all hover:scale-[1.03] ${
+                                      isSelected
+                                        ? "border-indigo-500 ring-1 ring-indigo-500"
+                                        : "border-slate-800 hover:border-slate-700"
+                                    }`}
+                                  >
+                                  {isDownloadingDriveImg === file.id ? (
+                                    <div className="w-full h-full flex items-center justify-center bg-slate-950">
+                                      <RefreshCw className="w-4 h-4 text-indigo-400 animate-spin" />
+                                    </div>
+                                  ) : file.thumbnailLink ? (
+                                    <img
+                                      src={file.thumbnailLink}
+                                      alt={file.name}
+                                      className="w-full h-full object-cover"
+                                      referrerPolicy="no-referrer"
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center bg-slate-950 text-slate-500">
+                                      <ImageIcon className="w-4 h-4 text-slate-600" />
+                                    </div>
+                                  )}
+                                  
+                                  {/* Hover file label */}
+                                  <div className="absolute inset-x-0 bottom-0 bg-black/80 p-1 text-[8px] text-slate-300 truncate opacity-0 group-hover:opacity-100 transition-opacity">
+                                    {file.name}
+                                  </div>
+
+                                  {/* Selected Check overlay */}
+                                  {isSelected && (
+                                    <div className="absolute top-1 right-1 bg-indigo-600 rounded-full p-0.5 text-white">
+                                      <Check className="w-2 h-2" />
+                                    </div>
+                                  )}
+                                </motion.div>
+                              );
+                            })}
+                          </AnimatePresence>
+                        </motion.div>
+                      </div>
+                    )}
+
+                    {/* Stock Presets Sub-grid */}
+                    {galleryCategory !== "Google Drive" && (
+                      <div className="flex flex-col gap-2">
+                        {galleryCategory === "All" && driveFiles.filter(f => f.mimeType && f.mimeType.startsWith("image/")).length > 0 && (
+                          <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 mt-1">
+                            <span className="w-1.5 h-1.5 rounded-full bg-slate-500"></span>
+                            Preset Templates
+                          </span>
+                        )}
+                        <motion.div layout className="grid grid-cols-3 gap-2">
+                          <AnimatePresence mode="popLayout">
+                            {PRESET_GALLERY_IMAGES.filter(img => {
+                              const matchesCategory = galleryCategory === "All" || img.category === galleryCategory;
+                              const matchesSearch = img.name.toLowerCase().includes(gallerySearchQuery.toLowerCase()) || 
+                                                    img.description.toLowerCase().includes(gallerySearchQuery.toLowerCase());
+                              return matchesCategory && matchesSearch;
+                            }).map((img) => {
+                              const isSelected = image === img.url;
+                              return (
+                                <motion.div
+                                  layout
+                                  initial={{ opacity: 0, scale: 0.95 }}
+                                  animate={{ opacity: 1, scale: 1 }}
+                                  exit={{ opacity: 0, scale: 0.95 }}
+                                  transition={{ duration: 0.2 }}
+                                  key={img.id}
+                                  onClick={() => {
+                                    setImage(img.url);
+                                    setAiSuccessMsg(null);
+                                  }}
+                                  className={`group relative aspect-video rounded-lg overflow-hidden border cursor-pointer bg-slate-900 transition-all hover:scale-[1.03] ${
+                                    isSelected
+                                      ? "border-indigo-500 ring-1 ring-indigo-500"
+                                      : "border-slate-800 hover:border-slate-700"
+                                  }`}
+                                  title={img.description}
+                                >
+                                <img
+                                  src={img.url}
+                                  alt={img.name}
+                                  className="w-full h-full object-cover"
+                                  referrerPolicy="no-referrer"
+                                />
+                                
+                                {/* Label overlay */}
+                                <div className="absolute inset-0 bg-slate-950/40 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col justify-end p-1">
+                                  <span className="text-[8px] font-extrabold text-white truncate">{img.name}</span>
+                                  <span className="text-[7px] text-indigo-300 font-bold uppercase tracking-wider">{img.category}</span>
+                                </div>
+
+                                {/* Selected Check overlay */}
+                                {isSelected && (
+                                  <div className="absolute top-1 right-1 bg-indigo-600 rounded-full p-0.5 text-white">
+                                    <Check className="w-2 h-2" />
+                                  </div>
+                                )}
+                              </motion.div>
+                            );
+                          })}
+                          </AnimatePresence>
+                        </motion.div>
+                      </div>
+                    )}
+
+                    {/* Empty states */}
+                    {galleryCategory === "Google Drive" && driveFiles.filter(f => f.mimeType && f.mimeType.startsWith("image/")).length === 0 && (
+                      <div className="text-center py-6">
+                        <ImageIcon className="w-5 h-5 text-slate-600 mx-auto mb-2" />
+                        <span className="text-[10px] text-slate-500">No images found in your Google Drive.</span>
+                      </div>
+                    )}
+                  </div>
                 </div>
               ) : (
                 /* AI Image Generator Tab */

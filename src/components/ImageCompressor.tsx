@@ -1433,45 +1433,6 @@ export default function ImageCompressor({
     }
   }, []);
 
-  // Handle files passed from global screen drop
-  useEffect(() => {
-    if (initialFiles && initialFiles.length > 0) {
-      processMultipleFiles(initialFiles);
-      if (onClearInitialFiles) {
-        onClearInitialFiles();
-      }
-    }
-  }, [initialFiles]);
-
-  // Handle files loaded from Drive Gallery or other tool triggers
-  useEffect(() => {
-    const handleDriveFile = (e: Event) => {
-      const customEvent = e as CustomEvent;
-      if (customEvent.detail && customEvent.detail.targetTab === "compress") {
-        const { file } = customEvent.detail;
-        if (file && file.dataUrl) {
-          try {
-            // Convert dataUrl to a standard File object
-            const arr = file.dataUrl.split(',');
-            const mime = arr[0].match(/:(.*?);/)[1];
-            const bstr = atob(arr[1]);
-            let n = bstr.length;
-            const u8arr = new Uint8Array(n);
-            while(n--) {
-              u8arr[n] = bstr.charCodeAt(n);
-            }
-            const fileObj = new File([u8arr], file.name, { type: mime });
-            processMultipleFiles([fileObj]);
-          } catch (err) {
-            console.error("Failed to load drive asset inside compressor:", err);
-          }
-        }
-      }
-    };
-    window.addEventListener("toolkit-use-drive-file", handleDriveFile);
-    return () => window.removeEventListener("toolkit-use-drive-file", handleDriveFile);
-  }, [processMultipleFiles]);
-
   // Core compatibility states synced dynamically with selected queue item
   const [originalFile, setOriginalFile] = useState<{ name: string; size: number; type: string } | null>(null);
   const [originalUrl, setOriginalUrl] = useState<string | null>(null);
@@ -1513,6 +1474,13 @@ export default function ImageCompressor({
   const [zoomLevel, setZoomLevel] = useState<number>(1);
   const [mousePosition, setMousePosition] = useState<{ x: number; y: number }>({ x: 50, y: 50 });
   const [showDiffHeatmap, setShowDiffHeatmap] = useState<boolean>(false);
+
+  // Interactive Magnifier Loupe states for checking details & compression quality loss
+  const [isMagnifierEnabled, setIsMagnifierEnabled] = useState<boolean>(false);
+  const [magnifierPos, setMagnifierPos] = useState<{ x: number; y: number }>({ x: 0, y: 0 });
+  const [isHoveringContainer, setIsHoveringContainer] = useState<boolean>(false);
+  const [magnifierMode, setMagnifierMode] = useState<"optimized" | "original" | "diff">("optimized");
+  const [magnifierZoom, setMagnifierZoom] = useState<number>(3);
 
   // Big Gallery States
   const [isBigGalleryOpen, setIsBigGalleryOpen] = useState<boolean>(false);
@@ -1637,6 +1605,20 @@ export default function ImageCompressor({
     const x = ((e.touches[0].clientX - rect.left) / rect.width) * 100;
     const y = ((e.touches[0].clientY - rect.top) / rect.height) * 100;
     setMousePosition({ x: Math.max(0, Math.min(100, x)), y: Math.max(0, Math.min(100, y)) });
+  };
+
+  const handleSliderMouseMoveWithMagnifier = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    setMagnifierPos({ x, y });
+    setIsHoveringContainer(true);
+
+    if (zoomLevel > 1) {
+      const px = (x / rect.width) * 100;
+      const py = (y / rect.height) * 100;
+      setMousePosition({ x: Math.max(0, Math.min(100, px)), y: Math.max(0, Math.min(100, py)) });
+    }
   };
 
   // Active item resolution
@@ -2367,6 +2349,45 @@ export default function ImageCompressor({
       }
     });
   };
+
+  // Handle files passed from global screen drop
+  useEffect(() => {
+    if (initialFiles && initialFiles.length > 0) {
+      processMultipleFiles(initialFiles);
+      if (onClearInitialFiles) {
+        onClearInitialFiles();
+      }
+    }
+  }, [initialFiles]);
+
+  // Handle files loaded from Drive Gallery or other tool triggers
+  useEffect(() => {
+    const handleDriveFile = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      if (customEvent.detail && customEvent.detail.targetTab === "compress") {
+        const { file } = customEvent.detail;
+        if (file && file.dataUrl) {
+          try {
+            // Convert dataUrl to a standard File object
+            const arr = file.dataUrl.split(',');
+            const mime = arr[0].match(/:(.*?);/)[1];
+            const bstr = atob(arr[1]);
+            let n = bstr.length;
+            const u8arr = new Uint8Array(n);
+            while(n--) {
+              u8arr[n] = bstr.charCodeAt(n);
+            }
+            const fileObj = new File([u8arr], file.name, { type: mime });
+            processMultipleFiles([fileObj]);
+          } catch (err) {
+            console.error("Failed to load drive asset inside compressor:", err);
+          }
+        }
+      }
+    };
+    window.addEventListener("toolkit-use-drive-file", handleDriveFile);
+    return () => window.removeEventListener("toolkit-use-drive-file", handleDriveFile);
+  }, [processMultipleFiles]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -4222,6 +4243,240 @@ export default function ImageCompressor({
     });
 
     setIsRenamePanelOpen(false);
+  };
+
+  const renderMagnifierLoupe = (isLive: boolean) => {
+    if (!isMagnifierEnabled || !isHoveringContainer || isDraggingSlider) return null;
+    
+    const targetRef = isPreviewModalOpen ? sliderContainerRef : inlineSliderContainerRef;
+    if (!targetRef.current) return null;
+    
+    const width = targetRef.current.clientWidth || 400;
+    const height = targetRef.current.clientHeight || 225;
+    
+    const originalSrc = originalUrl || activeItem?.originalUrl;
+    const optimizedSrc = isLive 
+      ? (liveCompressedResult?.dataUrl || originalSrc) 
+      : (compressedResult?.dataUrl || originalSrc);
+      
+    // 180px is magnifier size
+    const halfSize = 90; 
+
+    return (
+      <div 
+        className="absolute pointer-events-none rounded-full border-4 border-indigo-500 bg-slate-950 shadow-[0_15px_40px_rgba(0,0,0,0.6)] overflow-hidden z-30"
+        style={{
+          width: "180px",
+          height: "180px",
+          left: `${magnifierPos.x}px`,
+          top: `${magnifierPos.y}px`,
+          transform: "translate(-50%, -50%)",
+        }}
+      >
+        {/* Inner crosshair */}
+        <div className="absolute inset-0 border border-white/20 rounded-full pointer-events-none z-10 flex items-center justify-center">
+          <div className="w-2.5 h-2.5 border-2 border-indigo-400 rounded-full bg-indigo-400/20" />
+          <div className="absolute w-full h-[1px] bg-white/10" />
+          <div className="absolute h-full w-[1px] bg-white/10" />
+        </div>
+
+        {/* Loupe label */}
+        <div className="absolute bottom-2.5 inset-x-0 mx-auto text-center pointer-events-none z-20">
+          <span className="bg-slate-900/90 text-[8.5px] text-indigo-300 font-extrabold uppercase px-2 py-0.5 rounded-md border border-indigo-950 shadow-sm">
+            {magnifierMode === "original" ? "Original" : magnifierMode === "optimized" ? "Optimized" : "Loss Delta"} • {magnifierZoom}x
+          </span>
+        </div>
+
+        {/* Zoomed image container */}
+        <div className="relative w-full h-full">
+          {magnifierMode === "diff" ? (
+            <div className="relative w-full h-full bg-slate-950">
+              <img 
+                src={originalSrc} 
+                alt="Original zoom base"
+                className="absolute max-w-none select-none pointer-events-none"
+                style={{
+                  width: `${width * magnifierZoom}px`,
+                  height: `${height * magnifierZoom}px`,
+                  left: `${-magnifierPos.x * magnifierZoom + halfSize}px`,
+                  top: `${-magnifierPos.y * magnifierZoom + halfSize}px`,
+                  transform: `rotate(${activeItem?.rotation || 0}deg)`,
+                  transformOrigin: "center center",
+                  filter: getFilterCSS(imgFilter),
+                }}
+                referrerPolicy="no-referrer"
+              />
+              <img 
+                src={optimizedSrc} 
+                alt="Optimized zoom overlay"
+                className="absolute max-w-none select-none pointer-events-none mix-blend-difference"
+                style={{
+                  width: `${width * magnifierZoom}px`,
+                  height: `${height * magnifierZoom}px`,
+                  left: `${-magnifierPos.x * magnifierZoom + halfSize}px`,
+                  top: `${-magnifierPos.y * magnifierZoom + halfSize}px`,
+                  transform: `rotate(${activeItem?.rotation || 0}deg)`,
+                  transformOrigin: "center center",
+                  filter: "brightness(4) contrast(3) saturate(1.5)",
+                }}
+                referrerPolicy="no-referrer"
+              />
+            </div>
+          ) : (
+            <img 
+              src={magnifierMode === "original" ? originalSrc : optimizedSrc} 
+              alt="Zoom image"
+              className="absolute max-w-none select-none pointer-events-none"
+              style={{
+                width: `${width * magnifierZoom}px`,
+                height: `${height * magnifierZoom}px`,
+                left: `${-magnifierPos.x * magnifierZoom + halfSize}px`,
+                top: `${-magnifierPos.y * magnifierZoom + halfSize}px`,
+                transform: `rotate(${activeItem?.rotation || 0}deg)`,
+                transformOrigin: "center center",
+                filter: magnifierMode === "original" ? getFilterCSS(imgFilter) : undefined,
+              }}
+              referrerPolicy="no-referrer"
+            />
+          )}
+        </div>
+      </div>
+    );
+  };
+
+  const renderComparisonControls = (isLive: boolean) => {
+    return (
+      <div className="w-full flex flex-wrap items-center justify-between gap-3 bg-white dark:bg-slate-900 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm mb-4">
+        {/* Zoom controls */}
+        <div className="flex items-center space-x-2">
+          <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest flex items-center gap-1">
+            <Maximize2 className="w-3.5 h-3.5 text-indigo-500" />
+            <span>Zoom:</span>
+          </span>
+          <div className="flex items-center space-x-1 bg-slate-100 dark:bg-slate-950 rounded-xl p-0.5 border border-slate-200 dark:border-slate-800">
+            {[1, 2, 3, 4].map((z) => (
+              <button
+                key={z}
+                type="button"
+                onClick={() => {
+                  setZoomLevel(z);
+                  if (z === 1) setMousePosition({ x: 50, y: 50 });
+                }}
+                className={`px-2 py-1 rounded-lg text-[9px] font-bold uppercase transition-all cursor-pointer ${
+                  zoomLevel === z
+                    ? "bg-indigo-600 text-white shadow-sm font-black"
+                    : "text-slate-550 hover:text-slate-850 dark:text-slate-400 dark:hover:text-slate-200"
+                }`}
+              >
+                {z}x
+              </button>
+            ))}
+          </div>
+          {zoomLevel > 1 && (
+            <span className="text-[9px] text-indigo-500 dark:text-indigo-400 font-bold animate-pulse">
+              🖱️ Hover to Pan
+            </span>
+          )}
+        </div>
+
+        {/* Visualizer tools */}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Quality Loss Heatmap toggle */}
+          <button
+            type="button"
+            onClick={() => setShowDiffHeatmap(!showDiffHeatmap)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[9px] font-extrabold uppercase tracking-wide transition-all cursor-pointer ${
+              showDiffHeatmap
+                ? "bg-rose-500/10 dark:bg-rose-500/20 border-rose-500/30 text-rose-600 dark:text-rose-400"
+                : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-850 text-slate-650 hover:text-slate-850 dark:text-slate-400 dark:hover:text-white"
+            }`}
+            title="Highlight difference in pixel data to visualize quality loss"
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Loss Heatmap</span>
+          </button>
+
+          {/* Interactive Magnifying Loupe toggle */}
+          <button
+            type="button"
+            onClick={() => setIsMagnifierEnabled(!isMagnifierEnabled)}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl border text-[9px] font-extrabold uppercase tracking-wide transition-all cursor-pointer ${
+              isMagnifierEnabled
+                ? "bg-indigo-500/10 dark:bg-indigo-500/20 border-indigo-500/30 text-indigo-650 dark:text-indigo-400"
+                : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-850 text-slate-650 hover:text-slate-850 dark:text-slate-400 dark:hover:text-white"
+            }`}
+            title="Enable interactive high-precision magnifying glass loupe"
+          >
+            <Search className="w-3.5 h-3.5" />
+            <span>Loupe Zoom</span>
+          </button>
+
+          {/* Loupe Advanced Settings */}
+          {isMagnifierEnabled && (
+            <div className="flex flex-wrap items-center gap-2 bg-indigo-50/20 dark:bg-slate-950/40 px-2.5 py-1 rounded-xl border border-indigo-100/40 dark:border-slate-850/60 animate-fade-in">
+              <span className="text-[8.5px] font-extrabold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider pl-0.5">Inspect:</span>
+              <div className="flex items-center bg-white dark:bg-slate-900 rounded-lg p-0.5 border border-slate-200/60 dark:border-slate-800">
+                {[
+                  { id: "original", label: "Original" },
+                  { id: "optimized", label: "Optimized" },
+                  { id: "diff", label: "Loss Delta" }
+                ].map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setMagnifierMode(m.id as any)}
+                    className={`px-2 py-0.5 rounded text-[8.5px] font-bold transition-all cursor-pointer ${
+                      magnifierMode === m.id
+                        ? "bg-indigo-600 text-white shadow-2xs"
+                        : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    {m.label}
+                  </button>
+                ))}
+              </div>
+
+              <span className="text-slate-300 dark:text-slate-800">|</span>
+
+              <span className="text-[8.5px] font-extrabold text-indigo-600 dark:text-indigo-400 uppercase tracking-wider">Zoom:</span>
+              <div className="flex items-center bg-white dark:bg-slate-900 rounded-lg p-0.5 border border-slate-200/60 dark:border-slate-800">
+                {[2, 3, 4, 5].map((z) => (
+                  <button
+                    key={z}
+                    type="button"
+                    onClick={() => setMagnifierZoom(z)}
+                    className={`px-1.5 py-0.5 rounded text-[8.5px] font-bold transition-all cursor-pointer ${
+                      magnifierZoom === z
+                        ? "bg-indigo-600 text-white shadow-2xs"
+                        : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    {z}x
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Quality direct slider sync */}
+          <div className="flex items-center gap-2 bg-emerald-500/[0.03] dark:bg-emerald-500/[0.01] border border-emerald-500/10 px-2.5 py-1 rounded-xl">
+            <span className="text-[9px] font-extrabold text-emerald-650 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1 shrink-0">
+              <Sparkles className="w-3 h-3 text-emerald-500" />
+              <span>Quality: {Math.round(quality * 100)}%</span>
+            </span>
+            <input 
+              type="range"
+              min="0.1"
+              max="1.0"
+              step="0.01"
+              value={quality}
+              onChange={(e) => handleQualityChange(parseFloat(e.target.value))}
+              className="w-16 sm:w-20 md:w-24 h-1 rounded-lg bg-slate-200 dark:bg-slate-800 accent-emerald-500 cursor-pointer"
+            />
+          </div>
+        </div>
+      </div>
+    );
   };
 
   return (
@@ -6950,14 +7205,24 @@ export default function ImageCompressor({
                         <span className="text-[10px] font-black uppercase text-slate-450 dark:text-slate-500 tracking-wider text-left">
                           ↔️ Before / After Drag Comparison
                         </span>
+
+                        {renderComparisonControls(true)}
                         
                         <div className="flex-1 flex flex-col items-center justify-center py-1 select-none">
                           <div 
                             ref={inlineSliderContainerRef}
                             onMouseDown={onSliderMouseDown}
                             onTouchStart={onSliderTouchStart}
+                            onMouseMove={handleSliderMouseMoveWithMagnifier}
+                            onMouseEnter={() => setIsHoveringContainer(true)}
+                            onMouseLeave={() => setIsHoveringContainer(false)}
                             className="relative w-full rounded-2xl bg-black/5 dark:bg-black/40 border border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden cursor-ew-resize group shadow-inner max-h-[320px] sm:max-h-[420px]"
-                            style={{ aspectRatio: activeImageAspect || "16/9" }}
+                            style={{ 
+                              aspectRatio: activeImageAspect || "16/9",
+                              transform: zoomLevel > 1 ? `scale(${zoomLevel})` : "none",
+                              transformOrigin: zoomLevel > 1 ? `${mousePosition.x}% ${mousePosition.y}%` : "center center",
+                              transition: isDraggingSlider ? "none" : "transform 0.15s ease-out"
+                            }}
                             title="Drag the slider handle to compare before and after"
                             id="inline-live-compare-slider-container"
                           >
@@ -6983,15 +7248,42 @@ export default function ImageCompressor({
                               className="absolute inset-0 select-none pointer-events-none w-full h-full"
                               style={{ clipPath: `polygon(${sliderPosition}% 0, 100% 0, 100% 100%, ${sliderPosition}% 100%)` }}
                             >
-                              <img 
-                                src={liveCompressedResult.dataUrl} 
-                                alt="Compressed After" 
-                                className="absolute inset-0 w-full h-full object-contain"
-                                style={{ transform: `rotate(${activeItem?.rotation || 0}deg)` }}
-                                referrerPolicy="no-referrer"
-                              />
+                              {showDiffHeatmap ? (
+                                <div className="absolute inset-0 w-full h-full bg-slate-950 flex items-center justify-center">
+                                  {/* Base original image for diff */}
+                                  <img 
+                                    src={originalUrl || activeItem?.originalUrl} 
+                                    alt="Heatmap original base live" 
+                                    className="absolute inset-0 w-full h-full object-contain"
+                                    style={{
+                                      transform: `rotate(${activeItem?.rotation || 0}deg)`,
+                                      filter: getFilterCSS(imgFilter)
+                                    }}
+                                    referrerPolicy="no-referrer"
+                                  />
+                                  {/* Overlaid optimized image with difference blend */}
+                                  <img 
+                                    src={liveCompressedResult.dataUrl} 
+                                    alt="Heatmap optimized overlay live" 
+                                    className="absolute inset-0 w-full h-full object-contain mix-blend-difference"
+                                    style={{
+                                      transform: `rotate(${activeItem?.rotation || 0}deg)`,
+                                      filter: "brightness(4) contrast(3) saturate(1.5)"
+                                    }}
+                                    referrerPolicy="no-referrer"
+                                  />
+                                </div>
+                              ) : (
+                                <img 
+                                  src={liveCompressedResult.dataUrl} 
+                                  alt="Compressed After" 
+                                  className="absolute inset-0 w-full h-full object-contain"
+                                  style={{ transform: `rotate(${activeItem?.rotation || 0}deg)` }}
+                                  referrerPolicy="no-referrer"
+                                />
+                              )}
                               <div className="absolute top-3 right-3 bg-indigo-650/90 backdrop-blur-md px-2 py-1 rounded-lg text-[9px] font-bold text-white tracking-wide border border-indigo-500/20 uppercase select-none z-10">
-                                Optimized (After) • {formatFileSize(liveCompressedResult.compressedSize)}
+                                {showDiffHeatmap ? "Loss Heatmap" : "Optimized (After)"} • {formatFileSize(liveCompressedResult.compressedSize)}
                               </div>
                             </div>
 
@@ -7004,6 +7296,9 @@ export default function ImageCompressor({
                                 <GripVertical className="w-4 h-4" />
                               </div>
                             </div>
+
+                            {/* Floating Magnifier Loupe Overlay */}
+                            {renderMagnifierLoupe(true)}
                           </div>
                         </div>
                       </div>
@@ -7338,59 +7633,16 @@ export default function ImageCompressor({
 
                     {dashboardView === "slider" && (
                       <div className="flex-1 flex flex-col items-center justify-center py-2 select-none">
-                        {/* Interactive Zoom and Heatmap Controls */}
-                        <div className="w-full flex flex-wrap items-center justify-between gap-2 mb-3 bg-slate-50 dark:bg-slate-900/60 p-2 rounded-xl border border-slate-200/60 dark:border-slate-800">
-                          <div className="flex items-center space-x-2">
-                            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Inspect Zoom:</span>
-                            <div className="flex items-center space-x-1 bg-white dark:bg-slate-950 rounded-lg p-0.5 border border-slate-200 dark:border-slate-800">
-                              {[1, 2, 3, 4].map((z) => (
-                                <button
-                                  key={z}
-                                  type="button"
-                                  onClick={() => {
-                                    setZoomLevel(z);
-                                    if (z === 1) setMousePosition({ x: 50, y: 50 });
-                                  }}
-                                  className={`px-2 py-1 rounded text-[9px] font-bold uppercase transition-colors cursor-pointer ${
-                                    zoomLevel === z
-                                      ? "bg-indigo-600 text-white"
-                                      : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
-                                  }`}
-                                >
-                                  {z}x
-                                </button>
-                              ))}
-                            </div>
-                            {zoomLevel > 1 && (
-                              <span className="text-[9px] text-indigo-500 dark:text-indigo-400 font-bold animate-pulse">
-                                🖱️ Move mouse to Pan
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="flex items-center space-x-3">
-                            <button
-                              type="button"
-                              onClick={() => setShowDiffHeatmap(!showDiffHeatmap)}
-                              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[9px] font-extrabold uppercase tracking-wide transition-all cursor-pointer ${
-                                showDiffHeatmap
-                                  ? "bg-rose-500/10 dark:bg-rose-500/20 border-rose-500/30 text-rose-600 dark:text-rose-400"
-                                  : "bg-white dark:bg-slate-950 border-slate-200 dark:border-slate-850 text-slate-650 hover:text-slate-850 dark:text-slate-400 dark:hover:text-white"
-                              }`}
-                              title="Compare the raw difference of pixels (mix-blend-difference)"
-                            >
-                              <Layers className="w-3.5 h-3.5" />
-                              <span>Diff Heatmap</span>
-                            </button>
-                          </div>
-                        </div>
+                        {renderComparisonControls(false)}
 
                         <div 
                           ref={inlineSliderContainerRef}
                           onMouseDown={onSliderMouseDown}
                           onTouchStart={onSliderTouchStart}
-                          onMouseMove={handleContainerMouseMove}
+                          onMouseMove={handleSliderMouseMoveWithMagnifier}
                           onTouchMove={handleContainerTouchMove}
+                          onMouseEnter={() => setIsHoveringContainer(true)}
+                          onMouseLeave={() => setIsHoveringContainer(false)}
                           className="relative w-full rounded-2xl bg-black/5 dark:bg-black/40 border border-slate-200 dark:border-slate-800 flex items-center justify-center overflow-hidden cursor-ew-resize group shadow-inner max-h-[320px] sm:max-h-[420px]"
                           style={{ aspectRatio: activeImageAspect || "16/9" }}
                           title="Drag the slider handle to compare before and after. Use Zoom controls above to magnify details."
@@ -7476,6 +7728,9 @@ export default function ImageCompressor({
                               ↔
                             </div>
                           </div>
+
+                          {/* Floating Magnifier Loupe Overlay */}
+                          {renderMagnifierLoupe(false)}
                         </div>
                         <div className="flex items-center justify-between w-full mt-3 font-mono text-[11px] text-slate-500 border-t border-slate-100 dark:border-slate-900 pt-2.5">
                           <span>Original: <strong className="text-slate-755 dark:text-slate-300 font-bold">{formatFileSize(compressedResult.originalSize)}</strong></span>
@@ -8355,6 +8610,68 @@ export default function ImageCompressor({
                 Diff Heatmap
               </button>
 
+              {/* Magnifying Loupe toggle inside modal */}
+              <button
+                type="button"
+                onClick={() => setIsMagnifierEnabled(!isMagnifierEnabled)}
+                className={`px-3 py-1.5 rounded-xl border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer ${
+                  isMagnifierEnabled
+                    ? "bg-indigo-500/20 border-indigo-500/40 text-indigo-400"
+                    : "bg-slate-900 border-slate-800 text-slate-400 hover:text-white"
+                }`}
+                title="Enable interactive high-precision magnifying glass loupe"
+              >
+                <Search className="w-3.5 h-3.5 mr-1 inline" />
+                Loupe Zoom
+              </button>
+
+              {/* Loupe Advanced settings overlay inside modal */}
+              {isMagnifierEnabled && (
+                <div className="flex items-center gap-2 bg-slate-900 border border-slate-800 px-2.5 py-1 rounded-xl animate-fade-in text-[10px]">
+                  <span className="text-[9px] font-black uppercase text-slate-500">Inspect:</span>
+                  <div className="flex items-center bg-black rounded-lg p-0.5 border border-slate-850">
+                    {[
+                      { id: "original", label: "Original" },
+                      { id: "optimized", label: "Optimized" },
+                      { id: "diff", label: "Loss Delta" }
+                    ].map((m) => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setMagnifierMode(m.id as any)}
+                        className={`px-2 py-0.5 rounded text-[9px] font-bold transition-all cursor-pointer ${
+                          magnifierMode === m.id
+                            ? "bg-indigo-600 text-white shadow-2xs"
+                            : "text-slate-400 hover:text-white"
+                        }`}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+
+                  <span className="text-slate-850">|</span>
+
+                  <span className="text-[9px] font-black uppercase text-slate-500">Zoom:</span>
+                  <div className="flex items-center bg-black rounded-lg p-0.5 border border-slate-850">
+                    {[2, 3, 4, 5].map((z) => (
+                      <button
+                        key={z}
+                        type="button"
+                        onClick={() => setMagnifierZoom(z)}
+                        className={`px-1.5 py-0.5 rounded text-[9px] font-bold transition-all cursor-pointer ${
+                          magnifierZoom === z
+                            ? "bg-indigo-600 text-white shadow-2xs"
+                            : "text-slate-400 hover:text-white"
+                        }`}
+                      >
+                        {z}x
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="bg-slate-900 border border-slate-800 p-1 rounded-xl flex items-center space-x-1">
                 {[
                   { id: "side-by-side", label: "Side-by-Side" },
@@ -8485,8 +8802,10 @@ export default function ImageCompressor({
                 ref={sliderContainerRef}
                 onMouseDown={onSliderMouseDown}
                 onTouchStart={onSliderTouchStart}
-                onMouseMove={handleContainerMouseMove}
+                onMouseMove={handleSliderMouseMoveWithMagnifier}
                 onTouchMove={handleContainerTouchMove}
+                onMouseEnter={() => setIsHoveringContainer(true)}
+                onMouseLeave={() => setIsHoveringContainer(false)}
                 className="relative w-full max-w-4xl rounded-2xl border border-slate-800 bg-black/40 overflow-hidden select-none cursor-ew-resize max-h-[70vh]"
                 style={{ aspectRatio: activeImageAspect || "16/9" }}
                 id="preview-contrast-slider-container"
@@ -8569,6 +8888,9 @@ export default function ImageCompressor({
                     ↔
                   </div>
                 </div>
+
+                {/* Floating Magnifier Loupe Overlay */}
+                {renderMagnifierLoupe(false)}
               </div>
             )}
 

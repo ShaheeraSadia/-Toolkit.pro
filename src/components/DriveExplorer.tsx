@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import { User } from "firebase/auth";
+import { motion, AnimatePresence } from "motion/react";
 import { DriveFile } from "../types";
 import { deleteDriveFile, getOrCreateFolder, uploadFileToDrive, createDriveFolder, moveDriveFile, renameDriveFile } from "../lib/drive";
 import {
@@ -1431,49 +1432,56 @@ export default function DriveExplorer({
                 <Folder className="w-3.5 h-3.5 text-slate-450" />
                 Folders ({currentFolders.length})
               </h5>
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
-                {currentFolders.map((folder) => (
-                  <div
-                    key={folder.id}
-                    onClick={() => enterFolder(folder)}
-                    className="bg-white dark:bg-slate-900 px-4 py-3.5 border border-slate-200 dark:border-slate-800 rounded-2xl flex items-center justify-between group cursor-pointer hover:border-slate-350 dark:hover:border-slate-700 hover:shadow-xs transition-all text-left"
-                  >
-                    <div className="flex items-center space-x-3 overflow-hidden">
-                      <div className="p-2 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl group-hover:scale-105 transition-all text-emerald-600 dark:text-emerald-400">
-                        <Folder className="w-4 h-4 fill-emerald-100 dark:fill-emerald-900" />
+              <motion.div layout className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                <AnimatePresence mode="popLayout">
+                  {currentFolders.map((folder) => (
+                    <motion.div
+                      layout
+                      initial={{ opacity: 0, scale: 0.95 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      exit={{ opacity: 0, scale: 0.95 }}
+                      transition={{ duration: 0.2 }}
+                      key={folder.id}
+                      onClick={() => enterFolder(folder)}
+                      className="bg-white dark:bg-slate-900 px-4 py-3.5 border border-slate-200 dark:border-slate-800 rounded-2xl flex items-center justify-between group cursor-pointer hover:border-slate-350 dark:hover:border-slate-700 hover:shadow-xs transition-all text-left"
+                    >
+                      <div className="flex items-center space-x-3 overflow-hidden">
+                        <div className="p-2 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl group-hover:scale-105 transition-all text-emerald-600 dark:text-emerald-400">
+                          <Folder className="w-4 h-4 fill-emerald-100 dark:fill-emerald-900" />
+                        </div>
+                        <span className="text-xs font-bold text-slate-800 dark:text-white truncate" title={folder.name}>
+                          {highlightMatch(folder.name, search)}
+                        </span>
                       </div>
-                      <span className="text-xs font-bold text-slate-800 dark:text-white truncate" title={folder.name}>
-                        {highlightMatch(folder.name, search)}
-                      </span>
-                    </div>
 
-                    <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-all">
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          triggerRename(folder, true);
-                        }}
-                        className="p-1 rounded-lg text-slate-400 hover:text-indigo-605 dark:hover:text-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-850/50 transition-all cursor-pointer flex items-center justify-center"
-                        title="Rename folder"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          triggerDelete(folder, true);
-                        }}
-                        className="p-1 rounded-lg text-slate-400 hover:text-rose-650 dark:hover:text-rose-450 hover:bg-rose-50 dark:hover:bg-rose-950/20 transition-all cursor-pointer flex items-center justify-center"
-                        title="Permanently remove folder"
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
+                      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-all">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            triggerRename(folder, true);
+                          }}
+                          className="p-1 rounded-lg text-slate-400 hover:text-indigo-650 dark:hover:text-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-850/50 transition-all cursor-pointer flex items-center justify-center"
+                          title="Rename folder"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            triggerDelete(folder, true);
+                          }}
+                          className="p-1 rounded-lg text-slate-400 hover:text-rose-650 dark:hover:text-rose-455 hover:bg-rose-50 dark:hover:bg-rose-955/20 transition-all cursor-pointer flex items-center justify-center"
+                          title="Permanently remove folder"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </motion.div>
+                  ))}
+                </AnimatePresence>
+              </motion.div>
             </div>
           )}
           {/* FILES GRID PANEL */}
@@ -1515,29 +1523,35 @@ export default function DriveExplorer({
                 No files inside this directory. Navigate to one of the folders above or upload files directly.
               </div>
             ) : displayMode === "grid" ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
-                {currentFiles.map((file) => {
-                  const cat = getFileCategory(file.name);
-                  const globalIndex = currentFiles.indexOf(file);
-                  const isSelected = selectedFileIds.includes(file.id);
-                  return (
-                    <div
-                      key={file.id}
-                      onClick={() => setSelectedPreviewFile(file)}
-                      onDoubleClick={() => {
-                        setPreviewIndex(globalIndex);
-                        setSelectedPreviewFile(file);
-                      }}
-                      className={`bg-white dark:bg-slate-950 rounded-2xl border overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between group animate-fade-in cursor-pointer ${
-                        isSelected
-                          ? "ring-2 ring-emerald-500 border-transparent bg-emerald-500/[0.02]"
-                          : "border-slate-100 dark:border-slate-850"
-                      } ${
-                        selectedPreviewFile?.id === file.id
-                          ? "ring-2 ring-indigo-500 dark:ring-indigo-500 border-transparent bg-indigo-50/20 dark:bg-indigo-950/5"
-                          : ""
-                      }`}
-                    >
+              <motion.div layout className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4 gap-6">
+                <AnimatePresence mode="popLayout">
+                  {currentFiles.map((file) => {
+                    const cat = getFileCategory(file.name);
+                    const globalIndex = currentFiles.indexOf(file);
+                    const isSelected = selectedFileIds.includes(file.id);
+                    return (
+                      <motion.div
+                        layout
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.2 }}
+                        key={file.id}
+                        onClick={() => setSelectedPreviewFile(file)}
+                        onDoubleClick={() => {
+                          setPreviewIndex(globalIndex);
+                          setSelectedPreviewFile(file);
+                        }}
+                        className={`bg-white dark:bg-slate-950 rounded-2xl border overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between group animate-fade-in cursor-pointer ${
+                          isSelected
+                            ? "ring-2 ring-emerald-500 border-transparent bg-emerald-500/[0.02]"
+                            : "border-slate-100 dark:border-slate-850"
+                        } ${
+                          selectedPreviewFile?.id === file.id
+                            ? "ring-2 ring-indigo-500 dark:ring-indigo-500 border-transparent bg-indigo-50/20 dark:bg-indigo-950/5"
+                            : ""
+                        }`}
+                      >
                       {/* Upper thumbnail preview container */}
                       <div
                         onClick={(e) => {
@@ -1675,10 +1689,11 @@ export default function DriveExplorer({
                           </button>
                         </div>
                       </div>
-                    </div>
+                    </motion.div>
                   );
                 })}
-              </div>
+                </AnimatePresence>
+              </motion.div>
             ) : (
               <div className="border border-slate-150 dark:border-slate-800/80 rounded-2xl overflow-hidden bg-white dark:bg-slate-950 shadow-xs animate-fade-in text-left">
                 <div className="overflow-x-auto">

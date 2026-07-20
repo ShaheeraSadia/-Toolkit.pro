@@ -2032,8 +2032,8 @@ export default function App() {
                   if (hr < 17) return "Good afternoon";
                   return "Good evening";
                 };
-                const creatorName = user?.email ? user.email.split("@")[0] : "Creator";
-                const cleanName = creatorName.charAt(0).toUpperCase() + creatorName.slice(1);
+                const creatorName = user?.displayName || (user?.email ? user.email.split("@")[0] : "Creator");
+                const cleanName = user?.displayName ? user.displayName : creatorName.charAt(0).toUpperCase() + creatorName.slice(1);
                 const timeString = currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
                 const dateString = currentTime.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
                 return (
@@ -2913,6 +2913,7 @@ export default function App() {
                             accessToken={accessToken}
                             onRefreshDrive={handleRefreshDrive}
                             onLogin={handleLogin}
+                            driveFiles={files}
                           />
                         )}
 
