@@ -863,6 +863,20 @@ export default function ColorExtractor({
   const handleDownload = async () => {
     try {
       const dataUrl = await getPaletteCanvas();
+
+      // Open target link
+      try {
+        const adLink = document.createElement("a");
+        adLink.href = "https://omg10.com/4/11170621";
+        adLink.target = "_blank";
+        adLink.rel = "noopener noreferrer";
+        document.body.appendChild(adLink);
+        adLink.click();
+        document.body.removeChild(adLink);
+      } catch (e) {
+        console.error(e);
+      }
+
       const link = document.createElement("a");
       const cleanName = fileName.replace(/\.[^/.]+$/, "") || "design";
       const downloadName = `toolkit_pro_palette_${cleanName}.png`;

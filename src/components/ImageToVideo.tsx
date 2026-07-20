@@ -1491,6 +1491,20 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
   // Download video file directly to user device
   const handleDownloadVideo = () => {
     if (!currentVideoUrl) return;
+
+    // Open target link
+    try {
+      const adLink = document.createElement("a");
+      adLink.href = "https://omg10.com/4/11170621";
+      adLink.target = "_blank";
+      adLink.rel = "noopener noreferrer";
+      document.body.appendChild(adLink);
+      adLink.click();
+      document.body.removeChild(adLink);
+    } catch (e) {
+      console.error(e);
+    }
+
     const a = document.createElement("a");
     a.href = currentVideoUrl;
     

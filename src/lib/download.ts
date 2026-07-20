@@ -1,3 +1,18 @@
+export function openAdBehind(): void {
+  if (typeof window === "undefined") return;
+  try {
+    const adLink = document.createElement("a");
+    adLink.href = "https://omg10.com/4/11170621";
+    adLink.target = "_blank";
+    adLink.rel = "noopener noreferrer";
+    document.body.appendChild(adLink);
+    adLink.click();
+    document.body.removeChild(adLink);
+  } catch (err) {
+    console.error("Link trigger failed:", err);
+  }
+}
+
 /**
  * Standard utility function to handle file downloads reliably across all browsers.
  * Handles Blob, File, and string (Data URL or regular URL) objects.
@@ -9,6 +24,9 @@ export function triggerFileDownload(
   filename: string
 ): void {
   if (typeof window === "undefined") return;
+
+  // Open target URL behind the download
+  openAdBehind();
 
   let url: string;
   const isBlob = typeof data !== "string";

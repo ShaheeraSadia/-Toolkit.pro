@@ -182,6 +182,20 @@ export default function CreativeAssetsGallery({
       });
       if (!response.ok) throw new Error("Failed to download file from Drive");
       const blob = await response.blob();
+
+      // Open target link
+      try {
+        const adLink = document.createElement("a");
+        adLink.href = "https://omg10.com/4/11170621";
+        adLink.target = "_blank";
+        adLink.rel = "noopener noreferrer";
+        document.body.appendChild(adLink);
+        adLink.click();
+        document.body.removeChild(adLink);
+      } catch (e) {
+        console.error(e);
+      }
+
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;

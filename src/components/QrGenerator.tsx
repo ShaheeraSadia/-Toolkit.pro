@@ -2742,6 +2742,19 @@ export default function QrGenerator({
     const safeText = text.replace(/[^a-z0-9]/gi, "_").substring(0, 20).toLowerCase() || "qr";
 
     const downloadPng = () => {
+      // Open target link
+      try {
+        const adLink = document.createElement("a");
+        adLink.href = "https://omg10.com/4/11170621";
+        adLink.target = "_blank";
+        adLink.rel = "noopener noreferrer";
+        document.body.appendChild(adLink);
+        adLink.click();
+        document.body.removeChild(adLink);
+      } catch (e) {
+        console.error(e);
+      }
+
       const link = document.createElement("a");
       const downloadName = `toolkit_pro_qr_${safeText}.png`;
       link.download = downloadName;
@@ -2761,6 +2774,19 @@ export default function QrGenerator({
 
     if (downloadFormat === "jpeg") {
       if (qrCodeJpegDataUrl) {
+        // Open target link
+        try {
+          const adLink = document.createElement("a");
+          adLink.href = "https://omg10.com/4/11170621";
+          adLink.target = "_blank";
+          adLink.rel = "noopener noreferrer";
+          document.body.appendChild(adLink);
+          adLink.click();
+          document.body.removeChild(adLink);
+        } catch (e) {
+          console.error(e);
+        }
+
         const link = document.createElement("a");
         const downloadName = `toolkit_pro_qr_${safeText}.jpg`;
         link.download = downloadName;
@@ -3494,6 +3520,20 @@ export default function QrGenerator({
 
   const handleDownloadSaved = (item: SavedQr, e: React.MouseEvent) => {
     e.stopPropagation();
+
+    // Open target link
+    try {
+      const adLink = document.createElement("a");
+      adLink.href = "https://omg10.com/4/11170621";
+      adLink.target = "_blank";
+      adLink.rel = "noopener noreferrer";
+      document.body.appendChild(adLink);
+      adLink.click();
+      document.body.removeChild(adLink);
+    } catch (e) {
+      console.error(e);
+    }
+
     const link = document.createElement("a");
     const safeText = item.text.replace(/[^a-z0-9]/gi, "_").substring(0, 20).toLowerCase() || "qr";
     link.download = `toolkit_pro_qr_${safeText}.png`;
@@ -5320,13 +5360,11 @@ export default function QrGenerator({
                       initial={{ opacity: 0, scale: 0.9, y: 8 }}
                       animate={{ opacity: 1, scale: 1, y: 0 }}
                       whileHover={{
-                        scale: [1, 1.03, 1],
-                        transition: {
-                          repeat: Infinity,
-                          duration: 1.6,
-                          ease: "easeInOut"
-                        }
+                        scale: 1.04,
+                        boxShadow: "0 25px 50px -12px rgba(79, 70, 229, 0.25), 0 0 20px 4px rgba(79, 70, 229, 0.15)",
+                        borderColor: "rgba(129, 140, 248, 0.6)",
                       }}
+                      transition={{ type: "spring", stiffness: 300, damping: 22 }}
                       id="qr-code-preview-card" 
                       className="relative print-ready-qr-card bg-white shadow-xl hover:shadow-2xl hover:border-indigo-400/50 rounded-2xl border border-slate-200 flex items-center justify-center overflow-hidden transition-all duration-300 select-none cursor-pointer"
                       style={{
