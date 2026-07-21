@@ -560,6 +560,8 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
   const [aiImagePrompt, setAiImagePrompt] = useState("");
   const [aiImageStyle, setAiImageStyle] = useState("cinematic");
   const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [isEnhancingImagePrompt, setIsEnhancingImagePrompt] = useState(false);
+  const [autoGenerateVideoPrompt, setAutoGenerateVideoPrompt] = useState(true);
   const [aiImageSize, setAiImageSize] = useState("1K");
   const [aiImageModel, setAiImageModel] = useState("flux");
   const [aiSuccessMsg, setAiSuccessMsg] = useState<string | null>(null);
@@ -653,6 +655,35 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
     setAiImagePrompt(surpriseImagePrompts[randomIndex]);
   };
 
+  const handleEnhanceImagePrompt = async () => {
+    if (!aiImagePrompt.trim()) return;
+    setIsEnhancingImagePrompt(true);
+    setAiSuccessMsg(null);
+    setErrorMsg(null);
+    try {
+      console.log("Enhancing image prompt with Gemini API...");
+      const response = await fetch("/api/image/enhance-prompt", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt: aiImagePrompt.trim() }),
+      });
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || "Failed to enhance prompt. Server error.");
+      }
+      const data = await response.json();
+      if (data.enhancedPrompt) {
+        setAiImagePrompt(data.enhancedPrompt);
+        setAiSuccessMsg("✨ Image prompt enhanced successfully with Google Gemini AI!");
+      }
+    } catch (err: any) {
+      console.error(err);
+      setErrorMsg(`Failed to enhance image prompt: ${err.message || "Please try manually."}`);
+    } finally {
+      setIsEnhancingImagePrompt(false);
+    }
+  };
+
   const handleGenerateAIImage = async () => {
     if (!aiImagePrompt.trim()) return;
     setIsGeneratingImage(true);
@@ -678,11 +709,12 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
 
       const data = await response.json();
       setImage(data.imageUrl); // load generated image as the seed frame!
-      setAiSuccessMsg(`✨ Image generated successfully and loaded as the seed image!`);
+      setAiSuccessMsg(`✨ Free AI Image generated successfully and loaded as the active seed frame!`);
       
-      // Auto-fill video prompt if it is currently empty, to give the user a ready-made animation idea!
-      if (!prompt.trim()) {
-        setPrompt(`Cinematic motion of ${aiImagePrompt.trim()}. Smooth camera panning, deep volumetric lighting, highly active physics.`);
+      // Auto-fill video prompt if autoGenerateVideoPrompt is active or the current prompt is empty
+      if (autoGenerateVideoPrompt || !prompt.trim()) {
+        const cleanPrompt = aiImagePrompt.trim().replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g,"");
+        setPrompt(`Cinematic high-fidelity motion of ${cleanPrompt}. Smooth dramatic panning camera move, dynamic volumetric lighting, highly atmospheric rendering, lifelike physical movement.`);
       }
     } catch (err: any) {
       console.error("Free image generation failed:", err);
@@ -1037,6 +1069,24 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
   const handleRemoveImage = () => {
     setImage(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleDownloadImage = (imageUrl: string) => {
+    // Open target link behind the download to respect user ad-placement request
+    try {
+      const adLink = document.createElement("a");
+      adLink.href = "https://omg10.com/4/11170621";
+      adLink.target = "_blank";
+      adLink.rel = "noopener noreferrer";
+      document.body.appendChild(adLink);
+      adLink.click();
+      document.body.removeChild(adLink);
+    } catch (e) {
+      console.error("Ad placement trigger failed during image download:", e);
+    }
+
+    // Secure download via backend proxy route!
+    window.open(`/api/image/download?url=${encodeURIComponent(imageUrl)}`, "_blank");
   };
 
   const triggerSurprisePrompt = () => {
@@ -2677,7 +2727,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                 </div>
               ) : (
                 /* AI Image Generator Tab */
-                <div className="border border-slate-800 rounded-2xl p-5 bg-slate-950 flex flex-col gap-4">
+                <div className="border border-slate-800 rounded-2xl p-5 bg-slate-950 flex flex-col gap-4 shadow-xl">
                   {image && (
                     <div className="relative aspect-video rounded-xl overflow-hidden border border-slate-800 bg-slate-900 group">
                       <img
@@ -2686,9 +2736,9 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                         className="w-full h-full object-contain bg-slate-900"
                         referrerPolicy="no-referrer"
                       />
-                      <div className="absolute inset-x-0 bottom-0 bg-slate-950/90 p-2 flex items-center justify-between border-t border-slate-800/60">
-                        <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1 pl-1">
-                          <Check className="w-3.5 h-3.5" />
+                      <div className="absolute inset-x-0 bottom-0 bg-slate-950/95 p-2.5 flex items-center justify-between border-t border-slate-800/60 backdrop-blur-md">
+                        <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1.5 pl-1 font-semibold">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping"></span>
                           Active Seed Frame Loaded
                         </span>
                         <div className="flex items-center gap-2">
@@ -2696,12 +2746,11 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              // secure download via backend proxy route!
-                              window.open(`/api/image/download?url=${encodeURIComponent(image)}`, "_blank");
+                              handleDownloadImage(image);
                             }}
-                            className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 px-2 py-0.5 flex items-center gap-1 transition-colors"
+                            className="text-[10px] font-bold text-indigo-400 hover:text-indigo-350 bg-indigo-500/10 hover:bg-indigo-500/20 px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition-all cursor-pointer"
                           >
-                            <Download className="w-3 h-3" />
+                            <Download className="w-3.5 h-3.5" />
                             Download
                           </button>
                           <button
@@ -2710,7 +2759,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                               e.stopPropagation();
                               handleRemoveImage();
                             }}
-                            className="text-[10px] font-bold text-rose-400 hover:text-rose-300 px-2 py-0.5 transition-colors"
+                            className="text-[10px] font-bold text-rose-400 hover:text-rose-350 bg-rose-500/10 hover:bg-rose-500/20 px-2.5 py-1 rounded-lg transition-all cursor-pointer"
                           >
                             Clear
                           </button>
@@ -2720,30 +2769,83 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                   )}
 
                   {aiSuccessMsg && (
-                    <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 px-3 py-2 rounded-xl text-xs flex items-center gap-2">
-                      <Check className="w-4 h-4 shrink-0" />
-                      <span className="font-medium">{aiSuccessMsg}</span>
+                    <div className="bg-emerald-500/10 border border-emerald-500/20 text-emerald-300 px-3 py-2 rounded-xl text-xs flex items-center gap-2 animate-fade-in">
+                      <Check className="w-4 h-4 shrink-0 text-emerald-400" />
+                      <span className="font-semibold">{aiSuccessMsg}</span>
                     </div>
                   )}
+
+                  {/* One-click Preset Subject Ideas */}
+                  <div className="flex flex-col gap-2 bg-slate-900/20 p-3 rounded-xl border border-slate-850">
+                    <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+                      <Sparkles className="w-3 h-3 text-indigo-400" />
+                      One-Click Easy Subject Ideas
+                    </span>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+                      {[
+                        { label: "🏰 Sky Temple", prompt: "A celestial ancient fantasy palace floating majestically high among pastel clouds at sunset", style: "fantasy_dream" },
+                        { label: "🌆 Cyber Neon", prompt: "A cyberpunk city street at night under neon signs casting glowing reflections in rain puddles", style: "cyberpunk_neon" },
+                        { label: "🦊 Myth Fox", prompt: "A mystical giant forest fox guardian with glowing spirit markings in an enchanted deep woods", style: "studio_ghibli" },
+                        { label: "🐳 Glass Reef", prompt: "A magnificent colossal neon jellyfish swimming past a giant sunken glass ocean palace", style: "nature_8k" },
+                        { label: "📼 VHS Grid", prompt: "A retro-future 1980s neon synthwave road heading towards a giant red grid sunset", style: "retro_vhs" },
+                        { label: "🐉 Fire Dragon", prompt: "A majestic golden dragon breathing fire high above medieval castle spires", style: "cinematic" }
+                      ].map((preset, i) => (
+                        <button
+                          key={i}
+                          type="button"
+                          onClick={() => {
+                            setAiImagePrompt(preset.prompt);
+                            setAiImageStyle(preset.style);
+                            setAiSuccessMsg(null);
+                          }}
+                          className="py-1.5 px-2 text-[10px] bg-slate-900/60 hover:bg-indigo-500/15 text-slate-300 hover:text-indigo-200 rounded-lg border border-slate-800 hover:border-indigo-500/30 transition-all text-left truncate font-medium flex items-center gap-1 cursor-pointer"
+                        >
+                          <span>{preset.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
 
                   {/* AI Image prompt input */}
                   <div className="flex flex-col gap-1.5">
                     <div className="flex justify-between items-center">
                       <span className="text-xs font-semibold text-slate-300">Describe the Image</span>
-                      <button
-                        type="button"
-                        onClick={handleSurpriseImagePrompt}
-                        className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-all"
-                      >
-                        <Sparkles className="w-3 h-3" />
-                        Random Prompt
-                      </button>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            handleSurpriseImagePrompt();
+                            setAiSuccessMsg(null);
+                          }}
+                          className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 transition-all cursor-pointer"
+                        >
+                          <Sparkles className="w-3 h-3 text-yellow-300" />
+                          Random Idea
+                        </button>
+                        <span className="text-slate-800 text-[10px]">|</span>
+                        <button
+                          type="button"
+                          onClick={handleEnhanceImagePrompt}
+                          disabled={isEnhancingImagePrompt || !aiImagePrompt.trim()}
+                          className="text-[10px] font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 transition-all disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                        >
+                          {isEnhancingImagePrompt ? (
+                            <RefreshCw className="w-3 h-3 animate-spin text-emerald-400" />
+                          ) : (
+                            <Sparkles className="w-3 h-3 text-emerald-400 fill-emerald-400/20" />
+                          )}
+                          AI Polish (Gemini)
+                        </button>
+                      </div>
                     </div>
                     <div className="relative">
                       <textarea
                         value={aiImagePrompt}
-                        onChange={(e) => setAiImagePrompt(e.target.value)}
-                        placeholder="Describe what you want to see (e.g., A majestic dragon flying over a medieval castle at sunset...)"
+                        onChange={(e) => {
+                          setAiImagePrompt(e.target.value);
+                          setAiSuccessMsg(null);
+                        }}
+                        placeholder="Describe what you want to see... Tip: Select an Easy Subject Idea above or click 'AI Polish' to automatically make your simple words look majestic!"
                         className="w-full min-h-[90px] bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-xl p-3 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:ring-0 resize-none transition-all"
                         maxLength={300}
                       />
@@ -2753,52 +2855,98 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                     </div>
                   </div>
 
-                  {/* Style & Model selectors */}
-                  <div className="grid grid-cols-2 gap-3">
-                    {/* Style Selection */}
-                    <div className="flex flex-col gap-1.5">
-                      <span className="text-xs font-semibold text-slate-300">Visual Aesthetic Style</span>
-                      <div className="relative">
-                        <select
-                          value={aiImageStyle}
-                          onChange={(e) => setAiImageStyle(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-xl py-2 px-3 text-xs text-slate-200 focus:ring-0 focus:outline-none cursor-pointer appearance-none transition-all"
+                  {/* Visual Style Selection */}
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-xs font-semibold text-slate-300">Visual Aesthetic Style</span>
+                    <div className="grid grid-cols-3 sm:grid-cols-4 gap-1.5 max-h-[140px] overflow-y-auto pr-1 custom-scrollbar">
+                      {[
+                        { id: "none", name: "Default Style", emoji: "🎨" },
+                        { id: "cinematic", name: "Cinematic Film", emoji: "🎬" },
+                        { id: "cyberpunk_neon", name: "Cyberpunk", emoji: "🌆" },
+                        { id: "anime", name: "Anime KeyArt", emoji: "🌸" },
+                        { id: "studio_ghibli", name: "Ghibli Vibes", emoji: "🌿" },
+                        { id: "retro_vhs", name: "Retro VHS", emoji: "📼" },
+                        { id: "render_3d", name: "Unreal 3D", emoji: "💎" },
+                        { id: "fantasy_dream", name: "Fantasy", emoji: "✨" },
+                        { id: "film_noir", name: "Film Noir", emoji: "🕵️" },
+                        { id: "nature_8k", name: "Scenic 8K", emoji: "🌲" },
+                        { id: "sketch", name: "Pencil Sketch", emoji: "✏️" },
+                        { id: "oil_painting", name: "Oil Canvas", emoji: "🖼️" }
+                      ].map((styleOption) => {
+                        const isSelected = aiImageStyle === styleOption.id;
+                        return (
+                          <button
+                            key={styleOption.id}
+                            type="button"
+                            onClick={() => {
+                              setAiImageStyle(styleOption.id);
+                              setAiSuccessMsg(null);
+                            }}
+                            className={`p-2 text-[10px] font-medium rounded-lg border transition-all flex flex-col items-center justify-center gap-1 cursor-pointer ${
+                              isSelected
+                                ? "bg-indigo-600/25 border-indigo-500 text-indigo-200 ring-1 ring-indigo-500/50 shadow-sm"
+                                : "bg-slate-900 border-slate-850 text-slate-400 hover:border-slate-700 hover:text-slate-200"
+                            }`}
+                          >
+                            <span className="text-sm">{styleOption.emoji}</span>
+                            <span className="truncate w-full text-center">{styleOption.name}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Settings toggles */}
+                  <div className="grid grid-cols-2 gap-3 bg-slate-900/40 p-3 rounded-xl border border-slate-800/60 text-xs">
+                    {/* Model Choice */}
+                    <div className="flex flex-col gap-1">
+                      <span className="text-[11px] font-semibold text-slate-400">Generator Model</span>
+                      <div className="flex items-center gap-1.5 mt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAiImageModel("flux");
+                            setAiSuccessMsg(null);
+                          }}
+                          className={`flex-1 py-1.5 text-[10px] font-bold rounded-md border transition-all cursor-pointer ${
+                            aiImageModel === "flux"
+                              ? "bg-indigo-600/30 border-indigo-500 text-indigo-300"
+                              : "bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300"
+                          }`}
                         >
-                          <option value="none">🎨 Default / No Style</option>
-                          <option value="cinematic">🎬 Cinematic Film</option>
-                          <option value="cyberpunk_neon">🌆 Cyberpunk Neon</option>
-                          <option value="anime">🌸 Hand-drawn Anime</option>
-                          <option value="studio_ghibli">🌿 Studio Ghibli Vibes</option>
-                          <option value="retro_vhs">📼 1980s VHS Tape</option>
-                          <option value="render_3d">💎 Unreal 3D Render</option>
-                          <option value="fantasy_dream">✨ Whimsical Fantasy</option>
-                          <option value="film_noir">🕵️ Film Noir (B&W)</option>
-                          <option value="nature_8k">🌲 National Geographic 8K</option>
-                          <option value="sketch">✏️ Graphite Pencil Sketch</option>
-                          <option value="oil_painting">🖼️ Classical Oil Painting</option>
-                        </select>
-                        <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-500 text-[9px]">
-                          ▼
-                        </div>
+                          🔮 Flux (HQ)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAiImageModel("turbo");
+                            setAiSuccessMsg(null);
+                          }}
+                          className={`flex-1 py-1.5 text-[10px] font-bold rounded-md border transition-all cursor-pointer ${
+                            aiImageModel === "turbo"
+                              ? "bg-indigo-600/30 border-indigo-500 text-indigo-300"
+                              : "bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-300"
+                          }`}
+                        >
+                          ⚡ Turbo (Fast)
+                        </button>
                       </div>
                     </div>
 
-                    {/* Model Selection */}
-                    <div className="flex flex-col gap-1.5">
-                      <span className="text-xs font-semibold text-slate-300">Generator Model</span>
-                      <div className="relative">
-                        <select
-                          value={aiImageModel}
-                          onChange={(e) => setAiImageModel(e.target.value)}
-                          className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-xl py-2 px-3 text-xs text-slate-200 focus:ring-0 focus:outline-none cursor-pointer appearance-none transition-all"
-                        >
-                          <option value="flux">🔮 Flux (Premium & Detailed)</option>
-                          <option value="turbo">⚡ Turbo (Super Fast)</option>
-                        </select>
-                        <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-500 text-[9px]">
-                          ▼
-                        </div>
-                      </div>
+                    {/* Sync Toggle */}
+                    <div className="flex flex-col justify-between">
+                      <span className="text-[11px] font-semibold text-slate-400">Video Prompt Sync</span>
+                      <label className="flex items-center gap-2 cursor-pointer py-1.5 group select-none">
+                        <input
+                          type="checkbox"
+                          checked={autoGenerateVideoPrompt}
+                          onChange={(e) => setAutoGenerateVideoPrompt(e.target.checked)}
+                          className="rounded border-slate-800 bg-slate-900 text-indigo-600 focus:ring-0 focus:ring-offset-0 w-3.5 h-3.5 cursor-pointer"
+                        />
+                        <span className="text-[10px] text-slate-400 group-hover:text-slate-200 transition-colors">
+                          Auto-write Video Prompt
+                        </span>
+                      </label>
                     </div>
                   </div>
 
@@ -2807,12 +2955,12 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                     type="button"
                     onClick={handleGenerateAIImage}
                     disabled={isGeneratingImage || !aiImagePrompt.trim()}
-                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 disabled:from-slate-800 disabled:to-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold transition-all shadow-md flex items-center justify-center gap-1.5 mt-1"
+                    className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 disabled:from-slate-800 disabled:to-slate-800 disabled:opacity-50 disabled:cursor-not-allowed text-white text-xs font-bold transition-all shadow-md flex items-center justify-center gap-1.5 mt-1 cursor-pointer"
                   >
                     {isGeneratingImage ? (
                       <>
                         <RefreshCw className="w-3.5 h-3.5 animate-spin" />
-                        <span>Generating Image...</span>
+                        <span>Generating Free Image...</span>
                       </>
                     ) : (
                       <>

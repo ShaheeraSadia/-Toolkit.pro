@@ -48,6 +48,21 @@ html, body {
   margin: 0;
   padding: 0;
   position: relative;
+  font-size: 16px; /* Base font size increase for high accessibility */
+  line-height: 1.625; /* Optimized readable line-height */
+}
+
+/* Accessibility Enhancement: typography contrast ratios and readable spacing */
+h1, h2, h3, h4, h5, h6 {
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+.text-slate-400, .text-slate-405 {
+  color: #64748b; /* Satisfies WCAG AA 4.5:1 minimum contrast rule */
+}
+.dark .text-slate-400, .dark .text-slate-405 {
+  color: #cbd5e1; /* Increased contrast in dark mode */
 }
 
 /* Page wrap overrides for mobile responsiveness */

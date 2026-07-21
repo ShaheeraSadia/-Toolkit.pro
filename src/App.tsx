@@ -341,13 +341,78 @@ export const PRINTER_PRESETS: PrinterPreset[] = [
   }
 ];
 
+export const TOOL_METADATA: Record<string, { label: string; desc: string; icon: string; category: string }> = {
+  quote: { label: "Quote Designer", desc: "Craft typographical quotes with custom blurs and styling.", icon: "Quote", category: "Design" },
+  compress: { label: "Image Compressor", desc: "Shrink raw images with precise optimization algorithms.", icon: "FileImage", category: "Optimize" },
+  qr: { label: "QR Generator", desc: "Encode scanning codes with Reed-Solomon error correction.", icon: "QrCode", category: "Encoding" },
+  palette: { label: "Color Extractor", desc: "Extract dominant palettes and check WCAG color contrast.", icon: "Pipette", category: "Spectrums" },
+  video: { label: "Video Creator", icon: "Video", desc: "Animate image frames into professional video loops.", category: "Motion" },
+  pdf: { label: "PDF Tools Suite", icon: "FileText", desc: "Compile image archives to PDF or build documents.", category: "Document" },
+  converter: { label: "Image Converter", icon: "RefreshCw", desc: "Format image file types WebP, PNG, JPG, BMP.", category: "Convert" },
+  bgremover: { label: "Background Remover", icon: "Eraser", desc: "Erase image backgrounds with custom keys.", category: "Isolate" },
+  drive: { label: "Google Drive Sync", icon: "Cloud", desc: "Organize files with cloud backups and restore.", category: "Backup" },
+  android: { label: "Android App Studio", icon: "Smartphone", desc: "Simulate Android layouts and app metadata.", category: "Mobile" }
+};
+
+const iconMap: Record<string, React.ComponentType<any>> = {
+  Quote,
+  FileImage,
+  QrCode,
+  Pipette,
+  Cloud,
+  Video,
+  Smartphone,
+  FileText,
+  RefreshCw,
+  Eraser
+};
+
 export default function App() {
+  const [direction, setDirection] = useState<number>(0);
+  const [_activeTab, _setActiveTab] = useState<ActiveTab>(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get("tab") as ActiveTab;
+      if (tabParam && ["home", "quote", "compress", "qr", "palette", "video", "drive", "resources", "legal"].includes(tabParam)) {
+        return tabParam;
+      }
+    }
+    return "home";
+  });
+
+  const activeTab = _activeTab;
+  const setActiveTab = (newTab: ActiveTab | ((prev: ActiveTab) => ActiveTab)) => {
+    _setActiveTab((prev) => {
+      const resolvedTab = typeof newTab === "function" ? newTab(prev) : newTab;
+      const tabsList = ["home", "quote", "compress", "qr", "palette", "video", "drive", "resources", "legal"];
+      const prevIndex = tabsList.indexOf(prev);
+      const currentIndex = tabsList.indexOf(resolvedTab);
+      if (prevIndex !== currentIndex && prevIndex !== -1 && currentIndex !== -1) {
+        setDirection(currentIndex > prevIndex ? 1 : -1);
+      }
+      return resolvedTab;
+    });
+  };
+
   const [user, setUser] = useState<User | null>(null);
   const [accessToken, setAccessToken] = useState<string | null>(null);
   const [needsAuth, setNeedsAuth] = useState<boolean>(true);
   const [isLoggingIn, setIsLoggingIn] = useState<boolean>(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [shareFeedback, setShareFeedback] = useState<{ type: "success" | "error"; text: string } | null>(null);
+
+  const [recentUsedTools, setRecentUsedTools] = useState<string[]>(() => {
+    try {
+      const stored = localStorage.getItem("toolkit-pro-recent-used-tools");
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) return parsed;
+      }
+    } catch (e) {
+      console.error("Failed to load recently used tools:", e);
+    }
+    return [];
+  });
 
   interface SavedProject {
     id: string;
@@ -688,23 +753,42 @@ export default function App() {
   const [showScrollTop, setShowScrollTop] = useState<boolean>(false);
 
   useEffect(() => {
+    const mainScrollEl = document.getElementById("main-scroll-container");
     const handleScroll = () => {
-      if (window.scrollY > 500) {
+      const scrollY = mainScrollEl ? mainScrollEl.scrollTop : window.scrollY;
+      if (scrollY > 300) {
         setShowScrollTop(true);
       } else {
         setShowScrollTop(false);
       }
     };
 
+    if (mainScrollEl) {
+      mainScrollEl.addEventListener("scroll", handleScroll);
+    }
     window.addEventListener("scroll", handleScroll);
-    return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+
+    return () => {
+      if (mainScrollEl) {
+        mainScrollEl.removeEventListener("scroll", handleScroll);
+      }
+      window.removeEventListener("scroll", handleScroll);
+    };
+  }, [activeTab]);
 
   const handleScrollToTop = () => {
-    window.scrollTo({
-      top: 0,
-      behavior: "smooth"
-    });
+    const mainScrollEl = document.getElementById("main-scroll-container");
+    if (mainScrollEl) {
+      mainScrollEl.scrollTo({
+        top: 0,
+        behavior: "smooth"
+      });
+    } else {
+      window.scrollTo({
+        top: 0,
+        behavior: "smooth"
+      });
+    }
   };
   
   // Theme state
@@ -798,32 +882,6 @@ export default function App() {
   const [files, setFiles] = useState<DriveFile[]>([]);
   const [isLoadingDrive, setIsLoadingDrive] = useState<boolean>(false);
   
-  const [direction, setDirection] = useState<number>(0);
-  const [_activeTab, _setActiveTab] = useState<ActiveTab>(() => {
-    if (typeof window !== "undefined") {
-      const params = new URLSearchParams(window.location.search);
-      const tabParam = params.get("tab") as ActiveTab;
-      if (tabParam && ["home", "quote", "compress", "qr", "palette", "video", "drive", "resources", "legal"].includes(tabParam)) {
-        return tabParam;
-      }
-    }
-    return "home";
-  });
-
-  const activeTab = _activeTab;
-  const setActiveTab = (newTab: ActiveTab | ((prev: ActiveTab) => ActiveTab)) => {
-    _setActiveTab((prev) => {
-      const resolvedTab = typeof newTab === "function" ? newTab(prev) : newTab;
-      const tabsList = ["home", "quote", "compress", "qr", "palette", "video", "drive", "resources", "legal"];
-      const prevIndex = tabsList.indexOf(prev);
-      const currentIndex = tabsList.indexOf(resolvedTab);
-      if (prevIndex !== currentIndex && prevIndex !== -1 && currentIndex !== -1) {
-        setDirection(currentIndex > prevIndex ? 1 : -1);
-      }
-      return resolvedTab;
-    });
-  };
-
   const [hoveredTab, setHoveredTab] = useState<string | null>(null);
 
   // Print Preview state declarations
@@ -1611,6 +1669,23 @@ export default function App() {
     });
   }, [activeTab]);
 
+  // Track tab switch to update recently used tools in localStorage
+  useEffect(() => {
+    if (activeTab === "home") return;
+    const ignoreTabs = ["home", "resources", "legal"];
+    if (ignoreTabs.includes(activeTab)) return;
+
+    setRecentUsedTools((prev) => {
+      const updated = [activeTab, ...prev.filter((t) => t !== activeTab)].slice(0, 5);
+      try {
+        localStorage.setItem("toolkit-pro-recent-used-tools", JSON.stringify(updated));
+      } catch (e) {
+        console.error("Failed to save recently used tools:", e);
+      }
+      return updated;
+    });
+  }, [activeTab]);
+
   useEffect(() => {
     const handleLocationCheck = () => {
       const isSitemapPath = 
@@ -2020,7 +2095,7 @@ export default function App() {
         </AnimatePresence>
 
         {/* Right workspace panel wrapper */}
-        <div className="flex-1 min-w-0 flex flex-col overflow-y-auto">
+        <div id="main-scroll-container" className="flex-1 min-w-0 flex flex-col overflow-y-auto">
           {activeTab === "home" ? (
             <div className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-8 space-y-8 animate-in fade-in duration-300">
               
@@ -2042,7 +2117,7 @@ export default function App() {
                       <h1 className={`text-2xl sm:text-3xl font-black tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
                         {getHourGreeting()}, <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500">{cleanName}!</span>
                       </h1>
-                      <p className="text-xs text-slate-400 dark:text-slate-500 mt-1">
+                      <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                         Welcome to Toolkit Pro — your premium standalone space for professional-grade design, encoding, and optimization.
                       </p>
                     </div>
@@ -2052,7 +2127,7 @@ export default function App() {
                       <Clock className="w-4 h-4 text-indigo-500 animate-pulse" />
                       <div className="text-right">
                         <p className="text-xs font-black font-mono leading-none tracking-wider">{timeString}</p>
-                        <p className="text-[10px] text-slate-400 dark:text-slate-505 leading-none mt-1 font-semibold">{dateString}</p>
+                        <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-none mt-1 font-semibold">{dateString}</p>
                       </div>
                     </div>
                   </div>
@@ -2060,201 +2135,385 @@ export default function App() {
               })()}
 
               {/* Hero Welcome banner */}
-              <section className={`border rounded-3xl overflow-hidden transition-colors duration-200 py-10 ${
+              <section className={`relative border rounded-3xl overflow-hidden transition-all duration-300 py-10 lg:py-12 ${
                 theme === "dark"
-                  ? "bg-gradient-to-b from-slate-900 to-slate-950 border-slate-850"
-                  : "bg-gradient-to-b from-white to-slate-50/50 border-slate-200 shadow-3xs"
+                  ? "bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950/20 border-slate-850"
+                  : "bg-gradient-to-br from-white via-slate-50/50 to-indigo-50/10 border-slate-200 shadow-xs"
               }`}>
-                <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 text-center space-y-4 select-none">
-                  <div className="flex flex-wrap items-center justify-center gap-2 pb-1">
-                    <div className="inline-flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-955 px-3.5 py-1.5 rounded-full text-[11px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-widest leading-none shadow-sm shadow-emerald-500/5">
-                      <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-spin" /> Toolkit Pro Drive Sync
-                    </div>
+                {/* Glowing radial accent background */}
+                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-indigo-500/5 via-transparent to-transparent pointer-events-none" />
 
-                    {/* Installable PWA Badge with Tooltip */}
-                    <div className="relative group inline-block">
-                      <button
-                        disabled={pwaChecking}
-                        onClick={async () => {
-                          const promptToUse = typeof window !== "undefined" ? window.deferredInstallPrompt : null;
-                          if (promptToUse) {
-                            try {
-                              await promptToUse.prompt();
-                              const { outcome } = await promptToUse.userChoice;
-                              console.log(`User response to native installation: ${outcome}`);
-                              if (typeof window !== "undefined") {
-                                window.deferredInstallPrompt = null;
+                <div className="max-w-6xl mx-auto px-6 lg:px-8 relative z-10">
+                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
+                    
+                    {/* Left Column: Core Value Proposition & High Impact CTAs */}
+                    <div className="lg:col-span-7 space-y-6 text-left">
+                      <div className="flex flex-wrap items-center gap-2.5">
+                        <div className="inline-flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-955 px-3.5 py-1.5 rounded-full text-[11px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-widest leading-none shadow-sm shadow-emerald-500/5">
+                          <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-spin" /> Toolkit Pro Drive Sync
+                        </div>
+
+                        {/* Installable PWA Badge with Tooltip */}
+                        <div className="relative group inline-block">
+                          <button
+                            disabled={pwaChecking}
+                            onClick={async () => {
+                              const promptToUse = typeof window !== "undefined" ? window.deferredInstallPrompt : null;
+                              if (promptToUse) {
+                                try {
+                                  await promptToUse.prompt();
+                                  const { outcome } = await promptToUse.userChoice;
+                                  console.log(`User response to native installation: ${outcome}`);
+                                  if (typeof window !== "undefined") {
+                                    window.deferredInstallPrompt = null;
+                                  }
+                                  setHasDeferredPrompt(false);
+                                } catch (err) {
+                                  console.error("Native install prompt trigger error:", err);
+                                }
+                              } else {
+                                setActiveTab("resources");
+                                setResourcesSubTab("installation");
+                                setTimeout(() => {
+                                  const el = document.getElementById("resources-panel-installation");
+                                  if (el) {
+                                    el.scrollIntoView({ behavior: "smooth", block: "start" });
+                                  }
+                                }, 100);
                               }
-                              setHasDeferredPrompt(false);
-                            } catch (err) {
-                              console.error("Native install prompt trigger error:", err);
-                            }
-                          } else {
-                            setActiveTab("resources");
-                            setResourcesSubTab("installation");
-                            // Smoothly scroll to the content
-                            setTimeout(() => {
-                              const el = document.getElementById("resources-panel-installation");
-                              if (el) {
-                                el.scrollIntoView({ behavior: "smooth", block: "start" });
-                              }
-                            }, 100);
-                          }
-                        }}
-                        className={`relative overflow-hidden inline-flex items-center gap-1.5 bg-blue-50/80 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/40 border border-blue-150/40 dark:border-blue-900/30 px-3.5 py-1.5 pb-[7px] rounded-full text-[11px] font-extrabold text-blue-700 dark:text-blue-350 uppercase tracking-widest leading-none shadow-sm shadow-blue-500/5 cursor-pointer select-none transition-all hover:scale-102 hover:shadow-md ${
-                          hasDeferredPrompt ? "animate-pulse ring-2 ring-emerald-500/40 dark:ring-emerald-400/40" : ""
-                        } ${pwaChecking ? "opacity-90 cursor-wait" : ""}`}
-                        title={pwaChecking ? pwaStatusText : (hasDeferredPrompt ? "Install Toolkit Pro directly to your device now!" : "PWA Installable Software Utility")}
-                      >
-                        {pwaChecking ? (
-                          <>
-                            <Loader2 className="w-3 h-3 text-blue-500 animate-spin shrink-0" />
-                            <span className="flex items-center gap-1 text-[10px] text-blue-600 dark:text-blue-400">
-                              Checking PWA ({pwaProgress}%)
-                            </span>
-                          </>
-                        ) : (
-                          <>
-                            <Monitor className="w-3 h-3 text-blue-500" />
-                            <span className="flex items-center gap-1">
-                              {hasDeferredPrompt ? "Install App Now" : "Installable PWA"}
-                              <span className={`inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 ${hasDeferredPrompt ? "animate-ping" : "animate-pulse"}`} />
-                            </span>
-                          </>
-                        )}
-                        
-                        {/* Subtle loading progress bar line at the bottom */}
-                        {pwaChecking && (
-                          <div 
-                            className="absolute bottom-0 left-0 h-[3px] bg-gradient-to-r from-blue-400 to-indigo-500 dark:from-blue-500 dark:to-indigo-400 transition-all duration-150 ease-out" 
-                            style={{ width: `${pwaProgress}%` }} 
-                          />
-                        )}
-                      </button>
-         
-                      {/* High-Fidelity Tooltip describing PWA benefits */}
-                      <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2.5 z-40 w-72 p-4 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 pointer-events-none scale-95 group-hover:scale-100 text-left space-y-3">
-                        <div className="flex items-center gap-1.5 pb-1.5 border-b border-slate-100 dark:border-slate-850">
-                          <span className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-955/55">
+                            }}
+                            className={`relative overflow-hidden inline-flex items-center gap-1.5 bg-blue-50/80 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/40 border border-blue-150/40 dark:border-blue-900/30 px-3.5 py-1.5 pb-[7px] rounded-full text-[11px] font-extrabold text-blue-700 dark:text-blue-350 uppercase tracking-widest leading-none shadow-sm shadow-blue-500/5 cursor-pointer select-none transition-all hover:scale-102 hover:shadow-md ${
+                              hasDeferredPrompt ? "animate-pulse ring-2 ring-emerald-500/40 dark:ring-emerald-400/40" : ""
+                            } ${pwaChecking ? "opacity-90 cursor-wait" : ""}`}
+                            title={pwaChecking ? pwaStatusText : (hasDeferredPrompt ? "Install Toolkit Pro directly to your device now!" : "PWA Installable Software Utility")}
+                          >
                             {pwaChecking ? (
-                              <Loader2 className="w-3.5 h-3.5 text-blue-500 animate-spin" />
+                              <>
+                                <Loader2 className="w-3 h-3 text-blue-500 animate-spin shrink-0" />
+                                <span className="flex items-center gap-1 text-[10px] text-blue-600 dark:text-blue-400">
+                                  Checking PWA ({pwaProgress}%)
+                                </span>
+                              </>
                             ) : (
-                              <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+                              <>
+                                <Monitor className="w-3 h-3 text-blue-500" />
+                                <span className="flex items-center gap-1">
+                                  {hasDeferredPrompt ? "Install App Now" : "Installable PWA"}
+                                  <span className={`inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 ${hasDeferredPrompt ? "animate-ping" : "animate-pulse"}`} />
+                                </span>
+                              </>
                             )}
-                          </span>
-                          <div>
-                            <h5 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                              {pwaChecking ? "PWA Verification" : "Standalone Utility"}
-                            </h5>
-                            <p className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-widest">
-                              {pwaChecking ? pwaStatusText : "Elevate Your Experience"}
+                            
+                            {pwaChecking && (
+                              <div 
+                                className="absolute bottom-0 left-0 h-[3px] bg-gradient-to-r from-blue-400 to-indigo-500 dark:from-blue-500 dark:to-indigo-400 transition-all duration-150 ease-out" 
+                                style={{ width: `${pwaProgress}%` }} 
+                              />
+                            )}
+                          </button>
+
+                          {/* Tooltip describing PWA benefits */}
+                          <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2.5 z-40 w-72 p-4 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 pointer-events-none scale-95 group-hover:scale-100 text-left space-y-3">
+                            <div className="flex items-center gap-1.5 pb-1.5 border-b border-slate-100 dark:border-slate-850">
+                              <span className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-955/55">
+                                {pwaChecking ? (
+                                  <Loader2 className="w-3.5 h-3.5 text-blue-500 animate-spin" />
+                                ) : (
+                                  <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
+                                )}
+                              </span>
+                              <div>
+                                <h5 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
+                                  {pwaChecking ? "PWA Verification" : "Standalone Utility"}
+                                </h5>
+                                <p className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-widest">
+                                  {pwaChecking ? pwaStatusText : "Elevate Your Experience"}
+                                </p>
+                              </div>
+                            </div>
+             
+                            <ul className="space-y-2 text-[11px] text-slate-600 dark:text-slate-300">
+                              <li className="flex items-start gap-1.5">
+                                <span className="text-indigo-500 mt-0.5 text-xs">✦</span>
+                                <span><strong>No Browser Clutter:</strong> Removes URL bars to maximize rendering space for your active canvas.</span>
+                              </li>
+                              <li className="flex items-start gap-1.5">
+                                <span className="text-indigo-500 mt-0.5 text-xs">✦</span>
+                                <span><strong>Dock & Desktop Access:</strong> Launch application directly from macOS/Windows Dock or your home screen.</span>
+                              </li>
+                            </ul>
+             
+                            <div className="pt-1.5 border-t border-slate-100 dark:border-slate-850 flex items-center justify-between text-[9px] text-indigo-600 dark:text-indigo-400 font-extrabold uppercase tracking-wider">
+                              <span>Click to view installation guides</span>
+                              <span>➔</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Brand Logo Display on Left side */}
+                      <div className="inline-block animate-in fade-in zoom-in-95 duration-500">
+                        <div className="bg-white p-2 rounded-2xl border border-slate-200/65 shadow-xs flex items-center justify-center max-w-[180px] transition-all hover:scale-[1.03] duration-300">
+                          <img 
+                            src={brandLogo} 
+                            alt="Toolkit Pro" 
+                            className="h-7 sm:h-8 w-auto object-contain rounded-sm"
+                            referrerPolicy="no-referrer"
+                          />
+                        </div>
+                      </div>
+
+                      <h2 className={`text-3xl sm:text-4xl md:text-5xl font-black tracking-tight leading-tight uppercase font-sans ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                        Advanced Standalone Workspace <br />
+                        <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500">For Digital Creators</span>
+                      </h2>
+                      
+                      <p className={`text-sm sm:text-base leading-relaxed ${theme === "dark" ? "text-slate-300" : "text-slate-705"} max-w-2xl`}>
+                        Optimize JPG, PNG, and WebP asset bundles with precise compression. Craft gorgeous typographic graphic cards with customizable backdrop blurs. Encode scan coordinates, sample dominant hex spectrums, and backup files instantly to cloud-secured Google Drive folders. All processed fully client-side.
+                      </p>
+
+                      {/* Enhanced CTAs */}
+                      <div className="flex flex-wrap gap-4 pt-2">
+                        <button
+                          onClick={() => {
+                            const catalogElement = document.getElementById("home-insights-widgets-row") || document.getElementById("home-adsense-leaderboard-wrapper") || document.getElementById("dashboard-recent-activities-widget");
+                            if (catalogElement) {
+                              catalogElement.scrollIntoView({ behavior: "smooth", block: "start" });
+                            }
+                          }}
+                          className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 hover:from-indigo-500 hover:via-purple-500 hover:to-indigo-650 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 transition-all duration-300 hover:scale-103 active:scale-97 cursor-pointer"
+                        >
+                          <Search className="w-4 h-4" />
+                          <span>Explore Tools Catalog</span>
+                        </button>
+
+                        <button
+                          onClick={user ? () => setActiveTab("drive") : handleLogin}
+                          disabled={isLoggingIn}
+                          className={`inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl border text-sm font-bold transition-all duration-300 hover:scale-103 active:scale-97 cursor-pointer ${
+                            theme === "dark"
+                              ? "bg-slate-900/60 border-slate-800 text-slate-205 hover:bg-slate-850 hover:text-white"
+                              : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900 shadow-xs"
+                          }`}
+                        >
+                          {isLoggingIn ? (
+                            <Loader2 className="w-4 h-4 animate-spin" />
+                          ) : (
+                            <Cloud className="w-4 h-4 text-sky-500" />
+                          )}
+                          <span>{user ? "View Google Drive Space" : "Connect Google Drive"}</span>
+                        </button>
+                      </div>
+
+                      {/* Drive Auth state notifications inside Left Column */}
+                      {!user && (
+                        <div className="pt-3 max-w-md">
+                          {authError && (
+                            <div className="border border-rose-200/40 bg-rose-50 dark:bg-rose-955/15 text-rose-800 dark:text-rose-300 rounded-xl p-4 text-xs text-left flex flex-col space-y-3 animate-fade-in relative shadow-md">
+                              <div className="flex items-start space-x-2.5">
+                                <AlertCircle className="w-4 h-4 mt-0.5 text-rose-500 shrink-0 animate-bounce" />
+                                <div className="flex-1 space-y-1 pr-6">
+                                  <p className="font-bold text-rose-900 dark:text-rose-400">Authorization Notice</p>
+                                  <p className="leading-relaxed text-slate-700 dark:text-slate-200">{authError}</p>
+                                </div>
+                                <button 
+                                  onClick={() => setAuthError(null)} 
+                                  className="text-rose-500 hover:text-rose-700 dark:hover:text-rose-250 absolute top-3 right-3 p-1 cursor-pointer transition-colors text-xs font-bold"
+                                  title="Dismiss notification"
+                                >
+                                  ✕
+                                </button>
+                              </div>
+                              <div className="flex items-center gap-2 pt-2 border-t border-rose-200/40 dark:border-rose-900/40">
+                                <button
+                                  type="button"
+                                  onClick={handleLogin}
+                                  disabled={isLoggingIn}
+                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 dark:bg-rose-900/80 hover:bg-rose-700 dark:hover:bg-rose-800 text-white font-bold text-[11px] transition-all shadow-sm select-none disabled:opacity-55 cursor-pointer active:scale-97"
+                                >
+                                  {isLoggingIn ? (
+                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                                  ) : (
+                                    <RefreshCw className="w-3.5 h-3.5" />
+                                  )}
+                                  <span>{isLoggingIn ? "Connecting..." : "Retry Authorization"}</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setAuthError(null)}
+                                  className="px-2.5 py-1.5 rounded-lg bg-transparent border border-rose-250 dark:border-rose-900/60 text-rose-700 dark:text-rose-400 hover:bg-rose-100/50 dark:hover:bg-rose-955/20 font-semibold text-[11px] transition-all select-none cursor-pointer"
+                                >
+                                  Dismiss Error
+                                </button>
+                              </div>
+                            </div>
+                          )}
+
+                          <div className={`border rounded-xl p-3 flex items-start space-x-2 text-xs text-left ${
+                            theme === "dark"
+                              ? "bg-amber-955/20 border-amber-900/40 text-amber-300"
+                              : "bg-amber-50/75 border-amber-100 text-amber-800"
+                          }`}>
+                            <AlertCircle className="w-4 h-4 mt-0.5 text-amber-500 shrink-0" />
+                            <p className="leading-relaxed">
+                              <strong>Cloud Backups Inactive:</strong> Connect your Workspace account to activate instant cloud sync and backup your canvas creations seamlessly!
                             </p>
                           </div>
                         </div>
-         
-                        <ul className="space-y-2 text-[11px] text-slate-650 dark:text-slate-400">
-                          <li className="flex items-start gap-1.5">
-                            <span className="text-indigo-500 mt-0.5 text-xs">✦</span>
-                            <span><strong>No Browser Clutter:</strong> Removes URL bars to maximize rendering space for your active canvas.</span>
-                          </li>
-                          <li className="flex items-start gap-1.5">
-                            <span className="text-indigo-500 mt-0.5 text-xs">✦</span>
-                            <span><strong>Dock & Desktop Access:</strong> Launch application directly from macOS/Windows Dock or your home screen.</span>
-                          </li>
-                          <li className="flex items-start gap-1.5">
-                            <span className="text-indigo-500 mt-0.5 text-xs">✦</span>
-                            <span><strong>Zero Latency:</strong> Uses background caching for lightning-fast workflow transition speed.</span>
-                          </li>
-                        </ul>
-         
-                        <div className="pt-1.5 border-t border-slate-100 dark:border-slate-850 flex items-center justify-between text-[9px] text-indigo-650 dark:text-indigo-400 font-extrabold uppercase tracking-wider">
-                          <span>Click to view installation guides</span>
-                          <span>➔</span>
+                      )}
+                    </div>
+
+                    {/* Right Column: Featured/Popular Tools Bento Grid Showcase */}
+                    <div className="lg:col-span-5 space-y-4">
+                      <div className={`p-4 sm:p-5 rounded-2xl border text-left space-y-3.5 select-none ${
+                        theme === "dark"
+                          ? "bg-slate-900/60 border-slate-805 shadow-md shadow-slate-950/25"
+                          : "bg-white border-slate-200 shadow-xs"
+                      }`}>
+                        <div className="flex items-center justify-between">
+                          <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest font-mono">
+                            Popular Workspaces
+                          </span>
+                          <span className="text-[9px] bg-indigo-50 dark:bg-indigo-950/50 text-indigo-650 dark:text-indigo-400 px-2 py-0.5 rounded-full font-black uppercase font-mono tracking-wider">
+                            Top Picks
+                          </span>
+                        </div>
+
+                        <div className="space-y-3">
+                          {[
+                            { id: "quote", title: "Quote Designer", icon: Quote, color: "text-indigo-600 bg-indigo-500/10 dark:text-indigo-400 dark:bg-indigo-950/50", desc: "Craft stunning glassmorphic typography cards with custom backdrop blurs and export coordinates." },
+                            { id: "compress", title: "Image Compressor", icon: FileImage, color: "text-emerald-650 bg-emerald-500/10 dark:text-emerald-400 dark:bg-emerald-950/50", desc: "Optimize bundle sizes with high-fidelity algorithms, EXIF preservation, and quick scale tools." },
+                            { id: "qr", title: "QR Code Generator", icon: QrCode, color: "text-amber-600 bg-amber-500/10 dark:text-amber-400 dark:bg-amber-950/50", desc: "Encode scanning codes with Reed-Solomon error correction and downloadable custom logo overlays." }
+                          ].map((shortcut) => {
+                            const Icon = shortcut.icon;
+                            return (
+                              <div
+                                key={shortcut.id}
+                                onClick={() => {
+                                  setActiveTab(shortcut.id as any);
+                                  setIsSitemapView(false);
+                                }}
+                                className={`p-3 rounded-xl border flex gap-3 transition-all duration-300 hover:scale-102 hover:border-indigo-500/40 cursor-pointer ${
+                                  theme === "dark"
+                                    ? "bg-slate-950/60 border-slate-800/80 hover:bg-slate-950"
+                                    : "bg-slate-50/50 border-slate-150 hover:bg-white hover:shadow-2xs"
+                                }`}
+                              >
+                                <div className={`p-2.5 rounded-xl shrink-0 h-10 w-10 flex items-center justify-center ${shortcut.color}`}>
+                                  <Icon className="w-5 h-5" />
+                                </div>
+                                <div className="space-y-0.5 min-w-0 flex-1">
+                                  <div className="flex items-center justify-between gap-1.5">
+                                    <h4 className={`text-xs font-extrabold tracking-tight ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>
+                                      {shortcut.title}
+                                    </h4>
+                                    <span className="text-[9px] font-bold text-indigo-500 inline-flex items-center gap-0.5 opacity-100">
+                                      Launch <ArrowUpRight className="w-2.5 h-2.5" />
+                                    </span>
+                                  </div>
+                                  <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-normal line-clamp-2">
+                                    {shortcut.desc}
+                                  </p>
+                                </div>
+                              </div>
+                            );
+                          })}
                         </div>
                       </div>
                     </div>
+
                   </div>
-                  
-                  {/* Brand Logo Display */}
-                  <div className="flex justify-center pt-2 pb-1 animate-in fade-in zoom-in-95 duration-500">
-                    <div className="bg-white p-3 rounded-2xl border border-slate-200/60 shadow-sm flex items-center justify-center max-w-[240px] sm:max-w-[280px] transition-all hover:scale-[1.03] duration-300">
-                      <img 
-                        src={brandLogo} 
-                        alt="Toolkit Pro" 
-                        className="h-9 sm:h-11 w-auto object-contain rounded-sm"
-                        referrerPolicy="no-referrer"
-                      />
-                    </div>
-                  </div>
+                </div>
+              </section>
 
-                  <h2 className={`text-2xl sm:text-3xl font-extrabold tracking-tight font-sans ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
-                    Advanced Tools for Digital Creators
-                  </h2>
-                  <p className={`text-xs sm:text-sm max-w-xl mx-auto leading-relaxed ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`}>
-                    Compress images, generate scan coordinates, extract color spectrums, and style custom quote card assets. Authenticate Google Drive to keep files synced and organized automatically!
-                  </p>
-
-                  {/* Prompt Google Drive auth warning */}
-                  {!user && (
-                    <div className="max-w-md mx-auto pt-4 space-y-3">
-                      {authError && (
-                        <div className="border border-rose-200/40 bg-rose-50 dark:bg-rose-950/25 text-rose-800 dark:text-rose-300 rounded-xl p-4 text-xs text-left flex flex-col space-y-3 animate-fade-in relative shadow-md">
-                          <div className="flex items-start space-x-2.5">
-                            <AlertCircle className="w-4 h-4 mt-0.5 text-rose-500 shrink-0 animate-bounce" />
-                            <div className="flex-1 space-y-1 pr-6">
-                              <p className="font-bold text-rose-900 dark:text-rose-400">Authorization Notice</p>
-                              <p className="leading-relaxed text-slate-750 dark:text-slate-200">{authError}</p>
-                            </div>
-                            <button 
-                              onClick={() => setAuthError(null)} 
-                              className="text-rose-500 hover:text-rose-700 dark:hover:text-rose-250 absolute top-3 right-3 p-1 cursor-pointer transition-colors text-xs font-bold"
-                              title="Dismiss notification"
-                              id="dismiss-auth-inline-btn"
-                            >
-                              ✕
-                            </button>
-                          </div>
-                          <div className="flex items-center gap-2 pt-2 border-t border-rose-200/40 dark:border-rose-900/40">
-                            <button
-                              type="button"
-                              onClick={handleLogin}
-                              disabled={isLoggingIn}
-                              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 dark:bg-rose-900/80 hover:bg-rose-700 dark:hover:bg-rose-800 text-white font-bold text-[11px] transition-all shadow-sm select-none disabled:opacity-55 cursor-pointer active:scale-97"
-                              id="retry-auth-inline-btn"
-                            >
-                              {isLoggingIn ? (
-                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                              ) : (
-                                <RefreshCw className="w-3.5 h-3.5" />
-                              )}
-                              <span>{isLoggingIn ? "Connecting..." : "Retry Authorization"}</span>
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => setAuthError(null)}
-                              className="px-2.5 py-1.5 rounded-lg bg-transparent border border-rose-250 dark:border-rose-900/60 text-rose-700 dark:text-rose-400 hover:bg-rose-100/50 dark:hover:bg-rose-950/20 font-semibold text-[11px] transition-all select-none cursor-pointer"
-                              id="dismiss-auth-inline-secondary-btn"
-                            >
-                              Dismiss Error
-                            </button>
-                          </div>
-                        </div>
-                      )}
-
-                      <div className={`border rounded-xl p-3 flex items-start space-x-2 text-xs text-left ${
-                        theme === "dark"
-                          ? "bg-amber-955/20 border-amber-900/40 text-amber-300"
-                          : "bg-amber-50 border-amber-100 text-amber-800"
-                      }`}>
-                        <AlertCircle className="w-4 h-4 mt-0.5 text-amber-500 shrink-0" />
-                        <p className="leading-relaxed">
-                          <strong>Drive Sync Inactive:</strong> Log in using your Google Workspace account to unlock instant cloud file backups and review saved assets inside the dashboard.
+              {/* Persistent Recently Used Tools Row (localStorage) */}
+              {recentUsedTools.length > 0 && (
+                <div className={`border rounded-3xl p-6 transition-colors duration-200 select-none space-y-4 animate-in fade-in duration-300 ${
+                  theme === "dark"
+                    ? "bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950/10 border-slate-850"
+                    : "bg-white border-slate-200/70 shadow-3xs"
+                }`}>
+                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-955 border border-indigo-100/30">
+                        <Clock className="w-4.5 h-4.5 text-indigo-550 dark:text-indigo-400 animate-pulse" />
+                      </div>
+                      <div>
+                        <h3 className={`text-xs font-black uppercase tracking-wider ${theme === "dark" ? "text-slate-200" : "text-slate-800"}`}>
+                          Recently Used Workspaces
+                        </h3>
+                        <p className="text-[10px] text-slate-405 dark:text-slate-500 mt-1">
+                          Jump straight back into your frequently opened developer utilities (persistent across browser sessions).
                         </p>
                       </div>
                     </div>
-                  )}
+
+                    <button
+                      onClick={() => {
+                        if (confirm("Are you sure you want to clear your recently used tools history?")) {
+                          setRecentUsedTools([]);
+                          localStorage.removeItem("toolkit-pro-recent-used-tools");
+                        }
+                      }}
+                      className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1.5 rounded-xl border border-transparent hover:border-slate-150 dark:hover:border-slate-800 text-slate-400 hover:text-rose-600 dark:hover:text-rose-500 transition-all cursor-pointer"
+                    >
+                      Clear Recents
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
+                    {recentUsedTools.map((toolId) => {
+                      const tool = TOOL_METADATA[toolId];
+                      if (!tool) return null;
+                      const iconName = tool.icon;
+                      const IconComponent = iconMap[iconName] || Quote;
+                      return (
+                        <div
+                          key={toolId}
+                          onClick={() => {
+                            setActiveTab(toolId as any);
+                            setIsSitemapView(false);
+                          }}
+                          className={`p-4 rounded-2xl border transition-all duration-300 hover:scale-102 flex flex-col justify-between group h-36 cursor-pointer relative overflow-hidden ${
+                            theme === "dark"
+                              ? "bg-slate-950/50 border-slate-805 hover:border-slate-700 text-slate-100"
+                              : "bg-slate-50/30 border-slate-150 hover:bg-white hover:border-indigo-200 hover:shadow-2xs text-slate-700"
+                          }`}
+                        >
+                          {/* Decorative accent wave */}
+                          <div className="absolute top-0 right-0 w-12 h-12 bg-indigo-500/5 rounded-full blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+                          
+                          <div className="space-y-1.5">
+                            <div className="flex items-center justify-between">
+                              <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500">
+                                <IconComponent className="w-4 h-4" />
+                              </div>
+                              <span className={`text-[8px] font-black uppercase font-mono px-1.5 py-0.5 rounded leading-none ${
+                                theme === "dark" ? "bg-slate-900 text-slate-405" : "bg-slate-150 text-slate-500"
+                              }`}>
+                                {tool.category}
+                              </span>
+                            </div>
+                            <h4 className={`text-xs font-extrabold tracking-tight group-hover:text-indigo-500 transition-colors ${
+                              theme === "dark" ? "text-white" : "text-slate-900"
+                            }`}>
+                              {tool.label}
+                            </h4>
+                            <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight line-clamp-2">
+                              {tool.desc}
+                            </p>
+                          </div>
+
+                          <div className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 pt-2 group-hover:text-indigo-500 transition-colors">
+                            <span>Open Space</span>
+                            <ArrowRight className="w-2.5 h-2.5 transform group-hover:translate-x-0.5 transition-transform" />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
-              </section>
+              )}
 
               {/* Interactive Setup Progress Roadmap Checklist */}
               <div className={`border rounded-3xl p-6 transition-colors duration-200 select-none ${

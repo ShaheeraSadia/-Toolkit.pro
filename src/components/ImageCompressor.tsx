@@ -4470,7 +4470,7 @@ export default function ImageCompressor({
           <div className="flex items-center gap-2 bg-emerald-500/[0.03] dark:bg-emerald-500/[0.01] border border-emerald-500/10 px-2.5 py-1 rounded-xl">
             <span className="text-[9px] font-extrabold text-emerald-650 dark:text-emerald-400 uppercase tracking-wider flex items-center gap-1 shrink-0">
               <Sparkles className="w-3 h-3 text-emerald-500" />
-              <span>Quality: {Math.round(quality * 100)}%</span>
+              <span>Quality: {Math.round(quality * 100)}% (~{Math.round((1 - (0.12 + quality * 0.48)) * 100)}% smaller)</span>
             </span>
             <input 
               type="range"
@@ -4923,6 +4923,42 @@ export default function ImageCompressor({
                     id="batch-quality-slider-input"
                   />
                 </div>
+
+                {/* Real-time Projected Size Change Indicator */}
+                {(() => {
+                  const totalOriginalSize = queue.reduce((acc, item) => acc + item.size, 0);
+                  const estNewSize = Math.round(totalOriginalSize * (0.12 + quality * 0.48));
+                  const savedPercentage = Math.round((1 - (0.12 + quality * 0.48)) * 100);
+                  return (
+                    <div className="mt-3 bg-white dark:bg-slate-950/80 border border-slate-200/60 dark:border-slate-800/60 rounded-xl p-3 space-y-2 shadow-2xs">
+                      <div className="flex items-center justify-between text-[10px]">
+                        <span className="font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                          <Zap className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />
+                          Est. Batch Savings:
+                        </span>
+                        <span className="font-black text-emerald-650 dark:text-emerald-450 bg-emerald-500/10 dark:bg-emerald-500/20 px-2 py-0.5 rounded-md text-[9px]">
+                          -{savedPercentage}% Size Reduction
+                        </span>
+                      </div>
+                      
+                      <div className="relative h-1.5 w-full bg-slate-100 dark:bg-slate-900 rounded-full overflow-hidden flex">
+                        <div 
+                          style={{ width: `${Math.round((0.12 + quality * 0.48) * 100)}%` }}
+                          className="h-full bg-indigo-500 transition-all duration-100"
+                        />
+                        <div 
+                          style={{ width: `${savedPercentage}%` }}
+                          className="h-full bg-emerald-500/30 dark:bg-emerald-500/20 transition-all duration-100"
+                        />
+                      </div>
+
+                      <div className="flex justify-between text-[9px] font-mono font-bold pt-1 border-t border-slate-100/50 dark:border-slate-900/40">
+                        <span className="text-slate-400">Total: {formatFileSize(totalOriginalSize)}</span>
+                        <span className="text-indigo-600 dark:text-indigo-400">Est. New: ~{formatFileSize(estNewSize)}</span>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                 <button
                   type="button"
@@ -6322,6 +6358,97 @@ export default function ImageCompressor({
                   <span>Maximum Fidelity</span>
                 </div>
               </div>
+
+              {/* Real-time Projected Size Change Indicator */}
+              {activeItem && (
+                <div className="mt-3 bg-slate-50 dark:bg-slate-900/45 border border-slate-200/50 dark:border-slate-800/60 rounded-xl p-3 space-y-2.5 shadow-3xs animate-in fade-in slide-in-from-top-1 duration-200">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                      <Zap className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                      Live Projected Savings
+                    </span>
+                    <span className="text-[10px] font-black font-mono text-emerald-650 dark:text-emerald-450 bg-emerald-500/10 dark:bg-emerald-500/20 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                      -{Math.round((1 - (0.12 + (activeItem.quality || quality) * 0.48)) * 100)}% Weight
+                    </span>
+                  </div>
+
+                  {/* Visual Bar Comparison */}
+                  <div className="space-y-1">
+                    <div className="relative h-2 w-full bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden flex">
+                      <div 
+                        style={{ width: `${Math.round((0.12 + (activeItem.quality || quality) * 0.48) * 100)}%` }}
+                        className="h-full bg-indigo-500 transition-all duration-100"
+                        title="Compressed size projection"
+                      />
+                      <div 
+                        style={{ width: `${Math.round((1 - (0.12 + (activeItem.quality || quality) * 0.48)) * 100)}%` }}
+                        className="h-full bg-emerald-400 dark:bg-emerald-500/30 transition-all duration-100"
+                        title="Projected file size reduction"
+                      />
+                    </div>
+                    <div className="flex justify-between text-[8px] font-extrabold text-slate-405 dark:text-slate-500 uppercase tracking-wide">
+                      <span>Compressed (~{Math.round((0.12 + (activeItem.quality || quality) * 0.48) * 100)}%)</span>
+                      <span>Saved (~{Math.round((1 - (0.12 + (activeItem.quality || quality) * 0.48)) * 100)}%)</span>
+                    </div>
+                  </div>
+
+                  {/* Estimated File Sizes */}
+                  <div className="grid grid-cols-2 gap-2 pt-2 border-t border-slate-100 dark:border-slate-900/60">
+                    <div>
+                      <span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+                        Original Size
+                      </span>
+                      <span className="text-xs font-mono font-bold text-slate-700 dark:text-slate-300">
+                        {formatFileSize(activeItem.size)}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-[8px] font-bold text-slate-400 dark:text-slate-500 uppercase tracking-wider block">
+                        Est. New Size
+                      </span>
+                      <span className="text-xs font-mono font-extrabold text-indigo-600 dark:text-indigo-400">
+                        ~{formatFileSize(Math.round(activeItem.size * (0.12 + (activeItem.quality || quality) * 0.48)))}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* Performance Impact Ranking */}
+                  {(() => {
+                    const estBytes = Math.round(activeItem.size * (0.12 + (activeItem.quality || quality) * 0.48));
+                    let impactText = "";
+                    let impactColor = "";
+                    let dotBg = "";
+
+                    if (estBytes < 120 * 1024) {
+                      impactText = "⚡ Ultra-Fast Load (<0.2s) • Perfect Core Web Vitals";
+                      impactColor = "text-emerald-600 dark:text-emerald-400 bg-emerald-500/10 border-emerald-500/20";
+                      dotBg = "bg-emerald-500 animate-pulse";
+                    } else if (estBytes < 400 * 1024) {
+                      impactText = "🟢 Optimized Load (<0.5s) • Good Performance";
+                      impactColor = "text-blue-600 dark:text-blue-400 bg-blue-500/10 border-blue-500/20";
+                      dotBg = "bg-blue-500";
+                    } else if (estBytes < 1000 * 1024) {
+                      impactText = "🟡 Standard Web Load (0.5s - 1.2s) • Fair Rating";
+                      impactColor = "text-amber-600 dark:text-amber-400 bg-amber-500/10 border-amber-500/20";
+                      dotBg = "bg-amber-500";
+                    } else {
+                      impactText = "⚠️ Heavy Asset (>1.2s) • Consider lower quality";
+                      impactColor = "text-rose-600 dark:text-rose-400 bg-rose-500/10 border-rose-500/20";
+                      dotBg = "bg-rose-500 animate-pulse";
+                    }
+
+                    return (
+                      <div className={`p-2 rounded-lg border ${impactColor} text-[9.5px] font-semibold flex items-center gap-1.5 transition-all duration-300`}>
+                        <div className="relative flex h-1.5 w-1.5 shrink-0">
+                          <span className={`absolute inline-flex h-full w-full rounded-full opacity-75 ${dotBg}`} />
+                          <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${dotBg.split(" ")[0]}`} />
+                        </div>
+                        <span>{impactText}</span>
+                      </div>
+                    );
+                  })()}
+                </div>
+              )}
 
               {/* Quick-Select Quality Presets */}
               <div className="space-y-1.5 pt-1">
