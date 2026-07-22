@@ -423,11 +423,16 @@ app.post("/api/image/generate-free", async (req, res) => {
 });
 
 // API route to proxy and securely download any image URL or Base64 data URI
-app.get("/api/image/download", async (req, res) => {
+app.all("/api/image/download", async (req, res) => {
   try {
-    const { url } = req.query;
+    const url = req.method === "POST" ? req.body?.url : req.query?.url;
+    const requestedFilename = req.method === "POST" ? req.body?.filename : req.query?.filename;
+    const filename = requestedFilename && typeof requestedFilename === "string" 
+      ? requestedFilename 
+      : `toolkit-pro-${Date.now()}.png`;
+
     if (!url || typeof url !== "string") {
-      return res.status(400).json({ error: "url is required in query parameters." });
+      return res.status(400).json({ error: "url parameter is required." });
     }
 
     if (url.startsWith("data:")) {
@@ -436,17 +441,17 @@ app.get("/api/image/download", async (req, res) => {
       const base64Data = parts[1];
       const buffer = Buffer.from(base64Data, "base64");
       res.setHeader("Content-Type", mimeType);
-      res.setHeader("Content-Disposition", `attachment; filename="toolkit-pro-${Date.now()}.png"`);
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
       return res.send(buffer);
     } else {
-      console.log(`[Veo server] Downloading and proxying remote image URL: ${url}`);
+      console.log(`[Toolkit Pro server] Downloading and proxying remote image URL: ${url}`);
       const imgRes = await fetch(url);
       if (!imgRes.ok) {
         return res.status(imgRes.status).json({ error: `Failed to fetch image: ${imgRes.statusText}` });
       }
       const contentType = imgRes.headers.get("content-type") || "image/png";
       res.setHeader("Content-Type", contentType);
-      res.setHeader("Content-Disposition", `attachment; filename="toolkit-pro-${Date.now()}.png"`);
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
       const arrayBuffer = await imgRes.arrayBuffer();
       return res.send(Buffer.from(arrayBuffer));
     }

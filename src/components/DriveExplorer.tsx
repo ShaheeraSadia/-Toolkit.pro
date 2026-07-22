@@ -26,10 +26,12 @@ import {
   Square,
   CheckSquare,
   Sparkles,
+  ShieldCheck,
   ArrowUpDown,
   Download,
   LayoutGrid,
   List,
+  GripVertical,
 } from "lucide-react";
 
 interface DriveExplorerProps {
@@ -39,6 +41,7 @@ interface DriveExplorerProps {
   isLoading: boolean;
   onRefresh: () => void;
   onSelectTab: (tab: any) => void;
+  onOpenSeoModal?: (initialData?: any) => void;
 }
 
 export default function DriveExplorer({
@@ -48,6 +51,7 @@ export default function DriveExplorer({
   isLoading,
   onRefresh,
   onSelectTab,
+  onOpenSeoModal,
 }: DriveExplorerProps) {
   const [search, setSearch] = useState("");
   const searchInputRef = useRef<HTMLInputElement>(null);
@@ -133,9 +137,38 @@ export default function DriveExplorer({
   const [deleteProgress, setDeleteProgress] = useState<{ total: number; current: number } | null>(null);
 
   // Sorting configuration states
-  const [sortBy, setSortBy] = useState<"date" | "size" | "name">("date");
+  const [sortBy, setSortBy] = useState<"date" | "size" | "name" | "custom">("date");
   const [sortOrder, setSortOrder] = useState<"asc" | "desc">("desc");
   const [displayMode, setDisplayMode] = useState<"grid" | "list">("grid");
+
+  // Drag-and-drop state for reordering files and moving files to folders
+  const [customOrderMap, setCustomOrderMap] = useState<Record<string, string[]>>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const saved = localStorage.getItem("toolkit_drive_custom_order");
+        return saved ? JSON.parse(saved) : {};
+      } catch (e) {
+        return {};
+      }
+    }
+    return {};
+  });
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      try {
+        localStorage.setItem("toolkit_drive_custom_order", JSON.stringify(customOrderMap));
+      } catch (e) {
+        console.error("Failed to persist custom drive file order:", e);
+      }
+    }
+  }, [customOrderMap]);
+
+  const [draggedFileId, setDraggedFileId] = useState<string | null>(null);
+  const [draggedFileIds, setDraggedFileIds] = useState<string[]>([]);
+  const [dragOverTargetId, setDragOverTargetId] = useState<string | null>(null);
+  const [dragOverTargetType, setDragOverTargetType] = useState<"folder" | "file" | "breadcrumb" | null>(null);
+  const [isMovingBatch, setIsMovingBatch] = useState(false);
 
   // Clear batch selection on navigation or search/filter parameters
   useEffect(() => {
@@ -382,7 +415,9 @@ export default function DriveExplorer({
   const handleDragOver = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    setIsDragOver(true);
+    if (!draggedFileId) {
+      setIsDragOver(true);
+    }
   };
 
   const handleDragLeave = (e: React.DragEvent) => {
@@ -396,10 +431,117 @@ export default function DriveExplorer({
     e.stopPropagation();
     setIsDragOver(false);
 
+    // If an internal drive item is being dragged, skip external file upload
+    if (draggedFileId) {
+      return;
+    }
+
     const filesToUpload = Array.from(e.dataTransfer.files) as File[];
     if (filesToUpload.length === 0) return;
 
     await uploadFiles(filesToUpload);
+  };
+
+  const handleReorderFiles = (sourceFileId: string, targetFileId: string) => {
+    if (sourceFileId === targetFileId) return;
+
+    const currentFolderKey = currentFolderId || appRootId || "root";
+    const existingOrder = customOrderMap[currentFolderKey] || currentFiles.map((f) => f.id);
+
+    // Keep unique valid IDs in current view
+    const validIds = Array.from(new Set([...existingOrder, ...currentFiles.map((f) => f.id)]))
+      .filter((id) => currentFiles.some((f) => f.id === id));
+
+    const sourceIndex = validIds.indexOf(sourceFileId);
+    const targetIndex = validIds.indexOf(targetFileId);
+
+    if (sourceIndex === -1 || targetIndex === -1) return;
+
+    const newOrder = [...validIds];
+    const [removed] = newOrder.splice(sourceIndex, 1);
+    newOrder.splice(targetIndex, 0, removed);
+
+    setCustomOrderMap((prev) => ({
+      ...prev,
+      [currentFolderKey]: newOrder,
+    }));
+
+    setSortBy("custom");
+    setUploadStatus({
+      success: true,
+      msg: "Reordered files in view successfully!",
+    });
+    setTimeout(() => {
+      setUploadStatus((prev) => (prev?.msg?.includes("Reordered") ? null : prev));
+    }, 4000);
+  };
+
+  const handleMoveFilesToFolder = async (
+    fileIdsToMove: string[],
+    targetFolderId: string,
+    targetFolderName: string
+  ) => {
+    if (!accessToken || fileIdsToMove.length === 0) return;
+
+    // Avoid moving if target folder is current folder
+    if (targetFolderId === (currentFolderId || appRootId)) return;
+
+    setIsMovingBatch(true);
+    setUploadStatus({
+      success: true,
+      msg: `Moving ${fileIdsToMove.length} ${fileIdsToMove.length === 1 ? "file" : "files"} to "${targetFolderName}"...`,
+    });
+
+    let successCount = 0;
+    let failCount = 0;
+
+    try {
+      const activeParentId = currentFolderId || appRootId || "";
+      for (const fId of fileIdsToMove) {
+        try {
+          const targetFileObj = files.find((f) => f.id === fId);
+          const oldParent = (targetFileObj?.parents && targetFileObj.parents[0]) || activeParentId;
+          await moveDriveFile(accessToken, fId, targetFolderId, oldParent);
+          successCount++;
+        } catch (err) {
+          console.error(`Failed to move file ID ${fId}:`, err);
+          failCount++;
+        }
+      }
+
+      setUploadStatus({
+        success: failCount === 0,
+        msg: failCount === 0
+          ? `Successfully moved ${successCount} ${
+              successCount === 1 ? "file" : "files"
+            } into "${targetFolderName}" folder!`
+          : `Moved ${successCount} files into "${targetFolderName}", ${failCount} failed.`,
+      });
+
+      setSelectedFileIds((prev) => prev.filter((id) => !fileIdsToMove.includes(id)));
+      onRefresh();
+    } catch (err: any) {
+      console.error(err);
+      setUploadStatus({
+        success: false,
+        msg: err.message || "Failed to move file(s) into folder.",
+      });
+    } finally {
+      setIsMovingBatch(false);
+      setTimeout(() => {
+        setUploadStatus((prev) => (prev?.msg?.includes("Moved") ? null : prev));
+      }, 5000);
+    }
+  };
+
+  const resetCustomOrder = () => {
+    const currentFolderKey = currentFolderId || appRootId || "root";
+    setCustomOrderMap((prev) => {
+      const next = { ...prev };
+      delete next[currentFolderKey];
+      return next;
+    });
+    setSortBy("date");
   };
 
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -669,6 +811,24 @@ export default function DriveExplorer({
   });
 
   const currentFiles = [...rawFiles].sort((a, b) => {
+    if (sortBy === "custom") {
+      const currentFolderKey = currentFolderId || appRootId || "root";
+      const customList = customOrderMap[currentFolderKey] || [];
+      const indexA = customList.indexOf(a.id);
+      const indexB = customList.indexOf(b.id);
+
+      if (indexA !== -1 && indexB !== -1) {
+        return indexA - indexB;
+      }
+      if (indexA !== -1) return -1;
+      if (indexB !== -1) return 1;
+
+      // Fallback: Date modified descending
+      const dateA = new Date(a.modifiedTime || a.createdTime || 0).getTime();
+      const dateB = new Date(b.modifiedTime || b.createdTime || 0).getTime();
+      return dateB - dateA;
+    }
+
     let comparison = 0;
     if (sortBy === "date") {
       const dateA = new Date(a.modifiedTime || a.createdTime || 0).getTime();
@@ -1082,8 +1242,20 @@ export default function DriveExplorer({
             )}
           </div>
 
-          {/* Action buttons (CSV Download & Sync Refresh) */}
+          {/* Action buttons (SEO Audit, CSV Download & Sync Refresh) */}
           <div className="flex flex-wrap items-center gap-2">
+            {/* SEO Best Practices Pre-Check Button */}
+            {onOpenSeoModal && (
+              <button
+                onClick={() => onOpenSeoModal({ title: "google-drive-project.png", category: "Web Graphics" })}
+                className="inline-flex items-center gap-1.5 bg-gradient-to-r from-indigo-600 to-teal-600 hover:from-indigo-700 hover:to-teal-700 text-white rounded-xl px-4 py-2 font-bold text-xs cursor-pointer transition-all select-none shadow-3xs hover:shadow-xs"
+                title="Perform interactive SEO audit before archiving files to Google Drive"
+              >
+                <ShieldCheck className="w-3.5 h-3.5 text-teal-300" />
+                <span>SEO Best Practices Audit</span>
+              </button>
+            )}
+
             {/* Download CSV Button */}
             <button
               onClick={handleDownloadCSV}
@@ -1150,21 +1322,34 @@ export default function DriveExplorer({
                 { id: "date", label: "Date Modified" },
                 { id: "size", label: "File Size" },
                 { id: "name", label: "File Name" },
+                { id: "custom", label: "Custom Drag Order" },
               ].map((option) => (
                 <button
                   key={option.id}
                   type="button"
                   onClick={() => setSortBy(option.id as any)}
-                  className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer select-none ${
+                  className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer select-none flex items-center gap-1 ${
                     sortBy === option.id
                       ? "bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-xs"
                       : "text-slate-500 hover:text-slate-855 dark:text-slate-400 dark:hover:text-slate-200"
                   }`}
                 >
+                  {option.id === "custom" && <GripVertical className="w-3 h-3 text-indigo-500" />}
                   {option.label}
                 </button>
               ))}
             </div>
+
+            {customOrderMap[currentFolderId || appRootId || "root"]?.length > 0 && (
+              <button
+                type="button"
+                onClick={resetCustomOrder}
+                className="px-2.5 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider text-slate-450 hover:text-indigo-600 dark:hover:text-amber-400 bg-slate-100 dark:bg-slate-900 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                title="Reset custom drag layout back to default date modified sort"
+              >
+                Reset Drag Order
+              </button>
+            )}
 
             <button
               onClick={() => setSortOrder(prev => prev === "asc" ? "desc" : "asc")}
@@ -1188,34 +1373,107 @@ export default function DriveExplorer({
         <div className="flex flex-wrap items-center justify-between gap-3 bg-slate-50 dark:bg-slate-900/50 px-4 py-3 rounded-2xl border border-slate-150 dark:border-slate-800/60 shadow-xs">
           {/* Left Side: Path Breadcrumbs */}
           <div className="flex items-center space-x-1.5 overflow-x-auto py-1 scrollbar-none text-xs text-slate-550 custom-scrollbar">
-            {currentPath.length > 1 && (
-              <button
-                type="button"
-                onClick={() => navigateToFolderFromBreadcrumb(currentPath.length - 2)}
-                className="mr-1 p-1 rounded-lg bg-slate-200/60 dark:bg-slate-800/80 hover:bg-slate-300/80 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-305 flex items-center justify-center transition-all cursor-pointer shadow-3xs"
-                title="Go up to parent folder"
-                id="btn-drive-up-one-level"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-              </button>
-            )}
-            <Folder className="w-4 h-4 text-emerald-500 shrink-0" />
-            {currentPath.map((folder, index) => (
-              <React.Fragment key={folder.id}>
-                {index > 0 && <ChevronRight className="w-3.5 h-3.5 text-slate-350 shrink-0" />}
+            {currentPath.length > 1 && (() => {
+              const parentFolder = currentPath[currentPath.length - 2];
+              const isDropTarget = dragOverTargetId === parentFolder.id && dragOverTargetType === "breadcrumb";
+              return (
                 <button
                   type="button"
-                  onClick={() => navigateToFolderFromBreadcrumb(index)}
-                  className={`font-semibold hover:text-indigo-650 dark:hover:text-indigo-400 hover:underline shrink-0 ${
-                    index === currentPath.length - 1
-                      ? "text-slate-905 dark:text-white pointer-events-none font-bold"
-                      : "text-slate-500 dark:text-slate-400"
+                  onClick={() => navigateToFolderFromBreadcrumb(currentPath.length - 2)}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (draggedFileId) {
+                      setDragOverTargetId(parentFolder.id);
+                      setDragOverTargetType("breadcrumb");
+                      e.dataTransfer.dropEffect = "move";
+                    }
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (dragOverTargetId === parentFolder.id) {
+                      setDragOverTargetId(null);
+                      setDragOverTargetType(null);
+                    }
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setDragOverTargetId(null);
+                    setDragOverTargetType(null);
+                    const fileIds = draggedFileIds.length > 0 ? draggedFileIds : (draggedFileId ? [draggedFileId] : []);
+                    if (fileIds.length > 0) {
+                      handleMoveFilesToFolder(fileIds, parentFolder.id, parentFolder.name);
+                    }
+                  }}
+                  className={`mr-1 p-1 px-2 rounded-lg flex items-center justify-center transition-all cursor-pointer shadow-3xs ${
+                    isDropTarget
+                      ? "bg-emerald-500 text-white ring-2 ring-emerald-400 scale-105"
+                      : "bg-slate-200/60 dark:bg-slate-800/80 hover:bg-slate-300/80 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-305"
                   }`}
+                  title={`Go up or drag file(s) here to move to parent folder (${parentFolder.name})`}
+                  id="btn-drive-up-one-level"
                 >
-                  {folder.name}
+                  <ChevronLeft className="w-3.5 h-3.5 mr-0.5" />
+                  <span className="text-[10px] font-bold">Up</span>
                 </button>
-              </React.Fragment>
-            ))}
+              );
+            })()}
+            <Folder className="w-4 h-4 text-emerald-500 shrink-0" />
+            {currentPath.map((folder, index) => {
+              const isBreadcrumbDropTarget = dragOverTargetId === folder.id && dragOverTargetType === "breadcrumb";
+              const isLast = index === currentPath.length - 1;
+              return (
+                <React.Fragment key={folder.id}>
+                  {index > 0 && <ChevronRight className="w-3.5 h-3.5 text-slate-350 shrink-0" />}
+                  <button
+                    type="button"
+                    onClick={() => navigateToFolderFromBreadcrumb(index)}
+                    onDragOver={(e) => {
+                      if (isLast) return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (draggedFileId) {
+                        setDragOverTargetId(folder.id);
+                        setDragOverTargetType("breadcrumb");
+                        e.dataTransfer.dropEffect = "move";
+                      }
+                    }}
+                    onDragLeave={(e) => {
+                      if (isLast) return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      if (dragOverTargetId === folder.id) {
+                        setDragOverTargetId(null);
+                        setDragOverTargetType(null);
+                      }
+                    }}
+                    onDrop={(e) => {
+                      if (isLast) return;
+                      e.preventDefault();
+                      e.stopPropagation();
+                      setDragOverTargetId(null);
+                      setDragOverTargetType(null);
+                      const fileIds = draggedFileIds.length > 0 ? draggedFileIds : (draggedFileId ? [draggedFileId] : []);
+                      if (fileIds.length > 0) {
+                        handleMoveFilesToFolder(fileIds, folder.id, folder.name);
+                      }
+                    }}
+                    className={`font-semibold shrink-0 rounded px-1.5 py-0.5 transition-all ${
+                      isBreadcrumbDropTarget
+                        ? "bg-emerald-500 text-white font-bold ring-2 ring-emerald-400 scale-105"
+                        : isLast
+                        ? "text-slate-905 dark:text-white pointer-events-none font-bold"
+                        : "text-slate-500 dark:text-slate-400 hover:text-indigo-650 dark:hover:text-indigo-400 hover:underline"
+                    }`}
+                    title={!isLast ? `Click to navigate or drop file(s) here to move to ${folder.name}` : undefined}
+                  >
+                    {folder.name}
+                  </button>
+                </React.Fragment>
+              );
+            })}
           </div>
 
           {/* Right Side: viewMode buttons + "Create Folder" button */}
@@ -1434,52 +1692,94 @@ export default function DriveExplorer({
               </h5>
               <motion.div layout className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                 <AnimatePresence mode="popLayout">
-                  {currentFolders.map((folder) => (
-                    <motion.div
-                      layout
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      transition={{ duration: 0.2 }}
-                      key={folder.id}
-                      onClick={() => enterFolder(folder)}
-                      className="bg-white dark:bg-slate-900 px-4 py-3.5 border border-slate-200 dark:border-slate-800 rounded-2xl flex items-center justify-between group cursor-pointer hover:border-slate-350 dark:hover:border-slate-700 hover:shadow-xs transition-all text-left"
-                    >
-                      <div className="flex items-center space-x-3 overflow-hidden">
-                        <div className="p-2 bg-emerald-50 dark:bg-emerald-950/40 rounded-xl group-hover:scale-105 transition-all text-emerald-600 dark:text-emerald-400">
-                          <Folder className="w-4 h-4 fill-emerald-100 dark:fill-emerald-900" />
+                  {currentFolders.map((folder) => {
+                    const isFolderDropTarget = dragOverTargetId === folder.id && dragOverTargetType === "folder";
+                    return (
+                      <motion.div
+                        layout
+                        initial={{ opacity: 0, scale: 0.95 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.95 }}
+                        transition={{ duration: 0.2 }}
+                        key={folder.id}
+                        onClick={() => enterFolder(folder)}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (draggedFileId) {
+                            setDragOverTargetId(folder.id);
+                            setDragOverTargetType("folder");
+                            e.dataTransfer.dropEffect = "move";
+                          }
+                        }}
+                        onDragLeave={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (dragOverTargetId === folder.id) {
+                            setDragOverTargetId(null);
+                            setDragOverTargetType(null);
+                          }
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setDragOverTargetId(null);
+                          setDragOverTargetType(null);
+                          const fileIds = draggedFileIds.length > 0 ? draggedFileIds : (draggedFileId ? [draggedFileId] : []);
+                          if (fileIds.length > 0) {
+                            handleMoveFilesToFolder(fileIds, folder.id, folder.name);
+                          }
+                        }}
+                        className={`relative bg-white dark:bg-slate-900 px-4 py-3.5 border rounded-2xl flex items-center justify-between group cursor-pointer transition-all text-left ${
+                          isFolderDropTarget
+                            ? "ring-2 ring-emerald-500 bg-emerald-50/90 dark:bg-emerald-950/80 border-emerald-500 scale-105 shadow-md z-10"
+                            : "border-slate-200 dark:border-slate-800 hover:border-slate-350 dark:hover:border-slate-700 hover:shadow-xs"
+                        }`}
+                      >
+                        {isFolderDropTarget && (
+                          <div className="absolute -top-2.5 right-2 bg-emerald-600 text-white text-[10px] font-black px-2 py-0.5 rounded-full shadow-lg flex items-center gap-1 z-20 animate-bounce">
+                            <Folder className="w-3 h-3 fill-current" />
+                            <span>Move {draggedFileIds.length > 1 ? `${draggedFileIds.length} files` : "here"}</span>
+                          </div>
+                        )}
+                        <div className="flex items-center space-x-3 overflow-hidden">
+                          <div className={`p-2 rounded-xl group-hover:scale-105 transition-all ${
+                            isFolderDropTarget ? "bg-emerald-600 text-white" : "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"
+                          }`}>
+                            <Folder className="w-4 h-4 fill-emerald-100 dark:fill-emerald-900" />
+                          </div>
+                          <span className="text-xs font-bold text-slate-800 dark:text-white truncate" title={folder.name}>
+                            {highlightMatch(folder.name, search)}
+                          </span>
                         </div>
-                        <span className="text-xs font-bold text-slate-800 dark:text-white truncate" title={folder.name}>
-                          {highlightMatch(folder.name, search)}
-                        </span>
-                      </div>
 
-                      <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-all">
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            triggerRename(folder, true);
-                          }}
-                          className="p-1 rounded-lg text-slate-400 hover:text-indigo-650 dark:hover:text-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-850/50 transition-all cursor-pointer flex items-center justify-center"
-                          title="Rename folder"
-                        >
-                          <Edit3 className="w-3.5 h-3.5" />
-                        </button>
-                        <button
-                          type="button"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            triggerDelete(folder, true);
-                          }}
-                          className="p-1 rounded-lg text-slate-400 hover:text-rose-650 dark:hover:text-rose-455 hover:bg-rose-50 dark:hover:bg-rose-955/20 transition-all cursor-pointer flex items-center justify-center"
-                          title="Permanently remove folder"
-                        >
-                          <Trash2 className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    </motion.div>
-                  ))}
+                        <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 transition-all">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              triggerRename(folder, true);
+                            }}
+                            className="p-1 rounded-lg text-slate-400 hover:text-indigo-650 dark:hover:text-indigo-400 hover:bg-slate-50 dark:hover:bg-slate-850/50 transition-all cursor-pointer flex items-center justify-center"
+                            title="Rename folder"
+                          >
+                            <Edit3 className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              triggerDelete(folder, true);
+                            }}
+                            className="p-1 rounded-lg text-slate-400 hover:text-rose-650 dark:hover:text-rose-455 hover:bg-rose-50 dark:hover:bg-rose-955/20 transition-all cursor-pointer flex items-center justify-center"
+                            title="Permanently remove folder"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </motion.div>
+                    );
+                  })}
                 </AnimatePresence>
               </motion.div>
             </div>
@@ -1529,6 +1829,9 @@ export default function DriveExplorer({
                     const cat = getFileCategory(file.name);
                     const globalIndex = currentFiles.indexOf(file);
                     const isSelected = selectedFileIds.includes(file.id);
+                    const isDragSource = draggedFileId === file.id;
+                    const isFileDropTarget = dragOverTargetId === file.id && dragOverTargetType === "file";
+
                     return (
                       <motion.div
                         layout
@@ -1537,21 +1840,82 @@ export default function DriveExplorer({
                         exit={{ opacity: 0, scale: 0.95 }}
                         transition={{ duration: 0.2 }}
                         key={file.id}
+                        draggable={true}
+                        onDragStart={(e) => {
+                          const fileIds = selectedFileIds.includes(file.id) ? selectedFileIds : [file.id];
+                          setDraggedFileId(file.id);
+                          setDraggedFileIds(fileIds);
+                          e.dataTransfer.setData("application/json", JSON.stringify({ type: "drive-files", fileIds }));
+                          e.dataTransfer.effectAllowed = "move";
+                        }}
+                        onDragEnd={() => {
+                          setDraggedFileId(null);
+                          setDraggedFileIds([]);
+                          setDragOverTargetId(null);
+                          setDragOverTargetType(null);
+                        }}
+                        onDragOver={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (draggedFileId && draggedFileId !== file.id) {
+                            setDragOverTargetId(file.id);
+                            setDragOverTargetType("file");
+                            e.dataTransfer.dropEffect = "move";
+                          }
+                        }}
+                        onDragLeave={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (dragOverTargetId === file.id) {
+                            setDragOverTargetId(null);
+                            setDragOverTargetType(null);
+                          }
+                        }}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          const targetId = file.id;
+                          setDragOverTargetId(null);
+                          setDragOverTargetType(null);
+
+                          if (draggedFileId && draggedFileId !== targetId) {
+                            handleReorderFiles(draggedFileId, targetId);
+                          }
+                        }}
                         onClick={() => setSelectedPreviewFile(file)}
                         onDoubleClick={() => {
                           setPreviewIndex(globalIndex);
                           setSelectedPreviewFile(file);
                         }}
-                        className={`bg-white dark:bg-slate-950 rounded-2xl border overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between group animate-fade-in cursor-pointer ${
-                          isSelected
+                        className={`relative bg-white dark:bg-slate-950 rounded-2xl border overflow-hidden shadow-sm hover:shadow-md transition-all flex flex-col justify-between group animate-fade-in cursor-pointer ${
+                          isDragSource ? "opacity-40 scale-95 border-dashed border-indigo-500" : ""
+                        } ${
+                          isFileDropTarget
+                            ? "ring-2 ring-indigo-500 border-indigo-500 scale-[1.02] shadow-xl bg-indigo-50/40 dark:bg-indigo-950/30 z-10"
+                            : isSelected
                             ? "ring-2 ring-emerald-500 border-transparent bg-emerald-500/[0.02]"
                             : "border-slate-100 dark:border-slate-850"
                         } ${
-                          selectedPreviewFile?.id === file.id
+                          selectedPreviewFile?.id === file.id && !isFileDropTarget
                             ? "ring-2 ring-indigo-500 dark:ring-indigo-500 border-transparent bg-indigo-50/20 dark:bg-indigo-950/5"
                             : ""
                         }`}
                       >
+                      {/* Reorder Drop Target Floating Badge */}
+                      {isFileDropTarget && (
+                        <div className="absolute top-2 left-1/2 -translate-x-1/2 bg-indigo-600 text-white text-[10px] font-black px-2.5 py-1 rounded-full shadow-lg flex items-center gap-1 z-30 animate-pulse pointer-events-none">
+                          <GripVertical className="w-3.5 h-3.5" />
+                          <span>Drop to Reorder Here</span>
+                        </div>
+                      )}
+
+                      {/* Drag Handle Indicator */}
+                      <div
+                        className="absolute top-2.5 left-2.5 z-10 p-1.5 rounded-lg bg-slate-900/60 backdrop-blur-xs text-white opacity-0 group-hover:opacity-80 hover:opacity-100 cursor-grab active:cursor-grabbing transition-opacity shadow-xs"
+                        title="Drag to reorder or drop onto a folder"
+                      >
+                        <GripVertical className="w-3.5 h-3.5" />
+                      </div>
                       {/* Upper thumbnail preview container */}
                       <div
                         onClick={(e) => {
@@ -1713,31 +2077,87 @@ export default function DriveExplorer({
                         const globalIndex = currentFiles.indexOf(file);
                         const isSelected = selectedFileIds.includes(file.id);
                         const isHighlighted = selectedPreviewFile?.id === file.id;
+                        const isDragSource = draggedFileId === file.id;
+                        const isRowDropTarget = dragOverTargetId === file.id && dragOverTargetType === "file";
+
                         return (
                           <tr
                             key={file.id}
+                            draggable={true}
+                            onDragStart={(e) => {
+                              const fileIds = selectedFileIds.includes(file.id) ? selectedFileIds : [file.id];
+                              setDraggedFileId(file.id);
+                              setDraggedFileIds(fileIds);
+                              e.dataTransfer.setData("application/json", JSON.stringify({ type: "drive-files", fileIds }));
+                              e.dataTransfer.effectAllowed = "move";
+                            }}
+                            onDragEnd={() => {
+                              setDraggedFileId(null);
+                              setDraggedFileIds([]);
+                              setDragOverTargetId(null);
+                              setDragOverTargetType(null);
+                            }}
+                            onDragOver={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (draggedFileId && draggedFileId !== file.id) {
+                                setDragOverTargetId(file.id);
+                                setDragOverTargetType("file");
+                                e.dataTransfer.dropEffect = "move";
+                              }
+                            }}
+                            onDragLeave={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              if (dragOverTargetId === file.id) {
+                                setDragOverTargetId(null);
+                                setDragOverTargetType(null);
+                              }
+                            }}
+                            onDrop={(e) => {
+                              e.preventDefault();
+                              e.stopPropagation();
+                              const targetId = file.id;
+                              setDragOverTargetId(null);
+                              setDragOverTargetType(null);
+
+                              if (draggedFileId && draggedFileId !== targetId) {
+                                handleReorderFiles(draggedFileId, targetId);
+                              }
+                            }}
                             onClick={() => setSelectedPreviewFile(file)}
                             onDoubleClick={() => {
                               setPreviewIndex(globalIndex);
                               setSelectedPreviewFile(file);
                             }}
                             className={`group hover:bg-slate-50/80 dark:hover:bg-slate-900/40 transition-colors cursor-pointer text-xs ${
-                              isHighlighted ? "bg-indigo-50/15 dark:bg-indigo-950/5" : ""
+                              isDragSource ? "opacity-40 bg-slate-100 dark:bg-slate-900" : ""
+                            } ${
+                              isRowDropTarget
+                                ? "ring-2 ring-indigo-500 bg-indigo-50/70 dark:bg-indigo-950/40"
+                                : isHighlighted
+                                ? "bg-indigo-50/15 dark:bg-indigo-950/5"
+                                : ""
                             }`}
                           >
-                            {/* Checkbox */}
-                            <td className="py-3.5 px-4 text-center" onClick={(e) => e.stopPropagation()}>
-                              <div
-                                onClick={(e) => toggleSelectFile(file.id, e)}
-                                className="inline-flex cursor-pointer"
-                                title={isSelected ? "Deselect item" : "Select item"}
-                              >
-                                <div className={`w-5.5 h-5.5 rounded-lg border flex items-center justify-center transition-all ${
-                                  isSelected
-                                    ? "bg-emerald-500 border-emerald-600 text-white scale-105 shadow"
-                                    : "bg-transparent border-slate-300 dark:border-slate-700 hover:border-slate-400"
-                                }`}>
-                                  {isSelected && <Check className="w-3.5 h-3.5 text-white stroke-[3.5]" />}
+                            {/* Checkbox & Drag Handle */}
+                            <td className="py-3.5 px-3 text-center" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex items-center justify-center gap-1">
+                                <span className="cursor-grab active:cursor-grabbing text-slate-350 hover:text-slate-600 dark:text-slate-600 dark:hover:text-slate-300 opacity-60 group-hover:opacity-100 transition-opacity">
+                                  <GripVertical className="w-3.5 h-3.5" />
+                                </span>
+                                <div
+                                  onClick={(e) => toggleSelectFile(file.id, e)}
+                                  className="inline-flex cursor-pointer"
+                                  title={isSelected ? "Deselect item" : "Select item"}
+                                >
+                                  <div className={`w-5.5 h-5.5 rounded-lg border flex items-center justify-center transition-all ${
+                                    isSelected
+                                      ? "bg-emerald-500 border-emerald-600 text-white scale-105 shadow"
+                                      : "bg-transparent border-slate-300 dark:border-slate-700 hover:border-slate-400"
+                                  }`}>
+                                    {isSelected && <Check className="w-3.5 h-3.5 text-white stroke-[3.5]" />}
+                                  </div>
                                 </div>
                               </div>
                             </td>

@@ -16,7 +16,8 @@ import {
   ArrowRight,
   Eye,
   Settings,
-  Keyboard
+  Keyboard,
+  Key
 } from "lucide-react";
 import { ActiveTab } from "../types";
 
@@ -33,6 +34,8 @@ interface CommandPaletteProps {
   onSelectArticle: (articleId: string) => void;
   onOpenSitemap: () => void;
   onOpenShortcuts: () => void;
+  onOpenSeoModal?: () => void;
+  onOpenApiKeyModal?: () => void;
 }
 
 interface PaletteItem {
@@ -57,7 +60,9 @@ export default function CommandPalette({
   onRefreshDrive,
   onSelectArticle,
   onOpenSitemap,
-  onOpenShortcuts
+  onOpenShortcuts,
+  onOpenSeoModal,
+  onOpenApiKeyModal
 }: CommandPaletteProps) {
   const [search, setSearch] = useState("");
   const [selectedIndex, setSelectedIndex] = useState(0);
@@ -173,6 +178,24 @@ export default function CommandPalette({
       icon: Cloud,
       action: () => { onTabChange("drive"); onClose(); },
       shortcut: "Ctrl+D"
+    },
+    {
+      id: "utility-seo",
+      title: "SEO Best Practices Checklist",
+      subtitle: "Interactive pre-save audit tool ensuring alt-text, meta descriptions, and clean titles prior to Google Drive export.",
+      category: "Utilities",
+      icon: Sparkles,
+      action: () => { if (onOpenSeoModal) onOpenSeoModal(); onClose(); },
+      shortcut: "Alt+S"
+    },
+    {
+      id: "utility-api-keys",
+      title: "AI Provider API Keys Settings",
+      subtitle: "Configure custom Gemini, OpenAI, Anthropic, or Replicate API keys with status badges, masked input fields, and local storage safety.",
+      category: "Utilities",
+      icon: Key,
+      action: () => { if (onOpenApiKeyModal) onOpenApiKeyModal(); onClose(); },
+      shortcut: "Alt+K"
     },
     
     // System Actions

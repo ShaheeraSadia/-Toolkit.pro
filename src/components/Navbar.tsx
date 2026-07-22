@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { User } from "firebase/auth";
+import { motion } from "motion/react";
 import { 
   LogOut, 
   Cloud, 
@@ -41,7 +42,8 @@ import {
   Contrast,
   Eraser,
   FileText,
-  RefreshCw
+  RefreshCw,
+  Key
 } from "lucide-react";
 
 import { ActiveTab } from "../types";
@@ -63,8 +65,12 @@ interface NavbarProps {
   onToggleTheme: () => void;
   highContrast: boolean;
   onToggleHighContrast: () => void;
+  tooltipsEnabled?: boolean;
+  onToggleTooltips?: () => void;
   onOpenCommandPalette?: () => void;
   onToggleSidebar?: () => void;
+  onOpenSeoModal?: () => void;
+  onOpenApiKeyModal?: () => void;
 }
 
 export default function Navbar({
@@ -79,8 +85,12 @@ export default function Navbar({
   onToggleTheme,
   highContrast,
   onToggleHighContrast,
+  tooltipsEnabled = false,
+  onToggleTooltips,
   onOpenCommandPalette,
   onToggleSidebar,
+  onOpenSeoModal,
+  onOpenApiKeyModal,
 }: NavbarProps) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showToolsDropdown, setShowToolsDropdown] = useState(false);
@@ -544,46 +554,103 @@ export default function Navbar({
             {/* Guides & SEO hub */}
             <button
               onClick={() => handleTabClick("resources")}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === "resources"
-                  ? theme === "dark" ? "bg-slate-950 text-white shadow-sm font-extrabold" : "bg-white text-slate-955 shadow-sm font-extrabold"
+                  ? theme === "dark" ? "text-white font-extrabold" : "text-slate-955 font-extrabold"
                   : "text-slate-700 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
               }`}
             >
-              <BookOpen className="w-3.5 h-3.5 shrink-0 text-teal-550" />
-              <span>Guides</span>
+              {activeTab === "resources" && (
+                <motion.div
+                  layoutId="navbarTabActivePill"
+                  className={`absolute inset-0 rounded-xl ${
+                    theme === "dark" ? "bg-slate-950 shadow-xs" : "bg-white shadow-xs"
+                  }`}
+                  transition={{ type: "spring", stiffness: 380, damping: 28 }}
+                />
+              )}
+              <BookOpen className="w-3.5 h-3.5 shrink-0 text-teal-550 relative z-10" />
+              <span className="relative z-10">Guides</span>
             </button>
 
             {/* AdSense Legal compliance & safety pages */}
             <button
               onClick={() => handleTabClick("legal")}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === "legal"
-                  ? theme === "dark" ? "bg-slate-950 text-white shadow-sm font-extrabold" : "bg-white text-slate-955 shadow-sm font-extrabold"
+                  ? theme === "dark" ? "text-white font-extrabold" : "text-slate-955 font-extrabold"
                   : "text-slate-700 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
               }`}
             >
-              <ShieldCheck className="w-3.5 h-3.5 shrink-0 text-emerald-500" />
-              <span>Compliance</span>
+              {activeTab === "legal" && (
+                <motion.div
+                  layoutId="navbarTabActivePill"
+                  className={`absolute inset-0 rounded-xl ${
+                    theme === "dark" ? "bg-slate-950 shadow-xs" : "bg-white shadow-xs"
+                  }`}
+                  transition={{ type: "spring", stiffness: 380, damping: 28 }}
+                />
+              )}
+              <ShieldCheck className="w-3.5 h-3.5 shrink-0 text-emerald-500 relative z-10" />
+              <span className="relative z-10">Compliance</span>
             </button>
 
             {/* Google Drive connected index panel */}
             <button
               onClick={() => handleTabClick("drive")}
-              className={`flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === "drive"
-                  ? theme === "dark" ? "bg-slate-950 text-white shadow-sm font-extrabold" : "bg-white text-slate-955 shadow-sm font-extrabold"
+                  ? theme === "dark" ? "text-white font-extrabold" : "text-slate-955 font-extrabold"
                   : "text-slate-700 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
               }`}
             >
-              <Cloud className="w-3.5 h-3.5 shrink-0 text-sky-500 animate-pulse" />
-              <span>My Drive</span>
+              {activeTab === "drive" && (
+                <motion.div
+                  layoutId="navbarTabActivePill"
+                  className={`absolute inset-0 rounded-xl ${
+                    theme === "dark" ? "bg-slate-950 shadow-xs" : "bg-white shadow-xs"
+                  }`}
+                  transition={{ type: "spring", stiffness: 380, damping: 28 }}
+                />
+              )}
+              <Cloud className="w-3.5 h-3.5 shrink-0 text-sky-500 relative z-10 animate-pulse" />
+              <span className="relative z-10">My Drive</span>
               {user && driveCount > 0 && (
-                <span className="bg-emerald-55 border border-emerald-100 dark:bg-emerald-950 dark:border-emerald-800 text-emerald-800 dark:text-emerald-350 px-1.5 py-0.2 rounded-md text-[9px] font-mono font-bold leading-none shrink-0 ml-0.5 shadow-2xs">
+                <span className="relative z-10 bg-emerald-55 border border-emerald-100 dark:bg-emerald-950 dark:border-emerald-800 text-emerald-800 dark:text-emerald-350 px-1.5 py-0.2 rounded-md text-[9px] font-mono font-bold leading-none shrink-0 ml-0.5 shadow-2xs">
                   {driveCount}
                 </span>
               )}
             </button>
+
+            {/* SEO Best Practices Pre-Check Button */}
+            {onOpenSeoModal && (
+              <button
+                onClick={onOpenSeoModal}
+                className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-indigo-500/10 to-teal-500/10 hover:from-indigo-500/20 hover:to-teal-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60 transition-all cursor-pointer font-sans shadow-3xs"
+                title="Launch SEO Best Practices audit modal before saving projects to Google Drive"
+              >
+                <Sparkles className="w-3.5 h-3.5 text-teal-500 animate-pulse" />
+                <span>SEO Audit</span>
+                <span className="bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[8.5px] font-mono font-black px-1.5 py-0.2 rounded uppercase border border-emerald-200 dark:border-emerald-800">
+                  Pre-Drive
+                </span>
+              </button>
+            )}
+
+            {/* AI Provider Key Management Button */}
+            {onOpenApiKeyModal && (
+              <button
+                onClick={onOpenApiKeyModal}
+                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-500/10 to-indigo-500/10 hover:from-purple-500/20 hover:to-indigo-500/20 text-purple-700 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/60 transition-all cursor-pointer font-sans shadow-3xs"
+                title="Manage custom AI API Keys (Google Gemini, OpenAI, Anthropic, Replicate)"
+              >
+                <Key className="w-3.5 h-3.5 text-purple-500" />
+                <span>AI Keys</span>
+                <span className="bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 text-[8.5px] font-mono font-black px-1.5 py-0.2 rounded uppercase border border-purple-200 dark:border-purple-800">
+                  Secure
+                </span>
+              </button>
+            )}
           </nav>
 
           {/* Right Action panel */}
@@ -685,6 +752,31 @@ export default function Navbar({
               <Contrast className="w-3.5 h-3.5" />
             </button>
 
+            {/* Contextual Workspace Tooltips Mode Toggler */}
+            <button
+              onClick={onToggleTooltips}
+              className={`p-2 rounded-xl border transition-all cursor-pointer select-none relative flex items-center gap-1.5 ${
+                tooltipsEnabled
+                  ? "bg-indigo-600 border-indigo-500 text-white font-bold shadow-md shadow-indigo-600/25 ring-2 ring-indigo-400/30"
+                  : theme === "dark"
+                    ? "bg-slate-900 border-slate-800 text-slate-400 hover:text-white hover:bg-slate-800/80"
+                    : "bg-slate-100/50 border-slate-200/60 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+              }`}
+              title={tooltipsEnabled ? "Workspace Tooltips Active (Click to disable popovers on inputs & buttons)" : "Enable Contextual Tooltips (Shows popovers on workspace inputs & buttons)"}
+              id="btn-toggle-tooltips"
+            >
+              <HelpCircle className={`w-3.5 h-3.5 ${tooltipsEnabled ? "animate-pulse text-white" : ""}`} />
+              <span className="hidden xl:inline text-xs font-bold leading-none">
+                {tooltipsEnabled ? "Tooltips ON" : "Tooltips"}
+              </span>
+              {tooltipsEnabled && (
+                <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-300 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-400"></span>
+                </span>
+              )}
+            </button>
+
             {/* Elegant Global Settings & Focus Soundscapes Popover */}
             <div className="relative">
               <button
@@ -737,9 +829,35 @@ export default function Navbar({
                   </div>
 
                   {/* Quick Info/Brief */}
-                  <p className="text-[10.5px] text-slate-400 dark:text-slate-500 leading-relaxed mb-3.5 font-medium">
-                    Activate browser-synthesized focus sounds powered by standard procedural AudioContext oscillators and custom wave sweeps.
+                  <p className="text-[10.5px] text-slate-400 dark:text-slate-500 leading-relaxed mb-3 font-medium">
+                    Activate browser-synthesized focus sounds or manage your private client-side AI API credentials.
                   </p>
+
+                  {/* AI API Keys Quick Access */}
+                  {onOpenApiKeyModal && (
+                    <div className="mb-3.5 pb-3 border-b border-slate-100 dark:border-slate-850">
+                      <button
+                        onClick={() => {
+                          setShowSettingsDropdown(false);
+                          onOpenApiKeyModal();
+                        }}
+                        className="w-full flex items-center justify-between p-2.5 rounded-xl bg-gradient-to-r from-purple-500/10 to-indigo-500/10 hover:from-purple-500/20 hover:to-indigo-500/20 border border-purple-200/60 dark:border-purple-800/60 transition-all cursor-pointer text-left"
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <div className="p-1.5 rounded-lg bg-purple-500 text-white font-bold">
+                            <Key className="w-3.5 h-3.5" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-black text-slate-900 dark:text-white font-sans">AI API Keys Settings</p>
+                            <p className="text-[9.5px] text-slate-500 dark:text-slate-400 font-medium">Masked inputs & local storage safety</p>
+                          </div>
+                        </div>
+                        <span className="text-[9px] bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 font-mono font-bold px-1.5 py-0.5 rounded uppercase">
+                          Configure
+                        </span>
+                      </button>
+                    </div>
+                  )}
 
                   {/* Sound Profiles Selection List */}
                   <div className="space-y-1.5 mb-4">
@@ -842,6 +960,34 @@ export default function Navbar({
                       <span
                         className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
                           autoPlayEnabled ? "translate-x-4" : "translate-x-0"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                  {/* Contextual Workspace Tooltips */}
+                  <div className="pt-2.5 mt-2.5 border-t border-slate-100 dark:border-slate-850 flex items-center justify-between text-[11px] select-none">
+                    <div className="flex flex-col text-left">
+                      <span className="font-bold text-slate-750 dark:text-slate-300 flex items-center gap-1">
+                        <HelpCircle className="w-3 h-3 text-indigo-505 shrink-0" />
+                        Contextual Tooltips
+                      </span>
+                      <span className="text-[9.5px] text-slate-400 dark:text-slate-505 font-medium leading-tight mt-0.5">
+                        Show popovers on workspace inputs & buttons
+                      </span>
+                    </div>
+                    <button
+                      id="toggle-workspace-tooltips"
+                      onClick={onToggleTooltips}
+                      className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                        tooltipsEnabled ? "bg-indigo-600" : "bg-slate-200 dark:bg-slate-800"
+                      }`}
+                      role="switch"
+                      aria-checked={tooltipsEnabled}
+                    >
+                      <span
+                        className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-sm ring-0 transition duration-200 ease-in-out ${
+                          tooltipsEnabled ? "translate-x-4" : "translate-x-0"
                         }`}
                       />
                     </button>

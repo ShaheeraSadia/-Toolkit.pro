@@ -22,7 +22,37 @@ import {
   Smartphone,
   Monitor,
   Sparkles,
-  Video
+  Video,
+  User,
+  Calendar,
+  Eye,
+  ArrowUpRight,
+  ExternalLink,
+  ShieldAlert,
+  Info,
+  Lightbulb,
+  List,
+  Mail,
+  Phone,
+  Wifi,
+  MapPin,
+  CreditCard,
+  Tag,
+  ChevronUp,
+  Layers,
+  Grid,
+  Cpu,
+  FileCheck,
+  Wand2,
+  Utensils,
+  Store,
+  Megaphone,
+  BookMarked,
+  ListOrdered,
+  CheckCircle2,
+  ArrowLeft,
+  Search,
+  CheckSquare
 } from "lucide-react";
 
 import { triggerFileDownload } from "../lib/download";
@@ -239,27 +269,94 @@ const OFFLINE_HTML_CONTENT = `<!DOCTYPE html>
 </body>
 </html>`;
 
+interface ArticlePartCard {
+  num: number;
+  title: string;
+  desc: string;
+}
+
+interface ArticleStep {
+  stepNum: number;
+  title: string;
+  desc: string;
+}
+
+interface ArticleTableRow {
+  dataType: string;
+  whatHappens: string;
+  useCase: string;
+}
+
+interface ArticleUseCaseCard {
+  title: string;
+  desc: string;
+  iconName: string;
+}
+
+interface ArticleFaq {
+  q: string;
+  a: string;
+}
+
 interface Article {
   id: string;
   title: string;
+  subtitle?: string;
   excerpt: string;
   category: "Design" | "Development" | "SEO" | "Technology";
   readTime: string;
+  views?: string;
+  date?: string;
+  author?: {
+    name: string;
+    bio: string;
+    stats?: string;
+  };
   icon: any;
+  heroImage?: string;
+  whatYouWillLearn?: string[];
   content: string[];
+  partsGridTitle?: string;
+  partsGrid?: ArticlePartCard[];
+  howItWorksTitle?: string;
+  howItWorksSteps?: ArticleStep[];
+  goodToKnow?: string;
+  dataTypesTitle?: string;
+  dataTypesTable?: ArticleTableRow[];
+  staticVsDynamicTitle?: string;
+  staticVsDynamicContent?: {
+    staticDesc: string;
+    staticPros: string[];
+    staticCons: string[];
+    dynamicDesc: string;
+    dynamicPros: string[];
+    dynamicCons: string[];
+    recommendation: string;
+  };
+  stepByStepTitle?: string;
+  stepByStepSteps?: ArticleStep[];
+  stepByStepWarning?: string;
+  bestUsesTitle?: string;
+  bestUsesGrid?: ArticleUseCaseCard[];
   tips: string[];
+  faqs?: ArticleFaq[];
+  relatedToolId?: "qr" | "compress" | "palette" | "quote" | "video" | "pdf" | "converter" | "bgremover";
+  relatedToolName?: string;
+  tags?: string[];
 }
 
 interface ResourcesHubProps {
   selectedArticleId?: string | null;
   onSelectArticleId?: (id: string | null) => void;
   initialSubTab?: "articles" | "sitemap" | "seo-templates" | "installation" | "install-fetchers";
+  onSelectTool?: (toolId: string) => void;
 }
 
 export default function ResourcesHub({
   selectedArticleId: propSelectedArticleId,
   onSelectArticleId: propOnSelectArticleId,
-  initialSubTab: propInitialSubTab
+  initialSubTab: propInitialSubTab,
+  onSelectTool
 }: ResourcesHubProps = {}) {
   const [localSelectedArticleId, setLocalSelectedArticleId] = useState<string | null>(null);
   const [expandedFaqIndex, setExpandedFaqIndex] = useState<number | null>(0);
@@ -595,22 +692,113 @@ export default function ResourcesHub({
     },
     {
       id: "qr-code-encoding",
-      title: "How QR Codes Work Explained Simply",
+      title: "How QR Codes Work — A Simple Complete Guide for Digital Creators 2026",
+      subtitle: "Scannable QR codes are everywhere. Learn how they work, how data is stored in the 2D matrix, how phone cameras decode them in milliseconds, and best practices for 2026.",
       excerpt: "Unveil the engineering behind Quick Response (QR) codes, from black-and-white data patterns and quiet zones to Reed-Solomon error correction matrices.",
       category: "Technology",
-      readTime: "4 min read",
+      readTime: "11 min read",
+      views: "4,753 views",
+      date: "May 14, 2026",
+      author: {
+        name: "Shaheera Sadia",
+        bio: "Toolkit Pro is my passion project — a suite of free, browser-based tools designed with one goal: to give every creator access to professional-grade utilities without spending expensive software or technical expertise. My mission is to bridge the gap between technical efficiency and aesthetic design, helping digital entrepreneurs grow their online presence with ease.",
+        stats: "87.6k Pinterest Views/Month • 1,000+ LinkedIn Impressions • 100% Private — No Server Uploads • Mandi Bahauddin, Pakistan"
+      },
       icon: QrCode,
+      heroImage: "qr-code-scanning-guide",
+      relatedToolId: "qr",
+      relatedToolName: "Free QR Code Generator",
+      whatYouWillLearn: [
+        "What QR codes are, how they store information, and how your phone camera reads them in milliseconds",
+        "The exact parts of a QR code: Position markers, Alignment pattern, Timing pattern, Data modules, Error correction, and Quiet zone",
+        "The difference between static and dynamic QR codes and why static QR codes are 100% free forever",
+        "Step-by-step instructions to create your own high-resolution free QR code in under 1 minute",
+        "The 8 best real-world use cases for QR codes in 2026 for businesses, creators, and marketers"
+      ],
       content: [
-        "Quick Response codes are two-dimensional symbol grids invented in 1994 by Denso Wave. Initially crafted to track automotive components during manufacturing, they have evolved into the universal bridge linking physical collateral with the visual web.",
-        "At their core, QR codes use binary matrix structures. Black modules represent binary one (high voltage state), and white modules represent binary zero (low voltage state). Special concentric square targets placed at three corners act as position alignment anchors. This enables mobile scanners to recognize orientation and scale regardless of skew.",
-        "The absolute secret to QR stability is Reed-Solomon Error Correction. This mathematical coding can reconstruct missing, stained, or torn portions of the code. Error correction levels are categorized from Low (7% recovery) and Medium (15% recovery) to Quartile (25% recovery) and High (30% recovery).",
-        "Our QR Toolkit automatically provisions dynamic alignment markers, quite zone parameters, and compliant Reed-Solomon ratios, delivering print-ready QR codes in vector PNG or inline canvas styles."
+        "Quick Response (QR) codes are two-dimensional matrix barcode symbols invented in 1994 by Masahiro Hara at Denso Wave, a Japanese automotive components subsidiary. Originally crafted to rapidly track vehicle components during assembly, QR codes have evolved into the universal digital bridge linking physical collateral, retail packaging, and print media directly with the browser web.",
+        "Unlike traditional 1D UPC barcodes that store only a string of 10 to 20 numbers along a horizontal axis, 2D QR codes store data vertically and horizontally. This two-dimensional grid allows a single QR code to store up to 7,089 numeric characters or 4,296 alphanumeric characters in a tiny, printable footprint.",
+        "In 2026, QR codes are ubiquitous across restaurant tables, product packaging, social media profiles, and marketing materials. Because modern smartphone camera operating systems automatically decode QR code matrices natively without requiring external scanner apps, scanning a QR code is faster than typing a web URL."
+      ],
+      partsGridTitle: "The Parts of a QR Code — What Each Area Does",
+      partsGrid: [
+        { num: 1, title: "Position Markers", desc: "The three large concentric squares situated in the top-left, top-right, and bottom-left corners. These markers immediately orient the phone camera, defining code boundary coordinates regardless of skew or rotation." },
+        { num: 2, title: "Alignment Pattern", desc: "A smaller square pattern located near the bottom-right corner. It assists the optical engine in normalizing perspective distortion when scanning curved surfaces like bottles, cans, or flexible packaging." },
+        { num: 3, title: "Timing Pattern", desc: "Alternating black and white module lines running horizontally and vertically between position markers. These define the precise grid cell dimensions and count across rows and columns." },
+        { num: 4, title: "Data Modules", desc: "The central matrix body filled with black and white square modules. Binary high voltage (black = 1) and zero states (white = 0) encode your target website URL, text, or phone number." },
+        { num: 5, title: "Error Correction", desc: "Reed-Solomon mathematical redundancy modules distributed across the grid. Up to 30% of a QR code can be scratched, torn, or covered by a logo while remaining 100% scannable." },
+        { num: 6, title: "Quiet Zone", desc: "The mandatory solid white border (at least 4 modules wide) surrounding the entire matrix. This isolates the code from surrounding background noise, text, or artwork." }
+      ],
+      howItWorksTitle: "How Does Your Phone Read a QR Code?",
+      howItWorksSteps: [
+        { stepNum: 1, title: "Camera Captures the Visual Frame", desc: "Your phone camera streams video frames into the optical processor, continually searching for distinct square contrast markers." },
+        { stepNum: 2, title: "Optical Engine Finds Position Markers", desc: "The reader isolates the three corner squares, calculating exact scale, orientation, and tilt angles relative to your device camera." },
+        { stepNum: 3, title: "Software Maps Out the Matrix Grid", desc: "Using timing patterns as alignment tracks, the software overlays a clean mathematical coordinate grid, sampling black (1) and white (0) pixels." },
+        { stepNum: 4, title: "Error Correction Reconstructs Damaged Data", desc: "Reed-Solomon algorithms verify checksums. Any obscured modules are reconstructed automatically without missing data." },
+        { stepNum: 5, title: "Binary Stream Decoded into Payload", desc: "The binary bitstream is converted into human-readable ASCII/UTF-8 strings — whether an HTTPS URL, Wi-Fi key, or vCard." },
+        { stepNum: 6, title: "OS Displays Instant Interaction Action", desc: "A banner pops up on screen allowing you to tap and open the web page, connect to Wi-Fi, or dial a phone number with a single touch." }
+      ],
+      goodToKnow: "You do not need to download a special scanner app. Every modern iPhone (iOS 11+) and Android phone has a native QR code scanner built directly into the camera app. Simply open your camera, point it at the code, and tap the link.",
+      dataTypesTitle: "What Can You Put Inside A QR Code?",
+      dataTypesTable: [
+        { dataType: "Website URL", whatHappens: "Browser opens link automatically", useCase: "Business cards, flyers, restaurant menus, product packaging" },
+        { dataType: "Plain Text", whatHappens: "Text appears on device screen", useCase: "Instructional notes, promo codes, serial numbers" },
+        { dataType: "Phone Number", whatHappens: "Phone app opens ready to call", useCase: "Customer support lines, business networking, emergency contact" },
+        { dataType: "Email Address", whatHappens: "Email client opens with pre-filled recipient", useCase: "Contact forms, job applications, inquiry cards" },
+        { dataType: "SMS Message", whatHappens: "Text app opens with number and pre-filled text", useCase: "SMS marketing opt-ins, contest entries, feedback" },
+        { dataType: "Wi-Fi Credentials", whatHappens: "Phone connects to Wi-Fi automatically", useCase: "Cafes, hotels, guest offices, home routers" },
+        { dataType: "Location / Map Coordinates", whatHappens: "Maps app opens pin at exact GPS location", useCase: "Event venues, store locations, directional posters" },
+        { dataType: "vCard (Contact Info)", whatHappens: "Prompts phone to save complete contact card", useCase: "Business networking, trade shows, executive cards" },
+        { dataType: "Social Media Profile", whatHappens: "Opens Instagram, Pinterest, or LinkedIn", useCase: "Bio links, promotional posters, social media growth" },
+        { dataType: "App Store Link", whatHappens: "Opens App Store or Google Play page", useCase: "Mobile app marketing, packaging, banners" },
+        { dataType: "PDF or Document", whatHappens: "Opens or downloads PDF file", useCase: "Digital menus, catalogues, user manuals, brochures" },
+        { dataType: "YouTube Video", whatHappens: "Opens video in YouTube app or browser", useCase: "Product demos, tutorials, music videos, educational slides" }
+      ],
+      staticVsDynamicTitle: "Static vs Dynamic QR Codes — What Is the Difference?",
+      staticVsDynamicContent: {
+        staticDesc: "Static QR codes encode data directly inside the matrix pattern itself. Once created, the destination payload is permanent and cannot be edited.",
+        staticPros: ["100% Free forever with zero recurring fees", "Never expires — works as long as the target URL remains online", "No reliance on third-party redirection servers or tracking links"],
+        staticCons: ["Cannot change destination URL after printing", "More complex matrix pattern if URL is very long"],
+        dynamicDesc: "Dynamic QR codes encode a short redirect URL hosted on a server, which then forwards the scanner to your destination website.",
+        dynamicPros: ["Change destination URL anytime without reprinting", "Track scan analytics, locations, and device types"],
+        dynamicCons: ["Requires ongoing paid subscription or server hosting", "If the hosting service shuts down, the code breaks"],
+        recommendation: "For creators, bloggers, and small businesses, static QR codes created with Toolkit Pro are ideal. They are 100% free, private, permanent, and never expire."
+      },
+      stepByStepTitle: "How to Create a QR Code for Free — Step by Step",
+      stepByStepSteps: [
+        { stepNum: 1, title: "Open the QR Code Generator", desc: "Launch Toolkit Pro's free QR Generator tool directly in your browser. No registration, account, or credit card required." },
+        { stepNum: 2, title: "Enter Your URL or Payload Data", desc: "Paste your target website address (e.g., https://yourwebsite.com), text, or Wi-Fi credentials into the input field." },
+        { stepNum: 3, title: "Generate Matrix Pattern", desc: "Click Generate. The tool computes Reed-Solomon error correction matrices and builds your crisp QR pattern instantly." },
+        { stepNum: 4, title: "Test with Phone Camera", desc: "Before printing or sharing, point your smartphone camera at the screen preview to verify it decodes seamlessly." },
+        { stepNum: 5, title: "Download High-Res PNG Asset", desc: "Click Download PNG to save your print-ready vector-sharp QR graphic. Perfect for flyers, business cards, or web use." }
+      ],
+      stepByStepWarning: "The payload URL inside a static QR code is permanently baked into the matrix. Always double-check your URL link in your browser before generating and printing bulk marketing collateral!",
+      bestUsesTitle: "The Best Ways to Use QR Codes in 2026",
+      bestUsesGrid: [
+        { title: "Business Cards", desc: "Replace cluttered printed cards with a clean vCard or portfolio QR code.", iconName: "CreditCard" },
+        { title: "Pinterest Profiles", desc: "Share your Pinterest visual boards and grow your monthly viral audience.", iconName: "Share2" },
+        { title: "Restaurant Menus", desc: "Provide touchless digital menus that are easy to update without printing costs.", iconName: "Utensils" },
+        { title: "Product Packaging", desc: "Link physical packages to video tutorials, warranties, or customer reviews.", iconName: "Store" },
+        { title: "Wi-Fi Access Sharing", desc: "Allow guests to join your Wi-Fi network instantly without revealing long keys.", iconName: "Wifi" },
+        { title: "Marketing Flyers", desc: "Convert foot traffic on posters and flyers directly into web visits.", iconName: "Megaphone" },
+        { title: "Email Signatures", desc: "Add a signature QR code linking recipients to your booking or social profile.", iconName: "Mail" },
+        { title: "Presentations & Slides", desc: "Include QR codes in deck slides for instant audience polls or resource downloads.", iconName: "Monitor" }
       ],
       tips: [
-        "Maintain a high contrast ratio between foreground modules and the surrounding canvas background.",
-        "Apply a solid 'Quiet Zone' border equal to at least 4 module widths around the QR code.",
-        "If you integrate logo images in the center cross-section, utilize Level H error correction (30% redundancy)."
-      ]
+        "Maintain high contrast: Dark modules on a clean light background produce maximum camera readability.",
+        "Ensure a clear Quiet Zone: Keep a solid border of white space around the QR matrix.",
+        "Print at appropriate size: Minimum recommended print size is 2 x 2 cm (0.8 x 0.8 inches) for close scanning.",
+        "Use URL shorteners for complex links: Shorter URLs produce simpler, less dense QR patterns that scan faster.",
+        "Always save as lossless PNG or vector SVG to preserve pixel sharpness on high-DPI displays."
+      ],
+      faqs: [
+        { q: "Do static QR codes expire?", a: "No! Static QR codes created with Toolkit Pro never expire. The data is embedded directly in the matrix, so it will work as long as your destination link remains online." },
+        { q: "Can QR codes contain malware or viruses?", a: "A QR code itself is just encoded text or a web link. However, it can point to a malicious URL. Always inspect the URL preview on your phone before tapping open." },
+        { q: "How small can I print a QR code?", a: "For close-range scanning (e.g. business cards or menus), 2 cm x 2 cm (0.8 in x 0.8 in) is the minimum recommended size. For posters or billboards, scale up proportionally." },
+        { q: "Can I customize the color or add a logo to my QR code?", a: "Yes! By utilizing Level H (30% error correction) redundancy, you can place a small logo in the center or use custom high-contrast colors without losing scannability." },
+        { q: "Is Toolkit Pro's QR Generator free to use?", a: "Yes, 100% free with unlimited generations, zero registration, and zero server logging or ads." }
+      ],
+      tags: ["#QRCodes", "#HowQRCodesWork", "#FreeQRCodeGenerator", "#DigitalMarketing", "#BusinessTools", "#ContentCreator", "#TechGuide", "#FreeTools"]
     },
     {
       id: "pinterest-seo",
@@ -2667,85 +2855,467 @@ print("✨ Local pipeline complete!")`;
         </div>
       ) : selectedArticleId ? (
 
-        // Detailed Article View
+        // Detailed SEO Guide Article View
         (() => {
           const article = ARTICLES.find((a) => a.id === selectedArticleId);
           if (!article) return null;
+
+          const articleFaqs = article.faqs || faqs;
+          const author = article.author || {
+            name: "Shaheera Sadia",
+            bio: "Toolkit Pro is my passion project — a suite of free, browser-based tools designed to give every creator access to professional-grade utilities without expensive software. My mission is to bridge technical efficiency and aesthetic design.",
+            stats: "87.6k Pinterest Views/Month • 100% Private — No Server Uploads"
+          };
+
+          const tocItems = [
+            { id: "sec-intro", title: "What Is a QR Code?" },
+            ...(article.partsGrid ? [{ id: "sec-parts", title: "Parts of a QR Code" }] : []),
+            ...(article.howItWorksSteps ? [{ id: "sec-how-phone-reads", title: "How Your Phone Reads It" }] : []),
+            ...(article.dataTypesTable ? [{ id: "sec-data-types", title: "What You Can Put Inside" }] : []),
+            ...(article.staticVsDynamicContent ? [{ id: "sec-static-dynamic", title: "Static vs Dynamic QR" }] : []),
+            ...(article.stepByStepSteps ? [{ id: "sec-step-by-step", title: "How to Create One Free" }] : []),
+            ...(article.bestUsesGrid ? [{ id: "sec-best-uses", title: "8 Best Uses in 2026" }] : []),
+            { id: "sec-tips", title: "Tips for Reliable Scanning" },
+            { id: "sec-faq", title: "Frequently Asked Questions" }
+          ];
+
           return (
             <div 
               role="tabpanel"
               id="resources-panel-articles"
               aria-labelledby="btn-subtab-articles"
-              className="bg-slate-50/50 dark:bg-slate-900/30 rounded-2xl border border-slate-100 dark:border-slate-800/80 p-6 md:p-8 animate-fade-in" 
+              className="bg-slate-50/60 dark:bg-slate-900/40 rounded-3xl border border-slate-100 dark:border-slate-800/80 p-4 sm:p-6 lg:p-8 animate-fade-in space-y-8" 
               data-article-id={article.id}
             >
-              <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
-                {/* Main Article Content */}
-                <div className="lg:col-span-3 space-y-6">
-                  {/* Navigation Back */}
-                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-100 dark:border-slate-800 pb-4">
-                    <button
-                      onClick={() => setSelectedArticleId(null)}
-                      className="inline-flex items-center gap-1.5 text-xs text-indigo-600 dark:text-indigo-400 hover:text-indigo-805 dark:hover:text-indigo-300 font-semibold cursor-pointer select-none"
-                    >
-                      ← Back to Articles list
-                    </button>
+              {/* Breadcrumb & Navigation Bar */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-200/60 dark:border-slate-800 pb-4 text-xs">
+                <div className="flex items-center gap-2 text-slate-500 dark:text-slate-400 font-medium">
+                  <button
+                    onClick={() => setSelectedArticleId(null)}
+                    className="inline-flex items-center gap-1.5 text-indigo-600 dark:text-indigo-400 hover:underline font-bold cursor-pointer"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" /> Home
+                  </button>
+                  <span>/</span>
+                  <button
+                    onClick={() => setSelectedArticleId(null)}
+                    className="hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer"
+                  >
+                    Blog
+                  </button>
+                  <span>/</span>
+                  <span className="text-slate-800 dark:text-slate-200 font-bold truncate max-w-[200px] sm:max-w-xs">
+                    {article.title}
+                  </span>
+                </div>
 
-                    {/* SEO Head Meta Injector HUD */}
-                    <div className="bg-slate-100/50 dark:bg-slate-950/40 border border-slate-205/50 dark:border-slate-800/80 p-3 rounded-xl flex items-start gap-2.5 max-w-md text-[10px] sm:text-[11px] font-sans">
-                      <Globe className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5 animate-pulse" />
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-1.5">
-                          <span className="font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
-                            SEO Meta Injector
-                          </span>
-                          <span className="bg-emerald-50/60 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 text-[8px] px-1.5 py-0.2 rounded font-mono font-extrabold uppercase shrink-0 border border-emerald-100/40">
-                            Active in HEAD
-                          </span>
+                {/* SEO Head Meta Injector HUD */}
+                <div className="bg-white/80 dark:bg-slate-950/80 border border-slate-200/80 dark:border-slate-800 p-2.5 rounded-xl flex items-center gap-2 text-[10px] sm:text-[11px] font-sans shadow-2xs">
+                  <Globe className="w-3.5 h-3.5 text-emerald-500 shrink-0 animate-pulse" />
+                  <span className="font-extrabold text-slate-700 dark:text-slate-300 uppercase tracking-wide">
+                    SEO Meta Injector
+                  </span>
+                  <span className="bg-emerald-50 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 text-[8px] px-1.5 py-0.5 rounded font-mono font-black uppercase shrink-0 border border-emerald-200/50">
+                    Active
+                  </span>
+                </div>
+              </div>
+
+              {/* Main Article Header */}
+              <div className="space-y-4 max-w-4xl">
+                <div className="flex flex-wrap items-center gap-2.5">
+                  <span className={`px-3 py-1 rounded-full text-[10px] font-extrabold tracking-wider uppercase border ${getCategoryColor(article.category)}`}>
+                    {article.category} GUIDE
+                  </span>
+                  <span className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 font-semibold">
+                    <Clock className="w-3.5 h-3.5 text-slate-400" />
+                    {article.readTime}
+                  </span>
+                  {article.views && (
+                    <span className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 font-semibold">
+                      <Eye className="w-3.5 h-3.5 text-slate-400" />
+                      {article.views}
+                    </span>
+                  )}
+                  {article.date && (
+                    <span className="flex items-center gap-1 text-xs text-slate-500 dark:text-slate-400 font-semibold">
+                      <Calendar className="w-3.5 h-3.5 text-slate-400" />
+                      {article.date}
+                    </span>
+                  )}
+                </div>
+
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-black text-slate-900 dark:text-white leading-tight font-sans tracking-tight">
+                  {article.title}
+                </h1>
+
+                {article.subtitle && (
+                  <p className="text-base text-slate-600 dark:text-slate-300 leading-relaxed font-normal">
+                    {article.subtitle}
+                  </p>
+                )}
+
+                {/* Author Bar */}
+                <div className="flex items-center justify-between border-y border-slate-200/60 dark:border-slate-800/80 py-3 text-xs">
+                  <div className="flex items-center gap-2.5">
+                    <div className="w-8 h-8 rounded-full bg-gradient-to-tr from-indigo-500 to-teal-400 flex items-center justify-center text-white font-black text-xs shadow-xs">
+                      {author.name.charAt(0)}
+                    </div>
+                    <div>
+                      <span className="font-bold text-slate-900 dark:text-white block">
+                        By {author.name}
+                      </span>
+                      <span className="text-[10px] text-slate-500 dark:text-slate-400">
+                        Toolkit Pro Lead Author
+                      </span>
+                    </div>
+                  </div>
+
+                  <button 
+                    onClick={async () => {
+                      const shareUrl = `${window.location.origin}${window.location.pathname}?tab=resources&article=${article.id}`;
+                      if (navigator.share) {
+                        try {
+                          await navigator.share({ title: article.title, text: article.excerpt, url: shareUrl });
+                          setShareFeedback("Shared!");
+                        } catch (_) {
+                          await navigator.clipboard.writeText(shareUrl);
+                          setShareFeedback("Copied!");
+                        }
+                      } else {
+                        await navigator.clipboard.writeText(shareUrl);
+                        setShareFeedback("Copied!");
+                      }
+                      setTimeout(() => setShareFeedback(null), 3000);
+                    }}
+                    className="relative flex items-center gap-1.5 bg-white dark:bg-slate-950 hover:bg-slate-100 dark:hover:bg-slate-900 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-800 px-3 py-1.5 rounded-lg font-bold cursor-pointer transition-all shadow-2xs text-xs"
+                  >
+                    <Share2 className="w-3.5 h-3.5 text-indigo-500" /> Share
+                    {shareFeedback && (
+                      <span className="absolute -top-8 left-1/2 -translate-x-1/2 bg-slate-900 text-white text-[10px] px-2 py-0.5 rounded shadow-lg whitespace-nowrap z-50 font-bold border border-slate-700">
+                        {shareFeedback}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              {/* Hero Scanning Illustration Card */}
+              {article.heroImage === "qr-code-scanning-guide" && (
+                <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 border border-indigo-900/50 p-6 md:p-10 text-white shadow-xl">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-center">
+                    <div className="space-y-4">
+                      <div className="inline-flex items-center gap-2 bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 px-3 py-1 rounded-full text-xs font-bold">
+                        <Sparkles className="w-3.5 h-3.5 text-amber-400" /> Optical Matrix Scanning
+                      </div>
+                      <h3 className="text-xl md:text-2xl font-black text-white leading-tight font-sans">
+                        Instant Camera Decoding in 2026
+                      </h3>
+                      <p className="text-xs md:text-sm text-slate-300 leading-relaxed font-medium">
+                        Modern iOS and Android camera apps identify position markers and read Reed-Solomon error correction in under 100ms.
+                      </p>
+                    </div>
+
+                    {/* Interactive Phone Scanner Graphics */}
+                    <div className="relative mx-auto w-full max-w-xs bg-slate-950 rounded-3xl border-4 border-slate-800 p-4 shadow-2xl space-y-3">
+                      {/* Phone Notch */}
+                      <div className="w-20 h-3 bg-slate-800 mx-auto rounded-full" />
+                      
+                      {/* Camera Viewfinder */}
+                      <div className="relative bg-slate-900 rounded-2xl p-4 border border-slate-800 flex flex-col items-center justify-center space-y-3 overflow-hidden min-h-[180px]">
+                        {/* Scanning frame corners */}
+                        <div className="absolute top-3 left-3 w-4 h-4 border-t-2 border-l-2 border-teal-400" />
+                        <div className="absolute top-3 right-3 w-4 h-4 border-t-2 border-r-2 border-teal-400" />
+                        <div className="absolute bottom-3 left-3 w-4 h-4 border-b-2 border-l-2 border-teal-400" />
+                        <div className="absolute bottom-3 right-3 w-4 h-4 border-b-2 border-r-2 border-teal-400" />
+
+                        {/* Animated Laser Line */}
+                        <div className="absolute inset-x-0 h-0.5 bg-gradient-to-r from-transparent via-emerald-400 to-transparent animate-pulse shadow-[0_0_12px_#34d399]" />
+
+                        {/* QR Code Illustration */}
+                        <div className="w-24 h-24 bg-white p-2 rounded-xl flex flex-col justify-between shadow-inner">
+                          <div className="flex justify-between">
+                            <div className="w-6 h-6 border-4 border-black p-0.5 flex items-center justify-center"><div className="w-2 h-2 bg-black" /></div>
+                            <div className="w-6 h-6 border-4 border-black p-0.5 flex items-center justify-center"><div className="w-2 h-2 bg-black" /></div>
+                          </div>
+                          <div className="flex justify-between items-end">
+                            <div className="w-6 h-6 border-4 border-black p-0.5 flex items-center justify-center"><div className="w-2 h-2 bg-black" /></div>
+                            <div className="w-4 h-4 bg-slate-800 rounded-xs" />
+                          </div>
                         </div>
-                        <p className="text-slate-500 dark:text-slate-400 font-mono text-[10px] leading-relaxed break-all select-all select-none">
-                          &lt;meta name=&quot;keywords&quot; content=&quot;<span className="text-indigo-600 dark:text-indigo-400 font-semibold">{activeHeadKeywords}</span>&quot; /&gt;
-                        </p>
+
+                        <span className="text-[10px] font-mono font-bold text-emerald-400 bg-emerald-950/80 px-2.5 py-1 rounded-full border border-emerald-500/40 animate-pulse">
+                          ✓ QR Code Detected • 100% Scannable
+                        </span>
                       </div>
                     </div>
                   </div>
+                </div>
+              )}
 
-                  <div className="space-y-4">
-                    <div className="flex flex-wrap items-center gap-3">
-                      <span className={`px-2.5 py-1 rounded-full text-[10px] font-bold border ${getCategoryColor(article.category)}`}>
-                        {article.category}
-                      </span>
-                      <span className="flex items-center gap-1 text-[11px] text-slate-400 dark:text-slate-500 font-medium">
-                        <Clock className="w-3.5 h-3.5" />
-                        {article.readTime}
-                      </span>
-                    </div>
-
-                    <h4 className="text-2xl sm:text-3xl font-extrabold text-slate-900 dark:text-white leading-tight">
-                      {article.title}
-                    </h4>
-
-                    <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed font-semibold italic border-l-4 border-slate-200 dark:border-slate-700 pl-4 py-1">
-                      {article.excerpt}
-                    </p>
+              {/* "What you will learn" Callout Box */}
+              {article.whatYouWillLearn && (
+                <div className="bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200/80 dark:border-indigo-900/60 rounded-2xl p-5 md:p-6 space-y-3">
+                  <div className="flex items-center gap-2 text-indigo-900 dark:text-indigo-300 font-extrabold text-sm font-sans uppercase tracking-wider">
+                    <Sparkles className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                    What You Will Learn
                   </div>
+                  <ul className="grid grid-cols-1 md:grid-cols-2 gap-2.5 text-xs text-slate-700 dark:text-slate-300 font-medium">
+                    {article.whatYouWillLearn.map((item, idx) => (
+                      <li key={idx} className="flex items-start gap-2">
+                        <CheckCircle2 className="w-4 h-4 text-emerald-500 shrink-0 mt-0.5" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
 
-                  {/* Text content paragraphs */}
-                  <div className="space-y-4 text-slate-700 dark:text-slate-300 text-sm leading-relaxed">
+              {/* Main Content & Sticky Sidebar Grid Layout */}
+              <div className="grid grid-cols-1 lg:grid-cols-4 gap-8 items-start">
+                {/* Left 3 Columns: Main Editorial Content */}
+                <div className="lg:col-span-3 space-y-10">
+                  {/* Intro Section */}
+                  <div id="sec-intro" className="space-y-4 text-slate-700 dark:text-slate-300 text-sm leading-relaxed">
+                    <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-sans border-b border-slate-200 dark:border-slate-800 pb-2">
+                      What Is a QR Code?
+                    </h2>
                     {article.content.map((p, idx) => (
-                      <p key={idx}>{p}</p>
+                      <p key={idx} className="leading-relaxed text-sm md:text-base">{p}</p>
                     ))}
                   </div>
 
-                  {/* Tips Section */}
-                  <div className="bg-indigo-50/60 dark:bg-indigo-950/20 border border-indigo-100/80 dark:border-indigo-900/40 rounded-xl p-4 sm:p-5 space-y-3">
-                    <h5 className="text-xs font-bold text-indigo-900 dark:text-indigo-300 uppercase tracking-widest flex items-center gap-1.5">
+                  {/* Section: Parts of a QR Code Grid */}
+                  {article.partsGrid && (
+                    <div id="sec-parts" className="space-y-4">
+                      <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-sans border-b border-slate-200 dark:border-slate-800 pb-2">
+                        {article.partsGridTitle || "The Parts of a QR Code — What Each Area Does"}
+                      </h2>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                        {article.partsGrid.map((part) => (
+                          <div 
+                            key={part.num}
+                            className="bg-white dark:bg-slate-950 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-2 hover:border-indigo-300 dark:hover:border-indigo-800 transition-all shadow-2xs"
+                          >
+                            <div className="flex items-center gap-2">
+                              <span className="w-6 h-6 rounded-lg bg-indigo-100 dark:bg-indigo-950 text-indigo-700 dark:text-indigo-300 text-xs font-black flex items-center justify-center font-mono">
+                                {part.num}
+                              </span>
+                              <h3 className="text-xs font-black text-slate-900 dark:text-white font-sans">
+                                {part.title}
+                              </h3>
+                            </div>
+                            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-normal">
+                              {part.desc}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Section: How Your Phone Reads It */}
+                  {article.howItWorksSteps && (
+                    <div id="sec-how-phone-reads" className="space-y-4">
+                      <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-sans border-b border-slate-200 dark:border-slate-800 pb-2">
+                        {article.howItWorksTitle || "How Does Your Phone Read a QR Code?"}
+                      </h2>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        {article.howItWorksSteps.map((step) => (
+                          <div key={step.stepNum} className="bg-white dark:bg-slate-950 p-4 rounded-xl border border-slate-200/80 dark:border-slate-800 space-y-1.5 shadow-2xs">
+                            <div className="flex items-center gap-2 text-xs font-black text-indigo-600 dark:text-indigo-400 uppercase tracking-wider font-sans">
+                              <span className="w-5 h-5 rounded-full bg-indigo-50 dark:bg-indigo-950 flex items-center justify-center text-[10px] font-mono font-bold">
+                                {step.stepNum}
+                              </span>
+                              {step.title}
+                            </div>
+                            <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-normal pl-7">
+                              {step.desc}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+
+                      {article.goodToKnow && (
+                        <div className="bg-emerald-50/80 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-900/60 p-4 rounded-xl flex items-start gap-3 text-xs text-emerald-900 dark:text-emerald-300">
+                          <Info className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                          <div>
+                            <strong className="font-extrabold uppercase tracking-wide block mb-0.5">Good to know:</strong>
+                            <p className="leading-relaxed font-medium">{article.goodToKnow}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Section: Data Types Table */}
+                  {article.dataTypesTable && (
+                    <div id="sec-data-types" className="space-y-4">
+                      <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-sans border-b border-slate-200 dark:border-slate-800 pb-2">
+                        {article.dataTypesTitle || "What Can You Put Inside A QR Code?"}
+                      </h2>
+                      <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-800 shadow-2xs">
+                        <table className="w-full text-left border-collapse text-xs">
+                          <thead>
+                            <tr className="bg-slate-100 dark:bg-slate-900 text-slate-900 dark:text-white font-extrabold font-sans uppercase tracking-wider">
+                              <th className="p-3 border-b border-slate-200 dark:border-slate-800">Data Type</th>
+                              <th className="p-3 border-b border-slate-200 dark:border-slate-800">What Happens When Scanned</th>
+                              <th className="p-3 border-b border-slate-200 dark:border-slate-800">Common Use Case</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 dark:divide-slate-850 bg-white dark:bg-slate-950 text-slate-700 dark:text-slate-300 font-medium">
+                            {article.dataTypesTable.map((row, idx) => (
+                              <tr key={idx} className="hover:bg-slate-50 dark:hover:bg-slate-900/50 transition-colors">
+                                <td className="p-3 font-bold text-slate-900 dark:text-white font-sans">{row.dataType}</td>
+                                <td className="p-3 text-indigo-600 dark:text-indigo-400 font-semibold">{row.whatHappens}</td>
+                                <td className="p-3 text-slate-500 dark:text-slate-400">{row.useCase}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Section: Static vs Dynamic QR Codes */}
+                  {article.staticVsDynamicContent && (
+                    <div id="sec-static-dynamic" className="space-y-4">
+                      <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-sans border-b border-slate-200 dark:border-slate-800 pb-2">
+                        {article.staticVsDynamicTitle || "Static vs Dynamic QR Codes — What Is the Difference?"}
+                      </h2>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                        {/* Static */}
+                        <div className="bg-white dark:bg-slate-950 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 shadow-2xs">
+                          <div className="flex items-center justify-between">
+                            <h3 className="font-black text-slate-900 dark:text-white text-sm font-sans uppercase tracking-wider">
+                              Static QR Codes
+                            </h3>
+                            <span className="bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
+                              100% Free
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-normal">
+                            {article.staticVsDynamicContent.staticDesc}
+                          </p>
+                          <div className="space-y-1.5 text-xs">
+                            <strong className="text-emerald-600 dark:text-emerald-400 font-extrabold block">Advantages:</strong>
+                            <ul className="space-y-1 text-slate-600 dark:text-slate-400 font-medium">
+                              {article.staticVsDynamicContent.staticPros.map((pro, i) => (
+                                <li key={i} className="flex items-start gap-1.5">
+                                  <span className="text-emerald-500 font-bold">•</span>
+                                  <span>{pro}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+
+                        {/* Dynamic */}
+                        <div className="bg-white dark:bg-slate-950 p-5 rounded-2xl border border-slate-200 dark:border-slate-800 space-y-3 shadow-2xs">
+                          <div className="flex items-center justify-between">
+                            <h3 className="font-black text-slate-900 dark:text-white text-sm font-sans uppercase tracking-wider">
+                              Dynamic QR Codes
+                            </h3>
+                            <span className="bg-amber-100 dark:bg-amber-950 text-amber-700 dark:text-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full uppercase">
+                              Subscription
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-normal">
+                            {article.staticVsDynamicContent.dynamicDesc}
+                          </p>
+                          <div className="space-y-1.5 text-xs">
+                            <strong className="text-indigo-600 dark:text-indigo-400 font-extrabold block">Advantages:</strong>
+                            <ul className="space-y-1 text-slate-600 dark:text-slate-400 font-medium">
+                              {article.staticVsDynamicContent.dynamicPros.map((pro, i) => (
+                                <li key={i} className="flex items-start gap-1.5">
+                                  <span className="text-indigo-500 font-bold">•</span>
+                                  <span>{pro}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div className="bg-indigo-50/80 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-900/60 p-4 rounded-xl flex items-start gap-3 text-xs text-indigo-950 dark:text-indigo-300">
+                        <Lightbulb className="w-4 h-4 text-amber-500 shrink-0 mt-0.5" />
+                        <div>
+                          <strong className="font-extrabold uppercase tracking-wide block mb-0.5">Which should you use?</strong>
+                          <p className="leading-relaxed font-medium">{article.staticVsDynamicContent.recommendation}</p>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Section: How to Create Step by Step */}
+                  {article.stepByStepSteps && (
+                    <div id="sec-step-by-step" className="space-y-4">
+                      <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-sans border-b border-slate-200 dark:border-slate-800 pb-2">
+                        {article.stepByStepTitle || "How to Create a QR Code for Free — Step by Step"}
+                      </h2>
+                      <div className="space-y-3">
+                        {article.stepByStepSteps.map((step) => (
+                          <div key={step.stepNum} className="bg-white dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 flex items-start gap-3 shadow-2xs">
+                            <span className="w-7 h-7 rounded-xl bg-indigo-600 text-white font-black text-xs flex items-center justify-center shrink-0 font-mono shadow-xs">
+                              {step.stepNum}
+                            </span>
+                            <div className="space-y-1">
+                              <h3 className="text-xs font-black text-slate-900 dark:text-white font-sans">
+                                {step.title}
+                              </h3>
+                              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
+                                {step.desc}
+                              </p>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      {article.stepByStepWarning && (
+                        <div className="bg-amber-50/80 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/60 p-4 rounded-xl flex items-start gap-3 text-xs text-amber-900 dark:text-amber-300">
+                          <ShieldAlert className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+                          <div>
+                            <strong className="font-extrabold uppercase tracking-wide block mb-0.5">Important:</strong>
+                            <p className="leading-relaxed font-medium">{article.stepByStepWarning}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Section: 8 Best Uses Grid */}
+                  {article.bestUsesGrid && (
+                    <div id="sec-best-uses" className="space-y-4">
+                      <h2 className="text-xl sm:text-2xl font-black text-slate-900 dark:text-white font-sans border-b border-slate-200 dark:border-slate-800 pb-2">
+                        {article.bestUsesTitle || "The Best Ways to Use QR Codes in 2026"}
+                      </h2>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+                        {article.bestUsesGrid.map((use, idx) => (
+                          <div key={idx} className="bg-white dark:bg-slate-950 p-4 rounded-xl border border-slate-200 dark:border-slate-800 space-y-2 hover:border-indigo-300 transition-all shadow-2xs">
+                            <div className="w-8 h-8 rounded-lg bg-indigo-50 dark:bg-indigo-950/80 text-indigo-600 dark:text-indigo-400 flex items-center justify-center">
+                              <QrCode className="w-4 h-4" />
+                            </div>
+                            <h3 className="text-xs font-black text-slate-900 dark:text-white font-sans">
+                              {use.title}
+                            </h3>
+                            <p className="text-[11px] text-slate-500 dark:text-slate-400 leading-relaxed font-normal">
+                              {use.desc}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Section: Best Practice Tips */}
+                  <div id="sec-tips" className="bg-indigo-50/60 dark:bg-indigo-950/30 border border-indigo-200 dark:border-indigo-900/50 rounded-2xl p-5 md:p-6 space-y-3">
+                    <h2 className="text-sm font-black text-indigo-900 dark:text-indigo-300 uppercase tracking-widest flex items-center gap-2 font-sans">
                       <CheckCircle className="w-4 h-4 text-emerald-500 shrink-0" />
-                      Expert Optimization Tips
-                    </h5>
-                    <ul className="space-y-2">
+                      Tips for Making Sure Your QR Code Works Every Time
+                    </h2>
+                    <ul className="space-y-2 text-xs text-slate-700 dark:text-slate-300 font-medium">
                       {article.tips.map((tip, idx) => (
-                        <li key={idx} className="flex items-start text-xs text-slate-750 gap-2 leading-relaxed">
+                        <li key={idx} className="flex items-start gap-2 leading-relaxed">
                           <span className="text-indigo-600 font-bold mt-0.5">•</span>
                           <span>{tip}</span>
                         </li>
@@ -2753,33 +3323,33 @@ print("✨ Local pipeline complete!")`;
                     </ul>
                   </div>
 
-                  {/* FAQ Accordion Section */}
-                  <div className="border border-slate-200/60 dark:border-slate-800 rounded-xl p-5 bg-white/50 dark:bg-slate-900/40 space-y-4">
-                    <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-2">
-                      <HelpCircle className="w-4 h-4 text-indigo-500 shrink-0" />
-                      <h5 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-widest">
-                        Frequently Asked Questions (FAQ)
-                      </h5>
+                  {/* Section: FAQ Accordion */}
+                  <div id="sec-faq" className="border border-slate-200/80 dark:border-slate-800 rounded-2xl p-5 md:p-6 bg-white dark:bg-slate-950 space-y-4 shadow-2xs">
+                    <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
+                      <HelpCircle className="w-5 h-5 text-indigo-500 shrink-0" />
+                      <h2 className="text-sm font-black text-slate-900 dark:text-white uppercase tracking-wider font-sans">
+                        Frequently Asked Questions
+                      </h2>
                     </div>
                     <div className="space-y-2.5">
-                      {faqs.map((faq, idx) => {
+                      {articleFaqs.map((faq, idx) => {
                         const isOpen = expandedFaqIndex === idx;
                         return (
                           <div 
                             key={idx}
-                            className="border border-slate-100/85 dark:border-slate-850/80 rounded-xl overflow-hidden transition-all duration-250 bg-white/40 dark:bg-slate-950/40"
+                            className="border border-slate-200/60 dark:border-slate-850 rounded-xl overflow-hidden bg-slate-50/50 dark:bg-slate-900/30 transition-all"
                           >
                             <button
                               onClick={() => setExpandedFaqIndex(isOpen ? null : idx)}
-                              className="w-full flex items-center justify-between text-left p-3.5 bg-slate-50/50 dark:bg-slate-900/60 hover:bg-slate-100/40 dark:hover:bg-slate-850/50 transition-colors text-xs font-semibold text-slate-800 dark:text-slate-200 outline-none select-none cursor-pointer"
+                              className="w-full flex items-center justify-between text-left p-3.5 hover:bg-slate-100/50 dark:hover:bg-slate-850/50 text-xs font-bold text-slate-800 dark:text-slate-200 outline-none select-none cursor-pointer"
                             >
                               <span className="pr-4">{faq.q}</span>
-                              <span className="text-[10px] font-bold text-slate-400 dark:text-slate-500 shrink-0 select-none">
+                              <span className="text-[10px] font-bold text-slate-400 shrink-0 select-none">
                                 {isOpen ? "▲" : "▼"}
                               </span>
                             </button>
                             {isOpen && (
-                              <div className="p-3.5 border-t border-slate-100 dark:border-slate-850 bg-white dark:bg-slate-950 text-xs text-slate-550 dark:text-slate-400 leading-relaxed font-medium animate-fade-in">
+                              <div className="p-3.5 border-t border-slate-200/60 dark:border-slate-850 bg-white dark:bg-slate-950 text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
                                 {faq.a}
                               </div>
                             )}
@@ -2789,111 +3359,196 @@ print("✨ Local pipeline complete!")`;
                     </div>
                   </div>
 
-                  {/* Interactive Share / Confirm Badge and Feedback */}
-                  <div className="flex items-center justify-between border-t border-slate-105 dark:border-slate-800 pt-5 text-xs">
-                    <span className="text-slate-400">Published in Creator Hub • Ad-Enabled Resource</span>
-                    <div className="flex items-center gap-2">
-                      <button 
-                        onClick={async () => {
-                          const shareUrl = `${window.location.origin}${window.location.pathname}?tab=resources&article=${article.id}`;
-                          const shareData = {
-                            title: article.title,
-                            text: article.excerpt,
-                            url: shareUrl,
-                          };
-
-                          if (navigator.share) {
-                            try {
-                              await navigator.share(shareData);
-                              setShareFeedback("Shared successfully!");
-                              setTimeout(() => setShareFeedback(null), 3000);
-                            } catch (err) {
-                              if ((err as Error).name !== 'AbortError') {
-                                console.error('Error sharing:', err);
-                                try {
-                                  await navigator.clipboard.writeText(shareUrl);
-                                  setShareFeedback("Copied to clipboard!");
-                                } catch (_) {
-                                  setShareFeedback("Could not copy link");
-                                }
-                                setTimeout(() => setShareFeedback(null), 3000);
-                              }
-                            }
-                          } else {
-                            try {
-                              await navigator.clipboard.writeText(shareUrl);
-                              setShareFeedback("Copied to clipboard!");
-                            } catch (_) {
-                              setShareFeedback("Could not copy link");
-                            }
-                            setTimeout(() => setShareFeedback(null), 3000);
-                          }
-                        }}
-                        className="relative flex items-center gap-1 bg-white dark:bg-slate-900 hover:bg-slate-100 dark:hover:bg-slate-820 text-slate-605 dark:text-slate-300 border border-slate-200 dark:border-slate-800 px-3.5 py-1.5 rounded-lg font-semibold cursor-pointer transition-all select-none"
-                      >
-                        <Share2 className="w-3.5 h-3.5" /> Share Article
-                        {shareFeedback && (
-                          <span className="absolute bottom-10 left-1/2 -translate-x-1/2 bg-slate-900 dark:bg-slate-800 text-white text-[10px] px-2 py-1 rounded shadow-lg whitespace-nowrap z-50 animate-fade-in font-sans font-extrabold border border-slate-700/80 dark:border-slate-600/50">
-                            {shareFeedback}
-                          </span>
-                        )}
-                      </button>
-                      <button 
-                        onClick={() => setSelectedArticleId(null)}
-                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold cursor-pointer"
-                      >
-                        Next Article
-                      </button>
+                  {/* Call To Action Tool Banner */}
+                  <div className="bg-gradient-to-r from-indigo-600 via-indigo-700 to-indigo-800 text-white rounded-2xl p-6 md:p-8 space-y-4 shadow-lg">
+                    <div className="space-y-1.5">
+                      <span className="bg-indigo-500/30 text-indigo-200 border border-indigo-400/30 text-[10px] font-black uppercase px-2.5 py-0.5 rounded-full font-mono">
+                        Instant Free Generator
+                      </span>
+                      <h3 className="text-xl md:text-2xl font-black text-white font-sans">
+                        Create Your Free QR Code Now
+                      </h3>
+                      <p className="text-xs md:text-sm text-indigo-100 leading-relaxed max-w-xl font-medium">
+                        Generate high-quality, scannable QR codes for free in seconds. No account, no signup, 100% free and private.
+                      </p>
                     </div>
+
+                    <button
+                      onClick={() => {
+                        if (onSelectTool) {
+                          onSelectTool(article.relatedToolId || "qr");
+                        } else {
+                          setSelectedArticleId(null);
+                        }
+                      }}
+                      className="inline-flex items-center gap-2 bg-white text-indigo-700 hover:bg-indigo-50 px-5 py-2.5 rounded-xl text-xs font-black shadow-md cursor-pointer transition-all uppercase tracking-wider font-sans"
+                    >
+                      <Wand2 className="w-4 h-4 text-indigo-600" />
+                      Open Free QR Generator
+                    </button>
+                  </div>
+
+                  {/* Tags */}
+                  {article.tags && (
+                    <div className="flex flex-wrap items-center gap-2 pt-2">
+                      <span className="text-xs font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1 font-sans">
+                        <Tag className="w-3.5 h-3.5" /> Tags:
+                      </span>
+                      {article.tags.map((tag, i) => (
+                        <span key={i} className="text-[10px] font-mono font-bold text-slate-600 dark:text-slate-400 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 px-2 py-0.5 rounded-full">
+                          {tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Author Signature Card */}
+                  <div className="bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl p-5 md:p-6 space-y-3 shadow-2xs">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-indigo-500 to-teal-400 flex items-center justify-center text-white font-black text-sm shadow-xs">
+                        {author.name.charAt(0)}
+                      </div>
+                      <div>
+                        <h4 className="text-sm font-black text-slate-900 dark:text-white font-sans">
+                          Written by {author.name}
+                        </h4>
+                        <p className="text-[10px] font-mono text-slate-400">
+                          Founder & Lead Architect at Toolkit Pro
+                        </p>
+                      </div>
+                    </div>
+                    <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed font-normal">
+                      {author.bio}
+                    </p>
+                    {author.stats && (
+                      <div className="text-[10px] font-mono font-bold text-indigo-600 dark:text-indigo-400 pt-2 border-t border-slate-100 dark:border-slate-900">
+                        {author.stats}
+                      </div>
+                    )}
                   </div>
                 </div>
 
-                {/* Related Articles Sidebar */}
-                <div id="related-articles-sidebar" className="lg:col-span-1 space-y-4">
-                  <div className="bg-white dark:bg-slate-950/60 rounded-2xl border border-slate-100 dark:border-slate-800/80 p-5 space-y-4 shadow-sm">
-                    <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-800 pb-3">
-                      <BookOpen className="w-4 h-4 text-indigo-500 dark:text-indigo-400" />
-                      <h5 className="text-xs font-bold text-slate-900 dark:text-white uppercase tracking-wider font-sans">
-                        Related Articles
-                      </h5>
+                {/* Right Column: Sticky Navigation & Tools Sidebar */}
+                <div className="lg:col-span-1 space-y-5 lg:sticky lg:top-4">
+                  {/* Free Tool Promo Card */}
+                  <div className="bg-gradient-to-br from-indigo-50 to-indigo-100/50 dark:from-indigo-950/60 dark:to-slate-950 border border-indigo-200/80 dark:border-indigo-900/60 rounded-2xl p-4 space-y-3 shadow-2xs">
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 rounded-lg bg-indigo-600 text-white flex items-center justify-center font-black">
+                        <QrCode className="w-4 h-4" />
+                      </div>
+                      <span className="text-xs font-black text-indigo-900 dark:text-indigo-300 uppercase tracking-wider font-sans">
+                        Free QR Generator
+                      </span>
                     </div>
+                    <p className="text-[11px] text-slate-600 dark:text-slate-300 leading-normal font-medium">
+                      Create scannable QR codes for all your needs. 100% free, high resolution, and private.
+                    </p>
+                    <button
+                      onClick={() => {
+                        if (onSelectTool) {
+                          onSelectTool(article.relatedToolId || "qr");
+                        } else {
+                          setSelectedArticleId(null);
+                        }
+                      }}
+                      className="w-full py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-bold transition-all shadow-xs flex items-center justify-center gap-1.5 cursor-pointer font-sans"
+                    >
+                      <span>Open Free Tool</span>
+                      <ChevronRight className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
 
-                    <div className="space-y-4">
-                      {getRelatedArticles(article).map((related) => {
-                        return (
-                          <div
-                            key={related.id}
-                            id={`related-article-link-${related.id}`}
-                            onClick={() => {
-                              setSelectedArticleId(related.id);
-                              window.scrollTo({ top: 0, behavior: "smooth" });
-                            }}
-                            className="group p-3 rounded-xl border border-slate-100 dark:border-slate-850/60 bg-slate-50/20 dark:bg-slate-900/10 hover:border-indigo-100 dark:hover:border-indigo-900/40 hover:bg-indigo-50/10 dark:hover:bg-indigo-950/10 hover:shadow-xs transition-all duration-200 cursor-pointer select-none space-y-2"
-                          >
-                            <div className="flex items-center justify-between gap-1">
-                              <span className={`px-2 py-0.5 rounded-full text-[8.5px] scale-90 origin-left font-bold border ${getCategoryColor(related.category)}`}>
-                                {related.category}
-                              </span>
-                              <span className="text-[9px] text-slate-400 dark:text-slate-500 font-medium">
-                                {related.readTime}
-                              </span>
-                            </div>
+                  {/* Sticky Table of Contents Navigation Widget */}
+                  <div className="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 space-y-3 shadow-2xs">
+                    <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-850 pb-2.5">
+                      <List className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                      <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider font-sans">
+                        Table of Contents
+                      </h3>
+                    </div>
+                    <nav className="space-y-1 text-xs">
+                      {tocItems.map((item) => (
+                        <a
+                          key={item.id}
+                          href={`#${item.id}`}
+                          onClick={(e) => {
+                            e.preventDefault();
+                            const el = document.getElementById(item.id);
+                            if (el) {
+                              el.scrollIntoView({ behavior: "smooth" });
+                            }
+                          }}
+                          className="block py-1 px-2 rounded-lg text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 hover:bg-indigo-50/50 dark:hover:bg-indigo-950/50 transition-colors font-medium truncate"
+                        >
+                          {item.title}
+                        </a>
+                      ))}
+                    </nav>
+                  </div>
 
-                            <h6 className="text-[12px] font-bold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 transition-colors line-clamp-2 leading-snug font-sans">
-                              {related.title}
-                            </h6>
-
-                            <p className="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-2 leading-normal">
-                              {related.excerpt}
-                            </p>
-
-                            <div className="flex items-center gap-1 text-[10px] text-indigo-600 dark:text-indigo-400 opacity-0 group-hover:opacity-100 transition-all duration-200 font-bold transform translate-x-[-4px] group-hover:translate-x-0">
-                              <span>Read article</span>
-                              <ChevronRight className="w-3 h-3 group-hover:translate-x-0.5 transition-transform" />
-                            </div>
+                  {/* Related Articles Widget */}
+                  <div className="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 space-y-3 shadow-2xs">
+                    <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-850 pb-2.5">
+                      <BookOpen className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                      <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider font-sans">
+                        Related Articles
+                      </h3>
+                    </div>
+                    <div className="space-y-3">
+                      {getRelatedArticles(article).slice(0, 4).map((related) => (
+                        <div
+                          key={related.id}
+                          onClick={() => {
+                            setSelectedArticleId(related.id);
+                            window.scrollTo({ top: 0, behavior: "smooth" });
+                          }}
+                          className="group p-2.5 rounded-xl border border-slate-100 dark:border-slate-850 bg-slate-50/50 dark:bg-slate-900/40 hover:border-indigo-300 dark:hover:border-indigo-800 transition-all cursor-pointer space-y-1"
+                        >
+                          <div className="flex items-center justify-between text-[9px] font-bold">
+                            <span className={`px-2 py-0.5 rounded-full border ${getCategoryColor(related.category)}`}>
+                              {related.category}
+                            </span>
+                            <span className="text-slate-400">{related.readTime}</span>
                           </div>
-                        );
-                      })}
+                          <h4 className="text-xs font-bold text-slate-800 dark:text-slate-200 group-hover:text-indigo-600 transition-colors line-clamp-2 leading-snug font-sans">
+                            {related.title}
+                          </h4>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* All Free Tools Widget */}
+                  <div className="bg-white dark:bg-slate-950 rounded-2xl border border-slate-200/80 dark:border-slate-800 p-4 space-y-3 shadow-2xs">
+                    <div className="flex items-center gap-2 border-b border-slate-100 dark:border-slate-850 pb-2.5">
+                      <Wand2 className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+                      <h3 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider font-sans">
+                        All Free Tools
+                      </h3>
+                    </div>
+                    <div className="grid grid-cols-2 gap-1.5 text-[11px] font-bold font-sans">
+                      {[
+                        { id: "compress", name: "Compressor" },
+                        { id: "qr", name: "QR Generator" },
+                        { id: "palette", name: "Color Palette" },
+                        { id: "quote", name: "Quote Maker" },
+                        { id: "video", name: "Art Studio" },
+                        { id: "pdf", name: "PDF Suite" }
+                      ].map((tool) => (
+                        <button
+                          key={tool.id}
+                          onClick={() => {
+                            if (onSelectTool) {
+                              onSelectTool(tool.id);
+                            } else {
+                              setSelectedArticleId(null);
+                            }
+                          }}
+                          className="p-2 rounded-lg bg-slate-50 dark:bg-slate-900 hover:bg-indigo-50 dark:hover:bg-indigo-950 text-slate-700 dark:text-slate-300 hover:text-indigo-600 transition-colors text-left truncate cursor-pointer"
+                        >
+                          {tool.name}
+                        </button>
+                      ))}
                     </div>
                   </div>
                 </div>

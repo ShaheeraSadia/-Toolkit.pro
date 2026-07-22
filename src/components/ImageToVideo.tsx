@@ -1071,7 +1071,9 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  const handleDownloadImage = (imageUrl: string) => {
+  const handleDownloadImage = async (imageUrl: string) => {
+    if (!imageUrl) return;
+
     // Open target link behind the download to respect user ad-placement request
     try {
       const adLink = document.createElement("a");
@@ -1085,8 +1087,61 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
       console.error("Ad placement trigger failed during image download:", e);
     }
 
-    // Secure download via backend proxy route!
-    window.open(`/api/image/download?url=${encodeURIComponent(imageUrl)}`, "_blank");
+    const filename = `toolkit-pro-${Date.now()}.png`;
+
+    // 1. Direct browser download for Data URLs or Blob URLs (prevents 413 URL header length errors)
+    if (imageUrl.startsWith("data:") || imageUrl.startsWith("blob:")) {
+      const a = document.createElement("a");
+      a.href = imageUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      return;
+    }
+
+    // 2. Direct client-side fetch for remote image URLs
+    try {
+      const res = await fetch(imageUrl);
+      if (res.ok) {
+        const blob = await res.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = objectUrl;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+        return;
+      }
+    } catch (err) {
+      console.warn("Direct fetch image download failed, using backend proxy fallback...", err);
+    }
+
+    // 3. Backend proxy fallback using POST body (handles CORS remote URLs safely)
+    try {
+      const proxyRes = await fetch("/api/image/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: imageUrl, filename }),
+      });
+      if (!proxyRes.ok) throw new Error("Proxy response failed");
+      const blob = await proxyRes.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = objectUrl;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+    } catch (err) {
+      console.error("Failed to download image via proxy fallback:", err);
+      if (!imageUrl.startsWith("data:")) {
+        window.open(imageUrl, "_blank");
+      }
+    }
   };
 
   const triggerSurprisePrompt = () => {
@@ -2448,8 +2503,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                           type="button"
                           onClick={(e) => {
                             e.stopPropagation();
-                            // secure download via backend proxy route!
-                            window.open(`/api/image/download?url=${encodeURIComponent(image)}`, "_blank");
+                            handleDownloadImage(image);
                           }}
                           className="p-2 rounded-full bg-slate-950/80 hover:bg-indigo-600 text-slate-300 hover:text-white transition-all shadow-lg animate-fade-in"
                           title="Download seed image"
@@ -2523,7 +2577,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                             type="button"
                             onClick={(e) => {
                               e.stopPropagation();
-                              window.open(`/api/image/download?url=${encodeURIComponent(image)}`, "_blank");
+                              handleDownloadImage(image);
                             }}
                             className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 px-2 py-0.5 flex items-center gap-1 transition-colors"
                           >

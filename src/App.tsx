@@ -18,6 +18,8 @@ import AdSenseMock from "./components/AdSenseMock";
 import SitemapView from "./components/SitemapView";
 import CommandPalette from "./components/CommandPalette";
 import ShortcutsModal from "./components/ShortcutsModal";
+import SeoChecklistModal, { SeoProjectMetadata } from "./components/SeoChecklistModal";
+import ApiKeyModal from "./components/ApiKeyModal";
 import RecentActivitiesWidget from "./components/RecentActivitiesWidget";
 import UsageInsightsWidget from "./components/UsageInsightsWidget";
 import AppTourOverlay from "./components/AppTourOverlay";
@@ -26,12 +28,15 @@ import AndroidWorkspace from "./components/AndroidWorkspace";
 import PDFTools from "./components/PDFTools";
 import ImageConverter from "./components/ImageConverter";
 import BackgroundRemover from "./components/BackgroundRemover";
+import ToolGuide from "./components/ToolGuide";
+import { WorkspaceTooltips } from "./components/WorkspaceTooltips";
 import { motion, AnimatePresence } from "motion/react";
 // @ts-ignore
 import brandLogo from "./assets/images/toolkit_pro_logo_1781887052514.jpg";
 
 import {
   Sparkles,
+  Wand2,
   Quote,
   FileImage,
   QrCode,
@@ -39,6 +44,7 @@ import {
   Video,
   CloudLightning,
   AlertCircle,
+  AlertTriangle,
   Cloud,
   BookOpen,
   ShieldCheck,
@@ -58,6 +64,7 @@ import {
   Loader2,
   Crop,
   Eye,
+  EyeOff,
   Scissors,
   Home,
   Menu,
@@ -384,7 +391,10 @@ export default function App() {
   const setActiveTab = (newTab: ActiveTab | ((prev: ActiveTab) => ActiveTab)) => {
     _setActiveTab((prev) => {
       const resolvedTab = typeof newTab === "function" ? newTab(prev) : newTab;
-      const tabsList = ["home", "quote", "compress", "qr", "palette", "video", "drive", "resources", "legal"];
+      const tabsList: ActiveTab[] = [
+        "home", "quote", "compress", "qr", "palette", "video", 
+        "pdf", "converter", "bgremover", "android", "drive", "resources", "legal"
+      ];
       const prevIndex = tabsList.indexOf(prev);
       const currentIndex = tabsList.indexOf(resolvedTab);
       if (prevIndex !== currentIndex && prevIndex !== -1 && currentIndex !== -1) {
@@ -722,7 +732,15 @@ export default function App() {
   const [isShortcutsHelpOpen, setIsShortcutsHelpOpen] = useState<boolean>(false);
   const [isTourOpen, setIsTourOpen] = useState<boolean>(false);
   const [isFeedbackOpen, setIsFeedbackOpen] = useState<boolean>(false);
+  const [isSeoModalOpen, setIsSeoModalOpen] = useState<boolean>(false);
+  const [seoModalInitialData, setSeoModalInitialData] = useState<Partial<SeoProjectMetadata> | undefined>(undefined);
+  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(false);
   const [lastShortcutPressed, setLastShortcutPressed] = useState<string | null>(null);
+
+  const handleOpenSeoModal = (initialData?: Partial<SeoProjectMetadata>) => {
+    setSeoModalInitialData(initialData);
+    setIsSeoModalOpen(true);
+  };
 
   // Auto trigger the interactive App Tour on the first visit
   useEffect(() => {
@@ -813,6 +831,7 @@ export default function App() {
   };
 
   const [homeSearchQuery, setHomeSearchQuery] = useState("");
+  const [projectSearchQuery, setProjectSearchQuery] = useState("");
 
   const [highContrast, setHighContrast] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
@@ -832,6 +851,21 @@ export default function App() {
 
   const handleToggleHighContrast = () => {
     setHighContrast((prev) => !prev);
+  };
+
+  const [tooltipsEnabled, setTooltipsEnabled] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("toolkit_tooltips_enabled") === "true";
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    localStorage.setItem("toolkit_tooltips_enabled", String(tooltipsEnabled));
+  }, [tooltipsEnabled]);
+
+  const handleToggleTooltips = () => {
+    setTooltipsEnabled((prev) => !prev);
   };
 
   const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(() => {
@@ -906,6 +940,21 @@ export default function App() {
   const [showBleed, setShowBleed] = useState<boolean>(false);
   const [printBleedWidth, setPrintBleedWidth] = useState<number>(3);
   const [selectedPresetId, setSelectedPresetId] = useState<string>("professional-offset");
+
+  // Calculate paper margin clearance in mm
+  const currentMarginMm = printPageMargins === "standard" ? 15 : printPageMargins === "minimum" ? 5 : 0;
+  // Insufficient margin warning triggers when Bleed is active but page margin is too small to fit the bleed width
+  const isMarginInsufficientForBleed = showBleed && (printPageMargins === "none" || currentMarginMm <= printBleedWidth);
+
+  // Optimal margin calculation based on active bleed width:
+  // If bleed width < 5mm, minimum margin (5mm) clears it. If bleed width >= 5mm, standard margin (15mm) clears it.
+  const optimalMarginSetting: "minimum" | "standard" = printBleedWidth < 5 ? "minimum" : "standard";
+  const optimalMarginMm = printBleedWidth < 5 ? 5 : 15;
+  const [dismissMarginGuideOverlay, setDismissMarginGuideOverlay] = useState<boolean>(false);
+
+  useEffect(() => {
+    setDismissMarginGuideOverlay(false);
+  }, [printBleedWidth, showBleed]);
 
   const [printerPresets, setPrinterPresets] = useState<PrinterPreset[]>(() => {
     try {
@@ -1956,8 +2005,12 @@ export default function App() {
         onToggleTheme={handleToggleTheme}
         highContrast={highContrast}
         onToggleHighContrast={handleToggleHighContrast}
+        tooltipsEnabled={tooltipsEnabled}
+        onToggleTooltips={handleToggleTooltips}
         onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
         onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
+        onOpenSeoModal={() => handleOpenSeoModal()}
+        onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
       />
 
       {/* Main Layout Row with Left Collapsible Sidebar */}
@@ -2096,8 +2149,16 @@ export default function App() {
 
         {/* Right workspace panel wrapper */}
         <div id="main-scroll-container" className="flex-1 min-w-0 flex flex-col overflow-y-auto">
-          {activeTab === "home" ? (
-            <div className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-8 space-y-8 animate-in fade-in duration-300">
+          <AnimatePresence mode="wait">
+            {activeTab === "home" ? (
+              <motion.div
+                key="home-main-view"
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -12 }}
+                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+                className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-8 space-y-8"
+              >
               
               {/* Dynamic Hour Greeting & Real-time micro clock row */}
               {(() => {
@@ -2620,7 +2681,7 @@ export default function App() {
               </div>
 
               {/* INTERACTIVE SEARCH & FULL TOOLS CATALOG */}
-              <div className="space-y-4 select-none">
+              <div id="tools-catalog-section" className="space-y-4 select-none">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div>
                     <h3 className={`text-sm font-black uppercase tracking-tight flex items-center gap-1.5 ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
@@ -2916,88 +2977,223 @@ export default function App() {
                     <span className="text-xs text-slate-400">Loading workspaces...</span>
                   </div>
                 ) : savedProjects.length === 0 ? (
-                  <div className="py-10 text-center flex flex-col items-center justify-center max-w-sm mx-auto">
-                    <div className="w-12 h-12 bg-slate-50 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 rounded-2xl flex items-center justify-center mb-3 text-slate-400">
-                      <FolderOpen className="w-5 h-5" />
-                    </div>
-                    <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-tight">No saved projects yet</h4>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-550 mt-1 leading-relaxed">
+                  <div className="py-12 px-6 text-center flex flex-col items-center justify-center max-w-md mx-auto">
+                    {/* Modern SVG Illustration */}
+                    <svg className="w-36 h-36 mb-6 select-none drop-shadow-lg" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                      <circle cx="100" cy="100" r="70" fill="url(#empty-glow)" opacity="0.15" />
+                      
+                      <g transform="translate(10, -5)">
+                        <rect x="60" y="60" width="70" height="75" rx="8" fill="url(#document-bg)" stroke="url(#document-border)" strokeWidth="2" />
+                        <rect x="72" y="75" width="46" height="4" rx="2" fill="url(#accent-color)" opacity="0.6" />
+                        <rect x="72" y="87" width="34" height="4" rx="2" fill="url(#body-color)" opacity="0.3" />
+                        <rect x="72" y="99" width="40" height="4" rx="2" fill="url(#body-color)" opacity="0.3" />
+                        <circle cx="118" cy="118" r="8" fill="url(#check-glow)" />
+                        <path d="M115 118L117 120L121 116" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                      </g>
+
+                      <path d="M45 55C45 49.4772 49.4772 45 55 45H85L98 60H145C150.523 60 155 64.4772 155 70V145C155 150.523 150.523 155 145 155H55C49.4772 155 45 150.523 45 145V55Z" fill="url(#folder-bg)" stroke="url(#folder-border)" strokeWidth="2.5" />
+                      <path d="M45 72C45 68.6863 47.6863 66 51 66H149C152.314 66 155 68.6863 155 72V145C155 150.523 150.523 155 145 155H55C49.4772 155 45 150.523 45 145V72Z" fill="url(#folder-front)" stroke="url(#folder-border)" strokeWidth="1.5" />
+
+                      <path d="M165 45L167.5 50.5L173 53L167.5 55.5L165 61L162.5 55.5L157 53L162.5 50.5L165 45Z" fill="#fbbf24" />
+                      <path d="M32 130L33.5 133.5L37 135L33.5 136.5L32 140L30.5 136.5L27 135L30.5 133.5L32 130Z" fill="url(#sparkle-grad)" />
+                      <circle cx="150" cy="120" r="3" fill="#a5b4fc" />
+                      <circle cx="50" cy="40" r="4" fill="#818cf8" opacity="0.7" />
+
+                      <defs>
+                        <radialGradient id="empty-glow" cx="50%" cy="50%" r="50%">
+                          <stop offset="0%" stopColor="#6366f1" />
+                          <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
+                        </radialGradient>
+                        <linearGradient id="folder-bg" x1="45" y1="45" x2="155" y2="155">
+                          <stop offset="0%" stopColor="#312e81" />
+                          <stop offset="100%" stopColor="#1e1b4b" />
+                        </linearGradient>
+                        <linearGradient id="folder-front" x1="45" y1="66" x2="155" y2="155">
+                          <stop offset="0%" stopColor="#4f46e5" />
+                          <stop offset="100%" stopColor="#312e81" />
+                        </linearGradient>
+                        <linearGradient id="folder-border" x1="45" y1="45" x2="155" y2="155">
+                          <stop offset="0%" stopColor="#818cf8" stopOpacity="0.8" />
+                          <stop offset="100%" stopColor="#4f46e5" stopOpacity="0.4" />
+                        </linearGradient>
+                        <linearGradient id="document-bg" x1="60" y1="60" x2="130" y2="135">
+                          <stop offset="0%" stopColor="#ffffff" />
+                          <stop offset="100%" stopColor="#f8fafc" />
+                        </linearGradient>
+                        <linearGradient id="document-border" x1="60" y1="60" x2="130" y2="135">
+                          <stop offset="0%" stopColor="#e2e8f0" />
+                          <stop offset="100%" stopColor="#cbd5e1" />
+                        </linearGradient>
+                        <linearGradient id="sparkle-grad" x1="27" y1="130" x2="37" y2="140">
+                          <stop offset="0%" stopColor="#fbbf24" />
+                          <stop offset="100%" stopColor="#f59e0b" />
+                        </linearGradient>
+                        <linearGradient id="check-glow" x1="110" y1="110" x2="126" y2="126">
+                          <stop offset="0%" stopColor="#34d399" />
+                          <stop offset="100%" stopColor="#059669" />
+                        </linearGradient>
+                        <radialGradient id="accent-color" cx="50%" cy="50%" r="50%">
+                          <stop offset="0%" stopColor="#6366f1" />
+                          <stop offset="100%" stopColor="#4f46e5" />
+                        </radialGradient>
+                        <radialGradient id="body-color" cx="50%" cy="50%" r="50%">
+                          <stop offset="0%" stopColor="#94a3b8" />
+                          <stop offset="100%" stopColor="#64748b" />
+                        </radialGradient>
+                      </defs>
+                    </svg>
+
+                    <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-tight">Your workspace catalog is empty</h4>
+                    <p className="text-[10px] text-slate-400 dark:text-slate-550 mt-1 mb-5 leading-relaxed">
                       Make designs in Quote Creator, QR Matrix, or Palette Extractor, and click "Save Current Workspace" to build your project list!
                     </p>
+
+                    <button
+                      onClick={() => {
+                        document.getElementById('tools-catalog-section')?.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      className="inline-flex items-center gap-1.5 px-4.5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase tracking-wider transition-all duration-150 transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer shadow-md shadow-indigo-600/15 hover:shadow-indigo-600/30"
+                    >
+                      <span>Start your first project</span>
+                      <ArrowRight className="w-3.5 h-3.5" />
+                    </button>
                   </div>
                 ) : (
                   <div>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-500 mb-4 uppercase font-bold tracking-wider flex items-center gap-1.5">
-                      <GripVertical className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
-                      <span>Drag and drop cards to reorder your workspace hierarchy</span>
-                    </p>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                      {savedProjects.map((project, idx) => {
-                        const isDragging = draggedProjectIndex === idx;
-                        const isDragOver = dragOverProjectIndex === idx;
-
-                        return (
-                          <div
-                            key={project.id}
-                            draggable
-                            onDragStart={(e) => handleProjectDragStart(e, idx)}
-                            onDragOver={(e) => handleProjectDragOver(e, idx)}
-                            onDrop={(e) => handleProjectDrop(e, idx)}
-                            onDragEnd={handleProjectDragEnd}
-                            className={`p-4 rounded-2xl border transition-all duration-200 flex flex-col justify-between group relative overflow-hidden cursor-grab active:cursor-grabbing ${
-                              isDragging ? "opacity-30 scale-95 border-indigo-400/50" : ""
-                            } ${
-                              isDragOver
-                                ? "border-indigo-500 bg-indigo-50/10 dark:bg-indigo-950/20 scale-102 border-dashed"
-                                : theme === "dark"
-                                  ? "bg-slate-900/40 border-slate-805 text-slate-300 hover:border-slate-700"
-                                  : "bg-slate-50/40 border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300"
-                            }`}
+                    {/* Project Specific Filter Input */}
+                    <div className="mb-5 relative flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                      <div className="relative flex-1">
+                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-450 dark:text-slate-400" />
+                        <input
+                          type="text"
+                          placeholder="Search saved projects by name..."
+                          value={projectSearchQuery}
+                          onChange={(e) => setProjectSearchQuery(e.target.value)}
+                          className={`w-full pl-10 pr-10 py-2.5 text-xs font-semibold rounded-2xl outline-hidden transition-all border ${
+                            theme === "dark"
+                              ? "bg-slate-955/50 border-slate-805 text-white placeholder-slate-500 focus:border-indigo-500/80 focus:ring-4 focus:ring-indigo-500/10"
+                              : "bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400 focus:border-indigo-500/50 focus:ring-4 focus:ring-indigo-500/5"
+                          }`}
+                        />
+                        {projectSearchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setProjectSearchQuery("")}
+                            className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
                           >
-                            <div>
-                              <div className="flex items-center justify-between mb-2">
-                                <span className={`text-[8.5px] font-black uppercase font-mono px-2 py-0.5 rounded leading-none ${
-                                  project.toolType === "quote" 
-                                    ? "bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400" 
-                                    : project.toolType === "qr"
-                                      ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"
-                                      : "bg-amber-100 dark:bg-amber-955/40 text-amber-600 dark:text-amber-400"
-                                }`}>
-                                  {project.toolType === "quote" ? "Quote Designer" : project.toolType === "qr" ? "QR Matrix" : "Color Extractor"}
-                                </span>
-                                <div className="flex items-center gap-1.5">
-                                  <span className="text-[9px] text-slate-400 dark:text-slate-505 font-mono">
-                                    {new Date(project.createdAt).toLocaleDateString()}
-                                  </span>
-                                  <GripVertical className="w-3.5 h-3.5 text-slate-400 dark:text-slate-600 cursor-grab group-hover:text-indigo-400 transition-colors" />
-                                </div>
-                              </div>
-                              <h4 className={`text-xs font-black tracking-tight uppercase leading-snug ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
-                                {project.name}
-                              </h4>
-                            </div>
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        )}
+                      </div>
+                      {projectSearchQuery && (
+                        <div className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 select-none">
+                          <span>Found {savedProjects.filter(p => p.name.toLowerCase().includes(projectSearchQuery.toLowerCase())).length} of {savedProjects.length}</span>
+                        </div>
+                      )}
+                    </div>
 
-                            <div className="flex items-center justify-between gap-3 pt-4 mt-2 border-t border-slate-100 dark:border-slate-800/60">
-                              <button
-                                onClick={() => handleLoadProject(project)}
-                                className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 cursor-pointer"
-                              >
-                                <span>Load Project</span>
-                                <ArrowUpRight className="w-3 h-3" />
-                              </button>
+                    {(() => {
+                      const filteredProjects = savedProjects.filter((project) =>
+                        project.name.toLowerCase().includes(projectSearchQuery.toLowerCase())
+                      );
 
-                              <button
-                                onClick={() => handleDeleteProject(project.id)}
-                                className="p-1 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-500 cursor-pointer transition-colors"
-                                title="Delete project"
-                              >
-                                <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                      if (filteredProjects.length === 0) {
+                        return (
+                          <div className="py-12 text-center flex flex-col items-center justify-center max-w-sm mx-auto">
+                            <div className="w-12 h-12 bg-slate-50 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 rounded-2xl flex items-center justify-center mb-3 text-slate-400">
+                              <Search className="w-5 h-5 text-indigo-400" />
                             </div>
+                            <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-tight">No matching projects</h4>
+                            <p className="text-[10px] text-slate-400 dark:text-slate-550 mt-1 leading-relaxed">
+                              No saved workspaces match the name "{projectSearchQuery}". Try another name or clear the search.
+                            </p>
+                            <button
+                              onClick={() => setProjectSearchQuery("")}
+                              className="mt-4 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-850 text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 cursor-pointer transition-all shadow-3xs"
+                            >
+                              Clear Search Filter
+                            </button>
                           </div>
                         );
-                      })}
-                    </div>
+                      }
+
+                      return (
+                        <>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 mb-4 uppercase font-bold tracking-wider flex items-center gap-1.5">
+                            <GripVertical className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
+                            <span>Drag and drop cards to reorder your workspace hierarchy</span>
+                          </p>
+                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                            {filteredProjects.map((project) => {
+                              const originalIdx = savedProjects.findIndex(p => p.id === project.id);
+                              const isDragging = draggedProjectIndex === originalIdx;
+                              const isDragOver = dragOverProjectIndex === originalIdx;
+
+                              return (
+                                <div
+                                  key={project.id}
+                                  draggable
+                                  onDragStart={(e) => handleProjectDragStart(e, originalIdx)}
+                                  onDragOver={(e) => handleProjectDragOver(e, originalIdx)}
+                                  onDrop={(e) => handleProjectDrop(e, originalIdx)}
+                                  onDragEnd={handleProjectDragEnd}
+                                  className={`p-4 rounded-2xl border transition-all duration-200 flex flex-col justify-between group relative overflow-hidden cursor-grab active:cursor-grabbing ${
+                                    isDragging ? "opacity-30 scale-95 border-indigo-400/50" : ""
+                                  } ${
+                                    isDragOver
+                                      ? "border-indigo-500 bg-indigo-50/10 dark:bg-indigo-950/20 scale-102 border-dashed"
+                                      : theme === "dark"
+                                        ? "bg-slate-900/40 border-slate-805 text-slate-300 hover:border-slate-700"
+                                        : "bg-slate-50/40 border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300"
+                                  }`}
+                                >
+                                  <div>
+                                    <div className="flex items-center justify-between mb-2">
+                                      <span className={`text-[8.5px] font-black uppercase font-mono px-2 py-0.5 rounded leading-none ${
+                                        project.toolType === "quote" 
+                                          ? "bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400" 
+                                          : project.toolType === "qr"
+                                            ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"
+                                            : "bg-amber-100 dark:bg-amber-955/40 text-amber-600 dark:text-amber-400"
+                                      }`}>
+                                        {project.toolType === "quote" ? "Quote Designer" : project.toolType === "qr" ? "QR Matrix" : "Color Extractor"}
+                                      </span>
+                                      <div className="flex items-center gap-1.5">
+                                        <span className="text-[9px] text-slate-400 dark:text-slate-505 font-mono">
+                                          {new Date(project.createdAt).toLocaleDateString()}
+                                        </span>
+                                        <GripVertical className="w-3.5 h-3.5 text-slate-400 dark:text-slate-600 cursor-grab group-hover:text-indigo-400 transition-colors" />
+                                      </div>
+                                    </div>
+                                    <h4 className={`text-xs font-black tracking-tight uppercase leading-snug ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                                      {project.name}
+                                    </h4>
+                                  </div>
+
+                                  <div className="flex items-center justify-between gap-3 pt-4 mt-2 border-t border-slate-100 dark:border-slate-800/60">
+                                    <button
+                                      onClick={() => handleLoadProject(project)}
+                                      className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 cursor-pointer"
+                                    >
+                                      <span>Load Project</span>
+                                      <ArrowUpRight className="w-3 h-3" />
+                                    </button>
+
+                                    <button
+                                      onClick={() => handleDeleteProject(project.id)}
+                                      className="p-1 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-500 cursor-pointer transition-colors"
+                                      title="Delete project"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 )}
               </div>
@@ -3052,43 +3248,110 @@ export default function App() {
                   />
                 </div>
               </div>
-            </div>
+            </motion.div>
           ) : (
-            <main className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-8 space-y-6">
-              {/* Breadcrumb path for clean workspace navigation */}
-              <div className="flex items-center justify-between pb-2 border-b border-slate-150 dark:border-slate-850/60 select-none">
-                <div className="flex items-center gap-2 text-[10px] font-black font-mono">
-                  <button 
-                    onClick={() => setActiveTab("home")} 
-                    className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+            <motion.main
+              key="tool-workspace-main-view"
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -12 }}
+              transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+              className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-8 space-y-5"
+            >
+              {/* Breadcrumb path & Top Workspace Quick Switcher bar */}
+              <div className="space-y-3 select-none">
+                <div className="flex items-center justify-between pb-2 border-b border-slate-150 dark:border-slate-850/60">
+                  <div className="flex items-center gap-2 text-[10px] font-black font-mono">
+                    <button 
+                      onClick={() => setActiveTab("home")} 
+                      className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors cursor-pointer"
+                    >
+                      HOME
+                    </button>
+                    <span className="text-slate-300 dark:text-slate-700">/</span>
+                    <span className="text-slate-800 dark:text-slate-200 uppercase tracking-wider font-sans">
+                      {activeTab === "quote" && "Quote Designer"}
+                      {activeTab === "compress" && "Image Compressor"}
+                      {activeTab === "qr" && "QR Generator"}
+                      {activeTab === "palette" && "Color Extractor"}
+                      {activeTab === "video" && "Video Creator"}
+                      {activeTab === "pdf" && "PDF Tools Suite"}
+                      {activeTab === "converter" && "Batch Image Converter"}
+                      {activeTab === "bgremover" && "Background Remover"}
+                      {activeTab === "android" && "Android App Studio"}
+                      {activeTab === "drive" && "Drive Panel"}
+                      {activeTab === "resources" && "Guides & SEO"}
+                      {activeTab === "legal" && "Compliance"}
+                    </span>
+                  </div>
+
+                  <button
+                    onClick={() => setActiveTab("home")}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer select-none active:scale-95 ${
+                      theme === "dark"
+                        ? "bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-850"
+                        : "bg-slate-50 border-slate-200 text-slate-650 hover:text-slate-900 hover:bg-slate-100"
+                    }`}
                   >
-                    HOME
+                    <X className="w-3 h-3 text-rose-500" />
+                    <span>Close Workspace</span>
                   </button>
-                  <span className="text-slate-300 dark:text-slate-700">/</span>
-                  <span className="text-slate-800 dark:text-slate-200 uppercase tracking-wider font-sans">
-                    {activeTab === "quote" && "Quote Designer"}
-                    {activeTab === "compress" && "Image Compressor"}
-                    {activeTab === "qr" && "QR Generator"}
-                    {activeTab === "palette" && "Color Extractor"}
-                    {activeTab === "video" && "Video Creator"}
-                    {activeTab === "drive" && "Drive Panel"}
-                    {activeTab === "resources" && "Guides & SEO"}
-                    {activeTab === "legal" && "Compliance"}
-                    {activeTab === "android" && "Android App Studio"}
-                  </span>
                 </div>
 
-                <button
-                  onClick={() => setActiveTab("home")}
-                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-[10px] font-black uppercase tracking-wider transition-all cursor-pointer select-none active:scale-95 ${
-                    theme === "dark"
-                      ? "bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-850"
-                      : "bg-slate-50 border-slate-200 text-slate-650 hover:text-slate-900 hover:bg-slate-100"
-                  }`}
-                >
-                  <X className="w-3 h-3 text-rose-500" />
-                  <span>Close Workspace</span>
-                </button>
+                {/* Horizontal Tool Workspace Quick Switcher Strip */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 pt-0.5 no-scrollbar">
+                  {[
+                    { id: "quote", label: "Quote Designer", shortLabel: "Quote", icon: Quote },
+                    { id: "compress", label: "Image Compressor", shortLabel: "Compressor", icon: FileImage },
+                    { id: "qr", label: "QR Generator", shortLabel: "QR Code", icon: QrCode },
+                    { id: "palette", label: "Color Extractor", shortLabel: "Palette", icon: Pipette },
+                    { id: "video", label: "Video Creator", shortLabel: "Video", icon: Video },
+                    { id: "pdf", label: "PDF Suite", shortLabel: "PDF Tools", icon: FileText },
+                    { id: "converter", label: "Batch Converter", shortLabel: "Converter", icon: RefreshCw },
+                    { id: "bgremover", label: "Background Remover", shortLabel: "BG Remover", icon: Eraser },
+                    { id: "android", label: "Android Studio", shortLabel: "Android", icon: Smartphone },
+                    { id: "drive", label: "Cloud Drive", shortLabel: "Drive", icon: Cloud },
+                    { id: "resources", label: "Guides & SEO", shortLabel: "Guides", icon: BookOpen },
+                    { id: "legal", label: "Compliance", shortLabel: "Compliance", icon: ShieldCheck },
+                  ].map((toolItem) => {
+                    const IconComponent = toolItem.icon;
+                    const isCurrent = activeTab === toolItem.id;
+                    return (
+                      <button
+                        key={toolItem.id}
+                        onClick={() => {
+                          setActiveTab(toolItem.id as ActiveTab);
+                          setIsSitemapView(false);
+                        }}
+                        className={`relative flex items-center gap-2 px-3 py-1.5 rounded-xl text-[11px] font-extrabold uppercase tracking-wider transition-colors duration-200 cursor-pointer shrink-0 ${
+                          isCurrent
+                            ? theme === "dark"
+                              ? "text-white"
+                              : "text-indigo-950"
+                            : theme === "dark"
+                              ? "text-slate-400 hover:text-slate-200 hover:bg-slate-900/60"
+                              : "text-slate-500 hover:text-slate-900 hover:bg-slate-100/70"
+                        }`}
+                      >
+                        {isCurrent && (
+                          <motion.div
+                            layoutId="workspaceTabActivePill"
+                            className={`absolute inset-0 rounded-xl border ${
+                              theme === "dark"
+                                ? "bg-indigo-950/80 border-indigo-800/80 shadow-xs"
+                                : "bg-indigo-50/90 border-indigo-200/80 shadow-2xs"
+                            }`}
+                            transition={{ type: "spring", stiffness: 380, damping: 28 }}
+                          />
+                        )}
+                        <IconComponent className={`w-3.5 h-3.5 relative z-10 transition-colors ${
+                          isCurrent ? "text-indigo-600 dark:text-indigo-400" : "text-slate-400"
+                        }`} />
+                        <span className="relative z-10">{toolItem.shortLabel}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {/* Dynamic active page viewer wrapper */}
@@ -3097,25 +3360,47 @@ export default function App() {
                 role="tabpanel"
                 id={`tabpanel-${activeTab}`}
                 aria-labelledby={`tab-select-${activeTab}`}
-                className={`rounded-3xl border p-3.5 sm:p-6 md:p-8 transition-colors duration-200 ${
+                className={`rounded-3xl border p-3.5 sm:p-6 md:p-8 transition-colors duration-300 ${
                   theme === "dark"
                     ? "bg-slate-900 border-slate-800/85 shadow-md shadow-slate-950/45"
                     : "bg-white border-slate-100 shadow-sm"
                 }`}
                 transition={{
                   type: "spring",
-                  stiffness: 220,
-                  damping: 28,
+                  stiffness: 240,
+                  damping: 26,
                   mass: 0.8
                 }}
               >
-                <AnimatePresence mode="wait">
+                <AnimatePresence mode="wait" custom={direction}>
                   <motion.div
                     key={isSitemapView ? "sitemap" : activeTab}
-                    initial={{ opacity: 0, x: direction * 35 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    exit={{ opacity: 0, x: -direction * 35 }}
-                    transition={{ duration: 0.28, ease: [0.16, 1, 0.3, 1] }}
+                    custom={direction}
+                    initial={(dir: number) => ({
+                      opacity: 0,
+                      x: (dir || 1) * 32,
+                      y: 6,
+                      scale: 0.988,
+                      filter: "blur(4px)"
+                    })}
+                    animate={{
+                      opacity: 1,
+                      x: 0,
+                      y: 0,
+                      scale: 1,
+                      filter: "blur(0px)"
+                    }}
+                    exit={(dir: number) => ({
+                      opacity: 0,
+                      x: -(dir || 1) * 32,
+                      y: -6,
+                      scale: 0.988,
+                      filter: "blur(4px)"
+                    })}
+                    transition={{
+                      duration: 0.28,
+                      ease: [0.16, 1, 0.3, 1]
+                    }}
                   >
                     {isSitemapView ? (
                       <SitemapView
@@ -3128,6 +3413,12 @@ export default function App() {
                       />
                     ) : (
                       <>
+                        {activeTab !== "home" && (
+                          <div className="mb-6">
+                            <ToolGuide activeTab={activeTab} theme={theme} />
+                          </div>
+                        )}
+
                         {activeTab === "quote" && (
                           <QuoteDesigner
                             user={user}
@@ -3186,6 +3477,7 @@ export default function App() {
                                 isLoading={isLoadingDrive}
                                 onRefresh={handleRefreshDrive}
                                 onSelectTab={setActiveTab}
+                                onOpenSeoModal={handleOpenSeoModal}
                               />
                             ) : (
                               <div className="py-12 text-center flex flex-col items-center justify-center max-w-md mx-auto">
@@ -3212,6 +3504,11 @@ export default function App() {
                             selectedArticleId={selectedArticleId}
                             onSelectArticleId={setSelectedArticleId}
                             initialSubTab={resourcesSubTab}
+                            onSelectTool={(toolId) => {
+                              setActiveTab(toolId as any);
+                              setIsSitemapView(false);
+                              window.scrollTo({ top: 0, behavior: "smooth" });
+                            }}
                           />
                         )}
 
@@ -3244,8 +3541,9 @@ export default function App() {
                   <AdSenseMock slot="content-footer-responsive" type="responsive" />
                 </div>
               </motion.div>
-            </main>
+            </motion.main>
           )}
+        </AnimatePresence>
         </div>
       </div>
 
@@ -3263,8 +3561,13 @@ export default function App() {
             {/* Column 1: Brand & Tagline - 4 Cols */}
             <div className="lg:col-span-4 space-y-4">
               <div className="flex items-center space-x-3">
-                <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-slate-950 dark:bg-slate-900 text-white shadow-md">
-                  <span className="text-emerald-400 font-black text-sm">T</span>
+                <div className="bg-white px-2 py-1 rounded-xl border border-slate-200/60 shadow-3xs flex items-center justify-center transition-all duration-300">
+                  <img 
+                    src={brandLogo} 
+                    alt="Toolkit Pro Logo" 
+                    className="h-7 w-auto object-contain rounded-xs"
+                    referrerPolicy="no-referrer"
+                  />
                 </div>
                 <span className="text-md font-black tracking-tight font-sans">
                   Toolkit<span className="text-indigo-600">Pro</span>
@@ -3609,6 +3912,21 @@ export default function App() {
         onSelectArticle={setSelectedArticleId}
         onOpenSitemap={() => setIsSitemapView(true)}
         onOpenShortcuts={() => setIsShortcutsHelpOpen(true)}
+        onOpenSeoModal={() => handleOpenSeoModal()}
+        onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
+      />
+
+      {/* SEO Best Practices Interactive Pre-Drive Audit Modal */}
+      <SeoChecklistModal
+        isOpen={isSeoModalOpen}
+        onClose={() => setIsSeoModalOpen(false)}
+        initialData={seoModalInitialData}
+      />
+
+      {/* AI Provider Key Management Modal */}
+      <ApiKeyModal
+        isOpen={isApiKeyModalOpen}
+        onClose={() => setIsApiKeyModalOpen(false)}
       />
 
       {/* Modern Self-contained Keyboard Shortcuts Cheat-sheet Assistance Modal */}
@@ -3912,7 +4230,15 @@ export default function App() {
                     transition={{ type: "spring", stiffness: 220, damping: 26 }}
                     className="space-y-1.5"
                   >
-                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Paper Margins</span>
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Paper Margins</span>
+                      {isMarginInsufficientForBleed && (
+                        <span className="text-[8px] font-bold text-amber-700 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/80 px-2 py-0.5 rounded-full border border-amber-300/80 dark:border-amber-800/80 flex items-center gap-1 animate-pulse">
+                          <AlertTriangle className="w-2.5 h-2.5 text-amber-500 shrink-0" />
+                          <span>Margin Too Small</span>
+                        </span>
+                      )}
+                    </div>
                     <div className="grid grid-cols-3 gap-1.5">
                       {[
                         { id: "standard" as const, label: "Standard" },
@@ -4034,75 +4360,134 @@ export default function App() {
 
                       {/* Bleed Area Control Container */}
                       <div className="flex flex-col gap-2 p-2.5 rounded-xl border border-slate-150 dark:border-slate-800 bg-white dark:bg-slate-900 transition-all select-none">
-                        <label className="flex items-center justify-between cursor-pointer">
+                        <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <Scissors className="w-3.5 h-3.5 text-red-500" />
                             <div className="text-left">
-                              <span className="text-xs font-bold block">Bleed Boundary ({printBleedWidth}mm)</span>
-                              <span className="text-[8px] text-slate-400 block leading-none font-medium mt-0.5">Red boundary for edge-to-edge trimming</span>
+                              <span className="text-xs font-bold block">Bleed Area ({printBleedWidth}mm)</span>
+                              <span className="text-[8px] text-slate-400 block leading-none font-medium mt-0.5">Trim allowance & boundary lines</span>
                             </div>
                           </div>
-                          <input
-                            type="checkbox"
-                            checked={showBleed}
-                            onChange={(e) => {
-                              const checked = e.target.checked;
-                              setShowBleed(checked);
-                              if (checked && printBleedWidth === 0) {
-                                setPrintBleedWidth(3); // Default to 3mm if enabled and previously 0
-                              }
-                            }}
-                            className="w-4 h-4 rounded border-slate-300 text-indigo-650 focus:ring-indigo-650 accent-indigo-650 cursor-pointer"
-                          />
-                        </label>
 
-                        {/* Collapsible Dynamic Range Slider */}
-                        {showBleed && (
-                          <motion.div
-                            initial={{ opacity: 0, height: 0 }}
-                            animate={{ opacity: 1, height: "auto" }}
-                            exit={{ opacity: 0, height: 0 }}
-                            className="pt-2 border-t border-slate-100 dark:border-slate-800/60 mt-1 space-y-1.5"
+                          {/* Visual toggle button for showing/hiding bleed boundary overlay without altering printBleedWidth */}
+                          <button
+                            type="button"
+                            onClick={() => setShowBleed(!showBleed)}
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-all flex items-center gap-1.5 cursor-pointer border ${
+                              showBleed
+                                ? "bg-red-50 dark:bg-red-950/40 text-red-600 dark:text-red-400 border-red-200 dark:border-red-900/50 shadow-3xs"
+                                : "bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 border-slate-200 dark:border-slate-700 hover:bg-slate-200/70 dark:hover:bg-slate-750"
+                            }`}
+                            title={showBleed ? "Hide visual bleed boundary lines to inspect trimmed page" : "Show visual bleed boundary lines"}
+                            id="btn-toggle-bleed-overlay"
                           >
-                            <div className="flex items-center justify-between text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                            {showBleed ? (
+                              <>
+                                <Eye className="w-3 h-3 text-red-500" />
+                                <span>Overlay ON</span>
+                              </>
+                            ) : (
+                              <>
+                                <EyeOff className="w-3 h-3 text-slate-400" />
+                                <span>Overlay OFF</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Always accessible Bleed Width slider & configuration */}
+                        <div className="pt-2 border-t border-slate-100 dark:border-slate-800/60 mt-1 space-y-1.5">
+                          <div className="flex items-center justify-between text-[10px] font-semibold text-slate-500 dark:text-slate-400">
+                            <span className="flex items-center gap-1">
                               <span>Bleed Width:</span>
-                              <span className="text-red-500 font-bold px-1.5 py-0.5 bg-red-50 dark:bg-red-950/40 rounded border border-red-100 dark:border-red-900/30 font-mono">{printBleedWidth}mm</span>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              <span className="text-[9px] text-slate-400 font-mono">0mm</span>
-                              <input
-                                type="range"
-                                min="0"
-                                max="10"
-                                step="1"
-                                value={printBleedWidth}
-                                onChange={(e) => {
-                                  const val = parseInt(e.target.value);
-                                  setPrintBleedWidth(val);
-                                  if (val === 0) {
-                                    setShowBleed(false);
-                                  } else {
-                                    setShowBleed(true);
-                                  }
-                                }}
-                                className="flex-1 h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-ew-resize accent-red-500"
-                              />
-                              <span className="text-[9px] text-slate-400 font-mono">10mm</span>
+                              {!showBleed && (
+                                <span className="text-[8px] font-medium italic text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30 px-1 py-0.2 rounded border border-amber-200/50 dark:border-amber-900/30">
+                                  Overlay Hidden
+                                </span>
+                              )}
+                            </span>
+                            <span className="text-red-500 font-bold px-1.5 py-0.5 bg-red-50 dark:bg-red-950/40 rounded border border-red-100 dark:border-red-900/30 font-mono">
+                              {printBleedWidth}mm
+                            </span>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <span className="text-[9px] text-slate-400 font-mono">0mm</span>
+                            <input
+                              type="range"
+                              min="0"
+                              max="10"
+                              step="1"
+                              value={printBleedWidth}
+                              onChange={(e) => {
+                                const val = parseInt(e.target.value);
+                                setPrintBleedWidth(val);
+                              }}
+                              className="flex-1 h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-ew-resize accent-red-500"
+                            />
+                            <span className="text-[9px] text-slate-400 font-mono">10mm</span>
+                          </div>
+
+                          {/* Quick Actions & Presets */}
+                          <div className="flex items-center justify-between pt-1">
+                            <span className="text-[8px] text-slate-400 dark:text-slate-500">
+                              {showBleed ? "Red dashed guide = trim boundary" : "Toggle overlay ON to view red trim guide"}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPrintBleedWidth(3);
+                              }}
+                              className="text-[9px] font-bold uppercase tracking-wider text-red-500 dark:text-red-450 hover:text-red-600 dark:hover:text-red-400 transition-colors flex items-center gap-1 cursor-pointer bg-red-50/60 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/45 px-2 py-1 rounded-lg border border-red-200/40 dark:border-red-900/20"
+                            >
+                              🔄 3mm Standard
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Warning Badge for Insufficient Margin Space when Bleed is enabled */}
+                        {isMarginInsufficientForBleed && (
+                          <motion.div
+                            initial={{ opacity: 0, scale: 0.96 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            exit={{ opacity: 0, scale: 0.96 }}
+                            className="mt-2 p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/50 border border-amber-200/90 dark:border-amber-900/70 text-amber-900 dark:text-amber-200 text-left space-y-2 shadow-3xs select-none"
+                            id="warning-badge-insufficient-margin"
+                          >
+                            <div className="flex items-center justify-between">
+                              <div className="flex items-center gap-1.5 font-bold text-[11px] text-amber-800 dark:text-amber-200">
+                                <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                                <span>Insufficient Margin Space</span>
+                              </div>
+                              <span className="text-[8px] font-black uppercase px-1.5 py-0.5 bg-amber-200/80 dark:bg-amber-900/90 rounded text-amber-900 dark:text-amber-100 font-mono">
+                                {printPageMargins} ({currentMarginMm}mm)
+                              </span>
                             </div>
 
-                            {/* Reset Button */}
-                            <div className="flex items-center justify-between pt-1">
-                              <span className="text-[8px] text-slate-400 dark:text-slate-500">3mm is the offset printing industry standard</span>
+                            <p className="text-[9.5px] leading-snug text-amber-800/90 dark:text-amber-300/90 font-medium">
+                              Bleed is active (<strong>{printBleedWidth}mm</strong>), but paper margin is only <strong>{currentMarginMm}mm</strong> ({printPageMargins}). Recommended: <strong>{optimalMarginSetting === "minimum" ? "Minimum (5mm)" : "Standard (15mm)"}</strong>.
+                            </p>
+
+                            <div className="flex flex-col gap-1.5 pt-0.5">
                               <button
                                 type="button"
-                                onClick={() => {
-                                  setPrintBleedWidth(3);
-                                  setShowBleed(true);
-                                }}
-                                className="text-[9px] font-bold uppercase tracking-wider text-red-500 dark:text-red-450 hover:text-red-600 dark:hover:text-red-450 transition-colors flex items-center gap-1 cursor-pointer bg-red-50/60 dark:bg-red-950/20 hover:bg-red-100 dark:hover:bg-red-950/45 px-2 py-1 rounded-lg border border-red-200/40 dark:border-red-900/20"
+                                onClick={() => setPrintPageMargins(optimalMarginSetting)}
+                                className="w-full py-1.5 px-2 rounded-lg bg-gradient-to-r from-amber-600 to-indigo-600 hover:from-amber-700 hover:to-indigo-700 text-white font-bold text-[10px] transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-3xs"
+                                id="btn-increase-margins-warning"
                               >
-                                🔄 Reset Bleed (3mm)
+                                <Wand2 className="w-3 h-3 text-white" />
+                                <span>Auto-Fix to {optimalMarginSetting === "minimum" ? "Minimum (5mm)" : "Standard (15mm)"}</span>
                               </button>
+
+                              {dismissMarginGuideOverlay && (
+                                <button
+                                  type="button"
+                                  onClick={() => setDismissMarginGuideOverlay(false)}
+                                  className="text-[9px] font-semibold text-amber-700 dark:text-amber-300 hover:underline text-center cursor-pointer"
+                                >
+                                  Re-open Interactive Guide Overlay
+                                </button>
+                              )}
                             </div>
                           </motion.div>
                         )}
@@ -4196,6 +4581,97 @@ export default function App() {
                     Standard A4 Page (Simulated)
                   </span>
                 </div>
+
+                {/* Interactive Guide Overlay for Optimal Margin Selection */}
+                {isMarginInsufficientForBleed && !dismissMarginGuideOverlay && (
+                  <motion.div
+                    initial={{ opacity: 0, y: -10, scale: 0.98 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: -10, scale: 0.98 }}
+                    className="mt-3 p-3.5 rounded-2xl bg-amber-500/10 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-700/80 backdrop-blur-md shadow-lg text-left select-none relative z-40"
+                    id="print-preview-interactive-margin-guide"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <div className="p-2 rounded-xl bg-amber-500/20 text-amber-600 dark:text-amber-400 border border-amber-400/30 shrink-0">
+                          <Wand2 className="w-4 h-4 animate-bounce" />
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-xs font-black tracking-wide text-amber-900 dark:text-amber-200 uppercase">
+                              Margin Optimization Guide
+                            </h4>
+                            <span className="text-[8px] font-extrabold uppercase px-2 py-0.5 rounded-full bg-amber-200 dark:bg-amber-900/80 text-amber-900 dark:text-amber-100 font-mono border border-amber-300 dark:border-amber-700">
+                              Auto-Suggested
+                            </span>
+                          </div>
+                          <p className="text-[10.5px] text-slate-700 dark:text-slate-300 font-medium mt-0.5 leading-snug">
+                            Active Bleed width (<strong>{printBleedWidth}mm</strong>) exceeds/equals current Margin (<strong>{currentMarginMm}mm</strong>). Switch to <strong>{optimalMarginSetting === "minimum" ? "Minimum (5mm)" : "Standard (15mm)"}</strong> to clear trim bounds and resolve warnings automatically.
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => setDismissMarginGuideOverlay(true)}
+                        className="p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-200/50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+                        title="Dismiss guide overlay"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+
+                    {/* Quick Preset Buttons & One-Click Auto-Apply */}
+                    <div className="mt-2.5 pt-2.5 border-t border-amber-200/80 dark:border-amber-800/50 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-bold text-slate-500 dark:text-slate-400">
+                          Margins:
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => setPrintPageMargins("minimum")}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer border ${
+                            printPageMargins === "minimum"
+                              ? "bg-amber-600 text-white border-amber-500 shadow-3xs"
+                              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-amber-400"
+                          }`}
+                        >
+                          <span>Minimum (5mm)</span>
+                          {optimalMarginSetting === "minimum" && (
+                            <span className="text-[8px] font-black uppercase px-1 py-0.2 rounded bg-emerald-500 text-white">
+                              ✨ Optimal
+                            </span>
+                          )}
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => setPrintPageMargins("standard")}
+                          className={`px-2.5 py-1 rounded-lg text-xs font-bold transition-all flex items-center gap-1 cursor-pointer border ${
+                            printPageMargins === "standard"
+                              ? "bg-amber-600 text-white border-amber-500 shadow-3xs"
+                              : "bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200 border-slate-200 dark:border-slate-700 hover:border-amber-400"
+                          }`}
+                        >
+                          <span>Standard (15mm)</span>
+                          {optimalMarginSetting === "standard" && (
+                            <span className="text-[8px] font-black uppercase px-1 py-0.2 rounded bg-emerald-500 text-white">
+                              ✨ Optimal
+                            </span>
+                          )}
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setPrintPageMargins(optimalMarginSetting)}
+                        className="px-3 py-1.5 rounded-xl bg-gradient-to-r from-amber-600 to-indigo-600 hover:from-amber-500 hover:to-indigo-500 active:scale-[0.98] text-white text-xs font-black shadow-sm transition-all flex items-center gap-1.5 cursor-pointer"
+                        id="btn-auto-apply-optimal-margin-guide"
+                      >
+                        <Wand2 className="w-3.5 h-3.5" />
+                        <span>Auto-Apply Optimal ({optimalMarginSetting === "minimum" ? "Minimum 5mm" : "Standard 15mm"})</span>
+                      </button>
+                    </div>
+                  </motion.div>
+                )}
 
                 {/* Simulated Paper sheet bounding box */}
                 <div className="flex-1 flex items-center justify-center py-6 overflow-hidden">
@@ -4608,6 +5084,9 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Global Workspace Contextual Tooltips Engine */}
+      <WorkspaceTooltips enabled={tooltipsEnabled} theme={theme} />
     </div>
   );
 }
