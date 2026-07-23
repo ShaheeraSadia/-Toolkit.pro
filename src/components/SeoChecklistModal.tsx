@@ -249,6 +249,17 @@ export default function SeoChecklistModal({
     }
   }, [isOpen, initialData]);
 
+  // ESC key listener with proper cleanup
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   // Re-run auto checks when metadata changes
   useEffect(() => {
     const updated: Record<string, boolean> = { ...checkedIds };

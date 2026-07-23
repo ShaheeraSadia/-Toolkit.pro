@@ -37,6 +37,17 @@ export default function FeedbackModal({ isOpen, onClose, theme }: FeedbackModalP
     }
   }, [isOpen]);
 
+  // Handle ESC key listener with proper cleanup
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   const handleRatingSelect = (val: number) => {
     setRating(val);
     setErrorMessage(null);

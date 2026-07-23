@@ -50,7 +50,10 @@ import {
   Eye,
   EyeOff,
   Plus,
-  Minus
+  Minus,
+  ShieldCheck,
+  Stamp,
+  FileImage
 } from "lucide-react";
 
 // Utility to construct fetch headers automatically injecting the custom Gemini API key if present
@@ -827,6 +830,45 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
   const [overlayShadow, setOverlayShadow] = useState(true);
   const [overlayOpacity, setOverlayOpacity] = useState(1.0);
 
+  // Watermark Overlay States
+  const [watermarkType, setWatermarkType] = useState<"none" | "image" | "text">("none");
+  const [watermarkImage, setWatermarkImage] = useState<string | null>(null);
+  const [watermarkFileName, setWatermarkFileName] = useState<string | null>(null);
+  const [watermarkText, setWatermarkText] = useState("© 2026 Studio Pro");
+  const [watermarkPosition, setWatermarkPosition] = useState("top-right");
+  const [watermarkScale, setWatermarkScale] = useState(24); // Size scale factor 10..50
+  const [watermarkOpacity, setWatermarkOpacity] = useState(0.85); // 0.1 .. 1.0
+  const [watermarkColor, setWatermarkColor] = useState("#ffffff");
+  const [watermarkBgPill, setWatermarkBgPill] = useState(true);
+  const watermarkInputRef = useRef<HTMLInputElement | null>(null);
+
+  const handleWatermarkLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      setErrorMsg("Please upload a valid PNG or image logo file.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = reader.result as string;
+      setWatermarkImage(result);
+      setWatermarkFileName(file.name);
+      setWatermarkType("image");
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleRemoveWatermarkLogo = () => {
+    setWatermarkImage(null);
+    setWatermarkFileName(null);
+    if (watermarkInputRef.current) {
+      watermarkInputRef.current.value = "";
+    }
+  };
+
   const presetTracks = [
     { id: "none", name: "🚫 No Background Music", url: "" },
     { id: "cinematic", name: "🎬 Cinematic Ambient Dream", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
@@ -922,6 +964,225 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
         </div>
       </div>
     );
+  };
+
+  const renderWatermarkOverlay = () => {
+    if (watermarkType === "none") return null;
+    if (watermarkType === "image" && !watermarkImage) return null;
+    if (watermarkType === "text" && !watermarkText.trim()) return null;
+
+    const posStyle = getPositionStyles(watermarkPosition);
+
+    return (
+      <div className="absolute inset-0 pointer-events-none flex p-4 sm:p-6 z-15 select-none overflow-hidden">
+        <div
+          style={{
+            ...posStyle,
+            position: "absolute",
+            opacity: watermarkOpacity,
+          }}
+          className={`flex items-center transition-all ${
+            watermarkBgPill ? "bg-black/60 backdrop-blur-xs px-3 py-1.5 rounded-xl border border-white/10 shadow-lg" : ""
+          }`}
+        >
+          {watermarkType === "image" && watermarkImage ? (
+            <img
+              src={watermarkImage}
+              alt="Custom Watermark Logo"
+              className="object-contain"
+              style={{
+                width: `${watermarkScale * 4}px`,
+                maxWidth: "35vw",
+                maxHeight: "120px",
+                filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.7))",
+              }}
+              referrerPolicy="no-referrer"
+            />
+          ) : watermarkType === "text" && watermarkText.trim() ? (
+            <span
+              style={{
+                fontSize: `${Math.round(watermarkScale * 0.75)}px`,
+                color: watermarkColor,
+                textShadow: watermarkBgPill
+                  ? "none"
+                  : "2px 2px 4px rgba(0,0,0,0.9), -1px -1px 0 rgba(0,0,0,0.8), 1px -1px 0 rgba(0,0,0,0.8)",
+              }}
+              className="font-black tracking-wider whitespace-nowrap"
+            >
+              {watermarkText}
+            </span>
+          ) : null}
+        </div>
+      </div>
+    );
+  };
+
+  const handleExportWatermarkedSnapshot = () => {
+    try {
+      const canvas = document.createElement("canvas");
+      let width = 1280;
+      let height = 720;
+
+      if (videoRef.current && currentVideoUrl && videoRef.current.videoWidth) {
+        width = videoRef.current.videoWidth;
+        height = videoRef.current.videoHeight;
+      } else if (image) {
+        width = 1280;
+        height = aspectRatio === "9:16" ? Math.round(1280 * (16 / 9)) : aspectRatio === "1:1" ? 1280 : 720;
+      }
+
+      canvas.width = Math.round(width);
+      canvas.height = Math.round(height);
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+
+      if (videoRef.current && currentVideoUrl) {
+        ctx.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
+        drawWatermarkAndSubtitleOnCanvas(ctx, canvas.width, canvas.height);
+        saveCanvasToPng(canvas);
+      } else if (image) {
+        const imgObj = new Image();
+        imgObj.crossOrigin = "anonymous";
+        imgObj.onload = () => {
+          ctx.drawImage(imgObj, 0, 0, canvas.width, canvas.height);
+          drawWatermarkAndSubtitleOnCanvas(ctx, canvas.width, canvas.height);
+          saveCanvasToPng(canvas);
+        };
+        imgObj.src = image;
+      }
+    } catch (err) {
+      console.error("Failed to export watermarked snapshot:", err);
+      setErrorMsg("Failed to capture watermarked snapshot.");
+    }
+  };
+
+  const drawWatermarkAndSubtitleOnCanvas = (ctx: CanvasRenderingContext2D, width: number, height: number) => {
+    // 1. Draw Subtitle overlay if present
+    if (overlayText.trim()) {
+      ctx.save();
+      const fontSize = Math.round((overlayFontSize / 400) * height);
+      ctx.font = `bold ${fontSize}px sans-serif`;
+      ctx.fillStyle = overlayColor;
+      ctx.globalAlpha = overlayOpacity;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "bottom";
+
+      if (overlayShadow) {
+        ctx.shadowColor = "rgba(0,0,0,0.9)";
+        ctx.shadowBlur = 8;
+        ctx.shadowOffsetX = 2;
+        ctx.shadowOffsetY = 2;
+      }
+
+      const lines = overlayText.split("\n");
+      const lineHeight = fontSize * 1.25;
+      const startY = height * 0.88 - (lines.length - 1) * lineHeight;
+
+      lines.forEach((line, idx) => {
+        ctx.fillText(line, width / 2, startY + idx * lineHeight);
+      });
+      ctx.restore();
+    }
+
+    // 2. Draw Watermark if present
+    if (watermarkType !== "none") {
+      ctx.save();
+      ctx.globalAlpha = watermarkOpacity;
+
+      const padding = Math.round(width * 0.04);
+      let posX = width - padding;
+      let posY = padding;
+
+      if (watermarkPosition.includes("left")) posX = padding;
+      else if (watermarkPosition.includes("center")) posX = width / 2;
+
+      if (watermarkPosition.includes("bottom")) posY = height - padding;
+      else if (watermarkPosition.includes("middle")) posY = height / 2;
+
+      if (watermarkType === "image" && watermarkImage) {
+        const logoImg = new Image();
+        logoImg.crossOrigin = "anonymous";
+        logoImg.onload = () => {
+          const logoW = Math.round((watermarkScale / 100) * width * 0.4);
+          const logoH = Math.round((logoImg.height / (logoImg.width || 1)) * logoW);
+
+          let drawX = posX;
+          let drawY = posY;
+          if (watermarkPosition.includes("center")) drawX = posX - logoW / 2;
+          else if (watermarkPosition.includes("right")) drawX = posX - logoW;
+
+          if (watermarkPosition.includes("middle")) drawY = posY - logoH / 2;
+          else if (watermarkPosition.includes("bottom")) drawY = posY - logoH;
+
+          if (watermarkBgPill) {
+            ctx.fillStyle = "rgba(0,0,0,0.6)";
+            ctx.beginPath();
+            if (ctx.roundRect) {
+              ctx.roundRect(drawX - 8, drawY - 8, logoW + 16, logoH + 16, 12);
+            } else {
+              ctx.rect(drawX - 8, drawY - 8, logoW + 16, logoH + 16);
+            }
+            ctx.fill();
+          }
+
+          ctx.drawImage(logoImg, drawX, drawY, logoW, logoH);
+        };
+        logoImg.src = watermarkImage;
+      } else if (watermarkType === "text" && watermarkText.trim()) {
+        const fontSize = Math.round((watermarkScale / 350) * height);
+        ctx.font = `900 ${fontSize}px sans-serif`;
+        ctx.fillStyle = watermarkColor;
+
+        const textMetrics = ctx.measureText(watermarkText);
+        const textW = textMetrics.width;
+        const textH = fontSize;
+
+        let align: CanvasTextAlign = "left";
+        if (watermarkPosition.includes("center")) align = "center";
+        else if (watermarkPosition.includes("right")) align = "right";
+        ctx.textAlign = align;
+
+        let textY = posY;
+        if (watermarkPosition.includes("bottom")) textY = posY;
+        else if (watermarkPosition.includes("middle")) textY = posY + textH / 2;
+        else textY = posY + textH;
+
+        if (watermarkBgPill) {
+          ctx.save();
+          ctx.fillStyle = "rgba(0,0,0,0.6)";
+          let bgX = posX - 12;
+          if (align === "center") bgX = posX - textW / 2 - 12;
+          else if (align === "right") bgX = posX - textW - 12;
+
+          ctx.beginPath();
+          if (ctx.roundRect) {
+            ctx.roundRect(bgX, textY - textH - 6, textW + 24, textH + 16, 10);
+          } else {
+            ctx.rect(bgX, textY - textH - 6, textW + 24, textH + 16);
+          }
+          ctx.fill();
+          ctx.restore();
+        } else {
+          ctx.shadowColor = "rgba(0,0,0,0.9)";
+          ctx.shadowBlur = 6;
+          ctx.shadowOffsetX = 2;
+          ctx.shadowOffsetY = 2;
+        }
+
+        ctx.fillText(watermarkText, posX, textY);
+      }
+      ctx.restore();
+    }
+  };
+
+  const saveCanvasToPng = (canvas: HTMLCanvasElement) => {
+    const dataUrl = canvas.toDataURL("image/png");
+    const a = document.createElement("a");
+    a.href = dataUrl;
+    a.download = `Watermarked_Snapshot_${Date.now()}.png`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
   };
 
   // Sync background music with video playback
@@ -3511,6 +3772,295 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
               )}
             </div>
 
+            {/* Custom Brand Watermark Overlay Card */}
+            <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-5 flex flex-col gap-4">
+              <div className="flex justify-between items-center">
+                <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
+                  <Stamp className="w-4 h-4 text-amber-400" />
+                  <span>Brand Watermark & Logo Overlay</span>
+                </label>
+                {watermarkType !== "none" && (
+                  <button
+                    type="button"
+                    onClick={() => setWatermarkType("none")}
+                    className="text-[10px] text-rose-400 hover:text-rose-300 transition-all font-bold hover:underline cursor-pointer"
+                  >
+                    Disable Watermark
+                  </button>
+                )}
+              </div>
+
+              {/* Watermark Type Selector Tabs */}
+              <div className="grid grid-cols-3 gap-2 bg-slate-900 p-1 rounded-xl border border-slate-800">
+                {[
+                  { id: "none", label: "🚫 Disabled" },
+                  { id: "image", label: "🖼️ PNG Logo" },
+                  { id: "text", label: "🔤 Text Tag" },
+                ].map((type) => (
+                  <button
+                    key={type.id}
+                    type="button"
+                    onClick={() => setWatermarkType(type.id as any)}
+                    className={`py-2 px-2 text-xs font-semibold rounded-lg transition-all cursor-pointer ${
+                      watermarkType === type.id
+                        ? "bg-amber-500 text-slate-950 shadow-md font-bold"
+                        : "text-slate-400 hover:text-slate-200 hover:bg-slate-800/60"
+                    }`}
+                  >
+                    {type.label}
+                  </button>
+                ))}
+              </div>
+
+              {/* PNG LOGO SECTION */}
+              {watermarkType === "image" && (
+                <div className="flex flex-col gap-3 animate-fade-in">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                    Upload PNG / Transparent Logo
+                  </span>
+
+                  {watermarkImage ? (
+                    <div className="bg-slate-900/80 border border-amber-500/30 rounded-xl p-3 flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-lg bg-slate-950 p-1 border border-slate-800 flex items-center justify-center overflow-hidden shrink-0">
+                          <img
+                            src={watermarkImage}
+                            alt="Uploaded Watermark Preview"
+                            className="max-w-full max-h-full object-contain"
+                          />
+                        </div>
+                        <div className="flex flex-col min-w-0">
+                          <span className="text-xs font-semibold text-slate-200 truncate">
+                            {watermarkFileName || "Custom Logo PNG"}
+                          </span>
+                          <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1 mt-0.5">
+                            <Check className="w-3 h-3" /> Ready for Video Overlay
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={handleRemoveWatermarkLogo}
+                        className="p-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-lg text-xs font-bold transition-all cursor-pointer shrink-0"
+                        title="Remove logo"
+                      >
+                        <X className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => watermarkInputRef.current?.click()}
+                      className="border-2 border-dashed border-slate-800 hover:border-amber-500/60 bg-slate-900/40 hover:bg-slate-900/80 rounded-xl p-4 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all group"
+                    >
+                      <div className="p-2.5 bg-slate-800 rounded-full group-hover:bg-amber-500/20 text-amber-400 transition-all">
+                        <Upload className="w-5 h-5" />
+                      </div>
+                      <div className="text-center">
+                        <span className="text-xs font-semibold text-slate-200 block">
+                          Click to Upload PNG Logo
+                        </span>
+                        <span className="text-[10px] text-slate-500">
+                          Supports transparent PNG, SVG, WebP logos
+                        </span>
+                      </div>
+                    </div>
+                  )}
+
+                  <input
+                    type="file"
+                    ref={watermarkInputRef}
+                    onChange={handleWatermarkLogoUpload}
+                    accept="image/png,image/svg+xml,image/webp,image/jpeg"
+                    className="hidden"
+                  />
+                </div>
+              )}
+
+              {/* TEXT WATERMARK SECTION */}
+              {watermarkType === "text" && (
+                <div className="flex flex-col gap-3 animate-fade-in">
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                    Text Watermark Content
+                  </span>
+                  <input
+                    type="text"
+                    value={watermarkText}
+                    onChange={(e) => setWatermarkText(e.target.value)}
+                    placeholder="e.g., © 2026 Studio Pro or @MyHandle"
+                    className="w-full bg-slate-900 border border-slate-800 focus:border-amber-500 rounded-xl px-3 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none transition-all font-medium"
+                    maxLength={50}
+                  />
+
+                  {/* Color Swatches */}
+                  <div className="flex items-center gap-2 pt-1">
+                    <span className="text-[10px] text-slate-400">Color:</span>
+                    {["#ffffff", "#facc15", "#38bdf8", "#a855f7", "#000000"].map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        onClick={() => setWatermarkColor(c)}
+                        className={`w-5 h-5 rounded-full border transition-all cursor-pointer ${
+                          watermarkColor.toLowerCase() === c.toLowerCase()
+                            ? "border-amber-400 scale-110 shadow"
+                            : "border-slate-800 hover:scale-105"
+                        }`}
+                        style={{ backgroundColor: c }}
+                        title={c}
+                      />
+                    ))}
+                    <input
+                      type="color"
+                      value={watermarkColor}
+                      onChange={(e) => setWatermarkColor(e.target.value)}
+                      className="w-6 h-6 rounded bg-transparent border-0 cursor-pointer p-0 ml-auto"
+                    />
+                  </div>
+                </div>
+              )}
+
+              {/* COMMON WATERMARK POSITION, SCALE & OPACITY CONTROLS */}
+              {watermarkType !== "none" && (
+                <div className="flex flex-col gap-4 border-t border-slate-900 pt-3 animate-fade-in">
+                  
+                  {/* 9-Point Alignment Grid */}
+                  <div className="flex flex-col gap-1.5">
+                    <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                      Position Alignment (9-Point Grid)
+                    </span>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {[
+                        { id: "top-left", label: "↖ Top Left" },
+                        { id: "top-center", label: "↑ Top Center" },
+                        { id: "top-right", label: "↗ Top Right" },
+                        { id: "middle-left", label: "← Mid Left" },
+                        { id: "middle-center", label: "• Center" },
+                        { id: "middle-right", label: "→ Mid Right" },
+                        { id: "bottom-left", label: "↙ Btm Left" },
+                        { id: "bottom-center", label: "↓ Btm Center" },
+                        { id: "bottom-right", label: "↘ Btm Right" },
+                      ].map((pos) => {
+                        const isSel = watermarkPosition === pos.id;
+                        return (
+                          <button
+                            key={pos.id}
+                            type="button"
+                            onClick={() => setWatermarkPosition(pos.id)}
+                            className={`py-1.5 px-2 text-[10px] rounded-lg border font-medium transition-all cursor-pointer ${
+                              isSel
+                                ? "bg-amber-500/15 border-amber-500 text-amber-300 font-bold"
+                                : "bg-slate-900 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-300"
+                            }`}
+                          >
+                            {pos.label}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Size Scale & Opacity Controls */}
+                  <div className="flex flex-col gap-3 bg-slate-900/60 p-3.5 rounded-xl border border-slate-800/60">
+                    {/* Watermark Size Scale */}
+                    <div className="flex flex-col gap-1">
+                      <div className="flex justify-between items-center text-[10px] text-slate-400">
+                        <span className="font-semibold text-slate-300">Watermark Size Scale</span>
+                        <span className="font-mono font-bold text-amber-400">{watermarkScale}%</span>
+                      </div>
+                      <input
+                        type="range"
+                        min="10"
+                        max="60"
+                        step="1"
+                        value={watermarkScale}
+                        onChange={(e) => setWatermarkScale(parseInt(e.target.value))}
+                        className="w-full accent-amber-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                      />
+                    </div>
+
+                    {/* Watermark Transparency / Opacity Slider */}
+                    <div className="flex flex-col gap-2 pt-2 border-t border-slate-800/60">
+                      <div className="flex justify-between items-center text-[10px] text-slate-400">
+                        <div className="flex items-center gap-1.5">
+                          <Eye className="w-3.5 h-3.5 text-amber-400" />
+                          <span className="font-semibold text-slate-200">Watermark Opacity Level</span>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          <span className="text-[9px] font-medium text-slate-500">
+                            {watermarkOpacity <= 0.3
+                              ? "Ultra-Subtle"
+                              : watermarkOpacity <= 0.6
+                                ? "Semi-Transparent"
+                                : watermarkOpacity <= 0.85
+                                  ? "Balanced"
+                                  : "Fully Solid"}
+                          </span>
+                          <span className="font-mono font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md">
+                            {Math.round(watermarkOpacity * 100)}%
+                          </span>
+                        </div>
+                      </div>
+
+                      <input
+                        type="range"
+                        min="0.05"
+                        max="1.0"
+                        step="0.05"
+                        value={watermarkOpacity}
+                        onChange={(e) => setWatermarkOpacity(parseFloat(e.target.value))}
+                        className="w-full accent-amber-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                      />
+
+                      {/* Quick Opacity Presets */}
+                      <div className="flex items-center justify-between gap-1.5 pt-1">
+                        {[
+                          { val: 0.25, label: "25% Subtle" },
+                          { val: 0.5, label: "50% Half" },
+                          { val: 0.75, label: "75% Muted" },
+                          { val: 1.0, label: "100% Solid" },
+                        ].map((preset) => {
+                          const isSelected = Math.abs(watermarkOpacity - preset.val) < 0.03;
+                          return (
+                            <button
+                              key={preset.val}
+                              type="button"
+                              onClick={() => setWatermarkOpacity(preset.val)}
+                              className={`flex-1 py-1 text-[10px] font-semibold rounded-lg border transition-all cursor-pointer ${
+                                isSelected
+                                  ? "bg-amber-500 text-slate-950 border-amber-400 font-bold shadow-xs"
+                                  : "bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700"
+                              }`}
+                            >
+                              {preset.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Dark Background Badge Toggle */}
+                  <div className="flex items-center justify-between bg-slate-900 px-3 py-2 rounded-xl border border-slate-800">
+                    <span className="text-xs text-slate-300 font-medium">Dark Background Badge</span>
+                    <button
+                      type="button"
+                      onClick={() => setWatermarkBgPill(!watermarkBgPill)}
+                      className={`w-9 h-5 rounded-full transition-all relative cursor-pointer ${
+                        watermarkBgPill ? "bg-amber-500" : "bg-slate-800"
+                      }`}
+                    >
+                      <div
+                        className={`w-4 h-4 rounded-full bg-white absolute top-[2px] transition-all ${
+                          watermarkBgPill ? "left-[18px]" : "left-[2px]"
+                        }`}
+                      />
+                    </button>
+                  </div>
+
+                </div>
+              )}
+            </div>
+
             {/* Generate Action Button */}
             <button
               onClick={handleGenerateVideo}
@@ -3604,6 +4154,9 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                   {/* Custom Text Overlay */}
                   {renderTextOverlay()}
 
+                  {/* Brand Watermark Overlay */}
+                  {renderWatermarkOverlay()}
+
                   {/* HTML Overlay Controls */}
                   <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent p-5 opacity-0 group-hover/video:opacity-100 transition-all flex items-center justify-between gap-4 z-20">
                     <div className="flex items-center gap-3">
@@ -3648,6 +4201,9 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
 
                   {/* Custom Text Overlay */}
                   {renderTextOverlay()}
+
+                  {/* Brand Watermark Overlay */}
+                  {renderWatermarkOverlay()}
 
                   {/* Active Indicator */}
                   <div className="absolute top-4 right-4 bg-indigo-600/90 text-white text-[9px] font-mono font-bold tracking-wider py-1 px-2.5 rounded-full border border-indigo-500 shadow-lg select-none z-20">
@@ -3929,25 +4485,38 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
               </div>
             )}
 
-            {/* DOWNLOAD BUTTON: Active only when video generated */}
-            <div className="flex items-center justify-between gap-4 mt-2">
+            {/* DOWNLOAD & EXPORT BUTTONS */}
+            <div className="flex flex-wrap items-center justify-between gap-3 mt-2">
               <span className="text-xs text-slate-500 flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5" />
                 Veo Lite processes in ~30s
               </span>
               
-              <button
-                disabled={!currentVideoUrl}
-                onClick={handleDownloadVideo}
-                className={`py-3 px-6 rounded-2xl font-semibold flex items-center gap-2 transition-all ${
-                  currentVideoUrl
-                    ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/10 cursor-pointer scale-100 hover:scale-[1.02]"
-                    : "bg-slate-800 text-slate-500 border border-slate-800/50 cursor-not-allowed opacity-50"
-                }`}
-              >
-                <Download className="w-4 h-4" />
-                Download to Device
-              </button>
+              <div className="flex items-center gap-2.5">
+                {(currentVideoUrl || image) && (
+                  <button
+                    onClick={handleExportWatermarkedSnapshot}
+                    className="py-3 px-4 rounded-2xl font-semibold flex items-center gap-2 bg-amber-500/15 hover:bg-amber-500/25 text-amber-300 border border-amber-500/30 transition-all cursor-pointer text-xs"
+                    title="Export current frame snapshot with watermark burned in"
+                  >
+                    <Camera className="w-4 h-4 text-amber-400" />
+                    <span>Export Watermarked Frame</span>
+                  </button>
+                )}
+
+                <button
+                  disabled={!currentVideoUrl}
+                  onClick={handleDownloadVideo}
+                  className={`py-3 px-6 rounded-2xl font-semibold flex items-center gap-2 transition-all text-xs sm:text-sm ${
+                    currentVideoUrl
+                      ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-lg shadow-emerald-600/10 cursor-pointer scale-100 hover:scale-[1.02]"
+                      : "bg-slate-800 text-slate-500 border border-slate-800/50 cursor-not-allowed opacity-50"
+                  }`}
+                >
+                  <Download className="w-4 h-4" />
+                  Download to Device
+                </button>
+              </div>
             </div>
           </div>
 

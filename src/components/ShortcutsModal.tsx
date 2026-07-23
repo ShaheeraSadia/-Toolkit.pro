@@ -130,6 +130,17 @@ export default function ShortcutsModal({ isOpen, onClose }: ShortcutsModalProps)
     };
   }, [isRecording]);
 
+  // ESC key listener for closing modal
+  useEffect(() => {
+    const handleEsc = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen && !isRecording) {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleEsc);
+    return () => window.removeEventListener("keydown", handleEsc);
+  }, [isOpen, isRecording, onClose]);
+
   // Default app shortcuts catalog
   const shortcuts: ShortcutItem[] = [
     {

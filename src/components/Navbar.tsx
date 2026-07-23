@@ -1093,6 +1093,30 @@ export default function Navbar({
               <span>SEARCH</span>
             </button>
           </div>
+
+          {/* Quick App Settings & API Keys Button inside Mobile Drawer */}
+          {onOpenApiKeyModal && (
+            <button
+              onClick={() => {
+                setMobileMenuOpen(false);
+                onOpenApiKeyModal();
+              }}
+              className="w-full flex items-center justify-between p-3 rounded-2xl bg-gradient-to-r from-purple-500/10 via-indigo-500/10 to-blue-500/10 border border-purple-200/60 dark:border-purple-800/60 transition-all cursor-pointer text-left"
+            >
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white font-bold shrink-0">
+                  <Key className="w-4 h-4" />
+                </div>
+                <div>
+                  <p className="text-xs font-black text-slate-900 dark:text-white font-sans">App Settings & API Keys</p>
+                  <p className="text-[10px] text-slate-500 dark:text-slate-400 font-medium">Configure Gemini, OpenAI, Anthropic & Local Settings</p>
+                </div>
+              </div>
+              <span className="text-[9px] bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 font-mono font-black px-2 py-0.5 rounded-full uppercase border border-purple-200 dark:border-purple-800">
+                Configure
+              </span>
+            </button>
+          )}
           
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 select-none font-sans">
             {[

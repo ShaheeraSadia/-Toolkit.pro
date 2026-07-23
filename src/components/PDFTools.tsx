@@ -17,7 +17,11 @@ import {
   FileImage,
   Type,
   AlignLeft,
-  Settings
+  Settings,
+  User,
+  Calendar,
+  Tag,
+  Info
 } from "lucide-react";
 
 interface PDFToolsProps {
@@ -34,6 +38,12 @@ interface ImageItem {
 export default function PDFTools({ theme }: PDFToolsProps) {
   const [activeSubTab, setActiveSubTab] = useState<"imgToPdf" | "textToPdf">("imgToPdf");
   
+  // Shared PDF Metadata State
+  const [pdfAuthor, setPdfAuthor] = useState("Shaheera S.");
+  const [pdfTitle, setPdfTitle] = useState("Compiled Asset Portfolio");
+  const [pdfCreationDate, setPdfCreationDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [pdfSubject, setPdfSubject] = useState("Generated via Toolkit Pro Suite");
+
   // Images to PDF State
   const [images, setImages] = useState<ImageItem[]>([]);
   const [pageSize, setPageSize] = useState<"a4" | "letter" | "executive">("a4");
@@ -120,13 +130,24 @@ export default function PDFTools({ theme }: PDFToolsProps) {
 
     try {
       // Initialize jsPDF
-      // standard sizes in mm
-      // a4: 210 x 297, letter: 215.9 x 279.4
       const doc = new jsPDF({
         orientation: orientation,
         unit: "mm",
         format: pageSize
       });
+
+      // Embed document metadata properties
+      try {
+        doc.setProperties({
+          title: pdfTitle || "Compiled Asset Portfolio",
+          author: pdfAuthor || "Toolkit Pro User",
+          subject: pdfSubject || "Generated via PDF Tools Suite",
+          creator: pdfAuthor || "Toolkit Pro Suite",
+          creationDate: pdfCreationDate ? new Date(pdfCreationDate) : new Date()
+        } as any);
+      } catch (metaErr) {
+        console.warn("Could not set PDF metadata properties:", metaErr);
+      }
 
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
@@ -215,6 +236,19 @@ export default function PDFTools({ theme }: PDFToolsProps) {
         unit: "mm",
         format: "a4"
       });
+
+      // Embed document metadata properties
+      try {
+        doc.setProperties({
+          title: pdfTitle || docTitle || "Premium Document",
+          author: pdfAuthor || "Toolkit Pro User",
+          subject: pdfSubject || docSubtitle || "Generated via PDF Tools Suite",
+          creator: pdfAuthor || "Toolkit Pro Suite",
+          creationDate: pdfCreationDate ? new Date(pdfCreationDate) : new Date()
+        } as any);
+      } catch (metaErr) {
+        console.warn("Could not set PDF metadata properties:", metaErr);
+      }
 
       const pageWidth = doc.internal.pageSize.getWidth();
       const pageHeight = doc.internal.pageSize.getHeight();
@@ -509,6 +543,68 @@ export default function PDFTools({ theme }: PDFToolsProps) {
                 </p>
               </div>
 
+              {/* Document Metadata Panel (Author, Title, Creation Date) */}
+              <div className="pt-3 border-t border-slate-100 dark:border-slate-850 space-y-3">
+                <div className="flex items-center gap-2">
+                  <User className="w-3.5 h-3.5 text-amber-500" />
+                  <h4 className="text-xs uppercase font-black text-slate-900 dark:text-white tracking-wider">PDF Metadata</h4>
+                </div>
+
+                {/* PDF Title */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400">PDF Title</label>
+                  <input
+                    type="text"
+                    value={pdfTitle}
+                    onChange={(e) => setPdfTitle(e.target.value)}
+                    placeholder="e.g. Compiled Portfolio"
+                    className="w-full bg-slate-900 border border-slate-800 focus:border-amber-500 rounded-xl py-1.5 px-3 text-xs text-slate-100 focus:outline-none"
+                  />
+                </div>
+
+                {/* Author */}
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400">Author Name</label>
+                  <input
+                    type="text"
+                    value={pdfAuthor}
+                    onChange={(e) => setPdfAuthor(e.target.value)}
+                    placeholder="e.g. Shaheera S."
+                    className="w-full bg-slate-900 border border-slate-800 focus:border-amber-500 rounded-xl py-1.5 px-3 text-xs text-slate-100 focus:outline-none"
+                  />
+                </div>
+
+                {/* Date & Subject */}
+                <div className="grid grid-cols-2 gap-2">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+                      <Calendar className="w-3 h-3 text-amber-500" />
+                      <span>Creation Date</span>
+                    </label>
+                    <input
+                      type="date"
+                      value={pdfCreationDate}
+                      onChange={(e) => setPdfCreationDate(e.target.value)}
+                      className="w-full bg-slate-900 border border-slate-800 focus:border-amber-500 rounded-xl py-1.5 px-2.5 text-[11px] text-slate-100 focus:outline-none font-mono"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+                      <Tag className="w-3 h-3 text-amber-500" />
+                      <span>Subject</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={pdfSubject}
+                      onChange={(e) => setPdfSubject(e.target.value)}
+                      placeholder="Asset Bundle"
+                      className="w-full bg-slate-900 border border-slate-800 focus:border-amber-500 rounded-xl py-1.5 px-2.5 text-xs text-slate-100 focus:outline-none"
+                    />
+                  </div>
+                </div>
+              </div>
+
               {/* Compilation Action button */}
               <button
                 onClick={compileImagesToPdf}
@@ -586,10 +682,43 @@ export default function PDFTools({ theme }: PDFToolsProps) {
                 <input
                   type="text"
                   value={docTitle}
-                  onChange={(e) => setDocTitle(e.target.value)}
+                  onChange={(e) => {
+                    setDocTitle(e.target.value);
+                    setPdfTitle(e.target.value);
+                  }}
                   className="w-full bg-slate-900 border border-slate-805 rounded-xl py-2 px-3 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-amber-500 transition-all"
                   placeholder="e.g., Monthly Progress Statement"
                 />
+              </div>
+
+              {/* Author & Creation Date Metadata */}
+              <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-850">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+                    <User className="w-3 h-3 text-amber-500" />
+                    <span>Author</span>
+                  </label>
+                  <input
+                    type="text"
+                    value={pdfAuthor}
+                    onChange={(e) => setPdfAuthor(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 focus:border-amber-500 rounded-xl py-1.5 px-2.5 text-xs text-slate-100 focus:outline-none"
+                    placeholder="e.g. Shaheera S."
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-slate-400 flex items-center gap-1">
+                    <Calendar className="w-3 h-3 text-amber-500" />
+                    <span>Creation Date</span>
+                  </label>
+                  <input
+                    type="date"
+                    value={pdfCreationDate}
+                    onChange={(e) => setPdfCreationDate(e.target.value)}
+                    className="w-full bg-slate-900 border border-slate-800 focus:border-amber-500 rounded-xl py-1.5 px-2 text-[11px] text-slate-100 focus:outline-none font-mono"
+                  />
+                </div>
               </div>
 
               {/* Document Subtitle */}

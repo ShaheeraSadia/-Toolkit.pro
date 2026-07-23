@@ -19,6 +19,7 @@ import SitemapView from "./components/SitemapView";
 import CommandPalette from "./components/CommandPalette";
 import ShortcutsModal from "./components/ShortcutsModal";
 import SeoChecklistModal, { SeoProjectMetadata } from "./components/SeoChecklistModal";
+import SettingsModal from "./components/SettingsModal";
 import ApiKeyModal from "./components/ApiKeyModal";
 import RecentActivitiesWidget from "./components/RecentActivitiesWidget";
 import UsageInsightsWidget from "./components/UsageInsightsWidget";
@@ -67,6 +68,7 @@ import {
   EyeOff,
   Scissors,
   Home,
+  Settings,
   Menu,
   X,
   ChevronLeft,
@@ -423,6 +425,20 @@ export default function App() {
     }
     return [];
   });
+
+  // Apply persisted custom accent CSS variable on mount
+  useEffect(() => {
+    try {
+      const savedHex = localStorage.getItem("toolkit_custom_accent_hex") || "#6366f1";
+      if (savedHex) {
+        const cleanHex = savedHex.startsWith("#") ? savedHex : `#${savedHex}`;
+        document.documentElement.style.setProperty("--app-accent-color", cleanHex);
+        document.documentElement.style.setProperty("--app-accent-hover", cleanHex);
+        document.documentElement.style.setProperty("--app-accent-glow", `${cleanHex}35`);
+        document.documentElement.style.setProperty("--app-accent-light", `${cleanHex}18`);
+      }
+    } catch (_) {}
+  }, []);
 
   interface SavedProject {
     id: string;
@@ -2054,6 +2070,35 @@ export default function App() {
                       <X className="w-4 h-4" />
                     </button>
                   </div>
+
+                  {/* Quick App Settings & API Keys Drawer Entry */}
+                  <button
+                    onClick={() => {
+                      setIsApiKeyModalOpen(true);
+                      if (window.innerWidth < 1024) {
+                        setIsSidebarOpen(false);
+                      }
+                    }}
+                    className="w-full flex items-center justify-between p-2.5 mb-3 rounded-2xl bg-gradient-to-r from-purple-500/10 via-indigo-500/10 to-blue-500/10 hover:from-purple-500/20 hover:via-indigo-500/20 hover:to-blue-500/20 border border-purple-200/60 dark:border-purple-800/60 text-purple-950 dark:text-purple-200 transition-all cursor-pointer font-sans shadow-2xs group text-left"
+                    title="Open App Settings & AI API Keys (Gemini, OpenAI, Anthropic, Replicate)"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white font-black shadow-sm group-hover:scale-105 transition-transform shrink-0">
+                        <Settings className="w-4 h-4 animate-spin-slow" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-black leading-tight text-slate-900 dark:text-white font-sans">
+                          App Settings & API Keys
+                        </p>
+                        <p className="text-[9.5px] text-slate-500 dark:text-slate-400 font-medium leading-none mt-0.5">
+                          Set AI Keys & App Preferences
+                        </p>
+                      </div>
+                    </div>
+                    <span className="text-[8.5px] font-mono font-black px-2 py-0.5 rounded-full uppercase bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 shrink-0">
+                      Settings
+                    </span>
+                  </button>
 
                   {[
                     { id: "home", label: "Dashboard Home", icon: Home, desc: "System status & stats" },
@@ -3923,10 +3968,22 @@ export default function App() {
         initialData={seoModalInitialData}
       />
 
-      {/* AI Provider Key Management Modal */}
-      <ApiKeyModal
+      {/* Full-Screen Dedicated Workspace Settings Panel */}
+      <SettingsModal
         isOpen={isApiKeyModalOpen}
         onClose={() => setIsApiKeyModalOpen(false)}
+        theme={theme}
+        onToggleTheme={handleToggleTheme}
+        highContrast={highContrast}
+        onToggleHighContrast={handleToggleHighContrast}
+        tooltipsEnabled={tooltipsEnabled}
+        onToggleTooltips={handleToggleTooltips}
+        user={user}
+        onLogin={handleLogin}
+        onLogout={handleLogout}
+        driveCount={files.length}
+        onRefreshDrive={handleRefreshDrive}
+        onNavigateToDrive={() => setActiveTab("drive")}
       />
 
       {/* Modern Self-contained Keyboard Shortcuts Cheat-sheet Assistance Modal */}
