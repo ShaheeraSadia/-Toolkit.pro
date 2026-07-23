@@ -53,7 +53,17 @@ import {
   Minus,
   ShieldCheck,
   Stamp,
-  FileImage
+  FileImage,
+  RotateCcw,
+  Flame,
+  Disc,
+  Radio,
+  TrendingUp,
+  TrendingDown,
+  BarChart3,
+  Target,
+  Crosshair,
+  Activity
 } from "lucide-react";
 
 // Utility to construct fetch headers automatically injecting the custom Gemini API key if present
@@ -818,6 +828,11 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
   const [customMusicName, setCustomMusicName] = useState<string | null>(null);
   const [musicVolume, setMusicVolume] = useState<number>(0.5); // 0 to 1
   const [isMusicEnabled, setIsMusicEnabled] = useState<boolean>(true);
+  const [audioFadeIn, setAudioFadeIn] = useState<number>(1.5); // Fade in duration in seconds (0 to 5)
+  const [audioFadeOut, setAudioFadeOut] = useState<number>(2.0); // Fade out duration in seconds (0 to 5)
+  const [audioStartOffset, setAudioStartOffset] = useState<number>(0); // Sync audio start offset in seconds (0 to video duration)
+  const [waveformPeaks, setWaveformPeaks] = useState<number[]>([]);
+  const [isAnalyzingAudio, setIsAnalyzingAudio] = useState<boolean>(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -869,13 +884,29 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
     }
   };
 
+  const handleResetWatermarkDefaults = () => {
+    setWatermarkPosition("top-right");
+    setWatermarkScale(24);
+    setWatermarkOpacity(0.85);
+    setWatermarkColor("#ffffff");
+    setWatermarkBgPill(true);
+  };
+
+  const [soundCategoryFilter, setSoundCategoryFilter] = useState<string>("tiktok");
+
   const presetTracks = [
-    { id: "none", name: "🚫 No Background Music", url: "" },
-    { id: "cinematic", name: "🎬 Cinematic Ambient Dream", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
-    { id: "lofi", name: "☕ Cozy Chill Lofi Beat", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
-    { id: "synthwave", name: "🌆 Neon Retro Synthwave", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3" },
-    { id: "cyberpunk", name: "🤖 Dark Cyberpunk Industrial", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3" },
-    { id: "cosmic", name: "✨ Deep Space Cosmic Pad", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-16.mp3" },
+    { id: "none", name: "🚫 No Background Music", url: "", category: "none", tag: "Mute", desc: "Silent audio track" },
+    { id: "tiktok_phonk", name: "🔥 TikTok Phonky Drift House (Viral)", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-3.mp3", category: "tiktok", tag: "🔥 Viral TikTok", desc: "High bass energetic drift house beat" },
+    { id: "tiktok_spedup", name: "⚡ Sped-Up TikTok Nightcore Remix", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3", category: "tiktok", tag: "⚡ Sped-Up", desc: "Fast pace trending TikTok dance audio" },
+    { id: "tiktok_funk", name: "🕺 TikTok Brazilian Funk Bounce", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-7.mp3", category: "tiktok", tag: "🕺 Funk Dance", desc: "Bouncy viral rhythm for dance reels" },
+    { id: "tiktok_trap", name: "💣 Dark TikTok Bass Trap & Drill", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-9.mp3", category: "energy", tag: "💣 Bass Drop", desc: "Heavy sub-bass beat for dynamic edits" },
+    { id: "lofi", name: "✨ Aesthetic Girl Lofi Bedroom Beat", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3", category: "aesthetic", tag: "✨ Aesthetic", desc: "Chill lo-fi study & vlog sound" },
+    { id: "chill_vlog", name: "☕ Cozy Vlog Acoustic Morning Melody", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3", category: "aesthetic", tag: "☕ Vlog Chill", desc: "Warm acoustic guitar for daily vlogs" },
+    { id: "cinematic", name: "🎬 Cinematic Dramatic Trailer Suspense", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3", category: "cinematic", tag: "🎬 Epic Trailer", desc: "Dramatic orchestra for movie scenes" },
+    { id: "synthwave", name: "🌆 Neon Synthwave Sunset Retro 80s", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-4.mp3", category: "energy", tag: "🌆 Retro 80s", desc: "Outrun synth vibes for Cyberpunk visuals" },
+    { id: "cyberpunk", name: "🤖 Dark Cyberpunk Industrial Techno", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3", category: "energy", tag: "🤖 Cyber Techno", desc: "Glitchy techno for futuristic videos" },
+    { id: "cosmic", name: "🌌 Deep Space Cosmic Ambient Pad", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-16.mp3", category: "cinematic", tag: "🌌 Ambient", desc: "Ethereal space pad soundscape" },
+    { id: "edm_drop", name: "🚀 Festival EDM Dance Floor Drop", url: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-12.mp3", category: "energy", tag: "🚀 EDM Festival", desc: "Electrifying festival club drop" },
   ];
 
   const handleAudioUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -895,6 +926,70 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
       audioInputRef.current.value = "";
     }
   };
+
+  // Generate waveform peak data for visualizer
+  useEffect(() => {
+    if (!selectedMusicUrl) {
+      setWaveformPeaks([]);
+      return;
+    }
+
+    setIsAnalyzingAudio(true);
+    let isCancelled = false;
+
+    const generateFallbackPeaks = (seedStr: string) => {
+      let hash = 0;
+      for (let i = 0; i < seedStr.length; i++) {
+        hash = ((hash << 5) - hash) + seedStr.charCodeAt(i);
+        hash |= 0;
+      }
+      const peaks: number[] = [];
+      for (let i = 0; i < 64; i++) {
+        const pseudoRand = Math.abs(Math.sin(hash + i * 0.45) * Math.cos(i * 0.23));
+        const envelope = 0.35 + 0.55 * Math.sin((i / 64) * Math.PI);
+        const val = Math.min(1, Math.max(0.12, (0.25 + pseudoRand * 0.75) * envelope));
+        peaks.push(val);
+      }
+      return peaks;
+    };
+
+    fetch(selectedMusicUrl, { mode: "cors" })
+      .then((res) => {
+        if (!res.ok) throw new Error("Audio fetch failed");
+        return res.arrayBuffer();
+      })
+      .then((buffer) => {
+        const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+        return audioCtx.decodeAudioData(buffer);
+      })
+      .then((audioBuffer) => {
+        if (isCancelled) return;
+        const rawData = audioBuffer.getChannelData(0);
+        const samples = 64;
+        const blockSize = Math.floor(rawData.length / samples);
+        const peaks: number[] = [];
+        for (let i = 0; i < samples; i++) {
+          const blockStart = blockSize * i;
+          let sum = 0;
+          for (let j = 0; j < blockSize; j += 12) {
+            sum += Math.abs(rawData[blockStart + j] || 0);
+          }
+          const avg = sum / (blockSize / 12);
+          peaks.push(Math.min(1, Math.max(0.12, avg * 2.8)));
+        }
+        setWaveformPeaks(peaks);
+        setIsAnalyzingAudio(false);
+      })
+      .catch(() => {
+        if (isCancelled) return;
+        setWaveformPeaks(generateFallbackPeaks(selectedMusicUrl));
+        setIsAnalyzingAudio(false);
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [selectedMusicUrl]);
 
   // Gallery/History States
   const [creations, setCreations] = useState<VideoCreation[]>([]);
@@ -1209,14 +1304,17 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
     }
   }, [selectedMusicUrl, videoPlaying, musicVolume, videoMuted, isMusicEnabled]);
 
-  // Handle video element time synchronization so they loop together!
+  // Handle video element time synchronization, start offset, and audio fade transitions
   useEffect(() => {
     const videoEl = videoRef.current;
     if (!videoEl) return;
 
     const handleVideoPlay = () => {
       if (audioRef.current && selectedMusicUrl && isMusicEnabled) {
-        audioRef.current.play().catch(() => {});
+        if (videoEl.currentTime >= audioStartOffset) {
+          audioRef.current.currentTime = videoEl.currentTime - audioStartOffset;
+          audioRef.current.play().catch(() => {});
+        }
       }
     };
 
@@ -1227,9 +1325,46 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
     };
 
     const handleVideoTimeUpdate = () => {
-      if (videoEl.currentTime < 0.2 && audioRef.current && isMusicEnabled) {
+      if (!audioRef.current || !isMusicEnabled) return;
+
+      const ct = videoEl.currentTime;
+
+      // Handle start offset delay
+      if (ct < audioStartOffset) {
+        if (!audioRef.current.paused) {
+          audioRef.current.pause();
+        }
         audioRef.current.currentTime = 0;
+        return;
       }
+
+      // Sync audio play position relative to start offset
+      const audioElapsed = ct - audioStartOffset;
+      if (videoEl.paused) {
+        audioRef.current.pause();
+      } else if (audioRef.current.paused) {
+        audioRef.current.currentTime = audioElapsed;
+        audioRef.current.play().catch(() => {});
+      } else if (Math.abs(audioRef.current.currentTime - audioElapsed) > 0.35) {
+        audioRef.current.currentTime = audioElapsed;
+      }
+
+      // Dynamic Fade-In / Fade-Out volume calculation
+      const dur = actualVideoDuration || videoEl.duration || 8;
+
+      let fadeInMult = 1.0;
+      if (audioFadeIn > 0) {
+        fadeInMult = Math.min(1.0, Math.max(0, audioElapsed / audioFadeIn));
+      }
+
+      let fadeOutMult = 1.0;
+      if (audioFadeOut > 0) {
+        const remaining = dur - ct;
+        fadeOutMult = Math.min(1.0, Math.max(0, remaining / audioFadeOut));
+      }
+
+      const targetVol = Math.max(0, Math.min(1, musicVolume * fadeInMult * fadeOutMult));
+      audioRef.current.volume = targetVol;
     };
 
     videoEl.addEventListener("play", handleVideoPlay);
@@ -1241,7 +1376,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
       videoEl.removeEventListener("pause", handleVideoPause);
       videoEl.removeEventListener("timeupdate", handleVideoTimeUpdate);
     };
-  }, [currentVideoUrl, selectedMusicUrl, isMusicEnabled]);
+  }, [currentVideoUrl, selectedMusicUrl, isMusicEnabled, musicVolume, audioFadeIn, audioFadeOut, audioStartOffset, actualVideoDuration]);
 
   // Sync History from Firestore or LocalStorage
   useEffect(() => {
@@ -3407,10 +3542,13 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
 
             {/* Background Music Soundscape Selection & Volume */}
             <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-5 flex flex-col gap-4">
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center flex-wrap gap-2">
                 <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
-                  <Music className="w-4 h-4 text-indigo-400" />
-                  Background Music Soundscape
+                  <Flame className="w-4 h-4 text-amber-400" />
+                  <span>TikTok & Viral Background Sounds</span>
+                  <span className="text-[10px] bg-rose-500/15 text-rose-400 font-mono font-bold px-2 py-0.5 rounded-md border border-rose-500/30 flex items-center gap-1">
+                    <Disc className="w-3 h-3 animate-spin text-rose-400" /> TikTok Trending
+                  </span>
                 </label>
                 
                 {/* Audio Enabled Toggle/Mute switch */}
@@ -3418,7 +3556,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                   type="button"
                   onClick={() => setIsMusicEnabled(!isMusicEnabled)}
                   disabled={!selectedMusicUrl}
-                  className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border transition-all ${
+                  className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border transition-all cursor-pointer ${
                     !selectedMusicUrl
                       ? "bg-slate-900 border-slate-800/40 text-slate-600 cursor-not-allowed"
                       : isMusicEnabled
@@ -3430,8 +3568,89 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                 </button>
               </div>
 
+              {/* Sound Category Tabs */}
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                {[
+                  { id: "tiktok", label: "🔥 TikTok Viral", icon: Flame },
+                  { id: "aesthetic", label: "✨ Aesthetic", icon: Sparkle },
+                  { id: "energy", label: "⚡ Energy & Trap", icon: Zap },
+                  { id: "cinematic", label: "🎬 Cinematic", icon: Camera },
+                  { id: "all", label: "🌐 All Tracks", icon: Radio },
+                ].map((cat) => {
+                  const IconComp = cat.icon;
+                  const isSel = soundCategoryFilter === cat.id;
+                  return (
+                    <button
+                      key={cat.id}
+                      type="button"
+                      onClick={() => setSoundCategoryFilter(cat.id)}
+                      className={`px-3 py-1.5 text-xs font-medium rounded-xl border transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer ${
+                        isSel
+                          ? "bg-amber-500/20 border-amber-500/50 text-amber-300 font-bold shadow-2xs"
+                          : "bg-slate-900/80 border-slate-800 text-slate-400 hover:text-slate-200 hover:border-slate-700"
+                      }`}
+                    >
+                      <IconComp className={`w-3.5 h-3.5 ${isSel ? "text-amber-400" : "text-slate-500"}`} />
+                      <span>{cat.label}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Interactive TikTok Sound Cards Grid */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[220px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-800">
+                {presetTracks
+                  .filter((t) => soundCategoryFilter === "all" || t.category === soundCategoryFilter || t.category === "none")
+                  .map((track) => {
+                    const isSelected = selectedMusicUrl === track.url;
+                    return (
+                      <div
+                        key={track.id}
+                        onClick={() => {
+                          setSelectedMusicUrl(track.url);
+                          setIsMusicEnabled(track.url !== "");
+                        }}
+                        className={`p-2.5 rounded-xl border text-left cursor-pointer transition-all flex items-center justify-between gap-2 group ${
+                          isSelected
+                            ? "bg-amber-500/15 border-amber-500/60 shadow-md ring-1 ring-amber-500/30"
+                            : "bg-slate-900/60 border-slate-800/80 hover:bg-slate-900 hover:border-slate-700"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5 min-w-0">
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-sm shrink-0 transition-transform ${
+                            isSelected ? "bg-amber-500 text-slate-950 font-bold scale-105" : "bg-slate-800 text-slate-300 group-hover:scale-105"
+                          }`}>
+                            {track.category === "tiktok" ? "🎵" : track.category === "aesthetic" ? "✨" : track.category === "cinematic" ? "🎬" : track.category === "energy" ? "⚡" : "🔇"}
+                          </div>
+
+                          <div className="flex flex-col min-w-0">
+                            <div className="flex items-center gap-1.5">
+                              <span className={`text-xs font-semibold truncate ${isSelected ? "text-amber-300" : "text-slate-200"}`}>
+                                {track.name}
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-slate-500 truncate">
+                              {track.desc}
+                            </span>
+                          </div>
+                        </div>
+
+                        {isSelected ? (
+                          <span className="text-[10px] font-bold text-amber-400 bg-amber-500/20 px-2 py-0.5 rounded-md shrink-0 border border-amber-500/30 flex items-center gap-1">
+                            <Check className="w-3 h-3 text-amber-400" /> Active
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-slate-500 group-hover:text-slate-300 shrink-0 font-medium">
+                            Select
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+              </div>
+
               {/* Music dropdown / custom file upload */}
-              <div className="flex flex-col gap-3">
+              <div className="flex flex-col gap-3 pt-2 border-t border-slate-900">
                 {/* Preset Selector */}
                 <div className="relative">
                   <select
@@ -3447,10 +3666,10 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                         }
                       }
                     }}
-                    className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-xl py-2.5 px-3.5 pr-8 text-xs text-slate-200 focus:ring-0 focus:outline-none cursor-pointer appearance-none transition-all"
+                    className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-xl py-2 px-3.5 pr-8 text-xs text-slate-200 focus:ring-0 focus:outline-none cursor-pointer appearance-none transition-all"
                   >
                     <option value="">🚫 No Background Music</option>
-                    <optgroup label="✨ Atmospheric Preset Ambient Loops">
+                    <optgroup label="🔥 TikTok & Viral Trending Sounds">
                       {presetTracks.filter(t => t.url !== "").map((track) => (
                         <option key={track.id} value={track.url}>
                           {track.name}
@@ -3461,7 +3680,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                       {customMusicName ? (
                         <option value="custom">📁 Custom: {customMusicName}</option>
                       ) : (
-                        <option value="custom">➕ Upload your own MP3/WAV...</option>
+                        <option value="custom">➕ Upload your own MP3/WAV sound...</option>
                       )}
                     </optgroup>
                   </select>
@@ -3489,7 +3708,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                     <button
                       type="button"
                       onClick={handleRemoveCustomAudio}
-                      className="text-[10px] font-bold text-rose-400 hover:text-rose-300 transition-all hover:underline pl-2 shrink-0"
+                      className="text-[10px] font-bold text-rose-400 hover:text-rose-300 transition-all hover:underline pl-2 shrink-0 cursor-pointer"
                     >
                       Remove
                     </button>
@@ -3498,39 +3717,399 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
 
                 {/* Volume Slider control */}
                 {selectedMusicUrl && (
-                  <div className="flex flex-col gap-1.5 bg-slate-900/30 p-3 rounded-xl border border-slate-800/40 animate-fade-in">
-                    <div className="flex justify-between items-center text-[11px] text-slate-400 font-medium">
-                      <span className="flex items-center gap-1">
-                        {musicVolume === 0 || !isMusicEnabled ? (
-                          <VolumeX className="w-3.5 h-3.5 text-slate-500" />
-                        ) : (
-                          <Volume2 className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
-                        )}
-                        Background Music Volume
-                      </span>
-                      <span className="font-mono font-bold text-indigo-400">
-                        {isMusicEnabled ? `${Math.round(musicVolume * 100)}%` : "0% (Muted)"}
-                      </span>
+                  <div className="flex flex-col gap-3.5 bg-slate-900/40 p-3.5 rounded-xl border border-slate-800/60 animate-fade-in">
+                    {/* Main Volume Slider */}
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex justify-between items-center text-[11px] text-slate-400 font-medium">
+                        <span className="flex items-center gap-1.5">
+                          {musicVolume === 0 || !isMusicEnabled ? (
+                            <VolumeX className="w-3.5 h-3.5 text-slate-500" />
+                          ) : (
+                            <Volume2 className="w-3.5 h-3.5 text-amber-400 animate-pulse" />
+                          )}
+                          <span className="font-semibold text-slate-200">TikTok Sound Volume</span>
+                        </span>
+                        <span className="font-mono font-bold text-amber-400">
+                          {isMusicEnabled ? `${Math.round(musicVolume * 100)}%` : "0% (Muted)"}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <input
+                          type="range"
+                          min="0"
+                          max="1"
+                          step="0.05"
+                          value={musicVolume}
+                          onChange={(e) => {
+                            setMusicVolume(parseFloat(e.target.value));
+                            if (parseFloat(e.target.value) > 0) {
+                              setIsMusicEnabled(true);
+                            }
+                          }}
+                          className="flex-1 accent-amber-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                          style={{
+                            background: `linear-gradient(to right, rgb(245, 158, 11) 0%, rgb(245, 158, 11) ${musicVolume * 100}%, rgb(30, 41, 59) ${musicVolume * 100}%, rgb(30, 41, 59) 100%)`
+                          }}
+                        />
+                      </div>
                     </div>
 
-                    <div className="flex items-center gap-3">
-                      <input
-                        type="range"
-                        min="0"
-                        max="1"
-                        step="0.05"
-                        value={musicVolume}
-                        onChange={(e) => {
-                          setMusicVolume(parseFloat(e.target.value));
-                          if (parseFloat(e.target.value) > 0) {
-                            setIsMusicEnabled(true);
-                          }
-                        }}
-                        className="flex-1 accent-indigo-500 h-1 bg-slate-800 rounded-lg cursor-pointer"
-                        style={{
-                          background: `linear-gradient(to right, rgb(99, 102, 241) 0%, rgb(99, 102, 241) ${musicVolume * 100}%, rgb(30, 41, 59) ${musicVolume * 100}%, rgb(30, 41, 59) 100%)`
-                        }}
-                      />
+                    {/* Audio Fade Transitions (Fade-In & Fade-Out) */}
+                    <div className="pt-3 border-t border-slate-800/80 flex flex-col gap-3">
+                      <div className="flex justify-between items-center text-xs">
+                        <span className="font-semibold text-slate-300 flex items-center gap-1.5">
+                          <Sliders className="w-3.5 h-3.5 text-amber-400" />
+                          <span>Audio Fade Transitions</span>
+                        </span>
+                        <span className="text-[10px] font-mono font-bold bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2 py-0.5 rounded-md">
+                          In: {audioFadeIn > 0 ? `${audioFadeIn}s` : "Off"} | Out: {audioFadeOut > 0 ? `${audioFadeOut}s` : "Off"}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        {/* Fade-In Slider & Presets */}
+                        <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/70 flex flex-col gap-2">
+                          <div className="flex justify-between items-center text-[10px]">
+                            <span className="font-semibold text-emerald-400 flex items-center gap-1">
+                              <TrendingUp className="w-3 h-3" />
+                              <span>Fade-In Start</span>
+                            </span>
+                            <span className="font-mono font-bold text-slate-200">
+                              {audioFadeIn > 0 ? `${audioFadeIn}s` : "Disabled"}
+                            </span>
+                          </div>
+
+                          <input
+                            type="range"
+                            min="0"
+                            max="5"
+                            step="0.5"
+                            value={audioFadeIn}
+                            onChange={(e) => setAudioFadeIn(parseFloat(e.target.value))}
+                            className="w-full accent-emerald-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                          />
+
+                          <div className="flex items-center gap-1">
+                            {[0, 1, 1.5, 3, 5].map((preset) => {
+                              const isSel = Math.abs(audioFadeIn - preset) < 0.1;
+                              return (
+                                <button
+                                  key={`fadein-${preset}`}
+                                  type="button"
+                                  onClick={() => setAudioFadeIn(preset)}
+                                  className={`flex-1 py-0.5 text-[9px] font-semibold rounded transition-all cursor-pointer ${
+                                    isSel
+                                      ? "bg-emerald-500 text-slate-950 font-bold"
+                                      : "bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200"
+                                  }`}
+                                >
+                                  {preset === 0 ? "Off" : `${preset}s`}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+
+                        {/* Fade-Out Slider & Presets */}
+                        <div className="bg-slate-950/60 p-2.5 rounded-xl border border-slate-800/70 flex flex-col gap-2">
+                          <div className="flex justify-between items-center text-[10px]">
+                            <span className="font-semibold text-indigo-400 flex items-center gap-1">
+                              <TrendingDown className="w-3 h-3" />
+                              <span>Fade-Out End</span>
+                            </span>
+                            <span className="font-mono font-bold text-slate-200">
+                              {audioFadeOut > 0 ? `${audioFadeOut}s` : "Disabled"}
+                            </span>
+                          </div>
+
+                          <input
+                            type="range"
+                            min="0"
+                            max="5"
+                            step="0.5"
+                            value={audioFadeOut}
+                            onChange={(e) => setAudioFadeOut(parseFloat(e.target.value))}
+                            className="w-full accent-indigo-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                          />
+
+                          <div className="flex items-center gap-1">
+                            {[0, 1, 2, 3, 5].map((preset) => {
+                              const isSel = Math.abs(audioFadeOut - preset) < 0.1;
+                              return (
+                                <button
+                                  key={`fadeout-${preset}`}
+                                  type="button"
+                                  onClick={() => setAudioFadeOut(preset)}
+                                  className={`flex-1 py-0.5 text-[9px] font-semibold rounded transition-all cursor-pointer ${
+                                    isSel
+                                      ? "bg-indigo-500 text-slate-950 font-bold"
+                                      : "bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200"
+                                  }`}
+                                >
+                                  {preset === 0 ? "Off" : `${preset}s`}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Visual Audio Envelope Waveform Curve Display */}
+                      <div className="bg-slate-950/80 p-2 rounded-xl border border-slate-800/80 flex flex-col gap-1.5">
+                        <div className="flex justify-between items-center text-[9px] text-slate-400">
+                          <span className="text-emerald-400 font-semibold">
+                            ↗ Fade-In: {audioFadeIn}s
+                          </span>
+                          <span className="text-slate-300 font-semibold">
+                            ― Sustained Peak ({Math.round(musicVolume * 100)}%)
+                          </span>
+                          <span className="text-indigo-400 font-semibold">
+                            ↘ Fade-Out: {audioFadeOut}s
+                          </span>
+                        </div>
+
+                        {/* Simple SVG Envelope Graph */}
+                        <div className="h-6 w-full bg-slate-900/90 rounded-md border border-slate-800/80 overflow-hidden relative flex items-center px-1">
+                          <svg className="w-full h-full overflow-visible" viewBox="0 0 100 20" preserveAspectRatio="none">
+                            {(() => {
+                              const dur = actualVideoDuration || 8;
+                              const inPct = Math.min(45, (audioFadeIn / dur) * 100);
+                              const outPct = Math.min(45, (audioFadeOut / dur) * 100);
+                              const peakX1 = Math.max(0, inPct);
+                              const peakX2 = Math.min(100, 100 - outPct);
+
+                              return (
+                                <>
+                                  <polygon
+                                    points={`0,20 ${peakX1},4 ${peakX2},4 100,20`}
+                                    fill="rgba(245, 158, 11, 0.15)"
+                                  />
+                                  <polyline
+                                    points={`0,20 ${peakX1},4 ${peakX2},4 100,20`}
+                                    fill="none"
+                                    stroke="rgb(245, 158, 11)"
+                                    strokeWidth="2"
+                                    strokeLinecap="round"
+                                    strokeLinejoin="round"
+                                  />
+                                </>
+                              );
+                            })()}
+                          </svg>
+                        </div>
+                      </div>
+
+                      {/* Interactive Audio Waveform Visualizer & Frame Sync Panel */}
+                      <div className="pt-3 border-t border-slate-800/80 flex flex-col gap-3">
+                        {/* Header */}
+                        <div className="flex justify-between items-center text-xs flex-wrap gap-2">
+                          <span className="font-semibold text-slate-200 flex items-center gap-1.5">
+                            <BarChart3 className="w-4 h-4 text-amber-400" />
+                            <span>Interactive Audio Waveform & Frame Sync</span>
+                          </span>
+                          
+                          <div className="flex items-center gap-2">
+                            {isAnalyzingAudio ? (
+                              <span className="text-[10px] text-amber-400 font-mono flex items-center gap-1 animate-pulse">
+                                <Activity className="w-3 h-3 text-amber-400 animate-spin" /> Analyzing Peaks...
+                              </span>
+                            ) : (
+                              <span className="text-[10px] font-mono text-emerald-400 bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md flex items-center gap-1">
+                                <Target className="w-3 h-3 text-emerald-400" /> 64 Peak Frames
+                              </span>
+                            )}
+                            
+                            <span className="text-[10px] font-mono font-bold text-amber-300 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md">
+                              Start: +{audioStartOffset.toFixed(2)}s
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Waveform Canvas / Bars Container */}
+                        <div className="bg-slate-950/90 rounded-xl p-3 border border-slate-800 flex flex-col gap-2 relative">
+                          {/* Interactive Seekable Waveform Bar Chart */}
+                          <div
+                            onClick={(e) => {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              const clickX = Math.max(0, Math.min(rect.width, e.clientX - rect.left));
+                              const clickPct = clickX / rect.width;
+                              const dur = actualVideoDuration || 8;
+                              const targetTime = clickPct * dur;
+                              if (videoRef.current) {
+                                videoRef.current.currentTime = targetTime;
+                                setCurrentTime(targetTime);
+                              }
+                            }}
+                            className="h-20 w-full relative flex items-end gap-0.5 cursor-pointer select-none group px-1 py-1 bg-slate-900/80 rounded-lg border border-slate-800/80 overflow-hidden"
+                            title="Click anywhere on the waveform to seek video to that exact frame!"
+                          >
+                            {/* 64 Waveform Peak Bars */}
+                            {(waveformPeaks.length > 0 ? waveformPeaks : Array(64).fill(0.3)).map((peak, idx) => {
+                              const totalBars = waveformPeaks.length || 64;
+                              const dur = actualVideoDuration || 8;
+                              const barTime = (idx / totalBars) * dur;
+
+                              // Dynamic fade envelope calculation at this bar index
+                              const audioElapsed = barTime - audioStartOffset;
+                              let fadeFactor = 1.0;
+                              if (audioElapsed < 0) {
+                                fadeFactor = 0;
+                              } else {
+                                if (audioFadeIn > 0 && audioElapsed < audioFadeIn) {
+                                  fadeFactor = audioElapsed / audioFadeIn;
+                                }
+                                const remaining = dur - barTime;
+                                if (audioFadeOut > 0 && remaining < audioFadeOut) {
+                                  fadeFactor = Math.min(fadeFactor, remaining / audioFadeOut);
+                                }
+                              }
+
+                              // Height scales with volume and peak energy
+                              const barHeightPct = Math.max(8, Math.min(100, peak * musicVolume * fadeFactor * 100));
+                              const isBeforeStart = barTime < audioStartOffset;
+                              const isPlayed = barTime >= audioStartOffset && barTime <= currentTime;
+
+                              return (
+                                <div
+                                  key={`bar-${idx}`}
+                                  className="flex-1 rounded-t-xs transition-all duration-75 relative group/bar"
+                                  style={{ height: `${barHeightPct}%` }}
+                                >
+                                  <div
+                                    className={`w-full h-full rounded-t-xs transition-colors ${
+                                      isBeforeStart
+                                        ? "bg-slate-850/60"
+                                        : isPlayed
+                                        ? "bg-gradient-to-t from-amber-500 to-amber-300 shadow-2xs shadow-amber-500/50"
+                                        : "bg-indigo-500/50 hover:bg-indigo-400/80"
+                                    }`}
+                                  />
+                                </div>
+                              );
+                            })}
+
+                            {/* Audio Start Pin Marker */}
+                            {(() => {
+                              const dur = actualVideoDuration || 8;
+                              const startPct = Math.max(0, Math.min(100, (audioStartOffset / dur) * 100));
+                              return (
+                                <div
+                                  className="absolute top-0 bottom-0 z-20 pointer-events-none flex flex-col items-center"
+                                  style={{ left: `${startPct}%` }}
+                                >
+                                  <div className="w-0.5 h-full bg-emerald-400 shadow-sm shadow-emerald-400/80" />
+                                  <div className="absolute top-0 -translate-x-1/2 bg-emerald-500 text-slate-950 font-mono font-bold text-[8px] px-1 py-0.2 rounded shadow-md border border-emerald-300 whitespace-nowrap">
+                                    🎯 Start: {audioStartOffset.toFixed(1)}s
+                                  </div>
+                                </div>
+                              );
+                            })()}
+
+                            {/* Live Playhead Marker Line */}
+                            {(() => {
+                              const dur = actualVideoDuration || 8;
+                              const playPct = Math.max(0, Math.min(100, (currentTime / dur) * 100));
+                              return (
+                                <div
+                                  className="absolute top-0 bottom-0 z-30 pointer-events-none flex flex-col items-center"
+                                  style={{ left: `${playPct}%` }}
+                                >
+                                  <div className="w-1 h-full bg-amber-400 shadow-md shadow-amber-400/80 animate-pulse" />
+                                  <div className="absolute bottom-0 -translate-x-1/2 bg-amber-400 text-slate-950 font-mono font-bold text-[8px] px-1 py-0.2 rounded shadow-md whitespace-nowrap">
+                                    ⏱ {currentTime.toFixed(2)}s
+                                  </div>
+                                </div>
+                              );
+                            })()}
+                          </div>
+
+                          {/* Precise Audio Start Offset & Frame Alignment Controls */}
+                          <div className="flex flex-col gap-2 pt-1">
+                            <div className="flex justify-between items-center text-[10px] font-medium text-slate-300">
+                              <span className="flex items-center gap-1 text-emerald-400 font-semibold">
+                                <Crosshair className="w-3 h-3" />
+                                <span>Audio Start Alignment Offset:</span>
+                              </span>
+                              <span className="font-mono text-emerald-300 font-bold bg-slate-900 border border-slate-800 px-2 py-0.5 rounded">
+                                {audioStartOffset > 0 ? `+${audioStartOffset.toFixed(2)}s Delay` : "0.00s (Immediate Start)"}
+                              </span>
+                            </div>
+
+                            <input
+                              type="range"
+                              min="0"
+                              max={Math.min(5, (actualVideoDuration || 8) - 1)}
+                              step="0.05"
+                              value={audioStartOffset}
+                              onChange={(e) => setAudioStartOffset(parseFloat(e.target.value))}
+                              className="w-full accent-emerald-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                              style={{
+                                background: `linear-gradient(to right, rgb(16, 185, 129) 0%, rgb(16, 185, 129) ${(audioStartOffset / Math.max(1, Math.min(5, (actualVideoDuration || 8) - 1))) * 100}%, rgb(30, 41, 59) ${(audioStartOffset / Math.max(1, Math.min(5, (actualVideoDuration || 8) - 1))) * 100}%, rgb(30, 41, 59) 100%)`
+                              }}
+                            />
+
+                            {/* Frame Alignment Nudge Buttons */}
+                            <div className="flex items-center justify-between gap-1 flex-wrap pt-1">
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setAudioStartOffset(Math.max(0, audioStartOffset - 0.5))}
+                                  className="px-2 py-1 text-[10px] font-mono font-semibold bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-300 hover:text-white transition-all cursor-pointer"
+                                  title="Nudge audio start offset back by 0.5 seconds"
+                                >
+                                  ⏪ -0.5s
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setAudioStartOffset(Math.max(0, audioStartOffset - 0.1))}
+                                  className="px-2 py-1 text-[10px] font-mono font-semibold bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-300 hover:text-white transition-all cursor-pointer"
+                                  title="Fine nudge back by 0.1s (approx 3 frames @ 30fps)"
+                                >
+                                  ◀ -0.1s
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setAudioStartOffset(Math.min((actualVideoDuration || 8) - 1, audioStartOffset + 0.1))}
+                                  className="px-2 py-1 text-[10px] font-mono font-semibold bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-300 hover:text-white transition-all cursor-pointer"
+                                  title="Fine nudge forward by 0.1s (approx 3 frames @ 30fps)"
+                                >
+                                  ▶ +0.1s
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => setAudioStartOffset(Math.min((actualVideoDuration || 8) - 1, audioStartOffset + 0.5))}
+                                  className="px-2 py-1 text-[10px] font-mono font-semibold bg-slate-900 hover:bg-slate-800 border border-slate-800 rounded-lg text-slate-300 hover:text-white transition-all cursor-pointer"
+                                  title="Nudge audio start offset forward by 0.5 seconds"
+                                >
+                                  ⏩ +0.5s
+                                </button>
+                              </div>
+
+                              <div className="flex items-center gap-1">
+                                <button
+                                  type="button"
+                                  onClick={() => setAudioStartOffset(Math.max(0, Math.min((actualVideoDuration || 8) - 1, currentTime)))}
+                                  className="px-2.5 py-1 text-[10px] font-semibold bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 border border-emerald-500/40 rounded-lg transition-all cursor-pointer flex items-center gap-1"
+                                  title="Snap audio start time directly to current video frame playhead"
+                                >
+                                  <Target className="w-3 h-3 text-emerald-400" />
+                                  <span>Snap to Frame</span>
+                                </button>
+                                
+                                <button
+                                  type="button"
+                                  onClick={() => setAudioStartOffset(0)}
+                                  className="px-2 py-1 text-[10px] font-semibold bg-slate-900 hover:bg-slate-800 text-slate-400 hover:text-slate-200 border border-slate-800 rounded-lg transition-all cursor-pointer"
+                                  title="Reset audio start offset to frame 0"
+                                >
+                                  Reset (0s)
+                                </button>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -3774,20 +4353,33 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
 
             {/* Custom Brand Watermark Overlay Card */}
             <div className="bg-slate-950 border border-slate-800/80 rounded-2xl p-5 flex flex-col gap-4">
-              <div className="flex justify-between items-center">
+              <div className="flex justify-between items-center flex-wrap gap-2">
                 <label className="text-sm font-semibold text-slate-300 flex items-center gap-2">
                   <Stamp className="w-4 h-4 text-amber-400" />
                   <span>Brand Watermark & Logo Overlay</span>
                 </label>
-                {watermarkType !== "none" && (
+
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => setWatermarkType("none")}
-                    className="text-[10px] text-rose-400 hover:text-rose-300 transition-all font-bold hover:underline cursor-pointer"
+                    onClick={handleResetWatermarkDefaults}
+                    className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-300 hover:text-amber-300 bg-slate-900 hover:bg-slate-850 border border-slate-800 hover:border-amber-500/50 px-2.5 py-1 rounded-lg transition-all cursor-pointer shadow-2xs active:scale-95"
+                    title="Reset opacity, scale, position, color, and badge back to baseline defaults"
                   >
-                    Disable Watermark
+                    <RotateCcw className="w-3.5 h-3.5 text-amber-400" />
+                    <span>Reset Defaults</span>
                   </button>
-                )}
+
+                  {watermarkType !== "none" && (
+                    <button
+                      type="button"
+                      onClick={() => setWatermarkType("none")}
+                      className="text-[11px] text-rose-400 hover:text-rose-300 transition-all font-bold hover:underline cursor-pointer ml-1"
+                    >
+                      Disable Watermark
+                    </button>
+                  )}
+                </div>
               </div>
 
               {/* Watermark Type Selector Tabs */}

@@ -718,6 +718,26 @@ export default function Navbar({
               </button>
             )}
 
+            {/* Quick Command Palette Search Button (Ctrl + K) */}
+            <button
+              onClick={handleTriggerSearch}
+              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer select-none ${
+                theme === "dark"
+                  ? "bg-slate-900/90 border-slate-800 text-slate-200 hover:text-white hover:bg-slate-800/80 hover:border-indigo-500/50"
+                  : "bg-slate-100/80 border-slate-200 text-slate-800 hover:text-slate-950 hover:bg-slate-150 hover:border-indigo-300 shadow-2xs"
+              }`}
+              title="Quick Search & Command Palette (Ctrl + K)"
+              id="btn-navbar-search"
+            >
+              <Search className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+              <span className="hidden lg:inline text-slate-600 dark:text-slate-300 font-semibold text-[11px]">
+                Search...
+              </span>
+              <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-mono font-bold text-slate-500 dark:text-slate-400 bg-slate-200/80 dark:bg-slate-950/80 border border-slate-300/80 dark:border-slate-800 rounded">
+                <span>Ctrl</span><span>K</span>
+              </kbd>
+            </button>
+
             {/* Elegant Sun/Moon Dark Selector Switch */}
             <button
               onClick={onToggleTheme}

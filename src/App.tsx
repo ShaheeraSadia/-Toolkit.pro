@@ -19,7 +19,7 @@ import SitemapView from "./components/SitemapView";
 import CommandPalette from "./components/CommandPalette";
 import ShortcutsModal from "./components/ShortcutsModal";
 import SeoChecklistModal, { SeoProjectMetadata } from "./components/SeoChecklistModal";
-import SettingsModal from "./components/SettingsModal";
+import SettingsModal, { SettingsTab } from "./components/SettingsModal";
 import ApiKeyModal from "./components/ApiKeyModal";
 import RecentActivitiesWidget from "./components/RecentActivitiesWidget";
 import UsageInsightsWidget from "./components/UsageInsightsWidget";
@@ -751,7 +751,13 @@ export default function App() {
   const [isSeoModalOpen, setIsSeoModalOpen] = useState<boolean>(false);
   const [seoModalInitialData, setSeoModalInitialData] = useState<Partial<SeoProjectMetadata> | undefined>(undefined);
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState<boolean>(false);
+  const [settingsDefaultTab, setSettingsDefaultTab] = useState<SettingsTab>("apikeys");
   const [lastShortcutPressed, setLastShortcutPressed] = useState<string | null>(null);
+
+  const handleOpenSettingsTab = (tab: SettingsTab = "apikeys") => {
+    setSettingsDefaultTab(tab);
+    setIsApiKeyModalOpen(true);
+  };
 
   const handleOpenSeoModal = (initialData?: Partial<SeoProjectMetadata>) => {
     setSeoModalInitialData(initialData);
@@ -2455,15 +2461,24 @@ export default function App() {
                             </div>
                           )}
 
-                          <div className={`border rounded-xl p-3 flex items-start space-x-2 text-xs text-left ${
-                            theme === "dark"
-                              ? "bg-amber-955/20 border-amber-900/40 text-amber-300"
-                              : "bg-amber-50/75 border-amber-100 text-amber-800"
-                          }`}>
-                            <AlertCircle className="w-4 h-4 mt-0.5 text-amber-500 shrink-0" />
-                            <p className="leading-relaxed">
-                              <strong>Cloud Backups Inactive:</strong> Connect your Workspace account to activate instant cloud sync and backup your canvas creations seamlessly!
-                            </p>
+                          <div
+                            onClick={() => handleOpenSettingsTab("drive")}
+                            className={`border rounded-xl p-3 flex items-center justify-between space-x-2 text-xs text-left cursor-pointer transition-all hover:scale-[1.01] group ${
+                              theme === "dark"
+                                ? "bg-amber-955/20 border-amber-900/40 text-amber-300 hover:border-amber-500/50"
+                                : "bg-amber-50/75 border-amber-200 text-amber-800 hover:border-amber-400 shadow-3xs"
+                            }`}
+                            title="Click to open Google Drive Settings & Cloud Sync controls"
+                          >
+                            <div className="flex items-start space-x-2.5">
+                              <AlertCircle className="w-4 h-4 mt-0.5 text-amber-500 shrink-0 group-hover:scale-110 transition-transform" />
+                              <p className="leading-relaxed">
+                                <strong>Cloud Backups Inactive:</strong> Connect your Workspace account to activate instant cloud sync and backup your canvas creations seamlessly!
+                              </p>
+                            </div>
+                            <span className="shrink-0 text-[10px] bg-amber-500/20 text-amber-400 font-bold px-2.5 py-1 rounded-lg border border-amber-500/30 flex items-center gap-1 group-hover:bg-amber-500/30 transition-all">
+                              <Cloud className="w-3 h-3 text-amber-400" /> Setup Drive
+                            </span>
                           </div>
                         </div>
                       )}
@@ -3958,7 +3973,7 @@ export default function App() {
         onOpenSitemap={() => setIsSitemapView(true)}
         onOpenShortcuts={() => setIsShortcutsHelpOpen(true)}
         onOpenSeoModal={() => handleOpenSeoModal()}
-        onOpenApiKeyModal={() => setIsApiKeyModalOpen(true)}
+        onOpenApiKeyModal={() => handleOpenSettingsTab("apikeys")}
       />
 
       {/* SEO Best Practices Interactive Pre-Drive Audit Modal */}
@@ -3972,6 +3987,7 @@ export default function App() {
       <SettingsModal
         isOpen={isApiKeyModalOpen}
         onClose={() => setIsApiKeyModalOpen(false)}
+        defaultTab={settingsDefaultTab}
         theme={theme}
         onToggleTheme={handleToggleTheme}
         highContrast={highContrast}

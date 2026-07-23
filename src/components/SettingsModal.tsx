@@ -154,6 +154,13 @@ export default function SettingsModal({
   onKeySaved
 }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>(defaultTab);
+
+  // Sync activeTab with defaultTab when modal opens
+  useEffect(() => {
+    if (isOpen && defaultTab) {
+      setActiveTab(defaultTab);
+    }
+  }, [isOpen, defaultTab]);
   const [selectedProviderId, setSelectedProviderId] = useState<string>("gemini");
   const [keyInput, setKeyInput] = useState<string>("");
   const [isMasked, setIsMasked] = useState<boolean>(true);
