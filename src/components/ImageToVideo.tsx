@@ -924,6 +924,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
   const [audioStartOffset, setAudioStartOffset] = useState<number>(0); // Sync audio start offset in seconds (0 to video duration)
   const [waveformPeaks, setWaveformPeaks] = useState<number[]>([]);
   const [isAnalyzingAudio, setIsAnalyzingAudio] = useState<boolean>(false);
+  const [isDraggingAudio, setIsDraggingAudio] = useState<boolean>(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const audioInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -1008,6 +1009,24 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
     setCustomMusicName(file.name);
     setSelectedMusicUrl(url);
     setIsMusicEnabled(true);
+  };
+
+  const handleAudioDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDraggingAudio(false);
+    const file = e.dataTransfer.files?.[0];
+    if (!file) return;
+
+    if (!file.type.includes("audio") && !file.name.match(/\.(mp3|wav|m4a|aac|ogg|flac)$/i)) {
+      setErrorMsg("Please upload a valid background audio file (.mp3, .wav, .m4a, .aac, .ogg)");
+      return;
+    }
+
+    const url = URL.createObjectURL(file);
+    setCustomMusicName(file.name);
+    setSelectedMusicUrl(url);
+    setIsMusicEnabled(true);
+    setAiSuccessMsg(`🎵 MP3 audio track "${file.name}" uploaded successfully and merged with video loop!`);
   };
 
   const handleRemoveCustomAudio = () => {
@@ -2830,27 +2849,43 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
           </div>
 
           {/* Quick Custom Audio File Upload Trigger */}
-          <div className="flex items-center gap-1.5">
-            <button
-              type="button"
-              onClick={() => audioInputRef.current?.click()}
-              className="flex-1 py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/40 rounded-lg text-[10px] font-semibold text-slate-300 hover:text-amber-300 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
-            >
-              <span>📁 Upload Audio File</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => setAudioLoop(!audioLoop)}
-              className={`py-1.5 px-2 rounded-lg border text-[10px] font-mono font-bold transition-all cursor-pointer flex items-center gap-1 ${
-                audioLoop
-                  ? "bg-amber-500/15 border-amber-500/40 text-amber-300"
-                  : "bg-slate-950 border-slate-800 text-slate-500 hover:text-slate-300"
-              }`}
-              title="Toggle track auto-looping for generated video duration"
-            >
-              <Repeat className="w-3 h-3" />
-              <span>Loop: {audioLoop ? "ON" : "OFF"}</span>
-            </button>
+          <div className="flex flex-col gap-1.5">
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => audioInputRef.current?.click()}
+                className="flex-1 py-1.5 px-2.5 bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/40 rounded-lg text-[10px] font-semibold text-slate-300 hover:text-amber-300 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+              >
+                <Music className="w-3 h-3 text-amber-400" />
+                <span>{customMusicName ? "📁 Change MP3 Track" : "🎵 Upload MP3 Track"}</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => setAudioLoop(!audioLoop)}
+                className={`py-1.5 px-2 rounded-lg border text-[10px] font-mono font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                  audioLoop
+                    ? "bg-amber-500/15 border-amber-500/40 text-amber-300"
+                    : "bg-slate-950 border-slate-800 text-slate-500 hover:text-slate-300"
+                }`}
+                title="Toggle track auto-looping for generated video duration"
+              >
+                <Repeat className="w-3 h-3" />
+                <span>Loop: {audioLoop ? "ON" : "OFF"}</span>
+              </button>
+            </div>
+
+            {customMusicName && (
+              <div className="flex items-center justify-between bg-indigo-500/10 border border-indigo-500/25 rounded-lg px-2.5 py-1 text-[10px] text-indigo-200">
+                <span className="truncate max-w-[80%] font-medium">📁 {customMusicName}</span>
+                <button
+                  type="button"
+                  onClick={handleRemoveCustomAudio}
+                  className="text-[9px] font-bold text-rose-400 hover:text-rose-300 cursor-pointer"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
           </div>
 
           <p className="text-[10px] text-slate-500 leading-snug">
@@ -3862,6 +3897,102 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                 </button>
               </div>
 
+              {/* Hidden Audio file input */}
+              <input
+                type="file"
+                ref={audioInputRef}
+                onChange={handleAudioUpload}
+                accept="audio/*,.mp3,.wav,.m4a,.aac,.ogg,.flac"
+                className="hidden"
+              />
+
+              {/* Prominent Sidebar Custom MP3 Audio Drag & Drop Upload Zone */}
+              <div
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDraggingAudio(true);
+                }}
+                onDragLeave={() => setIsDraggingAudio(false)}
+                onDrop={handleAudioDrop}
+                onClick={() => audioInputRef.current?.click()}
+                className={`group relative border-2 border-dashed rounded-xl p-3.5 transition-all cursor-pointer flex flex-col items-center justify-center text-center gap-2 ${
+                  isDraggingAudio
+                    ? "border-amber-400 bg-amber-500/10 scale-[1.01]"
+                    : customMusicName
+                    ? "border-emerald-500/50 bg-emerald-500/10 hover:border-emerald-400"
+                    : "border-slate-800 bg-slate-900/60 hover:border-amber-500/60 hover:bg-slate-900/90"
+                }`}
+              >
+                <div className="flex items-center gap-2.5 w-full justify-between">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-8 h-8 rounded-lg bg-amber-500/15 border border-amber-500/30 flex items-center justify-center text-amber-400 group-hover:scale-110 transition-transform shrink-0">
+                      <Music className="w-4 h-4" />
+                    </div>
+                    <div className="text-left min-w-0">
+                      <p className="text-xs font-bold text-slate-200 group-hover:text-amber-300 transition-colors truncate">
+                        {customMusicName ? `📁 ${customMusicName}` : "🎵 Upload Custom MP3 Audio Track"}
+                      </p>
+                      <p className="text-[10px] text-slate-400 truncate">
+                        {customMusicName ? "Click or drag audio file to change track" : "Click to browse or drag & drop MP3 / WAV audio"}
+                      </p>
+                    </div>
+                  </div>
+
+                  <span className="text-[10px] font-bold text-amber-400 bg-amber-500/15 px-2.5 py-1 rounded-lg border border-amber-500/30 shrink-0 group-hover:bg-amber-500 group-hover:text-slate-950 transition-all">
+                    {customMusicName ? "Change" : "Browse"}
+                  </span>
+                </div>
+
+                {!customMusicName && (
+                  <div className="flex items-center gap-1.5 pt-1">
+                    <span className="text-[9px] font-mono font-bold bg-slate-800/80 text-amber-400 px-1.5 py-0.5 rounded border border-slate-700">.MP3</span>
+                    <span className="text-[9px] font-mono font-bold bg-slate-800/80 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700">.WAV</span>
+                    <span className="text-[9px] font-mono font-bold bg-slate-800/80 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700">.M4A</span>
+                    <span className="text-[9px] font-mono font-bold bg-slate-800/80 text-slate-300 px-1.5 py-0.5 rounded border border-slate-700">.AAC</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Custom Audio Selected State Panel */}
+              {customMusicName && (
+                <div className="bg-emerald-500/10 border border-emerald-500/30 rounded-xl px-3.5 py-2 flex items-center justify-between text-xs text-emerald-300 animate-fade-in">
+                  <span className="truncate max-w-[70%] font-medium flex items-center gap-1.5">
+                    <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    Active Track: <span className="font-semibold text-slate-100">{customMusicName}</span>
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setAudioLoop(!audioLoop);
+                      }}
+                      className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded border transition-all cursor-pointer ${
+                        audioLoop ? "bg-amber-500/20 border-amber-500/40 text-amber-300" : "bg-slate-800 border-slate-700 text-slate-400"
+                      }`}
+                    >
+                      Loop: {audioLoop ? "ON" : "OFF"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemoveCustomAudio();
+                      }}
+                      className="text-[10px] font-bold text-rose-400 hover:text-rose-300 transition-all hover:underline shrink-0 cursor-pointer"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-2 my-0.5">
+                <div className="h-[1px] bg-slate-800 flex-1"></div>
+                <span className="text-[10px] font-mono font-bold uppercase tracking-wider text-slate-500">OR Choose Trending Presets</span>
+                <div className="h-[1px] bg-slate-800 flex-1"></div>
+              </div>
+
               {/* Sound Category Tabs */}
               <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
                 {[
@@ -3892,7 +4023,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
               </div>
 
               {/* Interactive TikTok Sound Cards Grid */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[220px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-800">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[180px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-800">
                 {presetTracks
                   .filter((t) => soundCategoryFilter === "all" || t.category === soundCategoryFilter || t.category === "none")
                   .map((track) => {
@@ -3943,7 +4074,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                   })}
               </div>
 
-              {/* Music dropdown / custom file upload */}
+              {/* Music dropdown / volume slider */}
               <div className="flex flex-col gap-3 pt-2 border-t border-slate-900">
                 {/* Preset Selector */}
                 <div className="relative">
@@ -3982,32 +4113,6 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                     ▼
                   </div>
                 </div>
-
-                {/* Hidden Audio file input */}
-                <input
-                  type="file"
-                  ref={audioInputRef}
-                  onChange={handleAudioUpload}
-                  accept="audio/mp3,audio/mpeg,audio/wav,audio/ogg"
-                  className="hidden"
-                />
-
-                {/* Custom Audio Selected State Panel */}
-                {customMusicName && (
-                  <div className="bg-indigo-500/[0.03] border border-indigo-500/20 rounded-xl px-3.5 py-2 flex items-center justify-between text-xs text-indigo-300 animate-fade-in">
-                    <span className="truncate max-w-[80%] font-medium flex items-center gap-1.5">
-                      <Check className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
-                      Loaded: {customMusicName}
-                    </span>
-                    <button
-                      type="button"
-                      onClick={handleRemoveCustomAudio}
-                      className="text-[10px] font-bold text-rose-400 hover:text-rose-300 transition-all hover:underline pl-2 shrink-0 cursor-pointer"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                )}
 
                 {/* Volume Slider control */}
                 {selectedMusicUrl && (
