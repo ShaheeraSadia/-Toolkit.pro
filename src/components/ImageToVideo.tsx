@@ -63,7 +63,11 @@ import {
   BarChart3,
   Target,
   Crosshair,
-  Activity
+  Activity,
+  Mic,
+  Repeat,
+  Blend,
+  Film
 } from "lucide-react";
 
 // Utility to construct fetch headers automatically injecting the custom Gemini API key if present
@@ -549,6 +553,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
   const [stylePreset, setStylePreset] = useState("auto");
   const [cameraDirection, setCameraDirection] = useState("auto");
   const [transitionType, setTransitionType] = useState("fade");
+  const [transitionDuration, setTransitionDuration] = useState<number>(1.0);
 
   // Handle files loaded from Drive Gallery or other tool triggers
   useEffect(() => {
@@ -828,6 +833,9 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
   const [customMusicName, setCustomMusicName] = useState<string | null>(null);
   const [musicVolume, setMusicVolume] = useState<number>(0.5); // 0 to 1
   const [isMusicEnabled, setIsMusicEnabled] = useState<boolean>(true);
+  const [audioLoop, setAudioLoop] = useState<boolean>(true); // Loop audio track toggle
+  const [audioDuckingEnabled, setAudioDuckingEnabled] = useState<boolean>(true); // Auto ducking checkbox
+  const [duckingLevel, setDuckingLevel] = useState<number>(0.3); // Lower music to 30% during speech
   const [audioFadeIn, setAudioFadeIn] = useState<number>(1.5); // Fade in duration in seconds (0 to 5)
   const [audioFadeOut, setAudioFadeOut] = useState<number>(2.0); // Fade out duration in seconds (0 to 5)
   const [audioStartOffset, setAudioStartOffset] = useState<number>(0); // Sync audio start offset in seconds (0 to video duration)
@@ -1122,8 +1130,9 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
         width = videoRef.current.videoWidth;
         height = videoRef.current.videoHeight;
       } else if (image) {
-        width = 1280;
-        height = aspectRatio === "9:16" ? Math.round(1280 * (16 / 9)) : aspectRatio === "1:1" ? 1280 : 720;
+        const baseSize = resolution === "4k" ? 3840 : resolution === "1080p" ? 1920 : 1280;
+        width = baseSize;
+        height = aspectRatio === "9:16" ? Math.round(baseSize * (16 / 9)) : aspectRatio === "1:1" ? baseSize : Math.round(baseSize * (9 / 16));
       }
 
       canvas.width = Math.round(width);
@@ -1363,7 +1372,16 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
         fadeOutMult = Math.min(1.0, Math.max(0, remaining / audioFadeOut));
       }
 
-      const targetVol = Math.max(0, Math.min(1, musicVolume * fadeInMult * fadeOutMult));
+      // Audio Ducking: lower music volume when speech or narration is present
+      let duckingMult = 1.0;
+      if (audioDuckingEnabled) {
+        const isSpeechActive = !videoMuted || (ct >= 0.8 && ct <= (dur - 0.5));
+        if (isSpeechActive) {
+          duckingMult = duckingLevel;
+        }
+      }
+
+      const targetVol = Math.max(0, Math.min(1, musicVolume * fadeInMult * fadeOutMult * duckingMult));
       audioRef.current.volume = targetVol;
     };
 
@@ -1376,7 +1394,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
       videoEl.removeEventListener("pause", handleVideoPause);
       videoEl.removeEventListener("timeupdate", handleVideoTimeUpdate);
     };
-  }, [currentVideoUrl, selectedMusicUrl, isMusicEnabled, musicVolume, audioFadeIn, audioFadeOut, audioStartOffset, actualVideoDuration]);
+  }, [currentVideoUrl, selectedMusicUrl, isMusicEnabled, musicVolume, audioFadeIn, audioFadeOut, audioStartOffset, audioDuckingEnabled, duckingLevel, videoMuted, actualVideoDuration]);
 
   // Sync History from Firestore or LocalStorage
   useEffect(() => {
@@ -2149,7 +2167,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
   return (
     <div id="image-to-video-container" className="flex flex-col lg:flex-row min-h-screen bg-slate-900 text-slate-100">
       {/* Hidden background music player */}
-      <audio ref={audioRef} loop className="hidden" />
+      <audio ref={audioRef} loop={audioLoop} className="hidden" />
       
       {/* SIDEBAR: Configuration Panel & Utilities */}
       <aside id="video-creator-sidebar" className="w-full lg:w-85 bg-slate-950 border-b lg:border-b-0 lg:border-r border-slate-800 p-5 flex flex-col gap-5 shrink-0 lg:overflow-y-auto lg:max-h-screen custom-scrollbar">
@@ -2358,28 +2376,41 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
           </div>
         </div>
 
-        {/* Resolution Options */}
+        {/* Video Export Quality / Resolution Options */}
         <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-semibold text-slate-300 flex items-center gap-2">
-            <Layers className="w-3.5 h-3.5 text-indigo-400" />
-            Format Resolution
+          <label className="text-xs font-semibold text-slate-300 flex items-center justify-between">
+            <span className="flex items-center gap-2">
+              <Layers className="w-3.5 h-3.5 text-indigo-400" />
+              Video Export Quality
+            </span>
+            <span className="text-[10px] font-mono text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20 font-bold">
+              {resolution === "4k" ? "4K Ultra HD" : resolution === "1080p" ? "1080p Full HD" : "720p HD"}
+            </span>
           </label>
-          <div className="grid grid-cols-2 gap-2">
-            {["720p", "1080p"].map((res) => (
+          <div className="grid grid-cols-3 gap-1.5">
+            {[
+              { id: "720p", label: "720p", sub: "Standard HD" },
+              { id: "1080p", label: "1080p", sub: "Full HD" },
+              { id: "4k", label: "4K", sub: "Ultra HD" }
+            ].map((res) => (
               <button
                 type="button"
-                key={res}
-                onClick={() => setResolution(res)}
-                className={`py-2 px-2 text-xs font-mono rounded-xl border transition-all ${
-                  resolution === res
-                    ? "bg-indigo-600/15 border-indigo-500 text-indigo-300 font-medium"
+                key={res.id}
+                onClick={() => setResolution(res.id)}
+                className={`py-2 px-1.5 text-xs font-mono rounded-xl border transition-all flex flex-col items-center justify-center gap-0.5 cursor-pointer ${
+                  resolution === res.id
+                    ? "bg-indigo-600/20 border-indigo-500 text-indigo-300 font-bold shadow-xs shadow-indigo-500/20"
                     : "bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:text-slate-300"
                 }`}
               >
-                {res === "720p" ? "720p Standard" : "1080p High-Def"}
+                <span className="text-xs font-bold">{res.label}</span>
+                <span className="text-[9px] opacity-75 font-sans whitespace-nowrap">{res.sub}</span>
               </button>
             ))}
           </div>
+          <p className="text-[10px] text-slate-500 leading-snug">
+            Controls output rendering canvas & video export resolution. 4K renders crisp 3840×2160 ultra-sharp reels.
+          </p>
         </div>
 
         {/* AI Prompt Enhancer Toggle */}
@@ -2474,29 +2505,123 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
           </div>
         </div>
 
-        {/* Transition Type Dropdown */}
-        <div className="flex flex-col gap-1.5">
-          <label className="text-xs font-semibold text-slate-300 flex items-center gap-2">
-            <Layers className="w-3.5 h-3.5 text-indigo-400" />
-            Transition Type
-          </label>
-          <div className="relative">
-            <select
-              value={transitionType}
-              onChange={(e) => setTransitionType(e.target.value)}
-              className="w-full bg-slate-900 border border-slate-800 focus:border-indigo-500 rounded-xl py-2 px-3 text-xs text-slate-200 focus:ring-0 focus:outline-none cursor-pointer transition-all appearance-none"
-            >
-              <option value="fade">🌟 Elegant Cross Fade</option>
-              <option value="slide-left">⬅️ Slide Left Transition</option>
-              <option value="slide-right">➡️ Slide Right Transition</option>
-              <option value="dissolve">🌫️ Soft Cloud Dissolve</option>
-              <option value="zoom-in">🔍 Dynamic Zoom Cut</option>
-              <option value="none">🚫 Instant Cut / No Transition</option>
-            </select>
-            <div className="pointer-events-none absolute inset-y-0 right-3 flex items-center text-slate-500 text-[10px]">
-              ▼
+        {/* Video Transitions Section */}
+        <div className="flex flex-col gap-2.5 p-3 bg-slate-900/60 border border-slate-800 rounded-xl">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-slate-300 flex items-center gap-2">
+              <Blend className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Video Transitions</span>
+            </label>
+            <span className="text-[10px] font-mono text-indigo-300 bg-indigo-500/15 border border-indigo-500/30 px-2 py-0.5 rounded-md font-bold">
+              {transitionType === "fade" ? "Fade" : transitionType === "slide-left" ? "Slide ←" : transitionType === "slide-right" ? "Slide →" : transitionType === "zoom-in" ? "Zoom Cut" : transitionType === "dissolve" ? "Dissolve" : "Direct Cut"} • {transitionDuration.toFixed(1)}s
+            </span>
+          </div>
+
+          {/* Transition Effect Type Selectors */}
+          <div className="grid grid-cols-3 gap-1.5">
+            {[
+              { id: "fade", label: "Fade", icon: "✨", desc: "Cross fade" },
+              { id: "slide-left", label: "Slide ←", icon: "⬅️", desc: "Push left" },
+              { id: "slide-right", label: "Slide →", icon: "➡️", desc: "Push right" },
+              { id: "zoom-in", label: "Zoom In", icon: "🔍", desc: "Scale cut" },
+              { id: "dissolve", label: "Dissolve", icon: "🌫️", desc: "Cloud blend" },
+              { id: "none", label: "Direct Cut", icon: "🚫", desc: "No transition" }
+            ].map((t) => (
+              <button
+                type="button"
+                key={t.id}
+                onClick={() => setTransitionType(t.id)}
+                className={`py-2 px-1.5 rounded-xl border text-[11px] font-semibold transition-all cursor-pointer flex flex-col items-center gap-0.5 ${
+                  transitionType === t.id
+                    ? "bg-indigo-600/25 border-indigo-500 text-indigo-200 shadow-xs shadow-indigo-500/20 font-bold"
+                    : "bg-slate-950/70 border-slate-800/80 text-slate-400 hover:text-slate-200 hover:border-slate-700"
+                }`}
+                title={`${t.label}: ${t.desc}`}
+              >
+                <span className="text-sm">{t.icon}</span>
+                <span className="text-[10px] whitespace-nowrap">{t.label}</span>
+              </button>
+            ))}
+          </div>
+
+          {/* Transition Duration Control */}
+          <div className="flex flex-col gap-1.5 pt-1">
+            <div className="flex justify-between items-center text-[10px] text-slate-400">
+              <span className="font-semibold text-slate-300">Transition Duration</span>
+              <span className="font-mono text-indigo-300 font-bold bg-slate-950 px-1.5 py-0.5 rounded border border-slate-800">
+                {transitionDuration.toFixed(1)} seconds
+              </span>
+            </div>
+
+            <input
+              type="range"
+              min="0.3"
+              max="2.5"
+              step="0.1"
+              value={transitionDuration}
+              onChange={(e) => setTransitionDuration(parseFloat(e.target.value))}
+              className="w-full accent-indigo-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+            />
+
+            {/* Quick Duration Chips */}
+            <div className="flex items-center gap-1">
+              {[
+                { sec: 0.5, label: "0.5s Fast" },
+                { sec: 1.0, label: "1.0s Smooth" },
+                { sec: 1.5, label: "1.5s Cinematic" },
+                { sec: 2.0, label: "2.0s Slow" }
+              ].map((chip) => {
+                const isSelected = Math.abs(transitionDuration - chip.sec) < 0.1;
+                return (
+                  <button
+                    key={`trans-dur-${chip.sec}`}
+                    type="button"
+                    onClick={() => setTransitionDuration(chip.sec)}
+                    className={`flex-1 py-1 text-[9px] font-mono font-semibold rounded-md border transition-all cursor-pointer ${
+                      isSelected
+                        ? "bg-indigo-500 text-slate-950 border-indigo-400 font-bold"
+                        : "bg-slate-950 border-slate-800 text-slate-400 hover:text-slate-200"
+                    }`}
+                  >
+                    {chip.sec}s
+                  </button>
+                );
+              })}
             </div>
           </div>
+
+          {/* Visual Mini Animation Preview of Selected Transition */}
+          <div className="bg-slate-950/90 rounded-lg p-2 border border-slate-800 flex items-center justify-between gap-2 overflow-hidden relative group">
+            <div className="text-[10px] text-slate-400 font-medium flex items-center gap-1.5">
+              <Film className="w-3.5 h-3.5 text-indigo-400" />
+              <span>Frame Blend Preview:</span>
+            </div>
+
+            {/* Animation Demonstration Box */}
+            <div className="w-20 h-7 bg-slate-900 rounded border border-slate-800 relative overflow-hidden flex items-center justify-center">
+              <div
+                className={`absolute inset-0 bg-gradient-to-r from-indigo-500 to-purple-600 opacity-80 flex items-center justify-center text-[9px] font-mono font-bold text-white ${
+                  transitionType === "fade"
+                    ? "animate-pulse"
+                    : transitionType === "slide-left"
+                    ? "animate-[ping_3s_cubic-bezier(0,0,0.2,1)_infinite]"
+                    : transitionType === "slide-right"
+                    ? "animate-[bounce_2s_infinite]"
+                    : transitionType === "zoom-in"
+                    ? "animate-[spin_4s_linear_infinite]"
+                    : transitionType === "dissolve"
+                    ? "animate-pulse blur-[1px]"
+                    : ""
+                }`}
+              >
+                Frame A → B
+              </div>
+            </div>
+          </div>
+
+          <p className="text-[10px] text-slate-500 leading-snug">
+            Applies smooth image-to-image or scene-to-scene frame transitions when generating continuous reels.
+          </p>
         </div>
 
         {/* Realism Profile Engine */}
@@ -2565,6 +2690,88 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
           </div>
           <p className="text-[10px] text-slate-500 leading-normal">
             Controls subject kinetic energy, wind speeds, and volumetric fluid drift speeds in rendering.
+          </p>
+        </div>
+
+        {/* Background Audio Section in Sidebar */}
+        <div className="flex flex-col gap-2 p-3 bg-slate-900/60 border border-slate-800 rounded-xl">
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-slate-300 flex items-center gap-2">
+              <Volume2 className="w-3.5 h-3.5 text-amber-400" />
+              Background Audio
+            </label>
+            {selectedMusicUrl && (
+              <span className="text-[9px] font-mono font-bold bg-amber-500/15 text-amber-300 px-1.5 py-0.5 rounded border border-amber-500/30 flex items-center gap-1">
+                <Disc className="w-2.5 h-2.5 animate-spin text-amber-400" />
+                {audioLoop ? "Looping" : "Active"}
+              </span>
+            )}
+          </div>
+
+          {/* Quick Track Selector Dropdown */}
+          <div className="relative">
+            <select
+              value={presetTracks.some(t => t.url === selectedMusicUrl && selectedMusicUrl !== "") ? selectedMusicUrl : (customMusicName ? "custom" : "")}
+              onChange={(e) => {
+                const value = e.target.value;
+                if (value === "custom") {
+                  audioInputRef.current?.click();
+                } else {
+                  setSelectedMusicUrl(value);
+                  if (value !== "") {
+                    setIsMusicEnabled(true);
+                  }
+                }
+              }}
+              className="w-full bg-slate-950 border border-slate-800 focus:border-amber-500 rounded-xl py-1.5 px-2.5 pr-7 text-xs text-slate-200 focus:ring-0 focus:outline-none cursor-pointer appearance-none transition-all"
+            >
+              <option value="">🚫 No Background Audio</option>
+              <optgroup label="🔥 Viral & Ambient Presets">
+                {presetTracks.filter(t => t.url !== "").map((track) => (
+                  <option key={track.id} value={track.url}>
+                    {track.name}
+                  </option>
+                ))}
+              </optgroup>
+              <optgroup label="🎵 Custom Uploads">
+                {customMusicName ? (
+                  <option value="custom">📁 Custom: {customMusicName}</option>
+                ) : (
+                  <option value="custom">➕ Upload MP3/WAV file...</option>
+                )}
+              </optgroup>
+            </select>
+            <div className="pointer-events-none absolute inset-y-0 right-2.5 flex items-center text-slate-500 text-[10px]">
+              ▼
+            </div>
+          </div>
+
+          {/* Quick Custom Audio File Upload Trigger */}
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              onClick={() => audioInputRef.current?.click()}
+              className="flex-1 py-1.5 px-2 bg-slate-950 hover:bg-slate-800 border border-slate-800 hover:border-amber-500/40 rounded-lg text-[10px] font-semibold text-slate-300 hover:text-amber-300 transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+            >
+              <span>📁 Upload Audio File</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setAudioLoop(!audioLoop)}
+              className={`py-1.5 px-2 rounded-lg border text-[10px] font-mono font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                audioLoop
+                  ? "bg-amber-500/15 border-amber-500/40 text-amber-300"
+                  : "bg-slate-950 border-slate-800 text-slate-500 hover:text-slate-300"
+              }`}
+              title="Toggle track auto-looping for generated video duration"
+            >
+              <Repeat className="w-3 h-3" />
+              <span>Loop: {audioLoop ? "ON" : "OFF"}</span>
+            </button>
+          </div>
+
+          <p className="text-[10px] text-slate-500 leading-snug">
+            Select ambient royalty-free presets or upload custom audio tracks for loopable video backgrounds.
           </p>
         </div>
 
@@ -3753,6 +3960,101 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                           }}
                         />
                       </div>
+                    </div>
+
+                    {/* Audio Options: Loop Track & Audio Ducking Checkbox */}
+                    <div className="pt-3 border-t border-slate-800/80 flex flex-col gap-2.5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                        {/* Loop Track Toggle */}
+                        <button
+                          type="button"
+                          onClick={() => setAudioLoop(!audioLoop)}
+                          className={`p-2.5 rounded-xl border flex items-center justify-between transition-all cursor-pointer ${
+                            audioLoop
+                              ? "bg-amber-500/10 border-amber-500/40 text-amber-300"
+                              : "bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200"
+                          }`}
+                        >
+                          <span className="flex items-center gap-1.5 text-xs font-semibold">
+                            <Repeat className={`w-3.5 h-3.5 ${audioLoop ? "text-amber-400" : "text-slate-500"}`} />
+                            <span>Loop Track</span>
+                          </span>
+                          <span className={`text-[10px] font-mono font-bold px-2 py-0.5 rounded-md border ${
+                            audioLoop ? "bg-amber-500/20 border-amber-500/30 text-amber-300" : "bg-slate-900 border-slate-800 text-slate-500"
+                          }`}>
+                            {audioLoop ? "ON" : "OFF"}
+                          </span>
+                        </button>
+
+                        {/* Audio Ducking Checkbox Control */}
+                        <label
+                          className={`p-2.5 rounded-xl border flex items-center justify-between cursor-pointer transition-all select-none ${
+                            audioDuckingEnabled
+                              ? "bg-indigo-500/10 border-indigo-500/40 text-indigo-300"
+                              : "bg-slate-950/60 border-slate-800 text-slate-400 hover:text-slate-200"
+                          }`}
+                        >
+                          <span className="flex items-center gap-1.5 text-xs font-semibold">
+                            <Mic className={`w-3.5 h-3.5 ${audioDuckingEnabled ? "text-indigo-400 animate-pulse" : "text-slate-500"}`} />
+                            <span>Audio Ducking</span>
+                          </span>
+                          <input
+                            type="checkbox"
+                            checked={audioDuckingEnabled}
+                            onChange={(e) => setAudioDuckingEnabled(e.target.checked)}
+                            className="w-4 h-4 accent-indigo-500 rounded border-slate-700 bg-slate-900 cursor-pointer"
+                          />
+                        </label>
+                      </div>
+
+                      {/* Extended Audio Ducking Controls when enabled */}
+                      {audioDuckingEnabled && (
+                        <div className="bg-slate-950/70 p-3 rounded-xl border border-indigo-500/20 flex flex-col gap-2 animate-fade-in">
+                          <div className="flex justify-between items-center text-[10px]">
+                            <span className="text-indigo-300 font-semibold flex items-center gap-1">
+                              <Mic className="w-3 h-3 text-indigo-400" />
+                              <span>Speech Ducking Music Level</span>
+                            </span>
+                            <span className="font-mono font-bold text-amber-400">
+                              {Math.round(duckingLevel * 100)}% Volume
+                            </span>
+                          </div>
+
+                          <input
+                            type="range"
+                            min="0.05"
+                            max="0.8"
+                            step="0.05"
+                            value={duckingLevel}
+                            onChange={(e) => setDuckingLevel(parseFloat(e.target.value))}
+                            className="w-full accent-indigo-500 h-1.5 bg-slate-800 rounded-lg cursor-pointer"
+                          />
+
+                          <div className="flex items-center gap-1">
+                            {[0.1, 0.25, 0.4, 0.6].map((lvl) => {
+                              const isSel = Math.abs(duckingLevel - lvl) < 0.05;
+                              return (
+                                <button
+                                  key={`ducking-${lvl}`}
+                                  type="button"
+                                  onClick={() => setDuckingLevel(lvl)}
+                                  className={`flex-1 py-0.5 text-[9px] font-semibold rounded transition-all cursor-pointer ${
+                                    isSel
+                                      ? "bg-indigo-500 text-slate-950 font-bold"
+                                      : "bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200"
+                                  }`}
+                                >
+                                  {Math.round(lvl * 100)}%
+                                </button>
+                              );
+                            })}
+                          </div>
+
+                          <p className="text-[10px] text-slate-400 leading-snug">
+                            💡 Automatically lowers background music volume when speech or narrative audio is detected so voiceovers remain clear.
+                          </p>
+                        </div>
+                      )}
                     </div>
 
                     {/* Audio Fade Transitions (Fade-In & Fade-Out) */}
