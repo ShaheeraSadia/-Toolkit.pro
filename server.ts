@@ -388,25 +388,26 @@ app.post("/api/image/generate-free", async (req, res) => {
     }
 
     const selectedModel = modelChoice === "turbo" ? "turbo" : "flux";
-    const primaryUrl = `https://image.pollinations.ai/p/${encodeURIComponent(fullPrompt)}?width=${width}&height=${height}&model=${selectedModel}`;
-    const fallbackUrl = `https://image.pollinations.ai/p/${encodeURIComponent(fullPrompt)}?width=${width}&height=${height}&model=turbo`;
+    const primaryUrl = `https://image.pollinations.ai/p/${encodeURIComponent(fullPrompt)}?width=${width}&height=${height}&seed=${Date.now()}&model=${selectedModel}`;
+    const fallbackUrl = `https://image.pollinations.ai/p/${encodeURIComponent(fullPrompt)}?width=${width}&height=${height}&seed=${Date.now()}&model=turbo`;
 
     console.log(`[Free Image Gen] Fetching from primary url: ${primaryUrl}`);
     let imgRes;
     try {
-      imgRes = await fetch(primaryUrl);
+      imgRes = await fetch(primaryUrl, { signal: AbortSignal.timeout(6500) });
       if (!imgRes.ok) {
         throw new Error(`Primary model failed with HTTP ${imgRes.status}`);
       }
     } catch (err) {
-      console.warn(`[Free Image Gen] Primary model ${selectedModel} failed, trying fallback turbo: ${fallbackUrl}`, err);
+      console.warn(`[Free Image Gen] Primary model ${selectedModel} timed out or failed, trying fallback: ${fallbackUrl}`, err);
       try {
-        imgRes = await fetch(fallbackUrl);
+        imgRes = await fetch(fallbackUrl, { signal: AbortSignal.timeout(5000) });
         if (!imgRes.ok) {
           throw new Error(`Fallback model failed with HTTP ${imgRes.status}`);
         }
       } catch (fallbackErr) {
-        throw new Error(`All free image models failed to respond. Please try again later.`);
+        console.warn(`[Free Image Gen] Both backend fetches timed out/failed. Returning direct Pollinations URL for client stream.`);
+        return res.json({ imageUrl: primaryUrl, fullPrompt, directStream: true });
       }
     }
 
@@ -417,7 +418,7 @@ app.post("/api/image/generate-free", async (req, res) => {
 
     return res.json({ imageUrl: dataUrl, fullPrompt });
   } catch (err: any) {
-    console.error("Free image generation failed:", err);
+    console.error("Free image generation error:", err);
     return res.status(500).json({ error: err.message || "Failed to generate free image." });
   }
 });
