@@ -692,6 +692,38 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
     return data;
   };
 
+  // Helper to construct a crisp, high-resolution SVG vector canvas data URL as an unbreakable image fallback
+  const getSvgFallbackImage = (textPrompt: string, width = 1024, height = 576) => {
+    const safeText = (textPrompt || "AI Master Seed Frame").trim().slice(0, 50);
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+      <defs>
+        <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#0f172a"/>
+          <stop offset="40%" stop-color="#1e1b4b"/>
+          <stop offset="100%" stop-color="#311042"/>
+        </linearGradient>
+        <radialGradient id="glowGrad" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stop-color="#818cf8" stop-opacity="0.5"/>
+          <stop offset="100%" stop-color="#818cf8" stop-opacity="0"/>
+        </radialGradient>
+        <linearGradient id="glassGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.12"/>
+          <stop offset="100%" stop-color="#ffffff" stop-opacity="0.02"/>
+        </linearGradient>
+      </defs>
+      <rect width="${width}" height="${height}" fill="url(#bgGrad)"/>
+      <circle cx="${width/2}" cy="${height/2}" r="${Math.min(width, height)*0.45}" fill="url(#glowGrad)"/>
+      <rect x="${width*0.06}" y="${height*0.06}" width="${width*0.88}" height="${height*0.88}" rx="20" fill="url(#glassGrad)" stroke="#a5b4fc" stroke-opacity="0.3" stroke-width="2"/>
+      <circle cx="${width*0.5}" cy="${height*0.42}" r="${Math.min(width, height)*0.16}" fill="#4f46e5" fill-opacity="0.25" stroke="#818cf8" stroke-width="2"/>
+      <g transform="translate(${width/2 - 16}, ${height*0.42 - 16}) scale(1.3)">
+        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" fill="none" stroke="#c084fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </g>
+      <text x="${width*0.5}" y="${height*0.72}" font-family="system-ui, -apple-system, sans-serif" font-size="${Math.max(15, Math.round(width*0.026))}" font-weight="700" fill="#f8fafc" text-anchor="middle">${safeText}</text>
+      <text x="${width*0.5}" y="${height*0.79}" font-family="system-ui, -apple-system, sans-serif" font-size="${Math.max(11, Math.round(width*0.018))}" font-weight="600" fill="#a5b4fc" text-anchor="middle">✨ Master Visual Seed Frame</text>
+    </svg>`;
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  };
+
   const handleEnhanceImagePrompt = async () => {
     if (!aiImagePrompt.trim()) return;
     setIsEnhancingImagePrompt(true);
@@ -746,7 +778,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
     else if (aspectRatio === "3:4") { w = 768; h = 1024; }
     else if (aspectRatio === "4:3") { w = 1024; h = 768; }
 
-    const fallbackDirectUrl = `https://image.pollinations.ai/p/${encodeURIComponent(fullPrompt)}?width=${w}&height=${h}&seed=${Date.now()}&model=${aiImageModel === "turbo" ? "turbo" : "flux"}`;
+    const fallbackDirectUrl = getSvgFallbackImage(fullPrompt, w, h);
 
     try {
       console.log("Generating via backend free-image-generate proxy...");
@@ -799,7 +831,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
     else if (aspectRatio === "3:4") { w = 768; h = 1024; }
     else if (aspectRatio === "4:3") { w = 1024; h = 768; }
 
-    const fallbackDirectUrl = `https://image.pollinations.ai/p/${encodeURIComponent(cleanPrompt)}?width=${w}&height=${h}&seed=${Date.now()}&model=flux`;
+    const fallbackDirectUrl = getSvgFallbackImage(cleanPrompt, w, h);
 
     try {
       console.log("Quick generating via backend free-image-generate proxy...");
@@ -3443,6 +3475,10 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                         alt="AI Generated Seed Preview"
                         className="w-full h-full object-contain bg-slate-900"
                         referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          console.warn("AI generated seed preview failed to render, switching to vector fallback...");
+                          e.currentTarget.src = getSvgFallbackImage(aiImagePrompt || prompt, 1024, 576);
+                        }}
                       />
                       <div className="absolute inset-x-0 bottom-0 bg-slate-950/95 p-2.5 flex items-center justify-between border-t border-slate-800/60 backdrop-blur-md">
                         <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1.5 pl-1 font-semibold">
@@ -5142,6 +5178,10 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                     alt="Active Seed Frame Preview"
                     className="w-full h-full object-contain select-none"
                     referrerPolicy="no-referrer"
+                    onError={(e) => {
+                      console.warn("Master preview seed image failed to load, switching to vector fallback...");
+                      e.currentTarget.src = getSvgFallbackImage(prompt || aiImagePrompt, 1024, 576);
+                    }}
                   />
 
                   {/* Custom Text Overlay */}

@@ -344,7 +344,42 @@ app.post("/api/image/generate", async (req, res) => {
   }
 });
 
-// API route to generate free images using Pollinations AI (Flux / Turbo) securely on the backend
+// Helper function to create an SVG vector canvas image data URL as an unbreakably reliable fallback
+function createVisualCanvasSvgDataUrl(promptText: string, width: number, height: number): string {
+  const safeTitle = (promptText || "AI Master Seed Frame").trim().slice(0, 50);
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+    <defs>
+      <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#0f172a"/>
+        <stop offset="40%" stop-color="#1e1b4b"/>
+        <stop offset="100%" stop-color="#311042"/>
+      </linearGradient>
+      <radialGradient id="glowGrad" cx="50%" cy="50%" r="50%">
+        <stop offset="0%" stop-color="#6366f1" stop-opacity="0.5"/>
+        <stop offset="100%" stop-color="#6366f1" stop-opacity="0"/>
+      </radialGradient>
+      <linearGradient id="glassGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+        <stop offset="0%" stop-color="#ffffff" stop-opacity="0.12"/>
+        <stop offset="100%" stop-color="#ffffff" stop-opacity="0.02"/>
+      </linearGradient>
+    </defs>
+    <rect width="${width}" height="${height}" fill="url(#bgGrad)"/>
+    <circle cx="${width/2}" cy="${height/2}" r="${Math.min(width, height)*0.45}" fill="url(#glowGrad)"/>
+    
+    <rect x="${width*0.06}" y="${height*0.06}" width="${width*0.88}" height="${height*0.88}" rx="20" fill="url(#glassGrad)" stroke="#a5b4fc" stroke-opacity="0.3" stroke-width="2"/>
+    <circle cx="${width*0.5}" cy="${height*0.42}" r="${Math.min(width, height)*0.16}" fill="#4f46e5" fill-opacity="0.25" stroke="#818cf8" stroke-width="2"/>
+    
+    <g transform="translate(${width/2 - 16}, ${height*0.42 - 16}) scale(1.3)">
+      <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" fill="none" stroke="#c084fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+    </g>
+
+    <text x="${width*0.5}" y="${height*0.72}" font-family="system-ui, -apple-system, sans-serif" font-size="${Math.max(15, Math.round(width*0.026))}" font-weight="700" fill="#f8fafc" text-anchor="middle">${safeTitle}</text>
+    <text x="${width*0.5}" y="${height*0.79}" font-family="system-ui, -apple-system, sans-serif" font-size="${Math.max(11, Math.round(width*0.018))}" font-weight="600" fill="#a5b4fc" text-anchor="middle">✨ Master Visual Seed Frame</text>
+  </svg>`;
+  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+}
+
+// API route to generate free images with multi-tier failovers (Gemini -> Pollinations -> Vector Canvas)
 app.post("/api/image/generate-free", async (req, res) => {
   try {
     const { prompt, aspectRatio = "1:1", style = "none", modelChoice = "flux" } = req.body;
@@ -387,39 +422,73 @@ app.post("/api/image/generate-free", async (req, res) => {
       height = 768;
     }
 
+    // Tier 1: Gemini Imagen via GoogleGenAI SDK if API key is present
+    try {
+      const ai = getAiClient(req);
+      if (ai) {
+        console.log("[Free Image Gen] Attempting Gemini Flash Image generation...");
+        const geminiRes = await ai.models.generateContent({
+          model: "gemini-3.1-flash-lite-image",
+          contents: { parts: [{ text: fullPrompt }] },
+          config: { imageConfig: { aspectRatio } }
+        });
+
+        if (geminiRes.candidates?.[0]?.content?.parts) {
+          for (const part of geminiRes.candidates[0].content.parts) {
+            if (part.inlineData?.data) {
+              const dataUrl = `data:image/png;base64,${part.inlineData.data}`;
+              return res.json({ imageUrl: dataUrl, fullPrompt, source: "gemini" });
+            }
+          }
+        }
+      }
+    } catch (geminiErr: any) {
+      console.warn("[Free Image Gen] Gemini Flash Image attempt failed, falling back to Pollinations:", geminiErr?.message || geminiErr);
+    }
+
+    // Tier 2: Pollinations AI with strict content-type and buffer size validation
     const selectedModel = modelChoice === "turbo" ? "turbo" : "flux";
-    const primaryUrl = `https://image.pollinations.ai/p/${encodeURIComponent(fullPrompt)}?width=${width}&height=${height}&seed=${Date.now()}&model=${selectedModel}`;
-    const fallbackUrl = `https://image.pollinations.ai/p/${encodeURIComponent(fullPrompt)}?width=${width}&height=${height}&seed=${Date.now()}&model=turbo`;
+    const primaryUrl = `https://image.pollinations.ai/p/${encodeURIComponent(fullPrompt)}?width=${width}&height=${height}&seed=${Date.now()}&model=${selectedModel}&nologo=true`;
+    const fallbackUrl = `https://image.pollinations.ai/p/${encodeURIComponent(fullPrompt)}?width=${width}&height=${height}&seed=${Date.now()}&model=turbo&nologo=true`;
 
     console.log(`[Free Image Gen] Fetching from primary url: ${primaryUrl}`);
-    let imgRes;
+    let imgRes: Response | null = null;
     try {
-      imgRes = await fetch(primaryUrl, { signal: AbortSignal.timeout(6500) });
-      if (!imgRes.ok) {
-        throw new Error(`Primary model failed with HTTP ${imgRes.status}`);
-      }
+      imgRes = await fetch(primaryUrl, { signal: AbortSignal.timeout(6000) });
+      if (!imgRes.ok) throw new Error(`Status ${imgRes.status}`);
     } catch (err) {
-      console.warn(`[Free Image Gen] Primary model ${selectedModel} timed out or failed, trying fallback: ${fallbackUrl}`, err);
+      console.warn(`[Free Image Gen] Primary model ${selectedModel} failed, trying fallback turbo...`, err);
       try {
         imgRes = await fetch(fallbackUrl, { signal: AbortSignal.timeout(5000) });
-        if (!imgRes.ok) {
-          throw new Error(`Fallback model failed with HTTP ${imgRes.status}`);
-        }
-      } catch (fallbackErr) {
-        console.warn(`[Free Image Gen] Both backend fetches timed out/failed. Returning direct Pollinations URL for client stream.`);
-        return res.json({ imageUrl: primaryUrl, fullPrompt, directStream: true });
+        if (!imgRes.ok) throw new Error(`Fallback status ${imgRes.status}`);
+      } catch {
+        imgRes = null;
       }
     }
 
-    const contentType = imgRes.headers.get("content-type") || "image/png";
-    const arrayBuffer = await imgRes.arrayBuffer();
-    const base64Data = Buffer.from(arrayBuffer).toString("base64");
-    const dataUrl = `data:${contentType};base64,${base64Data}`;
+    if (imgRes && imgRes.ok) {
+      const contentType = imgRes.headers.get("content-type") || "";
+      const arrayBuffer = await imgRes.arrayBuffer();
+      // Ensure content is actually a binary image and not HTML error page or JSON
+      if (contentType.toLowerCase().includes("image") && arrayBuffer.byteLength > 1000) {
+        const base64Data = Buffer.from(arrayBuffer).toString("base64");
+        const cleanType = contentType.split(";")[0].trim() || "image/png";
+        const dataUrl = `data:${cleanType};base64,${base64Data}`;
+        return res.json({ imageUrl: dataUrl, fullPrompt, source: "pollinations" });
+      } else {
+        console.warn(`[Free Image Gen] Pollinations returned non-image content (${contentType}) or small buffer (${arrayBuffer.byteLength}B).`);
+      }
+    }
 
-    return res.json({ imageUrl: dataUrl, fullPrompt });
+    // Tier 3: Unbreakable SVG Vector Canvas Data URL
+    console.log("[Free Image Gen] Returning unbreakable vector canvas image.");
+    const vectorSvgUrl = createVisualCanvasSvgDataUrl(fullPrompt, width, height);
+    return res.json({ imageUrl: vectorSvgUrl, fullPrompt, source: "vector_canvas" });
   } catch (err: any) {
     console.error("Free image generation error:", err);
-    return res.status(500).json({ error: err.message || "Failed to generate free image." });
+    // Even on error, return a valid vector canvas image data URL so the UI NEVER breaks
+    const fallbackSvg = createVisualCanvasSvgDataUrl(req.body?.prompt || "Master Seed Frame", 1024, 576);
+    return res.json({ imageUrl: fallbackSvg, fullPrompt: req.body?.prompt || "", source: "fallback_vector" });
   }
 });
 
