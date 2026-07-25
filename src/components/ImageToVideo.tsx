@@ -803,36 +803,134 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
     return data;
   };
 
-  // Helper to construct a crisp, high-resolution SVG vector canvas data URL as an unbreakable image fallback
-  const getSvgFallbackImage = (textPrompt: string, width = 1024, height = 576) => {
-    const safeText = (textPrompt || "AI Master Seed Frame").trim().slice(0, 50).replace(/</g, "&lt;").replace(/>/g, "&gt;");
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
-      <defs>
-        <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
-          <stop offset="0%" stop-color="#0f172a"/>
-          <stop offset="40%" stop-color="#1e1b4b"/>
-          <stop offset="100%" stop-color="#311042"/>
-        </linearGradient>
-        <radialGradient id="glowGrad" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stop-color="#818cf8" stop-opacity="0.5"/>
-          <stop offset="100%" stop-color="#818cf8" stop-opacity="0"/>
-        </radialGradient>
-        <linearGradient id="glassGrad" x1="0%" y1="0%" x2="0%" y2="100%">
-          <stop offset="0%" stop-color="#ffffff" stop-opacity="0.12"/>
-          <stop offset="100%" stop-color="#ffffff" stop-opacity="0.02"/>
-        </linearGradient>
-      </defs>
-      <rect width="${width}" height="${height}" fill="url(#bgGrad)"/>
-      <circle cx="${width/2}" cy="${height/2}" r="${Math.min(width, height)*0.45}" fill="url(#glowGrad)"/>
-      <rect x="${width*0.06}" y="${height*0.06}" width="${width*0.88}" height="${height*0.88}" rx="20" fill="url(#glassGrad)" stroke="#a5b4fc" stroke-opacity="0.3" stroke-width="2"/>
-      <circle cx="${width*0.5}" cy="${height*0.42}" r="${Math.min(width, height)*0.16}" fill="#4f46e5" fill-opacity="0.25" stroke="#818cf8" stroke-width="2"/>
-      <g transform="translate(${width/2 - 16}, ${height*0.42 - 16}) scale(1.3)">
-        <path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" fill="none" stroke="#c084fc" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-      </g>
-      <text x="${width*0.5}" y="${height*0.72}" font-family="system-ui, -apple-system, sans-serif" font-size="${Math.max(15, Math.round(width*0.026))}" font-weight="700" fill="#f8fafc" text-anchor="middle">${safeText}</text>
-      <text x="${width*0.5}" y="${height*0.79}" font-family="system-ui, -apple-system, sans-serif" font-size="${Math.max(11, Math.round(width*0.018))}" font-weight="600" fill="#a5b4fc" text-anchor="middle">✨ Master Visual Seed Frame</text>
-    </svg>`;
-    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+  // Live Pollinations AI direct browser image stream
+  const getLivePollinationsUrl = (promptText: string, width = 1024, height = 576) => {
+    const safeText = (promptText || "cinematic masterpiece").trim();
+    const seed = Math.floor(Math.random() * 10000000);
+    return `https://image.pollinations.ai/prompt/${encodeURIComponent(safeText)}?width=${width}&height=${height}&seed=${seed}&nologo=true`;
+  };
+
+  // Curated photorealistic stock photo mapped to prompt topic
+  const getTopicUnsplashPhotoUrl = (promptText: string, width = 1024, height = 576) => {
+    const lower = (promptText || "").toLowerCase();
+    let photoId = "1618005182384-a83a8bd57fbe"; // default golden/abstract
+    if (lower.includes("rain") || lower.includes("water") || lower.includes("storm")) {
+      photoId = "1519692933481-e162a57d6721"; // rain
+    } else if (lower.includes("dragon") || lower.includes("fire") || lower.includes("monster")) {
+      photoId = "1579783900882-c0d3dad7b119"; // fantasy art
+    } else if (lower.includes("car") || lower.includes("vehicle") || lower.includes("speed")) {
+      photoId = "1503376780353-7e6692767b70"; // sports car
+    } else if (lower.includes("cyberpunk") || lower.includes("neon") || lower.includes("city") || lower.includes("tokyo")) {
+      photoId = "1514565131-fce0801e5785"; // neon city
+    } else if (lower.includes("space") || lower.includes("galaxy") || lower.includes("star") || lower.includes("cosmic") || lower.includes("hourglass")) {
+      photoId = "1451187580459-43490279c0fa"; // galaxy
+    } else if (lower.includes("forest") || lower.includes("nature") || lower.includes("mountain") || lower.includes("tree")) {
+      photoId = "1470071459604-3b5ec3a7fe05"; // mountain forest
+    } else if (lower.includes("cat") || lower.includes("dog") || lower.includes("animal")) {
+      photoId = "1514888286974-6c03e2ca1dba"; // cat
+    }
+    return `https://images.unsplash.com/photo-${photoId}?auto=format&fit=crop&w=${width}&h=${height}&q=80`;
+  };
+
+  // High-resolution HTML5 canvas synthesized JPEG data URL (100% reliable local client generation)
+  const createSynthesizedCanvasJpegDataUrl = (promptText: string, width = 1024, height = 576): string => {
+    if (typeof document === "undefined") return "";
+    try {
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return "";
+
+      const safePrompt = (promptText || "AI Cinematic Seed Frame").trim();
+      const lower = safePrompt.toLowerCase();
+
+      let col1 = "#0f172a", col2 = "#1e1b4b", col3 = "#311042", accent = "#818cf8";
+      if (lower.includes("rain") || lower.includes("water") || lower.includes("storm") || lower.includes("ocean")) {
+        col1 = "#0284c7"; col2 = "#0f172a"; col3 = "#0369a1"; accent = "#38bdf8";
+      } else if (lower.includes("dragon") || lower.includes("fire") || lower.includes("lava") || lower.includes("sunset")) {
+        col1 = "#9a3412"; col2 = "#431407"; col3 = "#7c2d12"; accent = "#fb923c";
+      } else if (lower.includes("forest") || lower.includes("nature") || lower.includes("green") || lower.includes("tree")) {
+        col1 = "#14532d"; col2 = "#064e3b"; col3 = "#022c22"; accent = "#4ade80";
+      } else if (lower.includes("cyberpunk") || lower.includes("neon") || lower.includes("city") || lower.includes("tokyo")) {
+        col1 = "#701a75"; col2 = "#4c0519"; col3 = "#1e1b4b"; accent = "#f43f5e";
+      } else if (lower.includes("space") || lower.includes("galaxy") || lower.includes("cosmic") || lower.includes("hourglass")) {
+        col1 = "#2e1065"; col2 = "#0f172a"; col3 = "#581c87"; accent = "#c084fc";
+      }
+
+      const bgGrad = ctx.createLinearGradient(0, 0, width, height);
+      bgGrad.addColorStop(0, col1);
+      bgGrad.addColorStop(0.5, col2);
+      bgGrad.addColorStop(1, col3);
+      ctx.fillStyle = bgGrad;
+      ctx.fillRect(0, 0, width, height);
+
+      const glow = ctx.createRadialGradient(width / 2, height / 2, 10, width / 2, height / 2, Math.max(width, height) * 0.65);
+      glow.addColorStop(0, accent + "77");
+      glow.addColorStop(0.5, accent + "22");
+      glow.addColorStop(1, "transparent");
+      ctx.fillStyle = glow;
+      ctx.fillRect(0, 0, width, height);
+
+      ctx.fillStyle = "#ffffff";
+      for (let i = 0; i < 45; i++) {
+        const px = Math.random() * width;
+        const py = Math.random() * height;
+        const pr = Math.random() * 2.5 + 0.5;
+        ctx.globalAlpha = Math.random() * 0.6 + 0.2;
+        ctx.beginPath();
+        ctx.arc(px, py, pr, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.globalAlpha = 1.0;
+
+      const glassGrad = ctx.createLinearGradient(0, 0, 0, height);
+      glassGrad.addColorStop(0, "rgba(255, 255, 255, 0.08)");
+      glassGrad.addColorStop(1, "rgba(0, 0, 0, 0.4)");
+      ctx.fillStyle = glassGrad;
+      ctx.fillRect(24, 24, width - 48, height - 48);
+
+      ctx.strokeStyle = accent + "66";
+      ctx.lineWidth = 2;
+      ctx.strokeRect(24, 24, width - 48, height - 48);
+
+      ctx.textAlign = "center";
+      ctx.fillStyle = "#f8fafc";
+      ctx.font = `bold ${Math.max(16, Math.round(width * 0.024))}px sans-serif`;
+      ctx.fillText(safePrompt.slice(0, 50), width / 2, height * 0.72);
+
+      ctx.fillStyle = accent;
+      ctx.font = `600 ${Math.max(12, Math.round(width * 0.016))}px sans-serif`;
+      ctx.fillText("✨ AI Master Seed Frame", width / 2, height * 0.79);
+
+      return canvas.toDataURL("image/jpeg", 0.92);
+    } catch {
+      return getTopicUnsplashPhotoUrl(promptText, width, height);
+    }
+  };
+
+  // Smart fallback selector prioritizing real photo URLs over SVG
+  const getSmartFallbackImage = (textPrompt: string, width = 1024, height = 576) => {
+    return getLivePollinationsUrl(textPrompt, width, height);
+  };
+
+  // Universal image onError handler for all <img> tags in ImageToVideo
+  const handleImageLoadError = (e: React.SyntheticEvent<HTMLImageElement, Event>, textPrompt?: string, width = 1024, height = 576) => {
+    const img = e.currentTarget;
+    const currentSrc = img.src || "";
+    const safePrompt = textPrompt || prompt || aiImagePrompt || "AI Seed Frame";
+
+    if (currentSrc.includes("pollinations.ai")) {
+      img.src = getTopicUnsplashPhotoUrl(safePrompt, width, height);
+      return;
+    }
+    if (currentSrc.includes("unsplash.com")) {
+      img.src = `https://picsum.photos/seed/${encodeURIComponent(safePrompt.slice(0, 30))}/${width}/${height}`;
+      return;
+    }
+    if (!currentSrc.startsWith("data:image/jpeg")) {
+      img.src = createSynthesizedCanvasJpegDataUrl(safePrompt, width, height);
+    }
   };
 
   const handleEnhanceImagePrompt = async () => {
@@ -889,7 +987,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
     else if (aspectRatio === "3:4") { w = 768; h = 1024; }
     else if (aspectRatio === "4:3") { w = 1024; h = 768; }
 
-    const fallbackDirectUrl = getSvgFallbackImage(fullPrompt, w, h);
+    const fallbackDirectUrl = getSmartFallbackImage(fullPrompt, w, h);
 
     try {
       console.log("Generating via backend free-image-generate proxy...");
@@ -942,7 +1040,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
     else if (aspectRatio === "3:4") { w = 768; h = 1024; }
     else if (aspectRatio === "4:3") { w = 1024; h = 768; }
 
-    const fallbackDirectUrl = getSvgFallbackImage(cleanPrompt, w, h);
+    const fallbackDirectUrl = getSmartFallbackImage(cleanPrompt, w, h);
 
     try {
       console.log("Quick generating via backend free-image-generate proxy...");
@@ -3354,11 +3452,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                           alt="Seed Preview"
                           className="w-full h-full object-contain bg-slate-900"
                           referrerPolicy="no-referrer"
-                          onError={(e) => {
-                            if (!e.currentTarget.src.includes("data:image/svg")) {
-                              e.currentTarget.src = getSvgFallbackImage(prompt || aiImagePrompt, 1024, 576);
-                            }
-                          }}
+                          onError={(e) => handleImageLoadError(e, prompt || aiImagePrompt, 1024, 576)}
                         />
                       </div>
                       <div className="absolute top-5 right-5 flex items-center gap-2">
@@ -3429,11 +3523,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                         alt="Selected Seed Preview"
                         className="w-full h-full object-contain bg-slate-900"
                         referrerPolicy="no-referrer"
-                        onError={(e) => {
-                          if (!e.currentTarget.src.includes("data:image/svg")) {
-                            e.currentTarget.src = getSvgFallbackImage(prompt || aiImagePrompt, 1024, 576);
-                          }
-                        }}
+                        onError={(e) => handleImageLoadError(e, prompt || aiImagePrompt, 1024, 576)}
                       />
                       <div className="absolute inset-x-0 bottom-0 bg-slate-950/90 p-2 flex items-center justify-between border-t border-slate-800/60">
                         <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1 pl-1">
@@ -3657,12 +3747,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                         alt="AI Generated Seed Preview"
                         className="w-full h-full object-contain bg-slate-900"
                         referrerPolicy="no-referrer"
-                        onError={(e) => {
-                          if (!e.currentTarget.src.includes("data:image/svg")) {
-                            console.warn("AI generated seed preview failed to render, switching to vector fallback...");
-                            e.currentTarget.src = getSvgFallbackImage(aiImagePrompt || prompt, 1024, 576);
-                          }
-                        }}
+                        onError={(e) => handleImageLoadError(e, aiImagePrompt || prompt, 1024, 576)}
                       />
                       <div className="absolute inset-x-0 bottom-0 bg-slate-950/95 p-2.5 flex items-center justify-between border-t border-slate-800/60 backdrop-blur-md">
                         <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1.5 pl-1 font-semibold">
@@ -3992,11 +4077,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                               alt={`Frame ${index + 1}`}
                               className="w-full h-full object-cover"
                               referrerPolicy="no-referrer"
-                              onError={(e) => {
-                                if (!e.currentTarget.src.includes("data:image/svg")) {
-                                  e.currentTarget.src = getSvgFallbackImage(frame.name || prompt || `Frame ${index + 1}`, 100, 100);
-                                }
-                              }}
+                              onError={(e) => handleImageLoadError(e, frame.name || prompt || `Frame ${index + 1}`, 100, 100)}
                             />
                             <span className="absolute bottom-0.5 right-0.5 text-[8px] font-mono font-bold bg-slate-950/90 text-slate-200 px-1 py-0.2 rounded border border-slate-800">
                               #{index + 1}
@@ -5597,12 +5678,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                     alt="Active Seed Frame Preview"
                     className="w-full h-full object-contain select-none"
                     referrerPolicy="no-referrer"
-                    onError={(e) => {
-                      if (!e.currentTarget.src.includes("data:image/svg")) {
-                        console.warn("Master preview seed image failed to load, switching to vector fallback...");
-                        e.currentTarget.src = getSvgFallbackImage(prompt || aiImagePrompt, 1024, 576);
-                      }
-                    }}
+                    onError={(e) => handleImageLoadError(e, prompt || aiImagePrompt, 1024, 576)}
                   />
 
                   {/* Custom Text Overlay */}

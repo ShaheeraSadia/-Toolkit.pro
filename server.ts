@@ -501,7 +501,7 @@ app.post("/api/image/generate-free", async (req, res) => {
 
     let imgRes: Response | null = null;
     try {
-      imgRes = await fetch(primaryUrl, { signal: AbortSignal.timeout(6000) });
+      imgRes = await fetch(primaryUrl, { signal: AbortSignal.timeout(3000) });
       if (!imgRes.ok) imgRes = null;
     } catch (err: any) {
       console.warn(`[Free Image Gen] Pollinations fetch timed out or failed: ${err.message || err}`);
@@ -540,7 +540,7 @@ app.post("/api/image/generate-free", async (req, res) => {
       stockPhotoId = "1514565131-fce0801e5785"; // neon city
     } else if (lowerPrompt.includes("cat") || lowerPrompt.includes("dog") || lowerPrompt.includes("pet") || lowerPrompt.includes("animal")) {
       stockPhotoId = "1514888286974-6c03e2ca1dba"; // cat
-    } else if (lowerPrompt.includes("space") || lowerPrompt.includes("galaxy") || lowerPrompt.includes("star")) {
+    } else if (lowerPrompt.includes("space") || lowerPrompt.includes("galaxy") || lowerPrompt.includes("star") || lowerPrompt.includes("hourglass")) {
       stockPhotoId = "1451187580459-43490279c0fa"; // galaxy
     } else if (lowerPrompt.includes("nature") || lowerPrompt.includes("forest") || lowerPrompt.includes("mountain")) {
       stockPhotoId = "1470071459604-3b5ec3a7fe05"; // nature mountain
@@ -548,7 +548,7 @@ app.post("/api/image/generate-free", async (req, res) => {
 
     try {
       const unsplashUrl = `https://images.unsplash.com/photo-${stockPhotoId}?w=${width}&h=${height}&fit=crop&q=80`;
-      const unsplashRes = await fetch(unsplashUrl, { signal: AbortSignal.timeout(5000) });
+      const unsplashRes = await fetch(unsplashUrl, { signal: AbortSignal.timeout(2000) });
       if (unsplashRes.ok) {
         const ab = await unsplashRes.arrayBuffer();
         if (ab.byteLength > 1000) {
@@ -560,10 +560,9 @@ app.post("/api/image/generate-free", async (req, res) => {
       // ignore
     }
 
-    // Tier 5: Return unbreakable vector visual canvas Data URL
-    console.log("[Free Image Gen] Returning vector visual canvas Data URL fallback.");
-    const vectorSvgUrl = createVisualCanvasSvgDataUrl(fullPrompt, width, height);
-    return res.json({ imageUrl: vectorSvgUrl, fullPrompt, source: "vector_canvas" });
+    // Tier 5: Direct Pollinations URL fallback (rendered directly by client img tag)
+    console.log("[Free Image Gen] Returning direct live image URL fallback.");
+    return res.json({ imageUrl: primaryUrl, fullPrompt, source: "direct_pollinations" });
   } catch (err: any) {
     const promptText = req.body?.prompt || "a rainy day";
     const vectorSvgUrl = createVisualCanvasSvgDataUrl(promptText, 1024, 576);
