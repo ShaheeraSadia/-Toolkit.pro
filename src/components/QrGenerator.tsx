@@ -88,6 +88,341 @@ const isValidHex = (hex: string): boolean => {
   return /^#[0-9A-F]{6}$/i.test(hex) || /^#[0-9A-F]{3}$/i.test(hex);
 };
 
+export interface QrSvgOptions {
+  text: string;
+  errorCorrectionLevel?: "L" | "M" | "Q" | "H";
+  margin?: number;
+  foregroundColor?: string;
+  backgroundColor?: string;
+  enableGradient?: boolean;
+  gradientColor2?: string;
+  gradientType?: "linear" | "radial";
+  gradientDirection?: "horizontal" | "vertical" | "diagonal";
+  patternStyle?: "squares" | "dots" | "rounded" | "rounded-dots" | "diamonds";
+  eyeStyle?: "squares" | "circle" | "rounded";
+  useLogo?: boolean;
+  logoDataUrl?: string | null;
+  logoScale?: number;
+  logoPadding?: number;
+  logoShape?: "square" | "circle" | "rounded";
+  frameStyle?: string;
+  frameBorderShape?: string;
+  frameCustomText?: string;
+  enableTextOverlay?: boolean;
+  overlayText?: string;
+  overlayPosition?: "above" | "below";
+  overlayFontFamily?: string;
+  overlayFontSize?: number;
+  overlayFontWeight?: string;
+  overlayColor?: string;
+  actualWidth?: number;
+}
+
+const escapeXml = (str: string) => {
+  if (!str) return "";
+  return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+};
+
+export const generateSvgString = (opts: QrSvgOptions): string => {
+  const {
+    text = "https://toolkit.pro",
+    errorCorrectionLevel = "M",
+    margin = 2,
+    foregroundColor = "#000000",
+    backgroundColor = "#ffffff",
+    enableGradient = false,
+    gradientColor2 = "#6366f1",
+    gradientType = "linear",
+    gradientDirection = "diagonal",
+    patternStyle = "squares",
+    eyeStyle = "squares",
+    useLogo = false,
+    logoDataUrl = null,
+    logoScale = 20,
+    logoPadding = 4,
+    logoShape = "square",
+    frameStyle = "none",
+    frameBorderShape = "square",
+    frameCustomText = "",
+    enableTextOverlay = false,
+    overlayText = "",
+    overlayPosition = "below",
+    overlayFontFamily = "Inter",
+    overlayFontSize = 16,
+    overlayFontWeight = "bold",
+    overlayColor = "#000000",
+    actualWidth = 500,
+  } = opts;
+
+  try {
+    const qr = QRCode.create(text || "https://toolkit.pro", { errorCorrectionLevel });
+    const numModules = qr.modules.size;
+    const qrMargin = margin !== undefined ? margin : 2;
+    const totalModules = numModules + qrMargin * 2;
+    const cellSize = actualWidth / totalModules;
+
+    let svgContent = "";
+    let defs = "";
+
+    let cellFillStyle = foregroundColor;
+    if (enableGradient && gradientColor2) {
+      cellFillStyle = "url(#qr-gradient)";
+      if (gradientType === "radial") {
+        defs += `
+          <radialGradient id="qr-gradient" cx="50%" cy="50%" r="72%">
+            <stop offset="0%" stop-color="${foregroundColor}" />
+            <stop offset="100%" stop-color="${gradientColor2}" />
+          </radialGradient>
+        `;
+      } else {
+        let x1 = "0%", y1 = "0%", x2 = "100%", y2 = "100%";
+        if (gradientDirection === "horizontal") {
+          x1 = "0%"; y1 = "0%"; x2 = "100%"; y2 = "0%";
+        } else if (gradientDirection === "vertical") {
+          x1 = "0%"; y1 = "0%"; x2 = "0%"; y2 = "100%";
+        }
+        defs += `
+          <linearGradient id="qr-gradient" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}">
+            <stop offset="0%" stop-color="${foregroundColor}" />
+            <stop offset="100%" stop-color="${gradientColor2}" />
+          </linearGradient>
+        `;
+      }
+    }
+
+    let mainSvgGroup = `<rect width="${actualWidth}" height="${actualWidth}" fill="${backgroundColor}" />`;
+
+    const isFinderPattern = (row: number, col: number): boolean => {
+      if (row < 7 && col < 7) return true;
+      if (row < 7 && col >= numModules - 7) return true;
+      if (row >= numModules - 7 && col < 7) return true;
+      return false;
+    };
+
+    const getRoundedRectPath = (x: number, y: number, w: number, h: number, r: number) => {
+      return `M ${x + r} ${y} L ${x + w - r} ${y} A ${r} ${r} 0 0 1 ${x + w} ${y + r} L ${x + w} ${y + h - r} A ${r} ${r} 0 0 1 ${x + w - r} ${y + h} L ${x + r} ${y + h} A ${r} ${r} 0 0 1 ${x} ${y + h - r} L ${x} ${y + r} A ${r} ${r} 0 0 1 ${x + r} ${y}`;
+    };
+
+    for (let row = 0; row < numModules; row++) {
+      for (let col = 0; col < numModules; col++) {
+        if (isFinderPattern(row, col)) {
+          continue;
+        }
+
+        const isDark = qr.modules.get(row, col);
+        if (isDark) {
+          const x = (col + qrMargin) * cellSize;
+          const y = (row + qrMargin) * cellSize;
+
+          if (patternStyle === "dots") {
+            const cx = x + cellSize / 2;
+            const cy = y + cellSize / 2;
+            const radius = (cellSize / 2) * 0.82;
+            svgContent += `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="${cellFillStyle}" />\n`;
+          } else if (patternStyle === "rounded-dots") {
+            const r = cellSize * 0.44;
+            svgContent += `<rect x="${x + 0.5}" y="${y + 0.5}" width="${cellSize - 1}" height="${cellSize - 1}" rx="${r}" ry="${r}" fill="${cellFillStyle}" />\n`;
+          } else if (patternStyle === "rounded") {
+            const r = cellSize * 0.28;
+            svgContent += `<rect x="${x + 0.5}" y="${y + 0.5}" width="${cellSize - 1}" height="${cellSize - 1}" rx="${r}" ry="${r}" fill="${cellFillStyle}" />\n`;
+          } else if (patternStyle === "diamonds") {
+            svgContent += `<path d="M ${x + cellSize / 2} ${y + 0.5} L ${x + cellSize - 0.5} ${y + cellSize / 2} L ${x + cellSize / 2} ${y + cellSize - 0.5} L ${x + 0.5} ${y + cellSize / 2} Z" fill="${cellFillStyle}" />\n`;
+          } else {
+            svgContent += `<rect x="${x}" y="${y}" width="${cellSize + 0.5}" height="${cellSize + 0.5}" fill="${cellFillStyle}" />\n`;
+          }
+        }
+      }
+    }
+
+    const getFinderPatternSvg = (x: number, y: number, w: number) => {
+      const cSize = w / 7;
+      let finderSvg = "";
+      
+      finderSvg += `<rect x="${x}" y="${y}" width="${w}" height="${w}" fill="${backgroundColor}" />\n`;
+
+      if (eyeStyle === "circle") {
+        finderSvg += `<circle cx="${x + w / 2}" cy="${y + w / 2}" r="${w / 2}" fill="${cellFillStyle}" />\n`;
+        finderSvg += `<circle cx="${x + w / 2}" cy="${y + w / 2}" r="${(5 * cSize) / 2}" fill="${backgroundColor}" />\n`;
+        finderSvg += `<circle cx="${x + w / 2}" cy="${y + w / 2}" r="${(3 * cSize) / 2}" fill="${cellFillStyle}" />\n`;
+      } else if (eyeStyle === "rounded") {
+        finderSvg += `<path d="${getRoundedRectPath(x, y, w, w, cSize * 2)}" fill="${cellFillStyle}" />\n`;
+        finderSvg += `<path d="${getRoundedRectPath(x + cSize, y + cSize, 5 * cSize, 5 * cSize, cSize * 1.5)}" fill="${backgroundColor}" />\n`;
+        finderSvg += `<path d="${getRoundedRectPath(x + cSize * 2, y + cSize * 2, 3 * cSize, 3 * cSize, cSize)}" fill="${cellFillStyle}" />\n`;
+      } else {
+        finderSvg += `<rect x="${x}" y="${y}" width="${w}" height="${w}" fill="${cellFillStyle}" />\n`;
+        finderSvg += `<rect x="${x + cSize}" y="${y + cSize}" width="${5 * cSize}" height="${5 * cSize}" fill="${backgroundColor}" />\n`;
+        finderSvg += `<rect x="${x + cSize * 2}" y="${y + cSize * 2}" width="${3 * cSize}" height="${3 * cSize}" fill="${cellFillStyle}" />\n`;
+      }
+      return finderSvg;
+    };
+
+    const finderSizePx = 7 * cellSize;
+    svgContent += getFinderPatternSvg(qrMargin * cellSize, qrMargin * cellSize, finderSizePx);
+    svgContent += getFinderPatternSvg((qrMargin + numModules - 7) * cellSize, qrMargin * cellSize, finderSizePx);
+    svgContent += getFinderPatternSvg(qrMargin * cellSize, (qrMargin + numModules - 7) * cellSize, finderSizePx);
+
+    if (useLogo && logoDataUrl) {
+      const logoSize = Math.max(24, Math.floor(actualWidth * (logoScale / 100)));
+      const lx = (actualWidth - logoSize) / 2;
+      const ly = (actualWidth - logoSize) / 2;
+
+      const svgPadding = logoPadding;
+      if (logoShape === "circle") {
+        svgContent += `<circle cx="${actualWidth / 2}" cy="${actualWidth / 2}" r="${logoSize / 2 + svgPadding}" fill="${backgroundColor}" />\n`;
+      } else if (logoShape === "rounded") {
+        svgContent += `<path d="${getRoundedRectPath(lx - svgPadding, ly - svgPadding, logoSize + svgPadding * 2, logoSize + svgPadding * 2, 5)}" fill="${backgroundColor}" />\n`;
+      } else {
+        svgContent += `<rect x="${lx - svgPadding}" y="${ly - svgPadding}" width="${logoSize + svgPadding * 2}" height="${logoSize + svgPadding * 2}" fill="${backgroundColor}" />\n`;
+      }
+
+      const clipId = `svg-logo-clip-${Math.random().toString(36).substring(2, 7)}`;
+      if (logoShape === "circle") {
+        defs += `
+          <clipPath id="${clipId}">
+            <circle cx="${actualWidth / 2}" cy="${actualWidth / 2}" r="${logoSize / 2}" />
+          </clipPath>
+        `;
+        svgContent += `<image href="${logoDataUrl}" x="${lx}" y="${ly}" width="${logoSize}" height="${logoSize}" clip-path="url(#${clipId})" />\n`;
+      } else if (logoShape === "rounded") {
+        defs += `
+          <clipPath id="${clipId}">
+            <rect x="${lx}" y="${ly}" width="${logoSize}" height="${logoSize}" rx="4" ry="4" />
+          </clipPath>
+        `;
+        svgContent += `<image href="${logoDataUrl}" x="${lx}" y="${ly}" width="${logoSize}" height="${logoSize}" clip-path="url(#${clipId})" />\n`;
+      } else {
+        svgContent += `<image href="${logoDataUrl}" x="${lx}" y="${ly}" width="${logoSize}" height="${logoSize}" />\n`;
+      }
+    }
+
+    // Text Overlay Banner
+    let contentWithTextOverlay = mainSvgGroup + svgContent;
+    let currentWidth = actualWidth;
+    let currentHeight = actualWidth;
+
+    if (enableTextOverlay && overlayText && overlayText.trim() && frameStyle === "none") {
+      const overlayH = Math.max(36, Math.floor(actualWidth * 0.12));
+      currentHeight = actualWidth + overlayH;
+      const textY = overlayPosition === "above" ? overlayH / 2 : actualWidth + overlayH / 2;
+      const qrY = overlayPosition === "above" ? overlayH : 0;
+
+      let textSvg = `<rect width="${actualWidth}" height="${currentHeight}" fill="${backgroundColor}" />\n`;
+      textSvg += `<g transform="translate(0, ${qrY})">${mainSvgGroup}${svgContent}</g>\n`;
+
+      let weightStr = "500";
+      if (overlayFontWeight === "bold") weightStr = "700";
+      else if (overlayFontWeight === "black") weightStr = "900";
+
+      const fSize = Math.max(12, Math.floor(overlayH * 0.45));
+      textSvg += `<text x="${actualWidth / 2}" y="${textY + fSize * 0.35}" fill="${overlayColor || foregroundColor}" font-size="${fSize}" font-family="${escapeXml(overlayFontFamily)}, sans-serif" font-weight="${weightStr}" text-anchor="middle">\n`;
+      textSvg += `  ${escapeXml(overlayText.trim())}\n`;
+      textSvg += `</text>\n`;
+
+      contentWithTextOverlay = textSvg;
+    }
+
+    let finalSvgWidth = currentWidth;
+    let finalSvgHeight = currentHeight;
+    let outerSvgContent = contentWithTextOverlay;
+
+    if (frameStyle !== "none") {
+      const borderPadding = Math.max(12, Math.floor(actualWidth * 0.05));
+      const labelHeight = Math.max(36, Math.floor(actualWidth * 0.16));
+      finalSvgWidth = actualWidth + borderPadding * 2;
+      finalSvgHeight = actualWidth + borderPadding * 2 + labelHeight;
+
+      let labelText = "SCAN ME";
+      if (frameStyle === "scan-me") labelText = "SCAN ME";
+      else if (frameStyle === "visit-website") labelText = "VISIT WEBSITE";
+      else if (frameStyle === "website") labelText = "WEBSITE";
+      else if (frameStyle === "contact") labelText = "CONTACT";
+      else if (frameStyle === "join-us") labelText = "JOIN US";
+      else if (frameStyle === "feedback") labelText = "GIVE FEEDBACK";
+      else if (frameStyle === "custom-frame") labelText = frameCustomText.trim().toUpperCase() || "SCAN ME";
+
+      let qrOffsetX = borderPadding;
+      let qrOffsetY = borderPadding;
+      let bannerY = finalSvgHeight - labelHeight;
+      let textY = finalSvgHeight - labelHeight / 2;
+
+      if (frameStyle === "join-us") {
+        qrOffsetY = borderPadding + labelHeight;
+        bannerY = 0;
+        textY = labelHeight / 2;
+      }
+
+      const borderW = Math.max(3, Math.floor(actualWidth * 0.016));
+
+      let frameElements = "";
+      frameElements += `<rect width="${finalSvgWidth}" height="${finalSvgHeight}" fill="${backgroundColor}" />\n`;
+      frameElements += `<g transform="translate(${qrOffsetX}, ${qrOffsetY})">${mainSvgGroup}${svgContent}</g>\n`;
+
+      let bannerFill = foregroundColor;
+      let textFill = backgroundColor;
+
+      if (frameBorderShape === "rounded") {
+        const r = Math.max(10, Math.floor(finalSvgWidth * 0.05));
+        const borderPath = getRoundedRectPath(borderW / 2, borderW / 2, finalSvgWidth - borderW, finalSvgHeight - borderW, r);
+        frameElements += `<path d="${borderPath}" fill="none" stroke="${foregroundColor}" stroke-width="${borderW}" />\n`;
+        const clipId = `frame-rounded-clip-${Math.random().toString(36).substring(2, 7)}`;
+        defs += `
+          <clipPath id="${clipId}">
+            <path d="${borderPath}" />
+          </clipPath>
+        `;
+        frameElements += `
+          <g clip-path="url(#${clipId})">
+            <rect x="0" y="${bannerY}" width="${finalSvgWidth}" height="${labelHeight}" fill="${bannerFill}" />
+          </g>
+        `;
+      } else if (frameBorderShape === "brackets") {
+        const bracketLen = Math.max(20, Math.floor(finalSvgWidth * 0.15));
+        const bw = borderW;
+        frameElements += `
+          <path d="M ${bw/2} ${bw/2 + bracketLen} L ${bw/2} ${bw/2} L ${bw/2 + bracketLen} ${bw/2}" fill="none" stroke="${foregroundColor}" stroke-width="${bw}" stroke-linecap="round" />
+          <path d="M ${finalSvgWidth - bw/2 - bracketLen} ${bw/2} L ${finalSvgWidth - bw/2} ${bw/2} L ${finalSvgWidth - bw/2} ${bw/2 + bracketLen}" fill="none" stroke="${foregroundColor}" stroke-width="${bw}" stroke-linecap="round" />
+          <path d="M ${bw/2} ${finalSvgHeight - bw/2 - bracketLen} L ${bw/2} ${finalSvgHeight - bw/2} L ${bw/2 + bracketLen} ${finalSvgHeight - bw/2}" fill="none" stroke="${foregroundColor}" stroke-width="${bw}" stroke-linecap="round" />
+          <path d="M ${finalSvgWidth - bw/2 - bracketLen} ${finalSvgHeight - bw/2} L ${finalSvgWidth - bw/2} ${finalSvgHeight - bw/2} L ${finalSvgWidth - bw/2} ${finalSvgHeight - bw/2 - bracketLen}" fill="none" stroke="${foregroundColor}" stroke-width="${bw}" stroke-linecap="round" />
+          
+          <rect x="${borderPadding}" y="${bannerY}" width="${finalSvgWidth - borderPadding * 2}" height="${labelHeight - borderPadding}" rx="6" ry="6" fill="${bannerFill}" />
+        `;
+      } else if (frameBorderShape === "double-line") {
+        const bw = borderW;
+        frameElements += `
+          <rect x="${bw/2}" y="${bw/2}" width="${finalSvgWidth - bw}" height="${finalSvgHeight - bw}" fill="none" stroke="${foregroundColor}" stroke-width="${bw}" />
+          <rect x="${bw * 1.5}" y="${bw * 1.5}" width="${finalSvgWidth - bw * 3}" height="${finalSvgHeight - bw * 3}" fill="none" stroke="${foregroundColor}" stroke-width="${bw * 0.5}" />
+          <rect x="0" y="${bannerY}" width="${finalSvgWidth}" height="${labelHeight}" fill="${bannerFill}" />
+        `;
+      } else {
+        const bw = borderW;
+        frameElements += `
+          <rect x="${bw/2}" y="${bw/2}" width="${finalSvgWidth - bw}" height="${finalSvgHeight - bw}" fill="none" stroke="${foregroundColor}" stroke-width="${bw}" />
+          <rect x="0" y="${bannerY}" width="${finalSvgWidth}" height="${labelHeight}" fill="${bannerFill}" />
+        `;
+      }
+
+      const fontSize = Math.max(14, Math.floor(labelHeight * 0.4));
+      const fontWeight = "bold";
+      frameElements += `
+        <text x="${finalSvgWidth / 2}" y="${textY + fontSize * 0.3}" fill="${textFill}" font-size="${fontSize}" font-family="system-ui, -apple-system, sans-serif" font-weight="${fontWeight}" text-anchor="middle" letter-spacing="1">
+          ${escapeXml(labelText)}
+        </text>
+      `;
+
+      outerSvgContent = frameElements;
+    }
+
+    return `<?xml version="1.0" encoding="utf-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink" viewBox="0 0 ${finalSvgWidth} ${finalSvgHeight}" width="${finalSvgWidth}" height="${finalSvgHeight}">
+  ${defs ? `<defs>${defs}</defs>` : ""}
+  ${outerSvgContent}
+</svg>`;
+  } catch (err) {
+    console.error("SVG generation failed:", err);
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="500" height="500"><text x="250" y="250" text-anchor="middle">SVG Generation Failed</text></svg>`;
+  }
+};
+
 interface ShapePreset {
   id: string;
   name: string;
@@ -1648,10 +1983,10 @@ export default function QrGenerator({
   const [copied, setCopied] = useState<boolean>(false);
   const [copiedBase64, setCopiedBase64] = useState<boolean>(false);
   const [copiedPng, setCopiedPng] = useState<boolean>(false);
-  const [copyFormat, setCopyFormat] = useState<"base64" | "objectUrl" | "image">(() => {
+  const [copyFormat, setCopyFormat] = useState<"base64" | "objectUrl" | "image" | "svgCode">(() => {
     if (typeof window !== "undefined") {
       const persisted = localStorage.getItem("toolkit_pro_qr_copy_format");
-      return (persisted as "base64" | "objectUrl" | "image") || "base64";
+      return (persisted as "base64" | "objectUrl" | "image" | "svgCode") || "base64";
     }
     return "base64";
   });
@@ -1730,6 +2065,7 @@ export default function QrGenerator({
   const [urlColumn, setUrlColumn] = useState<string>("");
   const [nameColumn, setNameColumn] = useState<string>("");
   const [namingStrategy, setNamingStrategy] = useState<"index" | "url" | "column">("index");
+  const [batchFormat, setBatchFormat] = useState<"png" | "svg" | "both">("png");
   const [batchGenerationProgress, setBatchGenerationProgress] = useState<{
     total: number;
     current: number;
@@ -2228,8 +2564,6 @@ export default function QrGenerator({
           status: `Rendering QR: ${cleanUrl.length > 25 ? cleanUrl.substring(0, 25) + "..." : cleanUrl}`,
         }));
 
-        const blob = await generateSingleQrBlob(cleanUrl);
-
         let fileName = `qr_code_${String(i + 1).padStart(3, "0")}`;
         if (namingStrategy === "column" && nameColumn && row[nameColumn]) {
           fileName = row[nameColumn].replace(/[^a-zA-Z0-9_\-]/g, "_");
@@ -2239,8 +2573,45 @@ export default function QrGenerator({
             .replace(/^https?:\/\//, "")
             .replace(/[^a-zA-Z0-9_\-]/g, "_");
         }
+        const baseName = fileName || `qr_${i + 1}`;
 
-        zip.file(`${fileName || `qr_${i + 1}`}.png`, blob);
+        if (batchFormat === "png" || batchFormat === "both") {
+          const blob = await generateSingleQrBlob(cleanUrl);
+          zip.file(`${baseName}.png`, blob);
+        }
+
+        if (batchFormat === "svg" || batchFormat === "both") {
+          const svgStr = generateSvgString({
+            text: cleanUrl,
+            errorCorrectionLevel,
+            margin,
+            foregroundColor,
+            backgroundColor,
+            enableGradient,
+            gradientColor2,
+            gradientType,
+            gradientDirection,
+            patternStyle,
+            eyeStyle,
+            useLogo,
+            logoDataUrl,
+            logoScale,
+            logoPadding,
+            logoShape,
+            frameStyle,
+            frameBorderShape,
+            frameCustomText,
+            enableTextOverlay,
+            overlayText,
+            overlayPosition,
+            overlayFontFamily,
+            overlayFontSize,
+            overlayFontWeight,
+            overlayColor,
+            actualWidth: 500,
+          });
+          zip.file(`${baseName}.svg`, svgStr);
+        }
 
         setBatchGenerationProgress(prev => ({
           ...prev,
@@ -2812,248 +3183,42 @@ export default function QrGenerator({
     downloadPng();
   };
 
+  // Helper function to build clean vector SVG string representation of QR code
+  const buildCurrentSvgString = (customWidth = 500) => {
+    return generateSvgString({
+      text,
+      errorCorrectionLevel,
+      margin,
+      foregroundColor,
+      backgroundColor,
+      enableGradient,
+      gradientColor2,
+      gradientType,
+      gradientDirection,
+      patternStyle,
+      eyeStyle,
+      useLogo,
+      logoDataUrl,
+      logoScale,
+      logoPadding,
+      logoShape,
+      frameStyle,
+      frameBorderShape,
+      frameCustomText,
+      enableTextOverlay,
+      overlayText,
+      overlayPosition,
+      overlayFontFamily,
+      overlayFontSize,
+      overlayFontWeight,
+      overlayColor,
+      actualWidth: customWidth,
+    });
+  };
+
   const handleDownloadSvg = async () => {
     try {
-      const qr = QRCode.create(text, { errorCorrectionLevel: errorCorrectionLevel });
-      const numModules = qr.modules.size;
-      const qrMargin = margin !== undefined ? margin : 2;
-      const totalModules = numModules + qrMargin * 2;
-      
-      const actualWidth = 500;
-      const cellSize = actualWidth / totalModules;
-      
-      let svgContent = "";
-
-      let cellFillStyle = foregroundColor;
-      let defs = "";
-      if (enableGradient && gradientColor2) {
-        cellFillStyle = "url(#qr-gradient)";
-        if (gradientType === "radial") {
-          defs += `
-            <radialGradient id="qr-gradient" cx="50%" cy="50%" r="72%">
-              <stop offset="0%" stop-color="${foregroundColor}" />
-              <stop offset="100%" stop-color="${gradientColor2}" />
-            </radialGradient>
-          `;
-        } else {
-          let x1 = "0%", y1 = "0%", x2 = "100%", y2 = "100%";
-          if (gradientDirection === "horizontal") {
-            x1 = "0%"; y1 = "0%"; x2 = "100%"; y2 = "0%";
-          } else if (gradientDirection === "vertical") {
-            x1 = "0%"; y1 = "0%"; x2 = "0%"; y2 = "100%";
-          }
-          defs += `
-            <linearGradient id="qr-gradient" x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}">
-              <stop offset="0%" stop-color="${foregroundColor}" />
-              <stop offset="100%" stop-color="${gradientColor2}" />
-            </linearGradient>
-          `;
-        }
-      }
-
-      let mainSvgGroup = `<rect width="${actualWidth}" height="${actualWidth}" fill="${backgroundColor}" />`;
-
-      const isFinderPattern = (row: number, col: number): boolean => {
-        if (row < 7 && col < 7) return true;
-        if (row < 7 && col >= numModules - 7) return true;
-        if (row >= numModules - 7 && col < 7) return true;
-        return false;
-      };
-
-      const getRoundedRectPath = (x: number, y: number, w: number, h: number, r: number) => {
-        return `M ${x + r} ${y} L ${x + w - r} ${y} A ${r} ${r} 0 0 1 ${x + w} ${y + r} L ${x + w} ${y + h - r} A ${r} ${r} 0 0 1 ${x + w - r} ${y + h} L ${x + r} ${y + h} A ${r} ${r} 0 0 1 ${x} ${y + h - r} L ${x} ${y + r} A ${r} ${r} 0 0 1 ${x + r} ${y}`;
-      };
-
-      for (let row = 0; row < numModules; row++) {
-        for (let col = 0; col < numModules; col++) {
-          if (isFinderPattern(row, col)) {
-            continue;
-          }
-
-          const isDark = qr.modules.get(row, col);
-          if (isDark) {
-            const x = (col + qrMargin) * cellSize;
-            const y = (row + qrMargin) * cellSize;
-
-            if (patternStyle === "dots") {
-              const cx = x + cellSize / 2;
-              const cy = y + cellSize / 2;
-              const radius = (cellSize / 2) * 0.82;
-              svgContent += `<circle cx="${cx}" cy="${cy}" r="${radius}" fill="${cellFillStyle}" />\n`;
-            } else if (patternStyle === "rounded-dots") {
-              const r = cellSize * 0.44;
-              svgContent += `<rect x="${x + 0.5}" y="${y + 0.5}" width="${cellSize - 1}" height="${cellSize - 1}" rx="${r}" ry="${r}" fill="${cellFillStyle}" />\n`;
-            } else if (patternStyle === "rounded") {
-              const r = cellSize * 0.28;
-              svgContent += `<rect x="${x + 0.5}" y="${y + 0.5}" width="${cellSize - 1}" height="${cellSize - 1}" rx="${r}" ry="${r}" fill="${cellFillStyle}" />\n`;
-            } else if (patternStyle === "diamonds") {
-              svgContent += `<path d="M ${x + cellSize / 2} ${y + 0.5} L ${x + cellSize - 0.5} ${y + cellSize / 2} L ${x + cellSize / 2} ${y + cellSize - 0.5} L ${x + 0.5} ${y + cellSize / 2} Z" fill="${cellFillStyle}" />\n`;
-            } else {
-              svgContent += `<rect x="${x}" y="${y}" width="${cellSize + 0.5}" height="${cellSize + 0.5}" fill="${cellFillStyle}" />\n`;
-            }
-          }
-        }
-      }
-
-      const getFinderPatternSvg = (x: number, y: number, w: number) => {
-        const cSize = w / 7;
-        let finderSvg = "";
-        
-        finderSvg += `<rect x="${x}" y="${y}" width="${w}" height="${w}" fill="${backgroundColor}" />\n`;
-
-        if (eyeStyle === "circle") {
-          finderSvg += `<circle cx="${x + w / 2}" cy="${y + w / 2}" r="${w / 2}" fill="${cellFillStyle}" />\n`;
-          finderSvg += `<circle cx="${x + w / 2}" cy="${y + w / 2}" r="${(5 * cSize) / 2}" fill="${backgroundColor}" />\n`;
-          finderSvg += `<circle cx="${x + w / 2}" cy="${y + w / 2}" r="${(3 * cSize) / 2}" fill="${cellFillStyle}" />\n`;
-        } else if (eyeStyle === "rounded") {
-          finderSvg += `<path d="${getRoundedRectPath(x, y, w, w, cSize * 2)}" fill="${cellFillStyle}" />\n`;
-          finderSvg += `<path d="${getRoundedRectPath(x + cSize, y + cSize, 5 * cSize, 5 * cSize, cSize * 1.5)}" fill="${backgroundColor}" />\n`;
-          finderSvg += `<path d="${getRoundedRectPath(x + cSize * 2, y + cSize * 2, 3 * cSize, 3 * cSize, cSize)}" fill="${cellFillStyle}" />\n`;
-        } else {
-          finderSvg += `<rect x="${x}" y="${y}" width="${w}" height="${w}" fill="${cellFillStyle}" />\n`;
-          finderSvg += `<rect x="${x + cSize}" y="${y + cSize}" width="${5 * cSize}" height="${5 * cSize}" fill="${backgroundColor}" />\n`;
-          finderSvg += `<rect x="${x + cSize * 2}" y="${y + cSize * 2}" width="${3 * cSize}" height="${3 * cSize}" fill="${cellFillStyle}" />\n`;
-        }
-        return finderSvg;
-      };
-
-      const finderSizePx = 7 * cellSize;
-      svgContent += getFinderPatternSvg(qrMargin * cellSize, qrMargin * cellSize, finderSizePx);
-      svgContent += getFinderPatternSvg((qrMargin + numModules - 7) * cellSize, qrMargin * cellSize, finderSizePx);
-      svgContent += getFinderPatternSvg(qrMargin * cellSize, (qrMargin + numModules - 7) * cellSize, finderSizePx);
-
-      if (useLogo && logoDataUrl) {
-        const logoSize = Math.max(24, Math.floor(actualWidth * (logoScale / 100)));
-        const lx = (actualWidth - logoSize) / 2;
-        const ly = (actualWidth - logoSize) / 2;
-
-        const svgPadding = logoPadding;
-        if (logoShape === "circle") {
-          svgContent += `<circle cx="${actualWidth / 2}" cy="${actualWidth / 2}" r="${logoSize / 2 + svgPadding}" fill="${backgroundColor}" />\n`;
-        } else if (logoShape === "rounded") {
-          svgContent += `<path d="${getRoundedRectPath(lx - svgPadding, ly - svgPadding, logoSize + svgPadding * 2, logoSize + svgPadding * 2, 5)}" fill="${backgroundColor}" />\n`;
-        } else {
-          svgContent += `<rect x="${lx - svgPadding}" y="${ly - svgPadding}" width="${logoSize + svgPadding * 2}" height="${logoSize + svgPadding * 2}" fill="${backgroundColor}" />\n`;
-        }
-
-        if (logoShape === "circle") {
-          defs += `
-            <clipPath id="svg-logo-clip">
-              <circle cx="${actualWidth / 2}" cy="${actualWidth / 2}" r="${logoSize / 2}" />
-            </clipPath>
-          `;
-          svgContent += `<image href="${logoDataUrl}" x="${lx}" y="${ly}" width="${logoSize}" height="${logoSize}" clip-path="url(#svg-logo-clip)" />\n`;
-        } else if (logoShape === "rounded") {
-          defs += `
-            <clipPath id="svg-logo-clip">
-              <rect x="${lx}" y="${ly}" width="${logoSize}" height="${logoSize}" rx="4" ry="4" />
-            </clipPath>
-          `;
-          svgContent += `<image href="${logoDataUrl}" x="${lx}" y="${ly}" width="${logoSize}" height="${logoSize}" clip-path="url(#svg-logo-clip)" />\n`;
-        } else {
-          svgContent += `<image href="${logoDataUrl}" x="${lx}" y="${ly}" width="${logoSize}" height="${logoSize}" />\n`;
-        }
-      }
-
-      let finalSvgWidth = actualWidth;
-      let finalSvgHeight = actualWidth;
-      let outerSvgContent = mainSvgGroup + svgContent;
-
-      if (frameStyle !== "none") {
-        const borderPadding = Math.max(12, Math.floor(actualWidth * 0.05));
-        const labelHeight = Math.max(36, Math.floor(actualWidth * 0.16));
-        finalSvgWidth = actualWidth + (borderPadding * 2);
-        finalSvgHeight = actualWidth + (borderPadding * 2) + labelHeight;
-
-        let labelText = "SCAN ME";
-        if (frameStyle === "scan-me") labelText = "SCAN ME";
-        else if (frameStyle === "visit-website") labelText = "VISIT WEBSITE";
-        else if (frameStyle === "website") labelText = "WEBSITE";
-        else if (frameStyle === "contact") labelText = "CONTACT";
-        else if (frameStyle === "join-us") labelText = "JOIN US";
-        else if (frameStyle === "feedback") labelText = "GIVE FEEDBACK";
-        else if (frameStyle === "custom-frame") labelText = frameCustomText.trim().toUpperCase() || "SCAN ME";
-
-        let qrOffsetX = borderPadding;
-        let qrOffsetY = borderPadding;
-        let bannerY = finalSvgHeight - labelHeight;
-        let textY = finalSvgHeight - (labelHeight / 2);
-
-        if (frameStyle === "join-us") {
-          qrOffsetY = borderPadding + labelHeight;
-          bannerY = 0;
-          textY = labelHeight / 2;
-        }
-
-        const borderW = Math.max(3, Math.floor(actualWidth * 0.016));
-
-        let frameElements = "";
-        frameElements += `<rect width="${finalSvgWidth}" height="${finalSvgHeight}" fill="${backgroundColor}" />\n`;
-        frameElements += `<g transform="translate(${qrOffsetX}, ${qrOffsetY})">${mainSvgGroup}${svgContent}</g>\n`;
-
-        let bannerFill = foregroundColor;
-        let textFill = backgroundColor;
-
-        if (frameBorderShape === "rounded") {
-          const r = Math.max(10, Math.floor(finalSvgWidth * 0.05));
-          const borderPath = getRoundedRectPath(borderW / 2, borderW / 2, finalSvgWidth - borderW, finalSvgHeight - borderW, r);
-          
-          frameElements += `<path d="${borderPath}" fill="none" stroke="${foregroundColor}" stroke-width="${borderW}" />\n`;
-          
-          defs += `
-            <clipPath id="frame-rounded-clip">
-              <path d="${borderPath}" />
-            </clipPath>
-          `;
-          
-          frameElements += `
-            <g clip-path="url(#frame-rounded-clip)">
-              <rect x="0" y="${bannerY}" width="${finalSvgWidth}" height="${labelHeight}" fill="${bannerFill}" />
-            </g>
-          `;
-        } else if (frameBorderShape === "brackets") {
-          const bracketLen = Math.max(20, Math.floor(finalSvgWidth * 0.15));
-          const bw = borderW;
-          frameElements += `
-            <path d="M ${bw/2} ${bw/2 + bracketLen} L ${bw/2} ${bw/2} L ${bw/2 + bracketLen} ${bw/2}" fill="none" stroke="${foregroundColor}" stroke-width="${bw}" stroke-linecap="round" />
-            <path d="M ${finalSvgWidth - bw/2 - bracketLen} ${bw/2} L ${finalSvgWidth - bw/2} ${bw/2} L ${finalSvgWidth - bw/2} ${bw/2 + bracketLen}" fill="none" stroke="${foregroundColor}" stroke-width="${bw}" stroke-linecap="round" />
-            <path d="M ${bw/2} ${finalSvgHeight - bw/2 - bracketLen} L ${bw/2} ${finalSvgHeight - bw/2} L ${bw/2 + bracketLen} ${finalSvgHeight - bw/2}" fill="none" stroke="${foregroundColor}" stroke-width="${bw}" stroke-linecap="round" />
-            <path d="M ${finalSvgWidth - bw/2 - bracketLen} ${finalSvgHeight - bw/2} L ${finalSvgWidth - bw/2} ${finalSvgHeight - bw/2} L ${finalSvgWidth - bw/2} ${finalSvgHeight - bw/2 - bracketLen}" fill="none" stroke="${foregroundColor}" stroke-width="${bw}" stroke-linecap="round" />
-            
-            <rect x="${borderPadding}" y="${bannerY}" width="${finalSvgWidth - borderPadding * 2}" height="${labelHeight - borderPadding}" rx="6" ry="6" fill="${bannerFill}" />
-          `;
-        } else if (frameBorderShape === "double-line") {
-          const bw = borderW;
-          frameElements += `
-            <rect x="${bw/2}" y="${bw/2}" width="${finalSvgWidth - bw}" height="${finalSvgHeight - bw}" fill="none" stroke="${foregroundColor}" stroke-width="${bw}" />
-            <rect x="${bw * 1.5}" y="${bw * 1.5}" width="${finalSvgWidth - bw * 3}" height="${finalSvgHeight - bw * 3}" fill="none" stroke="${foregroundColor}" stroke-width="${bw * 0.5}" />
-            <rect x="0" y="${bannerY}" width="${finalSvgWidth}" height="${labelHeight}" fill="${bannerFill}" />
-          `;
-        } else {
-          const bw = borderW;
-          frameElements += `
-            <rect x="${bw/2}" y="${bw/2}" width="${finalSvgWidth - bw}" height="${finalSvgHeight - bw}" fill="none" stroke="${foregroundColor}" stroke-width="${bw}" />
-            <rect x="0" y="${bannerY}" width="${finalSvgWidth}" height="${labelHeight}" fill="${bannerFill}" />
-          `;
-        }
-
-        const fontSize = Math.max(14, Math.floor(labelHeight * 0.4));
-        const fontWeight = "bold";
-        frameElements += `
-          <text x="${finalSvgWidth / 2}" y="${textY + fontSize * 0.3}" fill="${textFill}" font-size="${fontSize}" font-family="system-ui, -apple-system, sans-serif" font-weight="${fontWeight}" text-anchor="middle" letter-spacing="1">
-            ${labelText}
-          </text>
-        `;
-
-        outerSvgContent = frameElements;
-      }
-
-      const finalSvgString = `<?xml version="1.0" encoding="utf-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${finalSvgWidth} ${finalSvgHeight}" width="${finalSvgWidth}" height="${finalSvgHeight}">
-  ${defs ? `<defs>${defs}</defs>` : ""}
-  ${outerSvgContent}
-</svg>`;
-
+      const finalSvgString = buildCurrentSvgString(500);
       const blob = new Blob([finalSvgString], { type: "image/svg+xml;charset=utf-8" });
       const safeText = text.replace(/[^a-z0-9]/gi, "_").substring(0, 20).toLowerCase() || "qr";
       const downloadName = `toolkit_pro_qr_${safeText}.svg`;
@@ -3127,7 +3292,20 @@ export default function QrGenerator({
   const handleCopyClipboard = async () => {
     if (!qrCodeDataUrl) return;
     try {
-      if (copyFormat === "base64") {
+      if (copyFormat === "svgCode") {
+        const svgXml = buildCurrentSvgString(500);
+        await navigator.clipboard.writeText(svgXml);
+        setCopied(true);
+        window.dispatchEvent(new CustomEvent("toolkit-add-activity", {
+          detail: {
+            type: "file",
+            title: "Copied QR SVG Vector XML Code",
+            detail: "Copied raw vector XML markup for direct pasting into Figma or Illustrator",
+            icon: "Copy",
+            tab: "qr",
+          }
+        }));
+      } else if (copyFormat === "base64") {
         await navigator.clipboard.writeText(qrCodeDataUrl);
         setCopied(true);
         window.dispatchEvent(new CustomEvent("toolkit-add-activity", {
@@ -3187,7 +3365,7 @@ export default function QrGenerator({
     }
   };
 
-  const changeCopyFormat = (format: "base64" | "objectUrl" | "image") => {
+  const changeCopyFormat = (format: "base64" | "objectUrl" | "image" | "svgCode") => {
     setCopyFormat(format);
     if (typeof window !== "undefined") {
       localStorage.setItem("toolkit_pro_qr_copy_format", format);
@@ -3819,6 +3997,40 @@ export default function QrGenerator({
                         </select>
                       </div>
                     )}
+
+                    {/* Export Format Selection for Batch */}
+                    <div>
+                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Batch Output Format</label>
+                      <div className="grid grid-cols-3 gap-1 bg-slate-200/50 p-1 rounded-lg text-[9.5px]">
+                        <button
+                          type="button"
+                          onClick={() => setBatchFormat("png")}
+                          className={`py-1 font-bold rounded cursor-pointer border-0 ${
+                            batchFormat === "png" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500 hover:text-slate-700"
+                          }`}
+                        >
+                          PNG Images
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBatchFormat("svg")}
+                          className={`py-1 font-bold rounded cursor-pointer border-0 ${
+                            batchFormat === "svg" ? "bg-indigo-600 text-white shadow-2xs" : "text-indigo-600 hover:text-indigo-700"
+                          }`}
+                        >
+                          SVG Vectors
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBatchFormat("both")}
+                          className={`py-1 font-bold rounded cursor-pointer border-0 ${
+                            batchFormat === "both" ? "bg-white text-slate-900 shadow-2xs" : "text-slate-500 hover:text-slate-700"
+                          }`}
+                        >
+                          Both (PNG + SVG)
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
@@ -3830,7 +4042,7 @@ export default function QrGenerator({
                   className="w-full py-2 bg-indigo-650 hover:bg-indigo-700 text-white font-bold text-xs rounded-xl transition-all shadow-sm cursor-pointer disabled:opacity-50 flex items-center justify-center gap-1.5 border-0"
                 >
                   <Download className="w-3.5 h-3.5" />
-                  Generate Batch & Download ZIP
+                  Generate {batchFormat.toUpperCase()} Batch & Download ZIP
                 </button>
               </div>
             )}
@@ -5331,6 +5543,17 @@ export default function QrGenerator({
                     {previewScale}%
                   </span>
                 </div>
+
+                {/* Quick SVG Export Button */}
+                <button
+                  type="button"
+                  onClick={handleDownloadSvg}
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-indigo-600 to-indigo-700 hover:from-indigo-700 hover:to-indigo-800 text-white rounded-xl text-[11px] font-bold shadow-2xs transition-all cursor-pointer border-0 shrink-0"
+                  title="Download infinite-scale SVG vector file for print publishing (Figma, Illustrator, Print)"
+                >
+                  <Download className="w-3.5 h-3.5 text-indigo-200" />
+                  <span>SVG Vector</span>
+                </button>
               </div>
             </div>
           )}
@@ -6102,22 +6325,22 @@ export default function QrGenerator({
             </div>
 
             {/* Segmented active selection tabs */}
-            <div className="grid grid-cols-3 gap-1 bg-slate-200/50 dark:bg-slate-800/40 p-1 rounded-xl">
+            <div className="grid grid-cols-4 gap-1 bg-slate-200/50 dark:bg-slate-800/40 p-1 rounded-xl">
               <button
                 type="button"
                 onClick={() => changeCopyFormat("base64")}
-                className={`px-1.5 py-1.5 text-[9.5px] font-bold rounded-lg transition-all cursor-pointer border-0 ${
+                className={`px-1 py-1.5 text-[9px] sm:text-[9.5px] font-bold rounded-lg transition-all cursor-pointer border-0 ${
                   copyFormat === "base64"
                     ? "bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 shadow-3xs"
                     : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-350"
                 }`}
               >
-                Base64 Data URI
+                Base64 URI
               </button>
               <button
                 type="button"
                 onClick={() => changeCopyFormat("objectUrl")}
-                className={`px-1.5 py-1.5 text-[9.5px] font-bold rounded-lg transition-all cursor-pointer border-0 ${
+                className={`px-1 py-1.5 text-[9px] sm:text-[9.5px] font-bold rounded-lg transition-all cursor-pointer border-0 ${
                   copyFormat === "objectUrl"
                     ? "bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 shadow-3xs"
                     : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-350"
@@ -6128,7 +6351,7 @@ export default function QrGenerator({
               <button
                 type="button"
                 onClick={() => changeCopyFormat("image")}
-                className={`px-1.5 py-1.5 text-[9.5px] font-bold rounded-lg transition-all cursor-pointer border-0 ${
+                className={`px-1 py-1.5 text-[9px] sm:text-[9.5px] font-bold rounded-lg transition-all cursor-pointer border-0 ${
                   copyFormat === "image"
                     ? "bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 shadow-3xs"
                     : "text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-slate-350"
@@ -6136,6 +6359,18 @@ export default function QrGenerator({
                 title="Copies raw binary PNG files directly to copy-paste buffers"
               >
                 PNG Image
+              </button>
+              <button
+                type="button"
+                onClick={() => changeCopyFormat("svgCode")}
+                className={`px-1 py-1.5 text-[9px] sm:text-[9.5px] font-bold rounded-lg transition-all cursor-pointer border-0 ${
+                  copyFormat === "svgCode"
+                    ? "bg-indigo-600 text-white font-extrabold shadow-3xs"
+                    : "text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300"
+                }`}
+                title="Copies clean scalable SVG vector XML markup code for Figma & Illustrator"
+              >
+                SVG Markup
               </button>
             </div>
 
@@ -6161,6 +6396,7 @@ export default function QrGenerator({
                   {copyFormat === "base64" && "Copy Base64 Data URI String"}
                   {copyFormat === "objectUrl" && "Copy Object URL-pointer"}
                   {copyFormat === "image" && "Copy PNG Image to Clip-Buffer"}
+                  {copyFormat === "svgCode" && "Copy SVG Vector Code for Figma/Print"}
                 </>
               )}
             </button>

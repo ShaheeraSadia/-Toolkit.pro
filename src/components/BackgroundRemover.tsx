@@ -311,6 +311,9 @@ export default function BackgroundRemover({ theme }: BackgroundRemoverProps) {
                         src={outputUrl}
                         alt="Isolated Matte"
                         className="max-h-full max-w-full object-contain"
+                        onError={(e) => {
+                          e.currentTarget.style.display = 'none';
+                        }}
                       />
                     ) : (
                       <span className="text-[10px] text-slate-500 uppercase font-bold font-mono">Initializing pixels...</span>

@@ -67,7 +67,10 @@ import {
   Mic,
   Repeat,
   Blend,
-  Film
+  Film,
+  GripVertical,
+  ArrowUp,
+  ArrowDown
 } from "lucide-react";
 
 // Utility to construct fetch headers automatically injecting the custom Gemini API key if present
@@ -584,6 +587,114 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
   const [aiImageModel, setAiImageModel] = useState("flux");
   const [aiSuccessMsg, setAiSuccessMsg] = useState<string | null>(null);
 
+  // Frame Sequence & Drag-and-Drop Thumbnail States
+  const [uploadedFrames, setUploadedFrames] = useState<{ id: string; url: string; name: string }[]>([]);
+  const [draggedFrameIndex, setDraggedFrameIndex] = useState<number | null>(null);
+  const [dragOverFrameIndex, setDragOverFrameIndex] = useState<number | null>(null);
+
+  // Sync active image into uploadedFrames list
+  useEffect(() => {
+    if (image) {
+      setUploadedFrames(prev => {
+        if (!prev.some(f => f.url === image)) {
+          return [
+            ...prev,
+            {
+              id: `frame_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`,
+              url: image,
+              name: `Frame ${prev.length + 1}`
+            }
+          ];
+        }
+        return prev;
+      });
+    }
+  }, [image]);
+
+  const handleFrameDragStart = (e: React.DragEvent, index: number) => {
+    e.dataTransfer.setData("text/plain", index.toString());
+    e.dataTransfer.effectAllowed = "move";
+    setDraggedFrameIndex(index);
+  };
+
+  const handleFrameDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "move";
+    if (dragOverFrameIndex !== index) {
+      setDragOverFrameIndex(index);
+    }
+  };
+
+  const handleFrameDrop = (e: React.DragEvent, targetIndex: number) => {
+    e.preventDefault();
+    const sourceIndexStr = e.dataTransfer.getData("text/plain");
+    const sourceIndex = sourceIndexStr !== "" ? parseInt(sourceIndexStr, 10) : draggedFrameIndex;
+
+    if (sourceIndex !== null && !isNaN(sourceIndex) && sourceIndex !== targetIndex) {
+      reorderFrames(sourceIndex, targetIndex);
+    }
+    setDraggedFrameIndex(null);
+    setDragOverFrameIndex(null);
+  };
+
+  const handleFrameDragEnd = () => {
+    setDraggedFrameIndex(null);
+    setDragOverFrameIndex(null);
+  };
+
+  const reorderFrames = (fromIndex: number, toIndex: number) => {
+    if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0) return;
+    setUploadedFrames(prev => {
+      if (fromIndex >= prev.length || toIndex >= prev.length) return prev;
+      const updated = [...prev];
+      const [moved] = updated.splice(fromIndex, 1);
+      updated.splice(toIndex, 0, moved);
+      if (updated.length > 0) {
+        setImage(updated[0].url);
+      }
+      return updated;
+    });
+  };
+
+  const moveFrameUp = (index: number) => {
+    if (index <= 0) return;
+    reorderFrames(index, index - 1);
+  };
+
+  const moveFrameDown = (index: number) => {
+    if (index >= uploadedFrames.length - 1) return;
+    reorderFrames(index, index + 1);
+  };
+
+  const removeFrame = (index: number) => {
+    setUploadedFrames(prev => {
+      const updated = prev.filter((_, i) => i !== index);
+      if (updated.length > 0) {
+        if (image === prev[index]?.url) {
+          setImage(updated[0].url);
+        }
+      } else {
+        setImage(null);
+      }
+      return updated;
+    });
+  };
+
+  const addFrames = (newFrames: { url: string; name: string }[]) => {
+    setUploadedFrames(prev => {
+      const created = newFrames.map((f, i) => ({
+        id: `frame_${Date.now()}_${Math.random().toString(36).substring(2, 7)}_${i}`,
+        url: f.url,
+        name: f.name || `Frame ${prev.length + i + 1}`
+      }));
+      const updated = [...prev, ...created];
+      if (updated.length > 0 && !image) {
+        setImage(updated[0].url);
+      }
+      return updated;
+    });
+  };
+
   // Surprise Image Prompts List
   const surpriseImagePrompts = [
     "A mystical ancient temple floating high in the sky among fluffy pastel pink clouds at golden hour",
@@ -694,7 +805,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
 
   // Helper to construct a crisp, high-resolution SVG vector canvas data URL as an unbreakable image fallback
   const getSvgFallbackImage = (textPrompt: string, width = 1024, height = 576) => {
-    const safeText = (textPrompt || "AI Master Seed Frame").trim().slice(0, 50);
+    const safeText = (textPrompt || "AI Master Seed Frame").trim().slice(0, 50).replace(/</g, "&lt;").replace(/>/g, "&gt;");
     const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
       <defs>
         <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -1557,33 +1668,58 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
     e.preventDefault();
     setIsDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      const file = e.dataTransfer.files[0];
-      processImageFile(file);
+      const filesList = Array.from(e.dataTransfer.files as unknown as File[]);
+      const files = filesList.filter(f => f.type && f.type.startsWith("image/"));
+      if (files.length > 0) {
+        processImageFiles(files);
+      }
     }
   };
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      const file = e.target.files[0];
-      processImageFile(file);
+      const filesList = Array.from(e.target.files as unknown as File[]);
+      const files = filesList.filter(f => f.type && f.type.startsWith("image/"));
+      if (files.length > 0) {
+        processImageFiles(files);
+      }
     }
   };
 
-  const processImageFile = (file: File) => {
-    if (!file.type.startsWith("image/")) {
-      setErrorMsg("Please upload a valid image file (PNG, JPG, JPEG, WEBP).");
+  const processImageFiles = (files: File[]) => {
+    const validFiles = files.filter(f => f.type.startsWith("image/"));
+    if (validFiles.length === 0) {
+      setErrorMsg("Please upload valid image files (PNG, JPG, JPEG, WEBP).");
       return;
     }
-    const reader = new FileReader();
-    reader.onloadend = () => {
-      setImage(reader.result as string);
-      setErrorMsg(null);
-    };
-    reader.readAsDataURL(file);
+
+    let loadedCount = 0;
+    const newFrameItems: { url: string; name: string }[] = [];
+
+    validFiles.forEach((file) => {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        newFrameItems.push({
+          url: reader.result as string,
+          name: file.name
+        });
+        loadedCount++;
+        if (loadedCount === validFiles.length) {
+          addFrames(newFrameItems);
+          if (newFrameItems.length > 0) {
+            setImage(newFrameItems[0].url);
+          }
+          setErrorMsg(null);
+          setAiSuccessMsg(`✨ Loaded ${validFiles.length} frame image${validFiles.length > 1 ? "s" : ""} into video animation sequence!`);
+        }
+      };
+      reader.readAsDataURL(file);
+    });
   };
 
   const handleRemoveImage = () => {
     setImage(null);
+    setUploadedFrames([]);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -3206,6 +3342,7 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                     ref={fileInputRef}
                     onChange={handleFileSelect}
                     accept="image/*"
+                    multiple
                     className="hidden"
                   />
 
@@ -3217,6 +3354,11 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                           alt="Seed Preview"
                           className="w-full h-full object-contain bg-slate-900"
                           referrerPolicy="no-referrer"
+                          onError={(e) => {
+                            if (!e.currentTarget.src.includes("data:image/svg")) {
+                              e.currentTarget.src = getSvgFallbackImage(prompt || aiImagePrompt, 1024, 576);
+                            }
+                          }}
                         />
                       </div>
                       <div className="absolute top-5 right-5 flex items-center gap-2">
@@ -3287,6 +3429,11 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                         alt="Selected Seed Preview"
                         className="w-full h-full object-contain bg-slate-900"
                         referrerPolicy="no-referrer"
+                        onError={(e) => {
+                          if (!e.currentTarget.src.includes("data:image/svg")) {
+                            e.currentTarget.src = getSvgFallbackImage(prompt || aiImagePrompt, 1024, 576);
+                          }
+                        }}
                       />
                       <div className="absolute inset-x-0 bottom-0 bg-slate-950/90 p-2 flex items-center justify-between border-t border-slate-800/60">
                         <span className="text-[10px] font-mono text-emerald-400 flex items-center gap-1 pl-1">
@@ -3511,8 +3658,10 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                         className="w-full h-full object-contain bg-slate-900"
                         referrerPolicy="no-referrer"
                         onError={(e) => {
-                          console.warn("AI generated seed preview failed to render, switching to vector fallback...");
-                          e.currentTarget.src = getSvgFallbackImage(aiImagePrompt || prompt, 1024, 576);
+                          if (!e.currentTarget.src.includes("data:image/svg")) {
+                            console.warn("AI generated seed preview failed to render, switching to vector fallback...");
+                            e.currentTarget.src = getSvgFallbackImage(aiImagePrompt || prompt, 1024, 576);
+                          }
                         }}
                       />
                       <div className="absolute inset-x-0 bottom-0 bg-slate-950/95 p-2.5 flex items-center justify-between border-t border-slate-800/60 backdrop-blur-md">
@@ -3751,6 +3900,171 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                 </div>
               )}
             </div>
+
+            {/* Keyframe Sequence Thumbnail List with Drag-and-Drop Handles */}
+            {uploadedFrames.length > 0 && (
+              <div className="bg-slate-950 border border-slate-800/90 rounded-2xl p-4 flex flex-col gap-3 animate-fade-in shadow-lg">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-indigo-500/15 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+                      <Layers className="w-3.5 h-3.5" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-200 flex items-center gap-1.5">
+                        Keyframe Sequence
+                        <span className="text-[10px] bg-indigo-500/20 text-indigo-300 font-mono px-2 py-0.5 rounded-full border border-indigo-500/30">
+                          {uploadedFrames.length} {uploadedFrames.length === 1 ? "Frame" : "Frames"}
+                        </span>
+                      </h4>
+                      <p className="text-[10px] text-slate-400">
+                        Drag handles <GripVertical className="inline w-3 h-3 text-indigo-400" /> to reorder frame sequence
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="text-[10px] font-bold text-indigo-400 hover:text-indigo-300 bg-indigo-500/10 hover:bg-indigo-500/20 px-2 py-1 rounded-lg border border-indigo-500/25 flex items-center gap-1 transition-all cursor-pointer"
+                      title="Add another image frame to sequence"
+                    >
+                      <Plus className="w-3 h-3" />
+                      Add Frame
+                    </button>
+                    {uploadedFrames.length > 1 && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const rev = [...uploadedFrames].reverse();
+                          setUploadedFrames(rev);
+                          if (rev.length > 0) setImage(rev[0].url);
+                        }}
+                        className="text-[10px] font-bold text-slate-400 hover:text-slate-200 bg-slate-900 hover:bg-slate-800 px-2 py-1 rounded-lg border border-slate-800 transition-all cursor-pointer"
+                        title="Reverse frame order"
+                      >
+                        Reverse
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Drag and Drop Thumbnail Items List */}
+                <div className="flex flex-col gap-2 max-h-[280px] overflow-y-auto pr-1 scrollbar-thin scrollbar-thumb-slate-800">
+                  {uploadedFrames.map((frame, index) => {
+                    const isActive = image === frame.url;
+                    const isDraggingThis = draggedFrameIndex === index;
+                    const isDragOverThis = dragOverFrameIndex === index;
+
+                    return (
+                      <div
+                        key={frame.id}
+                        draggable={true}
+                        onDragStart={(e) => handleFrameDragStart(e, index)}
+                        onDragOver={(e) => handleFrameDragOver(e, index)}
+                        onDrop={(e) => handleFrameDrop(e, index)}
+                        onDragEnd={handleFrameDragEnd}
+                        onClick={() => setImage(frame.url)}
+                        className={`group relative flex items-center justify-between p-2 rounded-xl border transition-all cursor-pointer select-none ${
+                          isDraggingThis
+                            ? "opacity-40 border-dashed border-indigo-500 bg-indigo-950/20"
+                            : isDragOverThis
+                            ? "border-amber-400 bg-amber-500/10 scale-[1.01]"
+                            : isActive
+                            ? "border-emerald-500/80 bg-emerald-500/[0.06] shadow-md ring-1 ring-emerald-500/30"
+                            : "border-slate-800/80 bg-slate-900/60 hover:border-slate-700 hover:bg-slate-900"
+                        }`}
+                      >
+                        {/* Drag Handle & Frame Details */}
+                        <div className="flex items-center gap-2.5 min-w-0 flex-1">
+                          {/* Drag Handle */}
+                          <div
+                            className="cursor-grab active:cursor-grabbing p-1.5 rounded-lg text-slate-500 hover:text-amber-400 hover:bg-slate-800/80 transition-colors shrink-0 group-hover:text-slate-300"
+                            title="Click and drag handle to reorder frame"
+                          >
+                            <GripVertical className="w-4 h-4" />
+                          </div>
+
+                          {/* Frame Thumbnail */}
+                          <div className="relative w-14 h-10 rounded-lg overflow-hidden border border-slate-700/80 bg-black shrink-0">
+                            <img
+                              src={frame.url}
+                              alt={`Frame ${index + 1}`}
+                              className="w-full h-full object-cover"
+                              referrerPolicy="no-referrer"
+                              onError={(e) => {
+                                if (!e.currentTarget.src.includes("data:image/svg")) {
+                                  e.currentTarget.src = getSvgFallbackImage(frame.name || prompt || `Frame ${index + 1}`, 100, 100);
+                                }
+                              }}
+                            />
+                            <span className="absolute bottom-0.5 right-0.5 text-[8px] font-mono font-bold bg-slate-950/90 text-slate-200 px-1 py-0.2 rounded border border-slate-800">
+                              #{index + 1}
+                            </span>
+                          </div>
+
+                          {/* Frame Info */}
+                          <div className="flex flex-col min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-semibold text-slate-200 truncate">
+                                {index === 0 ? "Frame 1 (Start)" : index === uploadedFrames.length - 1 ? `Frame ${index + 1} (End)` : `Frame ${index + 1}`}
+                              </span>
+                              {isActive && (
+                                <span className="text-[9px] font-mono font-bold text-emerald-400 bg-emerald-500/15 px-1.5 py-0.2 rounded border border-emerald-500/30 shrink-0">
+                                  Active
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-slate-400 truncate">
+                              {frame.name || `Frame ${index + 1}`}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Reorder Buttons & Delete */}
+                        <div className="flex items-center gap-1 shrink-0 opacity-80 group-hover:opacity-100 transition-opacity">
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              moveFrameUp(index);
+                            }}
+                            disabled={index === 0}
+                            className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-20 disabled:hover:bg-transparent transition-colors cursor-pointer"
+                            title="Move frame up"
+                          >
+                            <ArrowUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              moveFrameDown(index);
+                            }}
+                            disabled={index === uploadedFrames.length - 1}
+                            className="p-1 rounded text-slate-400 hover:text-white hover:bg-slate-800 disabled:opacity-20 disabled:hover:bg-transparent transition-colors cursor-pointer"
+                            title="Move frame down"
+                          >
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              removeFrame(index);
+                            }}
+                            className="p-1 rounded text-rose-400 hover:text-rose-300 hover:bg-rose-500/10 transition-colors cursor-pointer ml-0.5"
+                            title="Remove frame"
+                          >
+                            <X className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
 
             {/* Prompt Textarea */}
             <div className="flex flex-col gap-2">
@@ -5284,8 +5598,10 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
                     className="w-full h-full object-contain select-none"
                     referrerPolicy="no-referrer"
                     onError={(e) => {
-                      console.warn("Master preview seed image failed to load, switching to vector fallback...");
-                      e.currentTarget.src = getSvgFallbackImage(prompt || aiImagePrompt, 1024, 576);
+                      if (!e.currentTarget.src.includes("data:image/svg")) {
+                        console.warn("Master preview seed image failed to load, switching to vector fallback...");
+                        e.currentTarget.src = getSvgFallbackImage(prompt || aiImagePrompt, 1024, 576);
+                      }
                     }}
                   />
 

@@ -9,7 +9,9 @@ import {
   Sliders, 
   ArrowRight,
   Sparkles,
-  Info
+  Info,
+  RotateCw,
+  RotateCcw
 } from "lucide-react";
 
 interface ImageConverterProps {
@@ -28,6 +30,7 @@ export default function ImageConverter({ theme }: ImageConverterProps) {
   const [resizeHeight, setResizeHeight] = useState<number>(0);
   const [maintainAspect, setMaintainAspect] = useState<boolean>(true);
   const [aspectRatio, setAspectRatio] = useState<number>(1);
+  const [rotation, setRotation] = useState<0 | 90 | 180 | 270>(0);
 
   const [convertedUrl, setConvertedUrl] = useState<string | null>(null);
   const [convertedSize, setConvertedSize] = useState<number>(0);
@@ -47,6 +50,7 @@ export default function ImageConverter({ theme }: ImageConverterProps) {
           setSourceSize(file.size || 0);
           setSourceMime(file.mimeType || "image/png");
           setConvertedUrl(null); // Reset converted url when new file loaded
+          setRotation(0);
         }
       }
     };
@@ -76,6 +80,7 @@ export default function ImageConverter({ theme }: ImageConverterProps) {
         setSourceImg(event.target.result as string);
         setConvertedUrl(null);
         setConvertedSize(0);
+        setRotation(0);
       }
     };
     reader.readAsDataURL(file);
@@ -87,6 +92,36 @@ export default function ImageConverter({ theme }: ImageConverterProps) {
     setResizeWidth(naturalWidth);
     setResizeHeight(naturalHeight);
     setAspectRatio(naturalWidth / naturalHeight);
+  };
+
+  // Rotation handler helper
+  const handleRotationChange = (newRotation: 0 | 90 | 180 | 270) => {
+    if (newRotation === rotation) return;
+
+    const isCurrentSideways = rotation === 90 || rotation === 270;
+    const isNewSideways = newRotation === 90 || newRotation === 270;
+
+    if (isCurrentSideways !== isNewSideways) {
+      const oldW = resizeWidth;
+      const oldH = resizeHeight;
+      setResizeWidth(oldH);
+      setResizeHeight(oldW);
+      if (aspectRatio) {
+        setAspectRatio(1 / aspectRatio);
+      }
+    }
+
+    setRotation(newRotation);
+  };
+
+  const rotateClockwise = () => {
+    const next = ((rotation + 90) % 360) as 0 | 90 | 180 | 270;
+    handleRotationChange(next);
+  };
+
+  const rotateCounterClockwise = () => {
+    const next = ((rotation + 270) % 360) as 0 | 90 | 180 | 270;
+    handleRotationChange(next);
   };
 
   // Adjust width, syncing height if maintained aspect
@@ -113,9 +148,12 @@ export default function ImageConverter({ theme }: ImageConverterProps) {
     const img = new Image();
     img.src = sourceImg;
     img.onload = () => {
+      const targetW = resizeWidth || img.naturalWidth;
+      const targetH = resizeHeight || img.naturalHeight;
+
       const canvas = document.createElement("canvas");
-      canvas.width = resizeWidth || img.naturalWidth;
-      canvas.height = resizeHeight || img.naturalHeight;
+      canvas.width = targetW;
+      canvas.height = targetH;
 
       const ctx = canvas.getContext("2d");
       if (!ctx) {
@@ -129,7 +167,23 @@ export default function ImageConverter({ theme }: ImageConverterProps) {
         ctx.fillRect(0, 0, canvas.width, canvas.height);
       }
 
-      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+      ctx.save();
+      if (rotation === 90) {
+        ctx.translate(targetW, 0);
+        ctx.rotate((90 * Math.PI) / 180);
+        ctx.drawImage(img, 0, 0, targetH, targetW);
+      } else if (rotation === 180) {
+        ctx.translate(targetW, targetH);
+        ctx.rotate((180 * Math.PI) / 180);
+        ctx.drawImage(img, 0, 0, targetW, targetH);
+      } else if (rotation === 270) {
+        ctx.translate(0, targetH);
+        ctx.rotate((270 * Math.PI) / 180);
+        ctx.drawImage(img, 0, 0, targetH, targetW);
+      } else {
+        ctx.drawImage(img, 0, 0, targetW, targetH);
+      }
+      ctx.restore();
 
       let formatStr = `image/${targetFormat}`;
       if (targetFormat === "bmp") {
@@ -155,7 +209,7 @@ export default function ImageConverter({ theme }: ImageConverterProps) {
       }, 300);
       return () => clearTimeout(timeout);
     }
-  }, [sourceImg, targetFormat, quality, resizeWidth, resizeHeight]);
+  }, [sourceImg, targetFormat, quality, resizeWidth, resizeHeight, rotation]);
 
   return (
     <div className={`p-6 max-w-7xl mx-auto space-y-6 animate-fade-in ${
@@ -223,9 +277,27 @@ export default function ImageConverter({ theme }: ImageConverterProps) {
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="text-xs font-bold text-slate-400">Source Canvas</span>
-                    <span className="text-[10px] font-mono font-semibold bg-slate-100 dark:bg-slate-900 px-2 py-0.5 rounded-md">
-                      {formatBytes(sourceSize)}
-                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={rotateCounterClockwise}
+                        className="p-1 rounded bg-slate-100 dark:bg-slate-900 text-slate-400 hover:text-teal-500 transition-colors cursor-pointer border-0"
+                        title="Rotate 90° Counter-Clockwise"
+                      >
+                        <RotateCcw className="w-3.5 h-3.5" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={rotateClockwise}
+                        className="p-1 rounded bg-slate-100 dark:bg-slate-900 text-slate-400 hover:text-teal-500 transition-colors cursor-pointer border-0"
+                        title="Rotate 90° Clockwise"
+                      >
+                        <RotateCw className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="text-[10px] font-mono font-semibold bg-slate-100 dark:bg-slate-900 px-2 py-0.5 rounded-md">
+                        {formatBytes(sourceSize)}
+                      </span>
+                    </div>
                   </div>
                   <div className="aspect-square rounded-2xl bg-slate-900 border overflow-hidden flex items-center justify-center relative">
                     <img
@@ -233,11 +305,12 @@ export default function ImageConverter({ theme }: ImageConverterProps) {
                       src={sourceImg}
                       alt="Source"
                       onLoad={handleImageLoaded}
-                      className="max-h-full max-w-full object-contain"
+                      style={{ transform: `rotate(${rotation}deg)` }}
+                      className="max-h-full max-w-full object-contain transition-transform duration-300"
                     />
                   </div>
                   <p className="text-[10px] truncate text-slate-400 text-center font-semibold mt-1">
-                    {sourceName} ({sourceMime.split("/")[1]?.toUpperCase()})
+                    {sourceName} ({sourceMime.split("/")[1]?.toUpperCase()}){rotation !== 0 ? ` • Rotated ${rotation}°` : ""}
                   </p>
                 </div>
 
@@ -340,6 +413,52 @@ export default function ImageConverter({ theme }: ImageConverterProps) {
                 </p>
               </div>
             )}
+
+            {/* Image Rotation Controls */}
+            <div className="space-y-2 border-t pt-4 border-slate-100 dark:border-slate-850">
+              <div className="flex items-center justify-between">
+                <label className="text-xs font-bold text-slate-400">Image Rotation</label>
+                <span className="text-[10px] font-mono font-bold text-teal-500 bg-teal-500/10 px-2 py-0.5 rounded">
+                  {rotation}°
+                </span>
+              </div>
+              <div className="grid grid-cols-4 gap-1.5">
+                {([0, 90, 180, 270] as const).map((deg) => (
+                  <button
+                    key={deg}
+                    type="button"
+                    onClick={() => handleRotationChange(deg)}
+                    className={`py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer border-0 ${
+                      rotation === deg
+                        ? "bg-teal-600 text-white shadow-sm font-extrabold"
+                        : "bg-slate-100 dark:bg-slate-900 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                    }`}
+                  >
+                    {deg}°
+                  </button>
+                ))}
+              </div>
+              <div className="flex gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={rotateCounterClockwise}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-200 text-[11px] font-bold rounded-xl transition-all cursor-pointer border-0"
+                  title="Rotate 90 degrees counter-clockwise"
+                >
+                  <RotateCcw className="w-3.5 h-3.5" />
+                  <span>Rotate -90°</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={rotateClockwise}
+                  className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 text-slate-400 hover:text-slate-200 text-[11px] font-bold rounded-xl transition-all cursor-pointer border-0"
+                  title="Rotate 90 degrees clockwise"
+                >
+                  <RotateCw className="w-3.5 h-3.5" />
+                  <span>Rotate +90°</span>
+                </button>
+              </div>
+            </div>
 
             {/* Dimension resizer controls */}
             <div className="space-y-3 border-t pt-4 border-slate-100 dark:border-slate-850">
