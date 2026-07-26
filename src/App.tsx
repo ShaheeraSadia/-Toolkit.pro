@@ -30,6 +30,9 @@ import PDFTools from "./components/PDFTools";
 import ImageConverter from "./components/ImageConverter";
 import BackgroundRemover from "./components/BackgroundRemover";
 import ToolGuide from "./components/ToolGuide";
+import { Testimonials } from "./components/Testimonials";
+import { FaqSection } from "./components/FaqSection";
+import { HomeCtaSection } from "./components/HomeCtaSection";
 import { WorkspaceTooltips } from "./components/WorkspaceTooltips";
 import { motion, AnimatePresence } from "motion/react";
 // @ts-ignore
@@ -3508,6 +3511,24 @@ export default function App() {
                   />
                 </div>
               </div>
+
+              {/* High-Converting Homepage CTA Section */}
+              <HomeCtaSection
+                theme={theme}
+                user={user}
+                isLoggingIn={isLoggingIn}
+                onLogin={handleLogin}
+                onSelectTab={(tab) => {
+                  setActiveTab(tab);
+                  setIsSitemapView(false);
+                }}
+              />
+
+              {/* Social Proof Testimonials Section */}
+              <Testimonials theme={theme} />
+
+              {/* Searchable FAQ Accordion Base Section */}
+              <FaqSection theme={theme} />
             </motion.div>
           ) : (
             <motion.main
