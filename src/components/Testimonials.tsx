@@ -204,6 +204,78 @@ export function Testimonials({ theme = "light" }: TestimonialsProps) {
             </motion.div>
           ))}
         </div>
+
+        {/* Verified Use Case Spotlights Row */}
+        <div className="pt-6 border-t border-slate-200/60 dark:border-slate-800 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className={`text-sm font-black tracking-tight flex items-center gap-2 ${
+              theme === "dark" ? "text-white" : "text-slate-900"
+            }`}>
+              <CheckCircle2 className="w-4 h-4 text-indigo-500" />
+              <span>Verified Use Case Spotlights</span>
+            </h3>
+            <span className="text-[10px] font-mono font-bold text-indigo-600 dark:text-indigo-400">
+              Live Feed
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {[
+              {
+                id: "spot-1",
+                title: "Instagram Social Kit",
+                category: "Instagram Brand Kit",
+                user: "Saddiq Studio",
+                img: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=300&q=80",
+                badge: "Verified Template"
+              },
+              {
+                id: "spot-2",
+                title: "AI Background Remover",
+                category: "Automated Studio",
+                user: "Aura Media",
+                img: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80",
+                badge: "AI Processed"
+              },
+              {
+                id: "spot-3",
+                title: "Compress Network Assets",
+                category: "Performance Press",
+                user: "DevCore Labs",
+                img: "https://images.unsplash.com/photo-1550745165-9bc0b252726f?auto=format&fit=crop&w=300&q=80",
+                badge: "92% Compression"
+              },
+            ].map((spot) => (
+              <div
+                key={spot.id}
+                className={`p-2.5 rounded-2xl border flex items-center gap-3 transition-all duration-200 hover:scale-102 ${
+                  theme === "dark"
+                    ? "bg-slate-950/70 border-slate-800 hover:border-slate-700"
+                    : "bg-white border-slate-200/80 hover:border-indigo-200 shadow-2xs"
+                }`}
+              >
+                <img
+                  src={spot.img}
+                  alt={spot.title}
+                  className="w-12 h-12 rounded-xl object-cover shrink-0 border border-indigo-500/20"
+                />
+                <div className="min-w-0 flex-1">
+                  <span className="text-[8.5px] font-mono font-bold text-indigo-500 uppercase tracking-wider block">
+                    {spot.category}
+                  </span>
+                  <h4 className={`text-xs font-extrabold truncate ${
+                    theme === "dark" ? "text-slate-100" : "text-slate-900"
+                  }`}>
+                    {spot.title}
+                  </h4>
+                  <p className="text-[10px] text-slate-400 dark:text-slate-500 truncate flex items-center gap-1">
+                    <span>{spot.user}</span>
+                  </p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
       </div>
     </section>
   );

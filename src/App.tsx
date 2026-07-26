@@ -33,6 +33,9 @@ import ToolGuide from "./components/ToolGuide";
 import { Testimonials } from "./components/Testimonials";
 import { FaqSection } from "./components/FaqSection";
 import { HomeCtaSection } from "./components/HomeCtaSection";
+import { ProjectShowcaseHub } from "./components/ProjectShowcaseHub";
+import { AiStudioTools } from "./components/AiStudioTools";
+import { ProTierSection } from "./components/ProTierSection";
 import { WorkspaceTooltips } from "./components/WorkspaceTooltips";
 import { motion, AnimatePresence } from "motion/react";
 // @ts-ignore
@@ -2750,6 +2753,15 @@ export default function App() {
                 </div>
               </section>
 
+              {/* Project Showcase Hub */}
+              <ProjectShowcaseHub
+                theme={theme}
+                onSelectTab={(tab) => {
+                  setActiveTab(tab as any);
+                  setIsSitemapView(false);
+                }}
+              />
+
               {/* Persistent Recently Used Tools Row (localStorage) */}
               {recentUsedTools.length > 0 && (
                 <div className={`border rounded-3xl p-6 transition-colors duration-200 select-none space-y-4 animate-in fade-in duration-300 ${
@@ -3511,6 +3523,24 @@ export default function App() {
                   />
                 </div>
               </div>
+
+              {/* AI Studio Tools Section */}
+              <AiStudioTools
+                theme={theme}
+                onSelectTab={(tab) => {
+                  setActiveTab(tab as any);
+                  setIsSitemapView(false);
+                }}
+              />
+
+              {/* Immersive Pro Tier Unlocked Section */}
+              <ProTierSection
+                theme={theme}
+                onSelectTab={(tab) => {
+                  setActiveTab(tab as any);
+                  setIsSitemapView(false);
+                }}
+              />
 
               {/* High-Converting Homepage CTA Section */}
               <HomeCtaSection
