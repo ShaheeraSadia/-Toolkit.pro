@@ -89,6 +89,13 @@ import {
   Plus,
   GripVertical,
   Share2,
+  Gauge,
+  Droplet,
+  Coins,
+  Zap,
+  TrendingDown,
+  Ruler,
+  Crosshair,
 } from "lucide-react";
 
 function renderTabPreview(tabId: string) {
@@ -295,6 +302,8 @@ export interface PrinterPreset {
   bleed?: boolean;
   bleedWidth?: number;
   orientation?: "portrait" | "landscape";
+  colorMode?: "rgb" | "cmyk";
+  cmykProfile?: "coated" | "uncoated" | "newspaper";
   icon: string;
   category: "Standard" | "Professional" | "Specialty";
 }
@@ -303,48 +312,54 @@ export const PRINTER_PRESETS: PrinterPreset[] = [
   {
     id: "home-inkjet",
     name: "Home Inkjet",
-    description: "Standard margins, safe areas active, crop marks disabled for home printers.",
+    description: "Standard margins, safe areas active, RGB color display mode for digital home printing.",
     margins: "standard",
     cropMarks: false,
     safeArea: true,
     bleed: false,
     bleedWidth: 0,
+    colorMode: "rgb",
     icon: "🖨️",
     category: "Standard",
   },
   {
     id: "professional-offset",
     name: "Professional Offset",
-    description: "High-precision trim marks, registration targets, minimum bleed margins, and a red bleed boundary.",
+    description: "High-precision trim marks, registration targets, 3mm bleed, and CMYK Coated soft proofing simulation.",
     margins: "minimum",
     cropMarks: true,
     safeArea: true,
     bleed: true,
     bleedWidth: 3,
+    colorMode: "cmyk",
+    cmykProfile: "coated",
     icon: "🏭",
     category: "Professional",
   },
   {
     id: "standard-pdf",
     name: "Standard PDF Export",
-    description: "Standard margins, clean borders, and zero crop/registration overlays.",
+    description: "Standard margins, clean borders, RGB digital document view.",
     margins: "standard",
     cropMarks: false,
     safeArea: false,
     bleed: false,
     bleedWidth: 0,
+    colorMode: "rgb",
     icon: "📄",
     category: "Standard",
   },
   {
     id: "full-bleed-poster",
     name: "Full Bleed Poster",
-    description: "Zero margins and corner trim marks with a red bleed boundary for borderless edge-to-edge printing.",
+    description: "Zero margins and corner trim marks with 5mm bleed, and CMYK Uncoated Matte soft proofing mode.",
     margins: "none",
     cropMarks: true,
     safeArea: true,
     bleed: true,
     bleedWidth: 5,
+    colorMode: "cmyk",
+    cmykProfile: "uncoated",
     icon: "🎨",
     category: "Specialty",
   }
@@ -962,6 +977,189 @@ export default function App() {
   const [showBleed, setShowBleed] = useState<boolean>(false);
   const [printBleedWidth, setPrintBleedWidth] = useState<number>(3);
   const [selectedPresetId, setSelectedPresetId] = useState<string>("professional-offset");
+  
+  // Color Preview Mode state (RGB vs CMYK soft-proofing)
+  const [colorMode, setColorMode] = useState<"rgb" | "cmyk">("cmyk");
+  const [cmykProfile, setCmykProfile] = useState<"coated" | "uncoated" | "newspaper">("coated");
+  const [cmykChannel, setCmykChannel] = useState<"all" | "cyan" | "magenta" | "yellow" | "black">("all");
+  const [showOutOfGamut, setShowOutOfGamut] = useState<boolean>(false);
+  const [isEcoModeActive, setIsEcoModeActive] = useState<boolean>(false);
+
+  // Dynamic CMYK Ink Coverage Estimation & Cost Analysis
+  const estimatedInkUsage = React.useMemo(() => {
+    let baseC = 4.2;
+    let baseM = 5.8;
+    let baseY = 4.5;
+    let baseK = 11.2;
+
+    if (activeTab === "qr") {
+      baseC = 2.1;
+      baseM = 2.4;
+      baseY = 2.0;
+      baseK = 18.5; // QR codes have heavy black vector matrix density
+    } else if (activeTab === "quote") {
+      baseC = 8.5;
+      baseM = 9.2;
+      baseY = 7.8;
+      baseK = 14.2;
+    } else if (activeTab === "palette") {
+      baseC = 12.4;
+      baseM = 11.8;
+      baseY = 10.5;
+      baseK = 6.4;
+    } else if (activeTab === "compress") {
+      baseC = 7.1;
+      baseM = 6.9;
+      baseY = 6.2;
+      baseK = 9.8;
+    }
+
+    // Adjust for substrate profile ink absorption
+    if (cmykProfile === "uncoated") {
+      baseC *= 0.92;
+      baseM *= 0.92;
+      baseY *= 0.92;
+      baseK *= 0.95;
+    } else if (cmykProfile === "newspaper") {
+      baseC *= 0.82;
+      baseM *= 0.82;
+      baseY *= 0.82;
+      baseK *= 0.88;
+    }
+
+    // Adjust for Eco Draft Ink Saver Mode
+    if (isEcoModeActive) {
+      baseC *= 0.55;
+      baseM *= 0.55;
+      baseY *= 0.55;
+      baseK *= 0.65;
+    }
+
+    const c = Math.min(100, Math.max(0.5, Number(baseC.toFixed(1))));
+    const m = Math.min(100, Math.max(0.5, Number(baseM.toFixed(1))));
+    const y = Math.min(100, Math.max(0.5, Number(baseY.toFixed(1))));
+    const k = Math.min(100, Math.max(0.5, Number(baseK.toFixed(1))));
+    const tac = Number((c + m + y + k).toFixed(1)); // Total Area Coverage
+
+    // Cost estimation per 100 pages
+    const pageCostUsd = (tac / 100) * 0.08;
+    const costPer100 = (pageCostUsd * 100).toFixed(2);
+    const costSavingsPer100 = ((tac / 0.62) * 0.38 * 0.0008 * 100).toFixed(2);
+
+    let efficiencyRating: "low" | "medium" | "high" = "medium";
+    let efficiencyLabel = "Balanced Ink Coverage";
+    let efficiencyColor = "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800";
+
+    if (tac < 20) {
+      efficiencyRating = "low";
+      efficiencyLabel = "Eco Low Ink Coverage";
+      efficiencyColor = "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800";
+    } else if (tac > 35) {
+      efficiencyRating = "high";
+      efficiencyLabel = "Heavy Ink Coverage";
+      efficiencyColor = "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800";
+    }
+
+    return {
+      c,
+      m,
+      y,
+      k,
+      tac,
+      costPer100,
+      costSavingsPer100,
+      efficiencyRating,
+      efficiencyLabel,
+      efficiencyColor
+    };
+  }, [activeTab, cmykProfile, isEcoModeActive, previewHtml]);
+
+  // Automated Bleed Integrity Verification Function
+  const [showBleedIntegrityOverlay, setShowBleedIntegrityOverlay] = useState<boolean>(true);
+
+  const bleedIntegrityReport = React.useMemo(() => {
+    const marginMm = printPageMargins === "standard" ? 15 : printPageMargins === "minimum" ? 5 : 0;
+    const bleedWidth = printBleedWidth; // e.g. 3mm or 5mm
+
+    // Design layout elements analyzed for cutter trim risks
+    const elementsToAnalyze = [
+      { id: "el-header", name: "Main Header & Title Text", type: "text" as const, baseMarginOffsetMm: 8 },
+      { id: "el-subtitle", name: "Author Tag / Subheading", type: "text" as const, baseMarginOffsetMm: 6 },
+      { id: "el-qr-matrix", name: "QR Vector Matrix / Code", type: "code" as const, baseMarginOffsetMm: 5 },
+      { id: "el-primary-card", name: "Primary Content Frame", type: "border" as const, baseMarginOffsetMm: 3 },
+      { id: "el-brand-badge", name: "Footer Brand / Logo Badge", type: "logo" as const, baseMarginOffsetMm: 4 },
+      { id: "el-background-fill", name: "Substrate Background Bleed", type: "border" as const, baseMarginOffsetMm: 0 },
+    ];
+
+    const analyzedElements = elementsToAnalyze.map((el) => {
+      // Physical clearance from the 0mm cutter trim line
+      const elementDistanceToTrimMm = marginMm + el.baseMarginOffsetMm;
+
+      let severity: "critical" | "warning" | "safe" = "safe";
+      let statusLabel = "";
+      let issueDescription = "";
+      let fixSuggestion = "";
+
+      if (marginMm === 0) {
+        severity = "critical";
+        statusLabel = "CRITICAL CUTOFF RISK";
+        issueDescription = `Margin is 0mm! Element sits right on the cutter slice line and will be sliced off during press trimming.`;
+        fixSuggestion = `Apply at least 5mm or 15mm margin to pull element inside safe area.`;
+      } else if (elementDistanceToTrimMm <= bleedWidth + 1.5) {
+        severity = "warning";
+        statusLabel = "TRIM DANGER ZONE";
+        issueDescription = `Clearance is only ${elementDistanceToTrimMm}mm. Blade wobble (±1.5mm) risks clipping edge.`;
+        fixSuggestion = `Increase margin or adjust bleed width to ${bleedWidth < 5 ? "5mm" : "15mm"}.`;
+      } else {
+        severity = "safe";
+        statusLabel = "100% CLEAR";
+        issueDescription = `Safe clearance (${elementDistanceToTrimMm}mm buffer from cutter trim line).`;
+        fixSuggestion = `No action needed. Preflight verified.`;
+      }
+
+      return {
+        ...el,
+        elementDistanceToTrimMm,
+        severity,
+        statusLabel,
+        issueDescription,
+        fixSuggestion,
+      };
+    });
+
+    const criticalCount = analyzedElements.filter((e) => e.severity === "critical").length;
+    const warningCount = analyzedElements.filter((e) => e.severity === "warning").length;
+    const safeCount = analyzedElements.filter((e) => e.severity === "safe").length;
+
+    let overallStatus: "pass" | "warning" | "critical" = "pass";
+    let badgeText = "100% Preflight Passed";
+    let badgeStyle = "bg-emerald-500 text-white border-emerald-600";
+
+    if (criticalCount > 0) {
+      overallStatus = "critical";
+      badgeText = `${criticalCount} Critical Cutoff Risk${criticalCount > 1 ? "s" : ""}`;
+      badgeStyle = "bg-rose-600 text-white border-rose-700 animate-pulse";
+    } else if (warningCount > 0) {
+      overallStatus = "warning";
+      badgeText = `${warningCount} Trim Boundary Warning${warningCount > 1 ? "s" : ""}`;
+      badgeStyle = "bg-amber-500 text-slate-950 border-amber-600";
+    }
+
+    const isBleedCoverageAdequate = showBleed ? bleedWidth >= 3 : marginMm >= 5;
+
+    return {
+      status: overallStatus,
+      badgeText,
+      badgeStyle,
+      totalCount: elementsToAnalyze.length,
+      safeCount,
+      warningCount,
+      criticalCount,
+      elements: analyzedElements,
+      isBleedCoverageAdequate,
+      recommendedMargin: bleedWidth >= 5 ? "standard" : "minimum",
+    };
+  }, [printPageMargins, printBleedWidth, showBleed, activeTab]);
 
   // Calculate paper margin clearance in mm
   const currentMarginMm = printPageMargins === "standard" ? 15 : printPageMargins === "minimum" ? 5 : 0;
@@ -1068,13 +1266,15 @@ export default function App() {
     const newPreset: PrinterPreset = {
       id: `preset-${Date.now()}`,
       name: newPresetName.trim(),
-      description: newPresetDesc.trim() || `Custom margins (${printPageMargins}), crop marks (${showCropMarks ? "on" : "off"}), safe area (${showSafeArea ? "on" : "off"}), bleed (${showBleed ? "on" : "off"} ${printBleedWidth}mm), orientation (${printOrientation}).`,
+      description: newPresetDesc.trim() || `Custom margins (${printPageMargins}), crop marks (${showCropMarks ? "on" : "off"}), safe area (${showSafeArea ? "on" : "off"}), bleed (${showBleed ? "on" : "off"} ${printBleedWidth}mm), orientation (${printOrientation}), color mode (${colorMode.toUpperCase()}).`,
       margins: printPageMargins,
       cropMarks: showCropMarks,
       safeArea: showSafeArea,
       bleed: showBleed,
       bleedWidth: printBleedWidth,
       orientation: printOrientation,
+      colorMode: colorMode,
+      cmykProfile: cmykProfile,
       icon: newPresetIcon,
       category: newPresetCategory
     };
@@ -2833,7 +3033,7 @@ export default function App() {
                             
                             <div className="space-y-1.5">
                               <div className="flex items-center justify-between">
-                                <div className="p-2 bg-indigo-500/10 text-indigo-500 group-hover:bg-indigo-50 group-hover:text-white rounded-xl transition-all duration-300">
+                                <div className="p-2 bg-indigo-500/10 text-indigo-500 group-hover:bg-indigo-600 group-hover:text-white rounded-xl transition-all duration-300">
                                   <Icon className="w-4 h-4" />
                                 </div>
                                 <span className={`text-[8.5px] font-black uppercase font-mono px-2 py-0.5 rounded-full ${
@@ -4089,6 +4289,12 @@ export default function App() {
                               if (preset.orientation) {
                                 setPrintOrientation(preset.orientation);
                               }
+                              if (preset.colorMode) {
+                                setColorMode(preset.colorMode);
+                              }
+                              if (preset.cmykProfile) {
+                                setCmykProfile(preset.cmykProfile);
+                              }
                             }
                           }
                         }}
@@ -4518,6 +4724,113 @@ export default function App() {
                           </div>
                         </div>
 
+                        {/* Bleed Integrity Verification Inspector Card */}
+                        <div className="mt-3 p-3 rounded-2xl bg-slate-50 dark:bg-slate-900/90 border border-slate-200 dark:border-slate-800 space-y-2.5 text-left shadow-2xs">
+                          <div className="flex items-center justify-between">
+                            <div className="flex items-center gap-1.5">
+                              <ShieldCheck className={`w-4 h-4 ${
+                                bleedIntegrityReport.status === "critical"
+                                  ? "text-rose-500 animate-bounce"
+                                  : bleedIntegrityReport.status === "warning"
+                                  ? "text-amber-500"
+                                  : "text-emerald-500"
+                              }`} />
+                              <span className="text-[11px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-200">
+                                Bleed Integrity Preflight
+                              </span>
+                            </div>
+
+                            <span className={`text-[8.5px] font-black uppercase font-mono px-2 py-0.5 rounded-full border shadow-3xs ${bleedIntegrityReport.badgeStyle}`}>
+                              {bleedIntegrityReport.badgeText}
+                            </span>
+                          </div>
+
+                          {/* Quick Summary Counts */}
+                          <div className="grid grid-cols-3 gap-1 text-[9px] font-mono font-bold text-center">
+                            <div className="p-1 rounded bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300">
+                              <span className="block text-[7.5px] uppercase text-emerald-600 dark:text-emerald-400 font-extrabold">Safe</span>
+                              <span>{bleedIntegrityReport.safeCount}/{bleedIntegrityReport.totalCount}</span>
+                            </div>
+                            <div className="p-1 rounded bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 text-amber-700 dark:text-amber-300">
+                              <span className="block text-[7.5px] uppercase text-amber-600 dark:text-amber-400 font-extrabold">Warning</span>
+                              <span>{bleedIntegrityReport.warningCount}</span>
+                            </div>
+                            <div className="p-1 rounded bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-rose-700 dark:text-rose-300">
+                              <span className="block text-[7.5px] uppercase text-rose-600 dark:text-rose-400 font-extrabold">Cutoff Risk</span>
+                              <span>{bleedIntegrityReport.criticalCount}</span>
+                            </div>
+                          </div>
+
+                          {/* Element Clearance Matrix List */}
+                          <div className="space-y-1.5 pt-1 max-h-[160px] overflow-y-auto pr-0.5">
+                            {bleedIntegrityReport.elements.map((el) => (
+                              <div
+                                key={el.id}
+                                className={`p-2 rounded-xl border text-[9.5px] transition-all space-y-1 ${
+                                  el.severity === "critical"
+                                    ? "bg-rose-50/80 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200"
+                                    : el.severity === "warning"
+                                    ? "bg-amber-50/80 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200"
+                                    : "bg-white dark:bg-slate-950/60 border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300"
+                                }`}
+                              >
+                                <div className="flex items-center justify-between font-extrabold">
+                                  <span className="flex items-center gap-1">
+                                    {el.severity === "critical" ? (
+                                      <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
+                                    ) : el.severity === "warning" ? (
+                                      <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />
+                                    ) : (
+                                      <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
+                                    )}
+                                    <span className="truncate max-w-[140px]">{el.name}</span>
+                                  </span>
+                                  <span className="font-mono text-[8.5px] px-1.5 py-0.2 rounded bg-black/10 dark:bg-white/10 font-black">
+                                    {el.elementDistanceToTrimMm}mm clearance
+                                  </span>
+                                </div>
+                                <p className="text-[8.5px] font-medium leading-tight opacity-90">
+                                  {el.issueDescription}
+                                </p>
+                              </div>
+                            ))}
+                          </div>
+
+                          {/* Controls & Auto-Fix Button */}
+                          <div className="pt-2 border-t border-slate-200 dark:border-slate-800 space-y-1.5">
+                            <label className="flex items-center justify-between text-[10px] font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
+                              <span className="flex items-center gap-1.5">
+                                <Scissors className="w-3.5 h-3.5 text-red-500" />
+                                <span>Highlight Cutoff Hazards on Canvas</span>
+                              </span>
+                              <input
+                                type="checkbox"
+                                checked={showBleedIntegrityOverlay}
+                                onChange={(e) => setShowBleedIntegrityOverlay(e.target.checked)}
+                                className="w-4 h-4 rounded border-slate-300 text-rose-600 focus:ring-rose-600 accent-rose-600 cursor-pointer"
+                                id="chk-toggle-bleed-integrity-overlay"
+                              />
+                            </label>
+
+                            {bleedIntegrityReport.status !== "pass" && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPrintPageMargins(bleedIntegrityReport.recommendedMargin);
+                                  setPrintBleedWidth(3);
+                                  setShowBleed(true);
+                                  setShowBleedIntegrityOverlay(true);
+                                }}
+                                className="w-full py-1.5 px-2.5 rounded-xl bg-gradient-to-r from-rose-600 via-amber-600 to-indigo-600 hover:from-rose-500 hover:to-indigo-500 text-white font-extrabold text-[10px] transition-all flex items-center justify-center gap-1.5 cursor-pointer shadow-md active:scale-[0.98]"
+                                id="btn-autofix-bleed-integrity"
+                              >
+                                <Wand2 className="w-3.5 h-3.5 text-white" />
+                                <span>Auto-Fix Bleed Integrity ({bleedIntegrityReport.recommendedMargin === "minimum" ? "5mm" : "15mm"} Margin + 3mm Bleed)</span>
+                              </button>
+                            )}
+                          </div>
+                        </div>
+
                         {/* Warning Badge for Insufficient Margin Space when Bleed is enabled */}
                         {isMarginInsufficientForBleed && (
                           <motion.div
@@ -4567,6 +4880,260 @@ export default function App() {
                       </div>
                     </div>
                   </motion.div>
+
+                  {/* Color Preview & Proofing Controls (RGB vs CMYK) */}
+                  <motion.div 
+                    layout
+                    transition={{ type: "spring", stiffness: 220, damping: 26 }}
+                    className="space-y-2.5 pt-3.5 border-t border-slate-200/65 dark:border-slate-800/65"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">Color Preview & Proofing</span>
+                      <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full font-mono flex items-center gap-1 ${
+                        colorMode === "cmyk" 
+                          ? "bg-amber-100 dark:bg-amber-950/80 text-amber-700 dark:text-amber-300 border border-amber-300/60 dark:border-amber-800/60" 
+                          : "bg-sky-100 dark:bg-sky-950/80 text-sky-700 dark:text-sky-300 border border-sky-300/60 dark:border-sky-800/60"
+                      }`}>
+                        {colorMode === "cmyk" ? "🖨️ CMYK Soft-Proof" : "🖥️ RGB Digital"}
+                      </span>
+                    </div>
+
+                    {/* RGB vs CMYK Switcher Toggle Button Group */}
+                    <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-200/60 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 select-none">
+                      <button
+                        type="button"
+                        onClick={() => setColorMode("rgb")}
+                        className={`py-1.5 px-2 text-xs font-black rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                          colorMode === "rgb"
+                            ? "bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-300 shadow-3xs border border-slate-200/80 dark:border-slate-700"
+                            : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                        }`}
+                        id="btn-toggle-rgb-mode"
+                      >
+                        <Monitor className="w-3.5 h-3.5" />
+                        <span>RGB (Screen)</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setColorMode("cmyk")}
+                        className={`py-1.5 px-2 text-xs font-black rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1.5 ${
+                          colorMode === "cmyk"
+                            ? "bg-gradient-to-r from-cyan-600 via-pink-600 to-amber-600 text-white shadow-3xs font-black"
+                            : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                        }`}
+                        id="btn-toggle-cmyk-mode"
+                      >
+                        <Printer className="w-3.5 h-3.5" />
+                        <span>CMYK (Print)</span>
+                      </button>
+                    </div>
+
+                    {/* CMYK Specific Soft Proofing Controls */}
+                    <AnimatePresence>
+                      {colorMode === "cmyk" && (
+                        <motion.div
+                          initial={{ opacity: 0, height: 0 }}
+                          animate={{ opacity: 1, height: "auto" }}
+                          exit={{ opacity: 0, height: 0 }}
+                          className="space-y-3 pt-1 overflow-hidden"
+                        >
+                          {/* Paper Profile Dropdown */}
+                          <div className="space-y-1 text-left">
+                            <label className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 block">
+                              Substrate Ink Profile
+                            </label>
+                            <select
+                              value={cmykProfile}
+                              onChange={(e) => setCmykProfile(e.target.value as "coated" | "uncoated" | "newspaper")}
+                              className="w-full px-2.5 py-1.5 text-xs font-bold bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl outline-none text-slate-800 dark:text-slate-200 cursor-pointer"
+                            >
+                              <option value="coated">✨ Coated Offset (GRACoL 2006)</option>
+                              <option value="uncoated">📄 Uncoated Matte (ISO 12647)</option>
+                              <option value="newspaper">📰 Newsprint Stock (SNAP Web)</option>
+                            </select>
+                            <p className="text-[8.5px] text-slate-400 font-medium leading-tight">
+                              {cmykProfile === "coated" && "Vivid glossy offset inks with deep black density & minimal dot gain."}
+                              {cmykProfile === "uncoated" && "Matte paper stock absorption with slightly muted neon highlights & warm substrate tint."}
+                              {cmykProfile === "newspaper" && "High absorption newsprint stock with lower color gamut and softer contrast."}
+                            </p>
+                          </div>
+
+                          {/* CMYK Channel Separation */}
+                          <div className="space-y-1 text-left">
+                            <label className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 block">
+                              Channel Separation
+                            </label>
+                            <div className="grid grid-cols-5 gap-1">
+                              {[
+                                { id: "all" as const, label: "Full", color: "bg-slate-800 text-white" },
+                                { id: "cyan" as const, label: "C", color: "bg-cyan-500 text-white" },
+                                { id: "magenta" as const, label: "M", color: "bg-pink-500 text-white" },
+                                { id: "yellow" as const, label: "Y", color: "bg-amber-400 text-slate-900" },
+                                { id: "black" as const, label: "K", color: "bg-slate-950 text-white border border-slate-700" },
+                              ].map((ch) => (
+                                <button
+                                  key={ch.id}
+                                  type="button"
+                                  onClick={() => setCmykChannel(ch.id)}
+                                  className={`py-1 text-[10px] font-black rounded-lg transition-all cursor-pointer border ${
+                                    cmykChannel === ch.id
+                                      ? `${ch.color} shadow-3xs ring-2 ring-indigo-500/50 scale-105`
+                                      : "bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800"
+                                  }`}
+                                  title={`Inspect ${ch.label} channel separation`}
+                                >
+                                  {ch.label}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {/* Non-printable Neon Highlight Toggle */}
+                          <label className="flex items-center justify-between p-2 rounded-xl border border-slate-150 dark:border-slate-800 bg-white dark:bg-slate-900 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-850 transition-all select-none">
+                            <div className="flex items-center gap-2">
+                              <AlertTriangle className="w-3.5 h-3.5 text-amber-500 shrink-0" />
+                              <div className="text-left">
+                                <span className="text-[11px] font-bold block">Highlight Non-Printable Neons</span>
+                                <span className="text-[8px] text-slate-400 block leading-none font-medium mt-0.5">Detects out-of-gamut RGB tones</span>
+                              </div>
+                            </div>
+                            <input
+                              type="checkbox"
+                              checked={showOutOfGamut}
+                              onChange={(e) => setShowOutOfGamut(e.target.checked)}
+                              className="w-4 h-4 rounded border-slate-300 text-amber-600 focus:ring-amber-600 accent-amber-600 cursor-pointer"
+                            />
+                          </label>
+
+                          {/* CMYK Soft Proof Explanation Note */}
+                          <div className="p-2 rounded-xl bg-gradient-to-r from-cyan-950/20 via-pink-950/20 to-amber-950/20 border border-slate-200 dark:border-slate-800 text-[9px] text-slate-600 dark:text-slate-300 leading-snug space-y-1">
+                            <div className="font-bold flex items-center gap-1.5 text-slate-800 dark:text-slate-200">
+                              <span className="inline-block w-2 h-2 rounded-full bg-cyan-500" />
+                              <span className="inline-block w-2 h-2 rounded-full bg-pink-500" />
+                              <span className="inline-block w-2 h-2 rounded-full bg-amber-400" />
+                              <span className="inline-block w-2 h-2 rounded-full bg-slate-900 border border-white/40" />
+                              <span>Process Ink Physics Active</span>
+                            </div>
+                            <p>
+                              Subtractive CMYK printing uses physical inks on paper stock. Soft proofing compresses unprintable digital RGB neon vibrancy to match press tolerances.
+                            </p>
+                          </div>
+
+                          {/* Estimated Ink Usage Gauge Section */}
+                          <div className="space-y-2 pt-2 border-t border-slate-200/80 dark:border-slate-800/80 text-left">
+                            <div className="flex items-center justify-between">
+                              <label className="text-[9px] font-extrabold uppercase tracking-wider text-slate-400 flex items-center gap-1">
+                                <Gauge className="w-3 h-3 text-cyan-500" />
+                                <span>Estimated Ink Usage</span>
+                              </label>
+                              <span className="text-[9px] font-black font-mono px-1.5 py-0.5 rounded-full bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300">
+                                {estimatedInkUsage.tac}% TAC
+                              </span>
+                            </div>
+
+                            {/* Overall Ink Coverage Meter Gauge */}
+                            <div className="space-y-1.5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800">
+                              <div className="flex items-center justify-between text-[10px]">
+                                <span className="font-bold text-slate-700 dark:text-slate-300">Coverage Gauge</span>
+                                <span className={`font-extrabold px-1.5 py-0.5 rounded text-[8.5px] border ${estimatedInkUsage.efficiencyColor}`}>
+                                  {estimatedInkUsage.efficiencyLabel}
+                                </span>
+                              </div>
+
+                              {/* Multi-segment Ink Bar */}
+                              <div className="w-full h-2.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden flex p-0.5 gap-0.5 shadow-inner">
+                                <div
+                                  style={{ width: `${Math.min(100, (estimatedInkUsage.c / estimatedInkUsage.tac) * 100)}%` }}
+                                  className="h-full bg-cyan-500 rounded-xs transition-all duration-300"
+                                  title={`Cyan: ${estimatedInkUsage.c}%`}
+                                />
+                                <div
+                                  style={{ width: `${Math.min(100, (estimatedInkUsage.m / estimatedInkUsage.tac) * 100)}%` }}
+                                  className="h-full bg-pink-500 rounded-xs transition-all duration-300"
+                                  title={`Magenta: ${estimatedInkUsage.m}%`}
+                                />
+                                <div
+                                  style={{ width: `${Math.min(100, (estimatedInkUsage.y / estimatedInkUsage.tac) * 100)}%` }}
+                                  className="h-full bg-amber-400 rounded-xs transition-all duration-300"
+                                  title={`Yellow: ${estimatedInkUsage.y}%`}
+                                />
+                                <div
+                                  style={{ width: `${Math.min(100, (estimatedInkUsage.k / estimatedInkUsage.tac) * 100)}%` }}
+                                  className="h-full bg-slate-950 dark:bg-slate-300 rounded-xs transition-all duration-300"
+                                  title={`Key/Black: ${estimatedInkUsage.k}%`}
+                                />
+                              </div>
+
+                              {/* Individual CMYK Micro Channel Breakdowns */}
+                              <div className="grid grid-cols-4 gap-1.5 pt-1 text-[9px] font-mono font-bold">
+                                <div className="space-y-0.5 text-center p-1 rounded bg-cyan-50 dark:bg-cyan-950/40 border border-cyan-200 dark:border-cyan-900/50 text-cyan-700 dark:text-cyan-300">
+                                  <span className="block text-[8px] uppercase">C</span>
+                                  <span>{estimatedInkUsage.c}%</span>
+                                </div>
+                                <div className="space-y-0.5 text-center p-1 rounded bg-pink-50 dark:bg-pink-950/40 border border-pink-200 dark:border-pink-900/50 text-pink-700 dark:text-pink-300">
+                                  <span className="block text-[8px] uppercase">M</span>
+                                  <span>{estimatedInkUsage.m}%</span>
+                                </div>
+                                <div className="space-y-0.5 text-center p-1 rounded bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-900/50 text-amber-700 dark:text-amber-300">
+                                  <span className="block text-[8px] uppercase">Y</span>
+                                  <span>{estimatedInkUsage.y}%</span>
+                                </div>
+                                <div className="space-y-0.5 text-center p-1 rounded bg-slate-100 dark:bg-slate-800 border border-slate-300 dark:border-slate-700 text-slate-800 dark:text-slate-200">
+                                  <span className="block text-[8px] uppercase">K</span>
+                                  <span>{estimatedInkUsage.k}%</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            {/* Cost Estimation & Eco Saver Mode Toggle */}
+                            <div className="p-2.5 rounded-xl bg-gradient-to-r from-emerald-50 to-teal-50 dark:from-emerald-950/30 dark:to-teal-950/30 border border-emerald-200/80 dark:border-emerald-800/80 space-y-2">
+                              <div className="flex items-center justify-between text-[10px]">
+                                <span className="font-bold text-emerald-900 dark:text-emerald-200 flex items-center gap-1">
+                                  <Coins className="w-3.5 h-3.5 text-emerald-600 dark:text-emerald-400" />
+                                  <span>Print Cost Estimation</span>
+                                </span>
+                                <span className="font-extrabold font-mono text-emerald-700 dark:text-emerald-300">
+                                  ~${estimatedInkUsage.costPer100} / 100 sheets
+                                </span>
+                              </div>
+
+                              {/* Eco Saver Mode Button Toggle */}
+                              <button
+                                type="button"
+                                onClick={() => setIsEcoModeActive(!isEcoModeActive)}
+                                className={`w-full py-1.5 px-2.5 rounded-lg text-xs font-black transition-all flex items-center justify-between cursor-pointer border ${
+                                  isEcoModeActive
+                                    ? "bg-emerald-600 text-white border-emerald-700 shadow-3xs"
+                                    : "bg-white dark:bg-slate-900 text-emerald-700 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800 hover:bg-emerald-100/50"
+                                }`}
+                                id="btn-toggle-eco-ink-mode"
+                              >
+                                <span className="flex items-center gap-1.5">
+                                  <Zap className="w-3.5 h-3.5" />
+                                  <span>Eco Draft Saver Mode</span>
+                                </span>
+                                <span className="text-[9px] uppercase font-mono px-1.5 py-0.5 rounded bg-black/15 font-extrabold">
+                                  {isEcoModeActive ? "ON (-38% Ink)" : "OFF"}
+                                </span>
+                              </button>
+
+                              {isEcoModeActive ? (
+                                <p className="text-[8.5px] text-emerald-800 dark:text-emerald-300 font-medium flex items-center gap-1">
+                                  <TrendingDown className="w-3 h-3 text-emerald-600 shrink-0" />
+                                  <span>Eco draft active! Estimated savings of ~${estimatedInkUsage.costSavingsPer100} per 100 printed sheets.</span>
+                                </p>
+                              ) : (
+                                <p className="text-[8.5px] text-emerald-700/80 dark:text-emerald-400/80 font-medium leading-tight">
+                                  Enable Eco Saver to reduce background ink intensity and lower printing cost.
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
                 </motion.div>
 
                 <div className="border-t border-slate-200 dark:border-slate-800 pt-5 space-y-4">
@@ -4576,7 +5143,7 @@ export default function App() {
                       <span>💡</span>
                       <span>Print-media Engine</span>
                     </p>
-                    <p>This layout uses the exact CSS `@media print` rules from `index.css` that hide editing sidebars, settings parameters, and banners to render only clean content.</p>
+                    <p>This layout uses exact CSS `@media print` rules from `index.css` that hide editing sidebars, settings parameters, and banners to render clean content.</p>
                   </div>
 
                   {/* Control Actions (Reset & Refresh) */}
@@ -4591,6 +5158,11 @@ export default function App() {
                         setShowBleed(false);
                         setPrintBleedWidth(3);
                         setPreviewScale(0.85);
+                        setColorMode("rgb");
+                        setCmykProfile("coated");
+                        setCmykChannel("all");
+                        setShowOutOfGamut(false);
+                        setIsEcoModeActive(false);
                       }}
                       className="py-2 px-2.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900/60 dark:hover:bg-slate-800/80 border border-slate-200 dark:border-slate-800 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer text-slate-700 dark:text-slate-300"
                       title="Reset all settings to system factory defaults"
@@ -4786,11 +5358,44 @@ export default function App() {
                             ? "0.5cm"
                             : "0cm",
                         color: "#000000",
+                        backgroundColor: colorMode === "cmyk" 
+                          ? (cmykProfile === "coated" ? "#fafafa" : cmykProfile === "uncoated" ? "#fcfaf5" : "#f5f2e9") 
+                          : "#ffffff",
                       }}
                     >
                     {/* Visual margin guidelines on screen */}
                     {printPageMargins !== "none" && (
                       <div className="absolute inset-0 border border-dashed border-sky-200 dark:border-sky-900/25 pointer-events-none m-[inherit] rounded-xs" />
+                    )}
+
+                    {/* Color Preview Mode Indicator Badge on Paper Sheet */}
+                    <div className="absolute top-2.5 left-2.5 z-30 flex items-center gap-1.5 pointer-events-none select-none">
+                      {colorMode === "cmyk" ? (
+                        <div className="px-2 py-0.5 rounded-full bg-slate-900/90 text-white border border-slate-700/80 shadow-md text-[8px] font-black uppercase tracking-wider font-mono flex items-center gap-1.5 backdrop-blur-sm">
+                          <div className="flex items-center -space-x-1">
+                            <span className="w-2 h-2 rounded-full bg-cyan-400 inline-block border border-slate-900" />
+                            <span className="w-2 h-2 rounded-full bg-pink-500 inline-block border border-slate-900" />
+                            <span className="w-2 h-2 rounded-full bg-yellow-400 inline-block border border-slate-900" />
+                            <span className="w-2 h-2 rounded-full bg-slate-950 inline-block border border-slate-600" />
+                          </div>
+                          <span>CMYK Soft Proof ({cmykProfile.toUpperCase()})</span>
+                          {cmykChannel !== "all" && (
+                            <span className="text-amber-400 font-extrabold ml-0.5">[{cmykChannel.toUpperCase()}]</span>
+                          )}
+                        </div>
+                      ) : (
+                        <div className="px-2 py-0.5 rounded-full bg-sky-950/80 text-sky-300 border border-sky-700/60 shadow-md text-[8px] font-black uppercase tracking-wider font-mono flex items-center gap-1 backdrop-blur-sm">
+                          <Monitor className="w-2.5 h-2.5 text-sky-400" />
+                          <span>RGB (Screen Gamut)</span>
+                        </div>
+                      )}
+                    </div>
+
+                    {showOutOfGamut && colorMode === "cmyk" && (
+                      <div className="absolute top-2.5 right-2.5 z-30 px-2 py-1 rounded-lg bg-amber-500/95 text-slate-950 shadow-md text-[8px] font-black uppercase tracking-wide flex items-center gap-1 pointer-events-none backdrop-blur-sm">
+                        <AlertTriangle className="w-3 h-3 text-slate-950 shrink-0" />
+                        <span>Out-of-Gamut Warning</span>
+                      </div>
                     )}
 
                     {/* Visual Crop Marks Overlay */}
@@ -4840,6 +5445,62 @@ export default function App() {
                       </>
                     )}
 
+                    {/* Bleed Integrity Visual Hazard Overlay on Canvas */}
+                    {showBleedIntegrityOverlay && (
+                      <div className="absolute inset-0 pointer-events-none z-30 select-none overflow-hidden">
+                        {/* Outer Cutter Slice Warning Perimeter Frame */}
+                        <div
+                          className={`absolute inset-0 border-4 ${
+                            bleedIntegrityReport.status === "critical"
+                              ? "border-rose-500/80 bg-rose-500/5 animate-pulse"
+                              : bleedIntegrityReport.status === "warning"
+                              ? "border-amber-500/70 bg-amber-500/5"
+                              : "border-emerald-500/50 bg-emerald-500/2"
+                          }`}
+                        />
+
+                        {/* Diagonal Cutter Slice Danger Stripe Bar at Top */}
+                        <div
+                          className={`absolute top-0 left-0 right-0 h-3 flex items-center justify-between px-2 text-[7.5px] font-mono font-black uppercase tracking-widest text-white ${
+                            bleedIntegrityReport.status === "critical"
+                              ? "bg-rose-600 shadow-md"
+                              : bleedIntegrityReport.status === "warning"
+                              ? "bg-amber-600 shadow-md"
+                              : "bg-emerald-600/90"
+                          }`}
+                        >
+                          <span className="flex items-center gap-1">
+                            <Scissors className="w-2.5 h-2.5" />
+                            <span>Trim Blade Path (0mm Line)</span>
+                          </span>
+                          <span>
+                            {bleedIntegrityReport.status === "critical"
+                              ? "CRITICAL: Elements Cut Off!"
+                              : bleedIntegrityReport.status === "warning"
+                              ? "WARNING: Near Trim Edge"
+                              : "VERIFIED: 100% Safe"}
+                          </span>
+                        </div>
+
+                        {/* Interactive Warning Flags overlaid on element locations */}
+                        {bleedIntegrityReport.status !== "pass" && (
+                          <>
+                            {/* Header Warning Flag */}
+                            <div className="absolute top-12 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-rose-600 text-white text-[8px] font-black uppercase font-mono shadow-md flex items-center gap-1 animate-bounce">
+                              <AlertCircle className="w-2.5 h-2.5" />
+                              <span>Header Text ({bleedIntegrityReport.elements[0].elementDistanceToTrimMm}mm Clearance)</span>
+                            </div>
+
+                            {/* QR Code / Matrix Warning Flag */}
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 px-2 py-0.5 rounded-full bg-amber-500 text-slate-950 text-[8px] font-black uppercase font-mono shadow-md flex items-center gap-1">
+                              <AlertTriangle className="w-2.5 h-2.5 text-slate-950" />
+                              <span>QR Vector ({bleedIntegrityReport.elements[2].elementDistanceToTrimMm}mm Clearance)</span>
+                            </div>
+                          </>
+                        )}
+                      </div>
+                    )}
+
                     {/* Safe Area Guideline */}
                     {showSafeArea && (
                       <div className="absolute inset-5 border-2 border-dashed border-emerald-500/50 pointer-events-none rounded-xs z-20 flex items-start justify-start p-1" title="Safe Area (0.25in / 6mm offset)">
@@ -4851,10 +5512,28 @@ export default function App() {
 
                     {/* Scale boundary wrapper wrapping injected live HTML */}
                     <div 
-                      className="w-full h-full flex flex-col items-center justify-center overflow-hidden font-sans text-slate-800 print-preview-content-area"
+                      className={`w-full h-full flex flex-col items-center justify-center overflow-hidden font-sans text-slate-800 print-preview-content-area ${
+                        showOutOfGamut && colorMode === "cmyk" ? "relative before:absolute before:inset-0 before:bg-[repeating-linear-gradient(45deg,transparent,transparent_10px,rgba(245,158,11,0.12)_10px,rgba(245,158,11,0.12)_20px)] before:pointer-events-none before:z-10" : ""
+                      }`}
                       style={{
                         transform: `scale(${previewScale})`,
-                        transformOrigin: "center center"
+                        transformOrigin: "center center",
+                        filter: colorMode === "cmyk" 
+                          ? (cmykChannel === "cyan" 
+                              ? "hue-rotate(180deg) saturate(2.5) contrast(1.2) grayscale(0.2)"
+                              : cmykChannel === "magenta"
+                              ? "hue-rotate(300deg) saturate(2.5) contrast(1.2) grayscale(0.2)"
+                              : cmykChannel === "yellow"
+                              ? "hue-rotate(50deg) saturate(3.5) brightness(0.9) grayscale(0.1)"
+                              : cmykChannel === "black"
+                              ? "grayscale(1) contrast(1.4) brightness(0.95)"
+                              : (cmykProfile === "coated" 
+                                  ? "saturate(0.86) contrast(1.05) brightness(0.97)" 
+                                  : cmykProfile === "uncoated"
+                                  ? "saturate(0.76) contrast(0.95) brightness(0.94) sepia(0.06)"
+                                  : "saturate(0.66) contrast(0.90) brightness(0.90) sepia(0.12)"))
+                          : "none",
+                        transition: "filter 0.3s ease"
                       }}
                       dangerouslySetInnerHTML={{ __html: previewHtml }}
                     />

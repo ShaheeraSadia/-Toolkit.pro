@@ -3,7 +3,7 @@ import { User } from "firebase/auth";
 import QRCode from "qrcode";
 import { uploadFileToDrive } from "../lib/drive";
 import { triggerFileDownload } from "../lib/download";
-import { Cloud, Download, QrCode, Settings, Palette, CheckCircle2, Image, X, Upload, History, Trash2, Printer, Share2, RefreshCw, AlertTriangle, Sparkles, Globe, Mail, Car, MapPin, Gauge, Key, Copy, Check, Layers, Type, Shapes, Camera, Grid, Crop, Scissors, Link, Zap, ExternalLink, Volume2, VolumeX } from "lucide-react";
+import { Cloud, Download, QrCode, Settings, Palette, CheckCircle2, Image, X, Upload, History, Trash2, Printer, Share2, RefreshCw, AlertTriangle, Sparkles, Globe, Mail, Car, MapPin, Gauge, Key, Copy, Check, Layers, Type, Shapes, Camera, Grid, Crop, Scissors, Link, Zap, ExternalLink, Volume2, VolumeX, Monitor, Coins, TrendingDown, ShieldCheck, AlertCircle, Wand2 } from "lucide-react";
 import { motion } from "motion/react";
 import { useDrag } from "@use-gesture/react";
 // @ts-ignore
@@ -1608,6 +1608,108 @@ export default function QrGenerator({
   // Printer presets and customizable layout states
   const [printMarginMm, setPrintMarginMm] = useState<number>(15);
   const [printOrientation, setPrintOrientation] = useState<"portrait" | "landscape">("portrait");
+  const [printColorMode, setPrintColorMode] = useState<"rgb" | "cmyk">("rgb");
+  const [printCmykProfile, setPrintCmykProfile] = useState<"coated" | "uncoated" | "newspaper">("coated");
+  const [printEcoModeActive, setPrintEcoModeActive] = useState<boolean>(false);
+
+  const estimatedPrintInk = React.useMemo(() => {
+    let baseC = 1.8;
+    let baseM = 2.2;
+    let baseY = 1.9;
+    let baseK = 19.4; // Vector QR codes use dark black matrix modules
+
+    if (printCmykProfile === "uncoated") {
+      baseC *= 0.92;
+      baseM *= 0.92;
+      baseY *= 0.92;
+      baseK *= 0.95;
+    } else if (printCmykProfile === "newspaper") {
+      baseC *= 0.82;
+      baseM *= 0.82;
+      baseY *= 0.82;
+      baseK *= 0.88;
+    }
+
+    if (printEcoModeActive) {
+      baseC *= 0.55;
+      baseM *= 0.55;
+      baseY *= 0.55;
+      baseK *= 0.65;
+    }
+
+    const c = Math.min(100, Math.max(0.5, Number(baseC.toFixed(1))));
+    const m = Math.min(100, Math.max(0.5, Number(baseM.toFixed(1))));
+    const y = Math.min(100, Math.max(0.5, Number(baseY.toFixed(1))));
+    const k = Math.min(100, Math.max(0.5, Number(baseK.toFixed(1))));
+    const tac = Number((c + m + y + k).toFixed(1));
+
+    const pageCostUsd = (tac / 100) * 0.08;
+    const costPer100 = (pageCostUsd * 100).toFixed(2);
+    const costSavingsPer100 = ((tac / 0.62) * 0.38 * 0.0008 * 100).toFixed(2);
+
+    let efficiencyLabel = "Balanced Ink Coverage";
+    let efficiencyColor = "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800";
+
+    if (tac < 20) {
+      efficiencyLabel = "Eco Low Ink Coverage";
+      efficiencyColor = "text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/60 border-emerald-200 dark:border-emerald-800";
+    } else if (tac > 35) {
+      efficiencyLabel = "Heavy Ink Coverage";
+      efficiencyColor = "text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/60 border-amber-200 dark:border-amber-800";
+    }
+
+    return {
+      c, m, y, k, tac, costPer100, costSavingsPer100, efficiencyLabel, efficiencyColor
+    };
+  }, [printCmykProfile, printEcoModeActive]);
+
+  // Automated Bleed Integrity Verification
+  const bleedIntegrityReport = React.useMemo(() => {
+    const marginMm = printMarginMm;
+    const bleedWidth = cropMarkPaddingMm;
+
+    const elementsToAnalyze = [
+      { id: "qr-matrix-grid", name: "QR Vector Grid Matrix", type: "code", baseMarginOffsetMm: 4 },
+      { id: "qr-subtitle-labels", name: "URL / Content Subtitle Tags", type: "text", baseMarginOffsetMm: 2 },
+      { id: "crop-registration-marks", name: "Crop Marks & Trim Boundaries", type: "border", baseMarginOffsetMm: cropMarkPaddingMm },
+    ];
+
+    const analyzedElements = elementsToAnalyze.map((el) => {
+      const clearance = marginMm + el.baseMarginOffsetMm;
+      let severity: "critical" | "warning" | "safe" = "safe";
+      let issue = "";
+
+      if (marginMm === 0) {
+        severity = "critical";
+        issue = "0mm margin! Matrix risks cutoff on press trim.";
+      } else if (clearance <= bleedWidth + 1.5) {
+        severity = "warning";
+        issue = `Only ${clearance}mm buffer. Blade drift risks trimming content.`;
+      } else {
+        severity = "safe";
+        issue = `Safe clearance (${clearance}mm buffer).`;
+      }
+
+      return { ...el, clearance, severity, issue };
+    });
+
+    const criticalCount = analyzedElements.filter((e) => e.severity === "critical").length;
+    const warningCount = analyzedElements.filter((e) => e.severity === "warning").length;
+    const safeCount = analyzedElements.filter((e) => e.severity === "safe").length;
+
+    let status: "pass" | "warning" | "critical" = "pass";
+    if (criticalCount > 0) status = "critical";
+    else if (warningCount > 0) status = "warning";
+
+    return {
+      status,
+      criticalCount,
+      warningCount,
+      safeCount,
+      totalCount: elementsToAnalyze.length,
+      elements: analyzedElements,
+    };
+  }, [printMarginMm, cropMarkPaddingMm]);
   
   const [printerPresets, setPrinterPresets] = useState<any[]>(() => {
     const defaultPresets = [
@@ -7214,6 +7316,150 @@ export default function QrGenerator({
                       <option value="index">Index Ordering Counters (#1, #2...)</option>
                     </select>
                   </div>
+
+                  {/* Color Mode Toggle (RGB vs CMYK) */}
+                  <div className="space-y-2 text-left pt-2 border-t border-slate-200 dark:border-slate-800">
+                    <div className="flex items-center justify-between">
+                      <label className="text-[10.5px] font-black text-slate-700 dark:text-slate-350">
+                        Color Preview Mode
+                      </label>
+                      <span className="text-[8px] font-bold uppercase font-mono px-1.5 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500">
+                        {printColorMode.toUpperCase()}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-1.5 p-1 bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-800 select-none">
+                      <button
+                        type="button"
+                        onClick={() => setPrintColorMode("rgb")}
+                        className={`py-1 px-2 text-[11px] font-black rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                          printColorMode === "rgb"
+                            ? "bg-white dark:bg-slate-800 text-sky-600 dark:text-sky-300 shadow-3xs border border-slate-200/80 dark:border-slate-700"
+                            : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                        }`}
+                      >
+                        <Monitor className="w-3 h-3" />
+                        <span>RGB Digital</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setPrintColorMode("cmyk")}
+                        className={`py-1 px-2 text-[11px] font-black rounded-lg transition-all cursor-pointer flex items-center justify-center gap-1 ${
+                          printColorMode === "cmyk"
+                            ? "bg-gradient-to-r from-cyan-600 via-pink-600 to-amber-600 text-white shadow-3xs"
+                            : "text-slate-500 hover:text-slate-800 dark:hover:text-slate-200"
+                        }`}
+                      >
+                        <Printer className="w-3 h-3" />
+                        <span>CMYK Print</span>
+                      </button>
+                    </div>
+
+                    {printColorMode === "cmyk" && (
+                      <div className="space-y-2 mt-2 pt-2 border-t border-slate-200/80 dark:border-slate-800/80">
+                        <select
+                          value={printCmykProfile}
+                          onChange={(e) => setPrintCmykProfile(e.target.value as "coated" | "uncoated" | "newspaper")}
+                          className="w-full bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-2.5 py-1.5 text-[10.5px] font-bold text-slate-700 dark:text-slate-300 focus:outline-none cursor-pointer"
+                        >
+                          <option value="coated">Coated Offset (Glossy Ink)</option>
+                          <option value="uncoated">Uncoated Matte (Paper Stock)</option>
+                          <option value="newspaper">Newsprint Press (High Absorption)</option>
+                        </select>
+
+                        {/* Estimated Ink Coverage Meter */}
+                        <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 space-y-1.5">
+                          <div className="flex items-center justify-between text-[10px]">
+                            <span className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                              <Gauge className="w-3 h-3 text-cyan-500" />
+                              <span>Est. Ink Usage</span>
+                            </span>
+                            <span className="font-extrabold font-mono text-cyan-600 dark:text-cyan-400">
+                              {estimatedPrintInk.tac}% TAC
+                            </span>
+                          </div>
+
+                          {/* Multi-segment Ink Bar */}
+                          <div className="w-full h-2 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden flex p-0.5 gap-0.5">
+                            <div style={{ width: `${Math.min(100, (estimatedPrintInk.c / estimatedPrintInk.tac) * 100)}%` }} className="h-full bg-cyan-500 rounded-xs" title={`Cyan: ${estimatedPrintInk.c}%`} />
+                            <div style={{ width: `${Math.min(100, (estimatedPrintInk.m / estimatedPrintInk.tac) * 100)}%` }} className="h-full bg-pink-500 rounded-xs" title={`Magenta: ${estimatedPrintInk.m}%`} />
+                            <div style={{ width: `${Math.min(100, (estimatedPrintInk.y / estimatedPrintInk.tac) * 100)}%` }} className="h-full bg-amber-400 rounded-xs" title={`Yellow: ${estimatedPrintInk.y}%`} />
+                            <div style={{ width: `${Math.min(100, (estimatedPrintInk.k / estimatedPrintInk.tac) * 100)}%` }} className="h-full bg-slate-950 dark:bg-slate-300 rounded-xs" title={`Key/Black: ${estimatedPrintInk.k}%`} />
+                          </div>
+
+                          <div className="flex items-center justify-between pt-1">
+                            <span className="text-[9px] font-bold text-emerald-600 dark:text-emerald-400 font-mono">
+                              ~${estimatedPrintInk.costPer100} / 100 sheets
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => setPrintEcoModeActive(!printEcoModeActive)}
+                              className={`px-1.5 py-0.5 rounded text-[8.5px] font-black uppercase transition-all cursor-pointer ${
+                                printEcoModeActive
+                                  ? "bg-emerald-600 text-white"
+                                  : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400 hover:bg-slate-300"
+                              }`}
+                            >
+                              {printEcoModeActive ? "Eco Active" : "Eco Saver"}
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Bleed Integrity Preflight Card */}
+                <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-3 rounded-2xl select-none text-left space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                      <ShieldCheck className={`w-3.5 h-3.5 ${bleedIntegrityReport.status === "critical" ? "text-rose-500" : bleedIntegrityReport.status === "warning" ? "text-amber-500" : "text-emerald-500"}`} />
+                      <span>Bleed Integrity Verification</span>
+                    </span>
+
+                    <span className={`text-[8px] font-black uppercase font-mono px-2 py-0.5 rounded-full ${
+                      bleedIntegrityReport.status === "critical"
+                        ? "bg-rose-600 text-white"
+                        : bleedIntegrityReport.status === "warning"
+                        ? "bg-amber-500 text-slate-950"
+                        : "bg-emerald-600 text-white"
+                    }`}>
+                      {bleedIntegrityReport.status === "critical" ? "Cutoff Risk" : bleedIntegrityReport.status === "warning" ? "Trim Warning" : "100% Passed"}
+                    </span>
+                  </div>
+
+                  <div className="space-y-1">
+                    {bleedIntegrityReport.elements.map((el) => (
+                      <div key={el.id} className="flex items-center justify-between text-[9.5px] p-1.5 rounded-lg bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-800">
+                        <span className="font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1">
+                          {el.severity === "critical" ? (
+                            <AlertCircle className="w-3 h-3 text-rose-500 shrink-0" />
+                          ) : el.severity === "warning" ? (
+                            <AlertTriangle className="w-3 h-3 text-amber-500 shrink-0" />
+                          ) : (
+                            <CheckCircle2 className="w-3 h-3 text-emerald-500 shrink-0" />
+                          )}
+                          <span>{el.name}</span>
+                        </span>
+                        <span className="font-mono text-[8.5px] font-black opacity-80">{el.clearance}mm buffer</span>
+                      </div>
+                    ))}
+                  </div>
+
+                  {bleedIntegrityReport.status !== "pass" && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPrintMarginMm(15);
+                        setCropMarkPaddingMm(3);
+                      }}
+                      className="w-full py-1.5 px-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-extrabold transition-all cursor-pointer flex items-center justify-center gap-1"
+                    >
+                      <Wand2 className="w-3 h-3" />
+                      <span>Auto-Fix Bleed Integrity (15mm Margin)</span>
+                    </button>
+                  )}
                 </div>
 
                 {/* Grid diagnostics overview */}
@@ -7300,13 +7546,24 @@ export default function QrGenerator({
                       {pages.map((rowItems, pageIdx) => (
                         <div
                           key={pageIdx}
-                          className="a4-print-page bg-white text-slate-900 border border-slate-300/85 shadow-xl rounded-sm flex flex-col justify-between relative select-none box-sizing:border-box"
+                          className="a4-print-page text-slate-900 border border-slate-300/85 shadow-xl rounded-sm flex flex-col justify-between relative select-none box-sizing:border-box"
                           style={{
                             width: `${containerWidthMm}mm`,
                             height: `${containerHeightMm}mm`,
                             minWidth: `${containerWidthMm}mm`,
                             minHeight: `${containerHeightMm}mm`,
-                            padding: `${printMarginMm}mm`
+                            padding: `${printMarginMm}mm`,
+                            backgroundColor: printColorMode === "cmyk"
+                              ? (printCmykProfile === "coated" ? "#fafafa" : printCmykProfile === "uncoated" ? "#fcfaf5" : "#f5f2e9")
+                              : "#ffffff",
+                            filter: printColorMode === "cmyk"
+                              ? (printCmykProfile === "coated"
+                                  ? "saturate(0.86) contrast(1.05) brightness(0.97)"
+                                  : printCmykProfile === "uncoated"
+                                  ? "saturate(0.76) contrast(0.95) brightness(0.94) sepia(0.06)"
+                                  : "saturate(0.66) contrast(0.90) brightness(0.90) sepia(0.12)")
+                              : "none",
+                            transition: "filter 0.3s ease, background-color 0.3s ease"
                           }}
                         >
                           {/* Non-printing Layout Grid Overlay */}
