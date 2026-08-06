@@ -345,11 +345,11 @@ export default function Navbar({
       {/* Top Multi-Color Gradient Bar for Professional Studio Look */}
       <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 z-50 pointer-events-none" />
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="min-h-16 py-3 lg:py-0 flex items-center justify-between gap-5 flex-wrap lg:flex-nowrap">
+      <div className="w-full px-3 sm:px-4 lg:px-6">
+        <div className="h-16 flex items-center justify-between gap-2.5 sm:gap-3.5 flex-nowrap overflow-x-auto scrollbar-none">
           
           {/* Sidebar Toggle and Logo Brand Title */}
-          <div className="flex items-center space-x-2.5 select-none animate-in fade-in slide-in-from-left-4 duration-300 shrink-0">
+          <div className="flex items-center space-x-2 sm:space-x-2.5 select-none animate-in fade-in slide-in-from-left-4 duration-300 shrink-0">
             {onToggleSidebar && (
               <button
                 onClick={onToggleSidebar}
@@ -361,15 +361,15 @@ export default function Navbar({
                 title="Toggle Sidebar Menu"
                 aria-label="Toggle Navigation Sidebar"
               >
-                <Menu className="w-5 h-5" />
+                <Menu className="w-4.5 h-4.5" />
               </button>
             )}
 
             <div 
               onClick={() => handleTabClick("home")}
-              className="flex items-center space-x-3 cursor-pointer group"
+              className="flex items-center space-x-2.5 cursor-pointer group shrink-0"
             >
-              <div className={`px-2.5 py-1.5 rounded-xl border shadow-xs flex items-center justify-center transition-all group-hover:scale-[1.03] duration-300 ${
+              <div className={`px-2 py-1.5 rounded-xl border shadow-xs flex items-center justify-center transition-all group-hover:scale-[1.03] duration-300 ${
                 theme === "dark" 
                   ? "bg-slate-900/90 border-slate-800 hover:border-indigo-500/50" 
                   : "bg-white border-slate-200/80 hover:border-indigo-200"
@@ -377,11 +377,11 @@ export default function Navbar({
                 <img 
                   src={brandLogo} 
                   alt="Toolkit Pro Logo" 
-                  className="h-7 sm:h-8.5 w-auto object-contain rounded-sm"
+                  className="h-7 sm:h-8 w-auto object-contain rounded-sm"
                   referrerPolicy="no-referrer"
                 />
               </div>
-              <span className="hidden sm:inline-flex items-center rounded-full bg-emerald-500/10 dark:bg-emerald-950/60 px-2.5 py-0.5 text-[9.5px] font-black text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 dark:border-emerald-900/40 uppercase tracking-wider font-mono">
+              <span className="hidden xl:inline-flex items-center rounded-full bg-emerald-500/10 dark:bg-emerald-950/60 px-2.5 py-0.5 text-[9.5px] font-black text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 dark:border-emerald-900/40 uppercase tracking-wider font-mono">
                 AdSense ID
               </span>
             </div>
@@ -390,18 +390,18 @@ export default function Navbar({
           {/* Center-Left: Global Command Palette Search Widget */}
           <button
             onClick={handleTriggerSearch}
-            className={`hidden md:flex items-center justify-between w-48 lg:w-56 px-3.5 py-1.5 rounded-xl text-left border select-none transition-all hover:scale-101 cursor-pointer shadow-3xs hover:shadow-xs ${
+            className={`flex items-center justify-between w-36 sm:w-44 md:w-48 lg:w-52 px-3 py-1.5 rounded-xl text-left border select-none transition-all hover:scale-101 cursor-pointer shrink-0 shadow-3xs ${
               theme === "dark"
                 ? "bg-slate-900/70 hover:bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:border-indigo-500/40"
                 : "bg-slate-100/80 hover:bg-slate-200/70 border-slate-200/80 text-slate-600 hover:text-slate-900 hover:border-indigo-200"
             }`}
             title="Search Workspace & Utilities (Ctrl+K)"
           >
-            <div className="flex items-center gap-2">
-              <Search className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
-              <span className="text-[11px] font-extrabold">Search tools...</span>
+            <div className="flex items-center gap-1.5 sm:gap-2">
+              <Search className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400 shrink-0" />
+              <span className="text-[11px] font-extrabold truncate">Search tools...</span>
             </div>
-            <kbd className={`inline-flex items-center px-1.5 py-0.5 text-[9px] font-black rounded-lg font-mono shrink-0 select-none ${
+            <kbd className={`hidden xs:inline-flex items-center px-1.5 py-0.5 text-[9px] font-black rounded-lg font-mono shrink-0 select-none ${
               theme === "dark"
                 ? "bg-slate-950 border border-slate-800 text-slate-400"
                 : "bg-white border border-slate-200 text-slate-500 shadow-2xs"
@@ -411,7 +411,7 @@ export default function Navbar({
           </button>
 
           {/* Center-Right: Segmented Tabs Capsule Control Nav */}
-          <nav className="hidden lg:flex items-center gap-1.5 bg-slate-100 dark:bg-slate-900/40 p-1 rounded-2xl border border-slate-200 dark:border-slate-805/40 select-none animate-in fade-in zoom-in-95 duration-300">
+          <nav className="flex items-center gap-1 sm:gap-1.5 bg-slate-100 dark:bg-slate-900/40 p-1 rounded-2xl border border-slate-200 dark:border-slate-800/40 select-none shrink-0 animate-in fade-in zoom-in-95 duration-300">
             {/* Interactive utilities megamenu */}
             <div className="relative">
               <button
@@ -713,10 +713,10 @@ export default function Navbar({
           </nav>
 
           {/* Right Action panel */}
-          <div className="flex items-center space-x-2.5 sm:space-x-3.5 shrink-0 select-none animate-in fade-in slide-in-from-right-4 duration-300">
+          <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0 select-none animate-in fade-in slide-in-from-right-4 duration-300">
             {/* Visual synchronizer active indicator */}
             <div 
-              className={`hidden xs:flex items-center space-x-1.5 px-3 py-1.5 rounded-xl text-[10px] font-mono font-bold border select-none leading-none ${
+              className={`hidden md:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-mono font-bold border select-none leading-none ${
                 theme === "dark" 
                   ? "border-slate-800/80 bg-slate-900/40 text-slate-400" 
                   : "border-slate-150 bg-slate-50/50 text-slate-500"
@@ -760,7 +760,7 @@ export default function Navbar({
                     setShowInstallModal(true);
                   }
                 }}
-                className={`relative flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-[11px] font-black transition-all cursor-pointer select-none leading-none shadow-md hover:scale-[1.02] active:scale-[0.98] ${
+                className={`relative flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-xl text-[11px] font-black transition-all cursor-pointer select-none leading-none shadow-md hover:scale-[1.02] active:scale-[0.98] ${
                   theme === "dark"
                     ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white border border-indigo-500/35 hover:from-indigo-500 hover:to-violet-500 shadow-indigo-950/40"
                     : "bg-gradient-to-r from-indigo-600 to-indigo-700 text-white border border-indigo-500/20 hover:from-indigo-550 hover:to-indigo-650 shadow-indigo-200/45"
@@ -768,34 +768,14 @@ export default function Navbar({
                 title="Install Toolkit Pro as a native standalone app"
               >
                 <Download className={`w-3.5 h-3.5 shrink-0 ${(installPrompt || (typeof window !== "undefined" && window.deferredInstallPrompt)) ? "animate-bounce" : ""}`} />
-                <span className="hidden xs:inline">Install App</span>
-                <span className="xs:hidden">Install</span>
+                <span className="hidden sm:inline">Install App</span>
+                <span className="sm:hidden">Install</span>
                 <span className="absolute -top-1 -right-1 flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
                 </span>
               </button>
             )}
-
-            {/* Quick Command Palette Search Button (Ctrl + K) */}
-            <button
-              onClick={handleTriggerSearch}
-              className={`flex items-center gap-2 px-3 py-1.5 rounded-xl border text-xs font-bold transition-all cursor-pointer select-none ${
-                theme === "dark"
-                  ? "bg-slate-900/90 border-slate-800 text-slate-200 hover:text-white hover:bg-slate-800/80 hover:border-indigo-500/50"
-                  : "bg-slate-100/80 border-slate-200 text-slate-800 hover:text-slate-950 hover:bg-slate-150 hover:border-indigo-300 shadow-2xs"
-              }`}
-              title="Quick Search & Command Palette (Ctrl + K)"
-              id="btn-navbar-search"
-            >
-              <Search className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
-              <span className="hidden lg:inline text-slate-600 dark:text-slate-300 font-semibold text-[11px]">
-                Search...
-              </span>
-              <kbd className="hidden sm:inline-flex items-center gap-0.5 px-1.5 py-0.5 text-[9px] font-mono font-bold text-slate-500 dark:text-slate-400 bg-slate-200/80 dark:bg-slate-950/80 border border-slate-300/80 dark:border-slate-800 rounded">
-                <span>Ctrl</span><span>K</span>
-              </kbd>
-            </button>
 
             {/* Seamless Language Selector Dropdown Button */}
             <LanguageSelector theme={theme} variant="compact" />
