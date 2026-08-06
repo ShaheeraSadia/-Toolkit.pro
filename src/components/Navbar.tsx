@@ -46,7 +46,8 @@ import {
   Key,
   Bot,
   Mic,
-  MessageSquare
+  MessageSquare,
+  MoreHorizontal
 } from "lucide-react";
 
 import { ActiveTab } from "../types";
@@ -99,6 +100,7 @@ export default function Navbar({
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [showToolsDropdown, setShowToolsDropdown] = useState(false);
   const [showRecentDropdown, setShowRecentDropdown] = useState(false);
+  const [showMoreDropdown, setShowMoreDropdown] = useState(false);
   
   // Ambient Soundscape state declarations
   const [showSettingsDropdown, setShowSettingsDropdown] = useState(false);
@@ -318,6 +320,7 @@ export default function Navbar({
     setMobileMenuOpen(false);
     setShowToolsDropdown(false);
     setShowRecentDropdown(false);
+    setShowMoreDropdown(false);
 
     // Smooth scroll down to main operational frame
     const element = document.getElementById(`tab-select-${tabId}`) || document.getElementById("compliance-center-root") || document.getElementById("resources-hub-container");
@@ -345,8 +348,8 @@ export default function Navbar({
       {/* Top Multi-Color Gradient Bar for Professional Studio Look */}
       <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 z-50 pointer-events-none" />
 
-      <div className="w-full px-3 sm:px-4 lg:px-6">
-        <div className="h-16 flex items-center justify-between gap-2.5 sm:gap-3.5 flex-nowrap overflow-x-auto scrollbar-none">
+      <div className="w-full px-2 sm:px-4 lg:px-6">
+        <div className="h-16 flex items-center justify-between gap-1.5 sm:gap-2.5 flex-nowrap w-full max-w-full overflow-hidden">
           
           {/* Sidebar Toggle and Logo Brand Title */}
           <div className="flex items-center space-x-2 sm:space-x-2.5 select-none animate-in fade-in slide-in-from-left-4 duration-300 shrink-0">
@@ -610,54 +613,10 @@ export default function Navbar({
               <span className="relative z-10">Voice Studio</span>
             </button>
 
-            {/* Guides & SEO hub */}
-            <button
-              onClick={() => handleTabClick("resources")}
-              className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === "resources"
-                  ? theme === "dark" ? "text-white font-extrabold" : "text-slate-955 font-extrabold"
-                  : "text-slate-700 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
-              }`}
-            >
-              {activeTab === "resources" && (
-                <motion.div
-                  layoutId="navbarTabActivePill"
-                  className={`absolute inset-0 rounded-xl ${
-                    theme === "dark" ? "bg-slate-950 shadow-xs" : "bg-white shadow-xs"
-                  }`}
-                  transition={{ type: "spring", stiffness: 380, damping: 28 }}
-                />
-              )}
-              <BookOpen className="w-3.5 h-3.5 shrink-0 text-teal-550 relative z-10" />
-              <span className="relative z-10">Guides</span>
-            </button>
-
-            {/* AdSense Legal compliance & safety pages */}
-            <button
-              onClick={() => handleTabClick("legal")}
-              className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === "legal"
-                  ? theme === "dark" ? "text-white font-extrabold" : "text-slate-955 font-extrabold"
-                  : "text-slate-700 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
-              }`}
-            >
-              {activeTab === "legal" && (
-                <motion.div
-                  layoutId="navbarTabActivePill"
-                  className={`absolute inset-0 rounded-xl ${
-                    theme === "dark" ? "bg-slate-950 shadow-xs" : "bg-white shadow-xs"
-                  }`}
-                  transition={{ type: "spring", stiffness: 380, damping: 28 }}
-                />
-              )}
-              <ShieldCheck className="w-3.5 h-3.5 shrink-0 text-emerald-500 relative z-10" />
-              <span className="relative z-10">Compliance</span>
-            </button>
-
             {/* Google Drive connected index panel */}
             <button
               onClick={() => handleTabClick("drive")}
-              className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+              className={`relative flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === "drive"
                   ? theme === "dark" ? "text-white font-extrabold" : "text-slate-955 font-extrabold"
                   : "text-slate-700 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
@@ -673,7 +632,7 @@ export default function Navbar({
                 />
               )}
               <Cloud className="w-3.5 h-3.5 shrink-0 text-sky-500 relative z-10 animate-pulse" />
-              <span className="relative z-10">My Drive</span>
+              <span className="relative z-10">Drive</span>
               {user && driveCount > 0 && (
                 <span className="relative z-10 bg-emerald-55 border border-emerald-100 dark:bg-emerald-950 dark:border-emerald-800 text-emerald-800 dark:text-emerald-350 px-1.5 py-0.2 rounded-md text-[9px] font-mono font-bold leading-none shrink-0 ml-0.5 shadow-2xs">
                   {driveCount}
@@ -681,35 +640,114 @@ export default function Navbar({
               )}
             </button>
 
-            {/* SEO Best Practices Pre-Check Button */}
-            {onOpenSeoModal && (
+            {/* More Dropdown (Guides, Compliance, SEO Audit, AI Keys) */}
+            <div className="relative">
               <button
-                onClick={onOpenSeoModal}
-                className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-indigo-500/10 to-teal-500/10 hover:from-indigo-500/20 hover:to-teal-500/20 text-indigo-700 dark:text-indigo-300 border border-indigo-200/60 dark:border-indigo-800/60 transition-all cursor-pointer font-sans shadow-3xs"
-                title="Launch SEO Best Practices audit modal before saving projects to Google Drive"
+                onMouseEnter={() => {
+                  setShowMoreDropdown(true);
+                  setShowToolsDropdown(false);
+                  setShowRecentDropdown(false);
+                }}
+                onClick={() => setShowMoreDropdown(!showMoreDropdown)}
+                className={`relative flex items-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                  ["resources", "legal"].includes(activeTab) || showMoreDropdown
+                    ? theme === "dark" ? "text-white font-extrabold" : "text-slate-900 font-extrabold"
+                    : "text-slate-700 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
+                }`}
               >
-                <Sparkles className="w-3.5 h-3.5 text-teal-500 animate-pulse" />
-                <span>SEO Audit</span>
-                <span className="bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[8.5px] font-mono font-black px-1.5 py-0.2 rounded uppercase border border-emerald-200 dark:border-emerald-800">
-                  Pre-Drive
-                </span>
+                {["resources", "legal"].includes(activeTab) && (
+                  <motion.div
+                    layoutId="navbarTabActivePill"
+                    className={`absolute inset-0 rounded-xl ${
+                      theme === "dark" ? "bg-slate-950 shadow-xs" : "bg-white shadow-xs"
+                    }`}
+                    transition={{ type: "spring", stiffness: 380, damping: 28 }}
+                  />
+                )}
+                <MoreHorizontal className="w-3.5 h-3.5 text-indigo-500 relative z-10" />
+                <span className="relative z-10 hidden xs:inline">More</span>
+                <ChevronDown className={`w-3 h-3 text-slate-400 relative z-10 transition-transform duration-300 ${showMoreDropdown ? "rotate-180" : ""}`} />
               </button>
-            )}
 
-            {/* AI Provider Key Management Button */}
-            {onOpenApiKeyModal && (
-              <button
-                onClick={onOpenApiKeyModal}
-                className="hidden md:flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-purple-500/10 to-indigo-500/10 hover:from-purple-500/20 hover:to-indigo-500/20 text-purple-700 dark:text-purple-300 border border-purple-200/60 dark:border-purple-800/60 transition-all cursor-pointer font-sans shadow-3xs"
-                title="Manage custom AI API Keys (Google Gemini, OpenAI, Anthropic, Replicate)"
-              >
-                <Key className="w-3.5 h-3.5 text-purple-500" />
-                <span>AI Keys</span>
-                <span className="bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 text-[8.5px] font-mono font-black px-1.5 py-0.2 rounded uppercase border border-purple-200 dark:border-purple-800">
-                  Secure
-                </span>
-              </button>
-            )}
+              {showMoreDropdown && (
+                <div
+                  onMouseLeave={() => setShowMoreDropdown(false)}
+                  className="absolute right-0 sm:left-0 mt-2.5 w-60 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 p-2 shadow-2xl animate-fade-in z-50 text-left font-sans"
+                >
+                  <div className="px-3 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-850 mb-1 font-mono">
+                    Navigation & Tools
+                  </div>
+
+                  <button
+                    onClick={() => handleTabClick("resources")}
+                    className={`w-full flex items-center gap-2.5 p-2 rounded-xl text-left hover:bg-slate-50 dark:hover:bg-slate-900 transition-all cursor-pointer ${
+                      activeTab === "resources" ? "bg-slate-50 dark:bg-slate-900 font-bold text-teal-600 dark:text-teal-400" : "text-slate-700 dark:text-slate-300"
+                    }`}
+                  >
+                    <BookOpen className="w-4 h-4 text-teal-500 shrink-0" />
+                    <div>
+                      <p className="text-xs font-bold leading-tight">Guides & SEO</p>
+                      <p className="text-[9.5px] text-slate-400 mt-0.5">Sitemaps & tutorials</p>
+                    </div>
+                  </button>
+
+                  <button
+                    onClick={() => handleTabClick("legal")}
+                    className={`w-full flex items-center gap-2.5 p-2 rounded-xl text-left hover:bg-slate-50 dark:hover:bg-slate-900 transition-all cursor-pointer ${
+                      activeTab === "legal" ? "bg-slate-50 dark:bg-slate-900 font-bold text-emerald-600 dark:text-emerald-400" : "text-slate-700 dark:text-slate-300"
+                    }`}
+                  >
+                    <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
+                    <div>
+                      <p className="text-xs font-bold leading-tight">Compliance & Safety</p>
+                      <p className="text-[9.5px] text-slate-400 mt-0.5">Policies & support</p>
+                    </div>
+                  </button>
+
+                  {onOpenSeoModal && (
+                    <button
+                      onClick={() => {
+                        setShowMoreDropdown(false);
+                        onOpenSeoModal();
+                      }}
+                      className="w-full flex items-center justify-between p-2 rounded-xl text-left hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-700 dark:text-slate-300 transition-all cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Sparkles className="w-4 h-4 text-indigo-500 shrink-0" />
+                        <div>
+                          <p className="text-xs font-bold leading-tight">SEO Audit</p>
+                          <p className="text-[9.5px] text-slate-400 mt-0.5">Pre-Drive checks</p>
+                        </div>
+                      </div>
+                      <span className="bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[8.5px] font-mono font-black px-1.5 py-0.5 rounded uppercase">
+                        Audit
+                      </span>
+                    </button>
+                  )}
+
+                  {onOpenApiKeyModal && (
+                    <button
+                      onClick={() => {
+                        setShowMoreDropdown(false);
+                        onOpenApiKeyModal();
+                      }}
+                      className="w-full flex items-center justify-between p-2 rounded-xl text-left hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-700 dark:text-slate-300 transition-all cursor-pointer"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <Key className="w-4 h-4 text-purple-500 shrink-0" />
+                        <div>
+                          <p className="text-xs font-bold leading-tight">AI API Keys</p>
+                          <p className="text-[9.5px] text-slate-400 mt-0.5">Gemini, OpenAI, etc.</p>
+                        </div>
+                      </div>
+                      <span className="bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 text-[8.5px] font-mono font-black px-1.5 py-0.5 rounded uppercase">
+                        Keys
+                      </span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </nav>
 
           {/* Right Action panel */}
