@@ -349,7 +349,7 @@ export default function Navbar({
       <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 z-50 pointer-events-none" />
 
       <div className="w-full px-2 sm:px-4 lg:px-6">
-        <div className="h-16 flex items-center justify-between gap-1.5 sm:gap-2.5 flex-nowrap w-full max-w-full overflow-hidden">
+        <div className="h-16 flex items-center justify-between gap-1.5 sm:gap-2.5 w-full">
           
           {/* Sidebar Toggle and Logo Brand Title */}
           <div className="flex items-center space-x-2 sm:space-x-2.5 select-none animate-in fade-in slide-in-from-left-4 duration-300 shrink-0">
@@ -414,7 +414,7 @@ export default function Navbar({
           </button>
 
           {/* Center-Right: Segmented Tabs Capsule Control Nav */}
-          <nav className="flex items-center gap-1 sm:gap-1.5 bg-slate-100 dark:bg-slate-900/40 p-1 rounded-2xl border border-slate-200 dark:border-slate-800/40 select-none shrink-0 animate-in fade-in zoom-in-95 duration-300">
+          <nav className="hidden md:flex items-center gap-1 sm:gap-1.5 bg-slate-100 dark:bg-slate-900/40 p-1 rounded-2xl border border-slate-200 dark:border-slate-800/40 select-none shrink-0 animate-in fade-in zoom-in-95 duration-300">
             {/* Interactive utilities megamenu */}
             <div className="relative">
               <button
@@ -754,7 +754,7 @@ export default function Navbar({
           <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0 select-none animate-in fade-in slide-in-from-right-4 duration-300">
             {/* Visual synchronizer active indicator */}
             <div 
-              className={`hidden md:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-mono font-bold border select-none leading-none ${
+              className={`hidden 2xl:flex items-center space-x-1.5 px-2.5 py-1.5 rounded-xl text-[10px] font-mono font-bold border select-none leading-none ${
                 theme === "dark" 
                   ? "border-slate-800/80 bg-slate-900/40 text-slate-400" 
                   : "border-slate-150 bg-slate-50/50 text-slate-500"
