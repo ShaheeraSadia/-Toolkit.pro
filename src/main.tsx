@@ -2,6 +2,7 @@ import {StrictMode} from 'react';
 import {createRoot} from 'react-dom/client';
 import App from './App.tsx';
 import './index.css';
+import { LanguageProvider } from './context/LanguageContext.tsx';
 
 // Check if this is the OAuth redirect popup
 if (window.opener && (window.location.hash.includes("access_token") || window.location.hash.includes("error"))) {
@@ -32,7 +33,9 @@ window.addEventListener("beforeinstallprompt", (e) => {
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <LanguageProvider>
+      <App />
+    </LanguageProvider>
   </StrictMode>,
 );
 

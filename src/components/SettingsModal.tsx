@@ -35,8 +35,10 @@ import {
   Radio,
   Sparkle,
   Palette,
-  RotateCcw
+  RotateCcw,
+  Globe
 } from "lucide-react";
+import { useLanguage, SUPPORTED_LANGUAGES } from "../context/LanguageContext";
 
 export interface ProviderConfig {
   id: string;
@@ -154,6 +156,7 @@ export default function SettingsModal({
   onKeySaved
 }: SettingsModalProps) {
   const [activeTab, setActiveTab] = useState<SettingsTab>(defaultTab);
+  const { language, setLanguage, t } = useLanguage();
 
   // Sync activeTab with defaultTab when modal opens
   useEffect(() => {
@@ -979,6 +982,52 @@ export default function SettingsModal({
                         </div>
                       </div>
                     </button>
+                  </div>
+                </div>
+
+                {/* LANGUAGE SELECTION PANEL */}
+                <div className="space-y-3 pt-4 border-t border-slate-200 dark:border-slate-800">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <label className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider font-sans flex items-center gap-2">
+                        <Globe className="w-4 h-4 text-indigo-500" />
+                        {t("select_language", "Select Interface Language")}
+                      </label>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                        Seamlessly changes UI labels, menus, search terms, and AI assistant prompt preferences.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2.5">
+                    {SUPPORTED_LANGUAGES.map((lang) => {
+                      const isSelected = lang.code === language;
+                      return (
+                        <button
+                          key={lang.code}
+                          type="button"
+                          onClick={() => setLanguage(lang.code)}
+                          className={`p-3 rounded-2xl border text-left transition-all cursor-pointer flex flex-col justify-between space-y-1.5 ${
+                            isSelected
+                              ? "bg-indigo-600 text-white border-indigo-500 shadow-md ring-2 ring-indigo-400/30 font-extrabold"
+                              : theme === "dark"
+                                ? "bg-slate-900/60 border-slate-800 text-slate-200 hover:border-slate-700 hover:bg-slate-850"
+                                : "bg-slate-50 border-slate-200 text-slate-800 hover:bg-slate-100"
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <span className="text-xl leading-none">{lang.flag}</span>
+                            {isSelected && <Check className="w-3.5 h-3.5 text-white shrink-0" />}
+                          </div>
+                          <div>
+                            <div className="text-xs font-bold font-sans leading-tight">{lang.nativeName}</div>
+                            <div className={`text-[10px] font-mono uppercase ${isSelected ? "text-indigo-100" : "text-slate-400"}`}>
+                              {lang.name}
+                            </div>
+                          </div>
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 

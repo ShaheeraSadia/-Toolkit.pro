@@ -29,6 +29,8 @@ import AndroidWorkspace from "./components/AndroidWorkspace";
 import PDFTools from "./components/PDFTools";
 import ImageConverter from "./components/ImageConverter";
 import BackgroundRemover from "./components/BackgroundRemover";
+import { GeminiChatbot } from "./components/GeminiChatbot";
+import { VoiceAssistant } from "./components/VoiceAssistant";
 import ToolGuide from "./components/ToolGuide";
 import { Testimonials } from "./components/Testimonials";
 import { FaqSection } from "./components/FaqSection";
@@ -37,6 +39,7 @@ import { ProjectShowcaseHub } from "./components/ProjectShowcaseHub";
 import { AiStudioTools } from "./components/AiStudioTools";
 import { ProTierSection } from "./components/ProTierSection";
 import { WorkspaceTooltips } from "./components/WorkspaceTooltips";
+import { useLanguage } from "./context/LanguageContext";
 import { motion, AnimatePresence } from "motion/react";
 // @ts-ignore
 import brandLogo from "./assets/images/toolkit_pro_logo_1781887052514.jpg";
@@ -89,6 +92,7 @@ import {
   Trash2,
   RefreshCw,
   Search,
+  Grid,
   Eraser,
   FileText,
   FolderOpen,
@@ -398,6 +402,7 @@ const iconMap: Record<string, React.ComponentType<any>> = {
 };
 
 export default function App() {
+  const { t } = useLanguage();
   const [direction, setDirection] = useState<number>(0);
   const [_activeTab, _setActiveTab] = useState<ActiveTab>(() => {
     if (typeof window !== "undefined") {
@@ -874,7 +879,29 @@ export default function App() {
   };
 
   const [homeSearchQuery, setHomeSearchQuery] = useState("");
+  const [catalogCategoryFilter, setCatalogCategoryFilter] = useState("All Tools");
   const [projectSearchQuery, setProjectSearchQuery] = useState("");
+  const [projectSortOption, setProjectSortOption] = useState<"recent" | "tool" | "alphabetical">("recent");
+  const [projectToolFilter, setProjectToolFilter] = useState<string>("all");
+
+  const highlightText = (text: string, query: string) => {
+    if (!query.trim()) return text;
+    const escaped = query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const parts = text.split(new RegExp(`(${escaped})`, "gi"));
+    return (
+      <span>
+        {parts.map((part, i) =>
+          part.toLowerCase() === query.toLowerCase() ? (
+            <mark key={i} className="bg-amber-300 dark:bg-amber-500/60 text-slate-900 dark:text-white px-0.5 rounded-xs font-black">
+              {part}
+            </mark>
+          ) : (
+            part
+          )
+        )}
+      </span>
+    );
+  };
 
   const [highContrast, setHighContrast] = useState<boolean>(() => {
     if (typeof window !== "undefined") {
@@ -1818,7 +1845,9 @@ export default function App() {
       android: "Android Studio",
       pdf: "PDF Suite",
       converter: "Converter",
-      bgremover: "BG Remover"
+      bgremover: "BG Remover",
+      chatbot: "AI Chatbot",
+      voice: "Live Voice"
     };
 
     const colors: Record<ActiveTab, string> = {
@@ -1834,10 +1863,12 @@ export default function App() {
       android: "rgba(16, 185, 129, 0.85)",     // Emerald
       pdf: "rgba(239, 68, 68, 0.85)",         // Red
       converter: "rgba(20, 184, 166, 0.85)",   // Teal
-      bgremover: "rgba(236, 72, 153, 0.85)"   // Pink
+      bgremover: "rgba(236, 72, 153, 0.85)",  // Pink
+      chatbot: "rgba(147, 51, 234, 0.85)",    // Purple
+      voice: "rgba(244, 63, 94, 0.85)"        // Rose
     };
 
-    const tabs: ActiveTab[] = ["quote", "compress", "qr", "palette", "video", "drive", "resources", "legal", "android", "pdf", "converter", "bgremover"];
+    const tabs: ActiveTab[] = ["quote", "compress", "qr", "palette", "video", "drive", "resources", "legal", "android", "pdf", "converter", "bgremover", "chatbot", "voice"];
     return tabs.map((tab) => ({
       tool: tab,
       label: labels[tab],
@@ -1916,7 +1947,9 @@ export default function App() {
       android: "Android App Studio",
       pdf: "PDF Tools Suite",
       converter: "Image Converter",
-      bgremover: "Background Remover"
+      bgremover: "Background Remover",
+      chatbot: "AI Chatbot",
+      voice: "Live Voice Studio"
     };
 
     const tabIcons: Record<ActiveTab, RecentActivity["icon"]> = {
@@ -1932,7 +1965,9 @@ export default function App() {
       android: "Smartphone",
       pdf: "FileText",
       converter: "RefreshCw",
-      bgremover: "Eraser"
+      bgremover: "Eraser",
+      chatbot: "MessageSquare",
+      voice: "Mic"
     };
 
     if (activeTab === "home") return;
@@ -2106,7 +2141,9 @@ export default function App() {
             android: "Android App Studio",
             pdf: "PDF Tools Suite",
             converter: "Image Converter",
-            bgremover: "Background Remover"
+            bgremover: "Background Remover",
+            chatbot: "AI Chatbot",
+            voice: "Live Voice Studio"
           };
           triggerShortcutFeedback(`Alt + ${e.key} (${tabLabelMap[targetTab]})`);
         }
@@ -2272,12 +2309,12 @@ export default function App() {
                 <div className="flex-1 overflow-y-auto py-5 px-4 space-y-1 scrollbar-none">
                   <div className="flex items-center justify-between px-2 pb-3 mb-2 border-b border-slate-100 dark:border-slate-800">
                     <span className="text-[10px] font-extrabold text-slate-400 dark:text-slate-500 uppercase tracking-widest font-mono">
-                      Navigation Menu
+                      {t("navigation_menu", "Navigation Menu")}
                     </span>
                     <button 
                       onClick={() => setIsSidebarOpen(false)}
                       className="p-1 rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800 lg:hidden text-slate-400 transition-colors cursor-pointer"
-                      title="Hide Sidebar"
+                      title={t("hide_sidebar", "Hide Sidebar")}
                     >
                       <X className="w-4 h-4" />
                     </button>
@@ -2292,7 +2329,7 @@ export default function App() {
                       }
                     }}
                     className="w-full flex items-center justify-between p-2.5 mb-3 rounded-2xl bg-gradient-to-r from-purple-500/10 via-indigo-500/10 to-blue-500/10 hover:from-purple-500/20 hover:via-indigo-500/20 hover:to-blue-500/20 border border-purple-200/60 dark:border-purple-800/60 text-purple-950 dark:text-purple-200 transition-all cursor-pointer font-sans shadow-2xs group text-left"
-                    title="Open App Settings & AI API Keys (Gemini, OpenAI, Anthropic, Replicate)"
+                    title={t("app_settings_tooltip", "Open App Settings & AI API Keys (Gemini, OpenAI, Anthropic, Replicate)")}
                   >
                     <div className="flex items-center gap-2.5">
                       <div className="p-2 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white font-black shadow-sm group-hover:scale-105 transition-transform shrink-0">
@@ -2300,32 +2337,32 @@ export default function App() {
                       </div>
                       <div>
                         <p className="text-xs font-black leading-tight text-slate-900 dark:text-white font-sans">
-                          App Settings & API Keys
+                          {t("app_settings", "App Settings & API Keys")}
                         </p>
                         <p className="text-[9.5px] text-slate-500 dark:text-slate-400 font-medium leading-none mt-0.5">
-                          Set AI Keys & App Preferences
+                          {t("set_ai_keys", "Set AI Keys & Preferences")}
                         </p>
                       </div>
                     </div>
                     <span className="text-[8.5px] font-mono font-black px-2 py-0.5 rounded-full uppercase bg-purple-100 dark:bg-purple-950/80 text-purple-700 dark:text-purple-300 border border-purple-200 dark:border-purple-800 shrink-0">
-                      Settings
+                      {t("settings", "Settings")}
                     </span>
                   </button>
 
                   {[
-                    { id: "home", label: "Dashboard Home", icon: Home, desc: "System status & stats" },
-                    { id: "quote", label: "Quote Designer", icon: Quote, desc: "Aesthetic graphic visuals" },
-                    { id: "compress", label: "Image Compressor", icon: FileImage, desc: "Fast size reduction" },
-                    { id: "qr", label: "QR Generator", icon: QrCode, desc: "ECC scan patterns" },
-                    { id: "palette", label: "Color Extractor", icon: Pipette, desc: "Analyze hex spectrums" },
-                    { id: "video", label: "Video Creator", icon: Video, desc: "Timeline loop tools" },
-                    { id: "pdf", label: "PDF Tools Suite", icon: FileText, desc: "Compile raw files to PDF", badge: "NEW" },
-                    { id: "converter", label: "Image Converter", icon: RefreshCw, desc: "Format conversion scale", badge: "NEW" },
-                    { id: "bgremover", label: "Background Remover", icon: Eraser, desc: "Isolate subject matte", badge: "NEW" },
-                    { id: "android", label: "Android App Studio", icon: Smartphone, desc: "Veo 3.1 & Native Room DB", badge: "VEO" },
-                    { id: "drive", label: "Drive Panel", icon: Cloud, desc: "Cloud files index", badge: files.length > 0 ? files.length : undefined },
-                    { id: "resources", label: "Guides & SEO", icon: BookOpen, desc: "Sitemaps & templates" },
-                    { id: "legal", label: "Compliance & Safety", icon: ShieldCheck, desc: "Policies & support" },
+                    { id: "home", label: t("home", "Dashboard Home"), icon: Home, desc: "System status & stats" },
+                    { id: "quote", label: t("quote_designer", "Quote Designer"), icon: Quote, desc: "Aesthetic graphic visuals" },
+                    { id: "compress", label: t("image_compressor", "Image Compressor"), icon: FileImage, desc: "Fast size reduction" },
+                    { id: "qr", label: t("qr_generator", "QR Generator"), icon: QrCode, desc: "ECC scan patterns" },
+                    { id: "palette", label: t("color_extractor", "Color Extractor"), icon: Pipette, desc: "Analyze hex spectrums" },
+                    { id: "video", label: t("video_creator", "Video Creator"), icon: Video, desc: "Timeline loop tools" },
+                    { id: "pdf", label: t("pdf_tools", "PDF Tools Suite"), icon: FileText, desc: "Compile raw files to PDF", badge: "NEW" },
+                    { id: "converter", label: t("image_converter", "Image Converter"), icon: RefreshCw, desc: "Format conversion scale", badge: "NEW" },
+                    { id: "bgremover", label: t("bg_remover", "Background Remover"), icon: Eraser, desc: "Isolate subject matte", badge: "NEW" },
+                    { id: "android", label: t("android_studio", "Android App Studio"), icon: Smartphone, desc: "Veo 3.1 & Native Room DB", badge: "VEO" },
+                    { id: "drive", label: t("my_drive", "Drive Panel"), icon: Cloud, desc: "Cloud files index", badge: files.length > 0 ? files.length : undefined },
+                    { id: "resources", label: t("guides", "Guides & SEO"), icon: BookOpen, desc: "Sitemaps & templates" },
+                    { id: "legal", label: t("compliance", "Compliance & Safety"), icon: ShieldCheck, desc: "Policies & support" },
                   ].map((item) => {
                     const Icon = item.icon;
                     const isActive = activeTab === item.id;
@@ -2955,24 +2992,27 @@ export default function App() {
                 </div>
               </div>
 
-              {/* INTERACTIVE SEARCH & FULL TOOLS CATALOG */}
+              {/* TOOL GRID CATALOG WITH CATEGORY FILTER PILLS */}
               <div id="tools-catalog-section" className="space-y-4 select-none">
                 <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                   <div>
-                    <h3 className={`text-sm font-black uppercase tracking-tight flex items-center gap-1.5 ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
-                      <Search className="w-4.5 h-4.5 text-indigo-500 animate-pulse" />
-                      Search & Explore Tools Catalog
+                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-[10px] font-mono font-black uppercase tracking-wider mb-1">
+                      <Grid className="w-3 h-3 text-indigo-500" />
+                      <span>Studio Tools</span>
+                    </div>
+                    <h3 className={`text-lg sm:text-xl font-black tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                      Tool Grid
                     </h3>
-                    <p className="text-[10px] text-slate-400 mt-0.5">
-                      Type name or keyword to instantly find and launch any professional creator tool.
+                    <p className="text-xs text-slate-400 dark:text-slate-500">
+                      Explore standalone tools to edit, compress, analyze, and convert media in real time.
                     </p>
                   </div>
                   
                   {/* High fidelity styled Search Input */}
-                  <div className="relative w-full md:w-80">
+                  <div className="relative w-full md:w-72">
                     <input
                       type="text"
-                      placeholder="Search tools... (e.g., PDF, converter, crop)"
+                      placeholder="Search tools..."
                       value={homeSearchQuery}
                       onChange={(e) => setHomeSearchQuery(e.target.value)}
                       className={`w-full pl-9 pr-8 py-2 rounded-xl text-xs font-semibold focus:outline-none transition-all ${
@@ -2985,7 +3025,7 @@ export default function App() {
                     {homeSearchQuery && (
                       <button
                         onClick={() => setHomeSearchQuery("")}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 px-1.5 py-0.5 rounded-md text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white"
+                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 px-1.5 py-0.5 rounded-md text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white cursor-pointer"
                       >
                         Clear
                       </button>
@@ -2993,27 +3033,47 @@ export default function App() {
                   </div>
                 </div>
 
+                {/* Category Filter Pills Bar */}
+                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
+                  {["All Tools", "Design", "Utility", "Dev", "AI"].map((cat) => (
+                    <button
+                      key={cat}
+                      onClick={() => setCatalogCategoryFilter(cat)}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer whitespace-nowrap ${
+                        catalogCategoryFilter === cat
+                          ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/20 scale-102"
+                          : theme === "dark"
+                            ? "bg-slate-900/80 text-slate-400 hover:text-slate-100 border border-slate-800"
+                            : "bg-slate-100/80 text-slate-600 hover:text-slate-900 border border-slate-200"
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                  ))}
+                </div>
+
                 {/* Grid layout of all catalog items */}
                 {(() => {
                   const ALL_CATALOG_TOOLS = [
-                    { id: "quote", label: "Quote Designer", desc: "Craft stunning typographical quote cards with customizable backdrop noise and blur.", badge: "Design", icon: Quote },
-                    { id: "compress", label: "Image Compressor", desc: "Optimize and minimize JPG, PNG, and WebP asset bundles with precise EXIF preservation.", badge: "Optimize", icon: FileImage },
-                    { id: "qr", label: "QR Generator", desc: "Encode dynamic links, text, and coordinates with robust error correction level settings.", badge: "ECC Code", icon: QrCode },
-                    { id: "palette", label: "Color Extractor", desc: "Extract dominant color palettes, sample hex spectrums, and check WCAG contrast rules.", badge: "Spectrums", icon: Pipette },
-                    { id: "video", label: "AI Video Creator", desc: "Animate static seed frames into cinematic horizontal/vertical landscape motion videos.", badge: "Motion", icon: Video },
-                    { id: "pdf", label: "PDF Tools Suite", desc: "Compile raw image folders to PDF, design text documents, and export high-fidelity vectors.", badge: "Document", icon: FileText },
-                    { id: "converter", label: "Image Converter", desc: "Convert image files between WebP, PNG, JPEG, and BMP formats with scale dimensions.", badge: "Convert", icon: RefreshCw },
-                    { id: "bgremover", label: "Background Remover", desc: "Isolate subject matte layers using a color dropper or green screen keying.", badge: "Isolate", icon: Eraser },
-                    { id: "drive", label: "Google Drive Sync", desc: "Synchronize, backup, and restore your design canvas assets to cloud-secured folders.", badge: "Backup", icon: Cloud },
-                    { id: "android", label: "Android App Studio", desc: "Configure app manifests, compile resources, and generate APK metadata assets.", badge: "Mobile", icon: Smartphone }
+                    { id: "quote", label: "Image Icons", desc: "Rasterize vector icons and generate favicon packs with transparent matte layers.", badge: "Design", category: "Design", icon: Quote },
+                    { id: "compress", label: "Image Resizer", desc: "Re-dimension image resolution, scale pixels, and optimize social media aspect ratios.", badge: "Design", category: "Design", icon: FileImage },
+                    { id: "qr", label: "Image Scale", desc: "High fidelity cubic interpolation upscaler and vector matrix renderer.", badge: "Design", category: "Design", icon: QrCode },
+                    { id: "palette", label: "Image Resize", desc: "Batch resize image folders with aspect ratio locking and color profiling.", badge: "Dev", category: "Dev", icon: Pipette },
+                    { id: "video", label: "Before/After", desc: "Interactive image comparison slider before and after compression filters.", badge: "Utility", category: "Utility", icon: Video },
+                    { id: "pdf", label: "Desc Resizer", desc: "Vector text element resizer and multi-column typography layout tuner.", badge: "Dev", category: "Dev", icon: FileText },
+                    { id: "converter", label: "Pdf Transfer", desc: "Convert document layouts into clean raster graphics or PDF bundles.", badge: "Dev", category: "Dev", icon: RefreshCw },
+                    { id: "bgremover", label: "Image Resize", desc: "Automatic focal framing crop with client-side AI detection.", badge: "Dev", category: "Dev", icon: Eraser },
+                    { id: "drive", label: "Same Copier", desc: "Duplicate and sync asset layers across multi-device workspaces.", badge: "AI", category: "AI", icon: Cloud }
                   ];
 
                   const filtered = ALL_CATALOG_TOOLS.filter(tool => {
+                    const matchesCategory = catalogCategoryFilter === "All Tools" || tool.category === catalogCategoryFilter;
                     const query = homeSearchQuery.toLowerCase().trim();
-                    if (!query) return true;
-                    return tool.label.toLowerCase().includes(query) || 
+                    if (!query) return matchesCategory;
+                    const matchesQuery = tool.label.toLowerCase().includes(query) || 
                            tool.desc.toLowerCase().includes(query) || 
                            tool.badge.toLowerCase().includes(query);
+                    return matchesCategory && matchesQuery;
                   });
 
                   if (filtered.length === 0) {
@@ -3021,13 +3081,13 @@ export default function App() {
                       <div className={`p-8 text-center rounded-3xl border ${
                         theme === "dark" ? "bg-slate-900/40 border-slate-850" : "bg-slate-50 border-slate-200"
                       }`}>
-                        <p className="text-xs text-slate-400">No matching tools found for "{homeSearchQuery}". Try another keyword!</p>
+                        <p className="text-xs text-slate-400">No tools found matching your current filter!</p>
                       </div>
                     );
                   }
 
                   return (
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
                       {filtered.map((tool) => {
                         const Icon = tool.icon;
                         return (
@@ -3037,40 +3097,43 @@ export default function App() {
                               setActiveTab(tool.id as any);
                               setIsSitemapView(false);
                             }}
-                            className={`p-4 rounded-3xl border transition-all duration-300 hover:scale-102 flex flex-col justify-between group h-44 cursor-pointer relative overflow-hidden ${
+                            className={`p-4.5 rounded-2xl border transition-all duration-300 hover:scale-102 flex flex-col justify-between group h-48 cursor-pointer relative overflow-hidden ${
                               theme === "dark"
-                                ? "bg-gradient-to-b from-slate-900 to-slate-950 border-slate-855 hover:border-slate-700 hover:shadow-xl hover:shadow-indigo-500/5 text-slate-100"
-                                : "bg-white border-slate-200 hover:border-indigo-200 hover:shadow-lg hover:shadow-slate-200/50 text-slate-700"
+                                ? "bg-slate-900/80 border-slate-800 hover:border-indigo-500/40 text-slate-100 shadow-lg shadow-slate-950/20"
+                                : "bg-white border-slate-200/80 hover:border-indigo-200 shadow-2xs hover:shadow-md text-slate-800"
                             }`}
                           >
-                            {/* Decorative background accent blob on hover */}
-                            <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-indigo-500/10 to-purple-500/10 rounded-full blur-xl opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                            
-                            <div className="space-y-1.5">
+                            <div className="space-y-2">
                               <div className="flex items-center justify-between">
-                                <div className="p-2 bg-indigo-500/10 text-indigo-500 group-hover:bg-indigo-600 group-hover:text-white rounded-xl transition-all duration-300">
+                                <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-500 group-hover:bg-indigo-600 group-hover:text-white transition-all">
                                   <Icon className="w-4 h-4" />
                                 </div>
-                                <span className={`text-[8.5px] font-black uppercase font-mono px-2 py-0.5 rounded-full ${
-                                  theme === "dark" ? "bg-slate-900 text-slate-400 border border-slate-800" : "bg-slate-100 text-slate-500"
+                                <span className={`text-[9px] font-mono font-black uppercase px-2 py-0.5 rounded ${
+                                  tool.category === "Design" 
+                                    ? "bg-amber-500/10 text-amber-500"
+                                    : tool.category === "Dev"
+                                      ? "bg-sky-500/10 text-sky-500"
+                                      : tool.category === "AI"
+                                        ? "bg-purple-500/10 text-purple-500"
+                                        : "bg-emerald-500/10 text-emerald-500"
                                 }`}>
                                   {tool.badge}
                                 </span>
                               </div>
-                              <h4 className={`text-xs font-black tracking-tight leading-snug mt-1.5 group-hover:text-indigo-500 transition-colors ${
+
+                              <h4 className={`text-xs font-black tracking-tight group-hover:text-indigo-500 transition-colors ${
                                 theme === "dark" ? "text-white" : "text-slate-900"
                               }`}>
                                 {tool.label}
                               </h4>
-                              <p className="text-[10px] text-slate-400 dark:text-slate-405 leading-normal group-hover:text-slate-500 transition-colors line-clamp-3">
+                              <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-relaxed line-clamp-2">
                                 {tool.desc}
                               </p>
                             </div>
 
-                            <div className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 group-hover:text-indigo-500 transition-colors pt-2">
-                              <span>Launch Space</span>
-                              <ArrowRight className="w-2.5 h-2.5 transform group-hover:translate-x-0.5 transition-transform" />
-                            </div>
+                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-500 group-hover:translate-x-1 transition-transform pt-2">
+                              <span>Read more</span> <ArrowRight className="w-3 h-3" />
+                            </span>
                           </div>
                         );
                       })}
@@ -3335,8 +3398,8 @@ export default function App() {
                   </div>
                 ) : (
                   <div>
-                    {/* Project Specific Filter Input */}
-                    <div className="mb-5 relative flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+                    {/* Project Specific Filter Input & Dropdown Controls */}
+                    <div className="mb-5 flex flex-col md:flex-row items-stretch md:items-center gap-3">
                       <div className="relative flex-1">
                         <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-450 dark:text-slate-400" />
                         <input
@@ -3360,6 +3423,45 @@ export default function App() {
                           </button>
                         )}
                       </div>
+
+                      {/* Dropdown Filters */}
+                      <div className="flex items-center gap-2">
+                        {/* Tool Type Filter Dropdown */}
+                        <div className="relative">
+                          <select
+                            value={projectToolFilter}
+                            onChange={(e) => setProjectToolFilter(e.target.value)}
+                            className={`px-3 py-2.5 text-xs font-bold rounded-2xl border outline-hidden transition-all cursor-pointer ${
+                              theme === "dark"
+                                ? "bg-slate-900 border-slate-800 text-slate-200 focus:border-indigo-500"
+                                : "bg-white border-slate-200 text-slate-700 focus:border-indigo-500"
+                            }`}
+                          >
+                            <option value="all">Tool Type: All</option>
+                            <option value="quote">Quote Designer</option>
+                            <option value="qr">QR Code Generator</option>
+                            <option value="palette">Color Extractor</option>
+                          </select>
+                        </div>
+
+                        {/* Sort Dropdown */}
+                        <div className="relative">
+                          <select
+                            value={projectSortOption}
+                            onChange={(e) => setProjectSortOption(e.target.value as any)}
+                            className={`px-3 py-2.5 text-xs font-bold rounded-2xl border outline-hidden transition-all cursor-pointer ${
+                              theme === "dark"
+                                ? "bg-slate-900 border-slate-800 text-slate-200 focus:border-indigo-500"
+                                : "bg-white border-slate-200 text-slate-700 focus:border-indigo-500"
+                            }`}
+                          >
+                            <option value="recent">Sort: Most Recent</option>
+                            <option value="tool">Sort: Tool Type</option>
+                            <option value="alphabetical">Sort: Alphabetical</option>
+                          </select>
+                        </div>
+                      </div>
+
                       {projectSearchQuery && (
                         <div className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 select-none">
                           <span>Found {savedProjects.filter(p => p.name.toLowerCase().includes(projectSearchQuery.toLowerCase())).length} of {savedProjects.length}</span>
@@ -3368,9 +3470,19 @@ export default function App() {
                     </div>
 
                     {(() => {
-                      const filteredProjects = savedProjects.filter((project) =>
-                        project.name.toLowerCase().includes(projectSearchQuery.toLowerCase())
-                      );
+                      let filteredProjects = savedProjects.filter((project) => {
+                        const matchesQuery = project.name.toLowerCase().includes(projectSearchQuery.toLowerCase());
+                        const matchesTool = projectToolFilter === "all" || project.toolType === projectToolFilter;
+                        return matchesQuery && matchesTool;
+                      });
+
+                      if (projectSortOption === "recent") {
+                        filteredProjects.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+                      } else if (projectSortOption === "alphabetical") {
+                        filteredProjects.sort((a, b) => a.name.localeCompare(b.name));
+                      } else if (projectSortOption === "tool") {
+                        filteredProjects.sort((a, b) => a.toolType.localeCompare(b.toolType));
+                      }
 
                       if (filteredProjects.length === 0) {
                         return (
@@ -3380,13 +3492,16 @@ export default function App() {
                             </div>
                             <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-tight">No matching projects</h4>
                             <p className="text-[10px] text-slate-400 dark:text-slate-550 mt-1 leading-relaxed">
-                              No saved workspaces match the name "{projectSearchQuery}". Try another name or clear the search.
+                              No saved workspaces match your active search and filter criteria.
                             </p>
                             <button
-                              onClick={() => setProjectSearchQuery("")}
+                              onClick={() => {
+                                setProjectSearchQuery("");
+                                setProjectToolFilter("all");
+                              }}
                               className="mt-4 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-850 text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 cursor-pointer transition-all shadow-3xs"
                             >
-                              Clear Search Filter
+                              Reset Filters
                             </button>
                           </div>
                         );
@@ -3441,7 +3556,7 @@ export default function App() {
                                       </div>
                                     </div>
                                     <h4 className={`text-xs font-black tracking-tight uppercase leading-snug ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
-                                      {project.name}
+                                      {highlightText(project.name, projectSearchQuery)}
                                     </h4>
                                   </div>
 
@@ -3841,6 +3956,14 @@ export default function App() {
 
                         {activeTab === "bgremover" && (
                           <BackgroundRemover theme={theme} />
+                        )}
+
+                        {activeTab === "chatbot" && (
+                          <GeminiChatbot theme={theme} />
+                        )}
+
+                        {activeTab === "voice" && (
+                          <VoiceAssistant theme={theme} />
                         )}
                       </>
                     )}

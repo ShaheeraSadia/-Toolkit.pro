@@ -48,7 +48,7 @@ export interface CompressionResult {
   dataUrl: string;
 }
 
-export type ActiveTab = "home" | "quote" | "compress" | "qr" | "palette" | "video" | "drive" | "resources" | "legal" | "android" | "pdf" | "converter" | "bgremover";
+export type ActiveTab = "home" | "quote" | "compress" | "qr" | "palette" | "video" | "drive" | "resources" | "legal" | "android" | "pdf" | "converter" | "bgremover" | "chatbot" | "voice";
 
 export interface RecentActivity {
   id: string;
@@ -56,6 +56,6 @@ export interface RecentActivity {
   title: string;
   detail: string;
   timestamp: string;
-  icon: "Quote" | "FileImage" | "QrCode" | "Pipette" | "Cloud" | "BookOpen" | "ShieldCheck" | "Activity" | "Download" | "Sparkles" | "Video" | "Smartphone" | "FileText" | "RefreshCw" | "Eraser";
+  icon: "Quote" | "FileImage" | "QrCode" | "Pipette" | "Cloud" | "BookOpen" | "ShieldCheck" | "Activity" | "Download" | "Sparkles" | "Video" | "Smartphone" | "FileText" | "RefreshCw" | "Eraser" | "MessageSquare" | "Mic";
   tab?: ActiveTab;
 }

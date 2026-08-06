@@ -17,7 +17,9 @@ import {
   Smartphone,
   FileText,
   RefreshCw,
-  Eraser
+  Eraser,
+  MessageSquare,
+  Mic
 } from "lucide-react";
 import { RecentActivity, ActiveTab } from "../types";
 
@@ -43,7 +45,9 @@ const iconMap: Record<RecentActivity["icon"], React.ComponentType<any>> = {
   Smartphone,
   FileText,
   RefreshCw,
-  Eraser
+  Eraser,
+  MessageSquare,
+  Mic
 };
 
 const tabLabelMap: Record<ActiveTab, string> = {
@@ -59,7 +63,9 @@ const tabLabelMap: Record<ActiveTab, string> = {
   android: "Android App Studio",
   pdf: "PDF Tools Suite",
   converter: "Image Converter",
-  bgremover: "Background Remover"
+  bgremover: "Background Remover",
+  chatbot: "AI Chatbot",
+  voice: "Live Voice Studio"
 };
 
 export default function RecentActivitiesWidget({

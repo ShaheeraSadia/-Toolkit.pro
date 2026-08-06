@@ -43,12 +43,16 @@ import {
   Eraser,
   FileText,
   RefreshCw,
-  Key
+  Key,
+  Bot,
+  Mic,
+  MessageSquare
 } from "lucide-react";
 
 import { ActiveTab } from "../types";
 import { ambientSynth, AmbientSoundType } from "../lib/ambientSynth";
 import { AmbientVisualizer } from "./AmbientVisualizer";
+import { LanguageSelector } from "./LanguageSelector";
 // @ts-ignore
 import brandLogo from "../assets/images/toolkit_pro_logo_1781887052514.jpg";
 
@@ -264,7 +268,9 @@ export default function Navbar({
     android: { label: "Android App Studio", icon: Smartphone, color: "text-emerald-600 dark:text-emerald-400 bg-emerald-55/60 dark:bg-emerald-955/40 border border-emerald-100/50 dark:border-emerald-900/30", desc: "Simulate Android app with Veo 3.1 & Room DB" },
     pdf: { label: "PDF Tools Suite", icon: FileText, color: "text-red-600 dark:text-red-400 bg-red-55/60 dark:bg-red-955/40 border border-red-100/50 dark:border-red-900/30", desc: "Compile raw files to PDF and design documents" },
     converter: { label: "Image Converter", icon: RefreshCw, color: "text-teal-600 dark:text-teal-400 bg-teal-55/60 dark:bg-teal-955/40 border border-teal-100/50 dark:border-teal-900/30", desc: "Format conversion and image scaling" },
-    bgremover: { label: "Background Remover", icon: Eraser, color: "text-pink-600 dark:text-pink-400 bg-pink-55/60 dark:bg-pink-955/40 border border-pink-100/50 dark:border-pink-900/30", desc: "Isolate subject matte using color keying" }
+    bgremover: { label: "Background Remover", icon: Eraser, color: "text-pink-600 dark:text-pink-400 bg-pink-55/60 dark:bg-pink-955/40 border border-pink-100/50 dark:border-pink-900/30", desc: "Isolate subject matte using color keying" },
+    chatbot: { label: "AI Chatbot", icon: MessageSquare, color: "text-purple-600 dark:text-purple-400 bg-purple-55/60 dark:bg-purple-955/40 border border-purple-100/50 dark:border-purple-900/30", desc: "Multi-turn Gemini chat with custom system roles" },
+    voice: { label: "Live Voice Studio", icon: Mic, color: "text-rose-600 dark:text-rose-400 bg-rose-55/60 dark:bg-rose-955/40 border border-rose-100/50 dark:border-rose-900/30", desc: "Real-time voice conversation via Live API" }
   };
 
   const [recentTabs, setRecentTabs] = useState<ActiveTab[]>(() => {
@@ -303,6 +309,8 @@ export default function Navbar({
     { id: "qr", label: "QR Code Generator", icon: QrCode, desc: "Scan metrics with Reed-Solomon" },
     { id: "palette", label: "Color Extractor", icon: Pipette, desc: "Median Cut color analyzer" },
     { id: "video", label: "Video Creator", icon: Video, desc: "Interactive timeline editor" },
+    { id: "chatbot", label: "AI Chatbot", icon: MessageSquare, desc: "Multi-turn Gemini chat thread" },
+    { id: "voice", label: "Live Voice Studio", icon: Mic, desc: "Real-time voice Live API" },
   ];
 
   const handleTabClick = (tabId: ActiveTab) => {
@@ -329,11 +337,14 @@ export default function Navbar({
   const isToolActive = ["quote", "compress", "qr", "palette", "video"].includes(activeTab);
 
   return (
-    <header className={`sticky top-0 z-50 select-none border-b transition-all duration-300 backdrop-blur-md ${
+    <header className={`sticky top-0 z-50 select-none border-b transition-all duration-300 backdrop-blur-xl relative ${
       theme === "dark"
-        ? "border-slate-800/80 bg-slate-950/80 shadow-lg shadow-slate-950/20 text-slate-100"
-        : "border-slate-150/70 bg-white/80 shadow-xs shadow-slate-100/10 text-slate-800"
+        ? "border-slate-800/80 bg-slate-950/85 shadow-xl shadow-indigo-950/20 text-slate-100"
+        : "border-slate-200/80 bg-white/85 shadow-xs shadow-indigo-500/5 text-slate-900"
     }`}>
+      {/* Top Multi-Color Gradient Bar for Professional Studio Look */}
+      <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-400 z-50 pointer-events-none" />
+
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="min-h-16 py-3 lg:py-0 flex items-center justify-between gap-5 flex-wrap lg:flex-nowrap">
           
@@ -344,8 +355,8 @@ export default function Navbar({
                 onClick={onToggleSidebar}
                 className={`p-2 rounded-xl border cursor-pointer hover:scale-105 active:scale-95 transition-all ${
                   theme === "dark"
-                    ? "bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-850"
-                    : "bg-slate-50 border-slate-200/80 text-slate-600 hover:text-slate-900 hover:bg-slate-100"
+                    ? "bg-slate-900/90 border-slate-800 text-slate-300 hover:text-white hover:bg-slate-800 hover:border-indigo-500/40"
+                    : "bg-slate-100/80 border-slate-200 text-slate-700 hover:text-slate-950 hover:bg-slate-200/80 hover:border-indigo-200"
                 }`}
                 title="Toggle Sidebar Menu"
                 aria-label="Toggle Navigation Sidebar"
@@ -358,7 +369,11 @@ export default function Navbar({
               onClick={() => handleTabClick("home")}
               className="flex items-center space-x-3 cursor-pointer group"
             >
-              <div className="bg-white px-2.5 py-1.5 rounded-xl border border-slate-200/60 shadow-3xs flex items-center justify-center transition-all group-hover:scale-[1.03] duration-300">
+              <div className={`px-2.5 py-1.5 rounded-xl border shadow-xs flex items-center justify-center transition-all group-hover:scale-[1.03] duration-300 ${
+                theme === "dark" 
+                  ? "bg-slate-900/90 border-slate-800 hover:border-indigo-500/50" 
+                  : "bg-white border-slate-200/80 hover:border-indigo-200"
+              }`}>
                 <img 
                   src={brandLogo} 
                   alt="Toolkit Pro Logo" 
@@ -366,7 +381,7 @@ export default function Navbar({
                   referrerPolicy="no-referrer"
                 />
               </div>
-              <span className="hidden sm:inline-flex items-center rounded-full bg-emerald-50 dark:bg-emerald-950/60 px-2 py-0.5 text-[9px] font-extrabold text-emerald-800 dark:text-emerald-405 border border-emerald-100 dark:border-emerald-900/40 uppercase tracking-wider">
+              <span className="hidden sm:inline-flex items-center rounded-full bg-emerald-500/10 dark:bg-emerald-950/60 px-2.5 py-0.5 text-[9.5px] font-black text-emerald-700 dark:text-emerald-400 border border-emerald-500/20 dark:border-emerald-900/40 uppercase tracking-wider font-mono">
                 AdSense ID
               </span>
             </div>
@@ -375,21 +390,21 @@ export default function Navbar({
           {/* Center-Left: Global Command Palette Search Widget */}
           <button
             onClick={handleTriggerSearch}
-            className={`hidden md:flex items-center justify-between w-48 lg:w-56 px-3.5 py-1.5 rounded-xl text-left border select-none transition-all hover:scale-101 cursor-pointer shadow-3xs hover:shadow-2xs ${
+            className={`hidden md:flex items-center justify-between w-48 lg:w-56 px-3.5 py-1.5 rounded-xl text-left border select-none transition-all hover:scale-101 cursor-pointer shadow-3xs hover:shadow-xs ${
               theme === "dark"
-                ? "bg-slate-900/50 hover:bg-slate-900 border-slate-800 text-slate-400 hover:text-slate-300"
-                : "bg-slate-50 hover:bg-slate-100/90 border-slate-200/60 text-slate-450 hover:text-slate-600"
+                ? "bg-slate-900/70 hover:bg-slate-900 border-slate-800 text-slate-300 hover:text-white hover:border-indigo-500/40"
+                : "bg-slate-100/80 hover:bg-slate-200/70 border-slate-200/80 text-slate-600 hover:text-slate-900 hover:border-indigo-200"
             }`}
             title="Search Workspace & Utilities (Ctrl+K)"
           >
             <div className="flex items-center gap-2">
-              <Search className="w-3.5 h-3.5 text-slate-405 dark:text-slate-500" />
-              <span className="text-[11px] font-bold">Search tools...</span>
+              <Search className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400" />
+              <span className="text-[11px] font-extrabold">Search tools...</span>
             </div>
             <kbd className={`inline-flex items-center px-1.5 py-0.5 text-[9px] font-black rounded-lg font-mono shrink-0 select-none ${
               theme === "dark"
-                ? "bg-slate-950 border border-slate-805 text-slate-500"
-                : "bg-white border border-slate-205 text-slate-400"
+                ? "bg-slate-950 border border-slate-800 text-slate-400"
+                : "bg-white border border-slate-200 text-slate-500 shadow-2xs"
             }`}>
               Ctrl+K
             </kbd>
@@ -550,6 +565,50 @@ export default function Navbar({
                 </div>
               )}
             </div>
+
+            {/* AI Chatbot button */}
+            <button
+              onClick={() => handleTabClick("chatbot")}
+              className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === "chatbot"
+                  ? theme === "dark" ? "text-white font-extrabold" : "text-slate-955 font-extrabold"
+                  : "text-slate-700 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
+              }`}
+            >
+              {activeTab === "chatbot" && (
+                <motion.div
+                  layoutId="navbarTabActivePill"
+                  className={`absolute inset-0 rounded-xl ${
+                    theme === "dark" ? "bg-slate-950 shadow-xs" : "bg-white shadow-xs"
+                  }`}
+                  transition={{ type: "spring", stiffness: 380, damping: 28 }}
+                />
+              )}
+              <Bot className="w-3.5 h-3.5 shrink-0 text-purple-500 relative z-10 animate-pulse" />
+              <span className="relative z-10">AI Chatbot</span>
+            </button>
+
+            {/* Live Voice Studio button */}
+            <button
+              onClick={() => handleTabClick("voice")}
+              className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                activeTab === "voice"
+                  ? theme === "dark" ? "text-white font-extrabold" : "text-slate-955 font-extrabold"
+                  : "text-slate-700 hover:text-slate-950 dark:text-slate-400 dark:hover:text-white hover:bg-white/40 dark:hover:bg-slate-950/30"
+              }`}
+            >
+              {activeTab === "voice" && (
+                <motion.div
+                  layoutId="navbarTabActivePill"
+                  className={`absolute inset-0 rounded-xl ${
+                    theme === "dark" ? "bg-slate-950 shadow-xs" : "bg-white shadow-xs"
+                  }`}
+                  transition={{ type: "spring", stiffness: 380, damping: 28 }}
+                />
+              )}
+              <Mic className="w-3.5 h-3.5 shrink-0 text-rose-500 relative z-10" />
+              <span className="relative z-10">Voice Studio</span>
+            </button>
 
             {/* Guides & SEO hub */}
             <button
@@ -737,6 +796,9 @@ export default function Navbar({
                 <span>Ctrl</span><span>K</span>
               </kbd>
             </button>
+
+            {/* Seamless Language Selector Dropdown Button */}
+            <LanguageSelector theme={theme} variant="compact" />
 
             {/* Elegant Sun/Moon Dark Selector Switch */}
             <button
@@ -1229,7 +1291,12 @@ export default function Navbar({
             </div>
           )}
 
-          <div className={`border-t pt-3.5 space-y-1.5 ${theme === "dark" ? "border-slate-850" : "border-slate-200/50"}`}>
+          <div className={`border-t pt-3.5 space-y-2 ${theme === "dark" ? "border-slate-850" : "border-slate-200/50"}`}>
+            {/* Mobile Language Selector */}
+            <div className="pb-1">
+              <LanguageSelector theme={theme} variant="full" />
+            </div>
+
             {!isInstalled && (
               <button
                 onClick={() => {

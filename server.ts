@@ -1,7 +1,9 @@
 import express from "express";
 import path from "path";
+import http from "http";
+import { WebSocketServer, WebSocket } from "ws";
 import { createServer as createViteServer } from "vite";
-import { GoogleGenAI, GenerateVideosOperation } from "@google/genai";
+import { GoogleGenAI, GenerateVideosOperation, Modality, LiveServerMessage } from "@google/genai";
 import dotenv from "dotenv";
 import { generateSitemapXml } from "./sitemap.xml.ts";
 
@@ -1260,6 +1262,185 @@ app.post("/api/url/shorten", async (req, res) => {
   }
 });
 
+// ==========================================
+// Gemini Multi-Turn Chat API Endpoint
+// ==========================================
+app.post("/api/gemini/chat", async (req, res) => {
+  try {
+    const aiClient = getAiClient(req);
+    const { history, message, modelChoice = "gemini-3.5-flash", systemRole = "general" } = req.body;
+
+    if (!message || typeof message !== "string" || !message.trim()) {
+      return res.status(400).json({ error: "A valid non-empty message string is required." });
+    }
+
+    const roleInstructions: Record<string, string> = {
+      general: "You are a helpful, versatile, and articulate AI Studio assistant for digital creators, designers, and developers. Provide clean, well-formatted, structured answers.",
+      code_expert: "You are an expert senior software engineer and system architect. Write clean TypeScript, React, and Node.js code following strict design patterns, performance optimization, and robust error handling.",
+      design_guru: "You are a world-class UI/UX designer and design system architect. Provide actionable advice on color harmony, layout rhythm, micro-interactions, typography, and visual hierarchy.",
+      fast_helper: "You are a lightning-fast assistant. Give ultra-concise, direct, bulleted answers without unnecessary conversational fluff.",
+      copywriter: "You are a master brand copywriter and storyteller. Craft engaging, high-converting titles, descriptions, and creative messaging."
+    };
+
+    const systemInstruction = roleInstructions[systemRole] || systemRole || roleInstructions.general;
+
+    let targetModel = "gemini-3.5-flash";
+    if (modelChoice === "gemini-3.1-pro-preview") {
+      targetModel = "gemini-3.1-pro-preview";
+    } else if (modelChoice === "gemini-3.1-flash-lite") {
+      targetModel = "gemini-3.1-flash-lite";
+    }
+
+    const contents: any[] = [];
+    if (Array.isArray(history)) {
+      for (const item of history) {
+        if (item.content || item.text) {
+          contents.push({
+            role: item.role === "user" ? "user" : "model",
+            parts: [{ text: item.content || item.text || "" }]
+          });
+        }
+      }
+    }
+    contents.push({
+      role: "user",
+      parts: [{ text: message.trim() }]
+    });
+
+    const response = await aiClient.models.generateContent({
+      model: targetModel,
+      contents,
+      config: {
+        systemInstruction,
+        temperature: 0.7,
+      }
+    });
+
+    const replyText = response?.text || "No response generated from Gemini.";
+    return res.json({ reply: replyText, modelUsed: targetModel });
+  } catch (error: any) {
+    console.error("Gemini Multi-Turn Chat Endpoint Error:", error);
+    return res.status(500).json({ error: formatGoogleGenAIError(error) });
+  }
+});
+
+// HTTP server wrapper for WebSocket integration
+const httpServer = http.createServer(app);
+const wss = new WebSocketServer({ server: httpServer, path: "/live" });
+
+// Handle WebSocket connection for Gemini Live API real-time audio interaction
+wss.on("connection", async (clientWs: WebSocket, req: http.IncomingMessage) => {
+  console.log("[Live API] Client connected to /live");
+  let session: any = null;
+
+  try {
+    const activeApiKey = process.env.GEMINI_API_KEY;
+    if (!activeApiKey) {
+      clientWs.send(JSON.stringify({ error: "GEMINI_API_KEY environment variable is missing on server." }));
+      clientWs.close();
+      return;
+    }
+
+    const aiClient = new GoogleGenAI({
+      apiKey: activeApiKey,
+      httpOptions: {
+        headers: {
+          "User-Agent": "aistudio-build",
+        },
+      },
+    });
+
+    const reqUrl = new URL(req.url || "", `http://${req.headers.host || "localhost"}`);
+    const voiceName = reqUrl.searchParams.get("voice") || "Zephyr";
+    const systemInstruction = reqUrl.searchParams.get("systemInstruction") || 
+      "You are a helpful, conversational AI voice assistant for digital creators. Keep your answers concise, natural, and engaging.";
+
+    session = await aiClient.live.connect({
+      model: "gemini-3.1-flash-live-preview",
+      config: {
+        responseModalities: [Modality.AUDIO],
+        speechConfig: {
+          voiceConfig: { prebuiltVoiceConfig: { voiceName } },
+        },
+        systemInstruction,
+        inputAudioTranscription: {},
+        outputAudioTranscription: {},
+      },
+      callbacks: {
+        onmessage: (message: LiveServerMessage) => {
+          const audio = message.serverContent?.modelTurn?.parts?.[0]?.inlineData?.data;
+          if (audio && clientWs.readyState === WebSocket.OPEN) {
+            clientWs.send(JSON.stringify({ audio }));
+          }
+
+          const serverContent = message.serverContent as any;
+          if (serverContent?.modelTurn?.parts) {
+            for (const part of serverContent.modelTurn.parts) {
+              if (part.text && clientWs.readyState === WebSocket.OPEN) {
+                clientWs.send(JSON.stringify({ modelText: part.text }));
+              }
+            }
+          }
+
+          if (serverContent?.interrupted && clientWs.readyState === WebSocket.OPEN) {
+            clientWs.send(JSON.stringify({ interrupted: true }));
+          }
+        },
+        onclose: () => {
+          console.log("[Live API] Session closed");
+          if (clientWs.readyState === WebSocket.OPEN) {
+            clientWs.send(JSON.stringify({ status: "closed" }));
+          }
+        },
+        onerror: (err: any) => {
+          console.error("[Live API] Session error:", err);
+          if (clientWs.readyState === WebSocket.OPEN) {
+            clientWs.send(JSON.stringify({ error: err.message || "Live API session error" }));
+          }
+        },
+      },
+    });
+
+    clientWs.on("message", (data: any) => {
+      try {
+        const msg = JSON.parse(data.toString());
+        if (msg.audio && session) {
+          session.sendRealtimeInput({
+            audio: { data: msg.audio, mimeType: "audio/pcm;rate=16000" },
+          });
+        } else if (msg.text && session) {
+          session.sendRealtimeInput({
+            text: msg.text,
+          });
+        }
+      } catch (e) {
+        console.error("Error parsing WebSocket client message:", e);
+      }
+    });
+
+    clientWs.on("close", () => {
+      console.log("[Live API] Client WS disconnected");
+      if (session) {
+        try { session.close(); } catch (e) {}
+      }
+    });
+
+    clientWs.on("error", (err) => {
+      console.error("[Live API] Client WS error:", err);
+      if (session) {
+        try { session.close(); } catch (e) {}
+      }
+    });
+
+  } catch (err: any) {
+    console.error("[Live API] Connection error:", err);
+    if (clientWs.readyState === WebSocket.OPEN) {
+      clientWs.send(JSON.stringify({ error: err.message || "Failed to initialize Live API session." }));
+      clientWs.close();
+    }
+  }
+});
+
 // Setup function for Vite or static middleware
 async function setupViteOrStatic() {
   // Vite middleware for development or fallback static files in production
@@ -1282,7 +1463,7 @@ async function setupViteOrStatic() {
 setupViteOrStatic().then(() => {
   // Only start listening if NOT running in Vercel's serverless environment
   if (!process.env.VERCEL) {
-    app.listen(PORT, "0.0.0.0", () => {
+    httpServer.listen(PORT, "0.0.0.0", () => {
       console.log(`Server runs on port ${PORT}`);
     });
   }
