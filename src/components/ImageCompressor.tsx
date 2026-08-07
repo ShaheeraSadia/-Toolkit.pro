@@ -3875,6 +3875,22 @@ export default function ImageCompressor({
     }
   };
 
+  const handleDownloadItem = (item: QueueItem, e?: React.MouseEvent) => {
+    if (e) e.stopPropagation();
+    if (!item.compressedResult) return;
+    triggerFileDownload(item.compressedResult.dataUrl, item.compressedResult.fileName);
+    setAutoSaveToast({
+      isOpen: true,
+      title: "Download Completed",
+      message: `Successfully downloaded "${item.compressedResult.fileName}".`
+    });
+    try {
+      window.open("https://omg10.com/4/11170621", "_blank", "noopener,noreferrer");
+    } catch (err) {
+      console.warn("Direct link popup blocked by browser policies", err);
+    }
+  };
+
   const handleSaveToDrive = async () => {
     if (!user || !accessToken || !compressedResult || !activeItem) {
       onLogin();
@@ -5544,31 +5560,41 @@ export default function ImageCompressor({
                           #{index + 1}
                         </span>
                         {hasResult && item.compressedResult && (
-                          user ? (
+                          <>
                             <button
-                              onClick={(e) => handleSaveItemToDrive(item, e)}
-                              disabled={item.isSaving}
-                              className="p-1 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/20 text-slate-400 hover:text-indigo-500 dark:text-slate-500 transition-colors cursor-pointer shrink-0 disabled:opacity-30"
-                              title={item.isSaving ? "Saving to Drive..." : item.saveStatus?.success ? "Saved to Drive! Click to upload again." : "Save this individual file to Google Drive"}
+                              onClick={(e) => handleDownloadItem(item, e)}
+                              className="inline-flex items-center gap-1 px-2.5 py-1 bg-emerald-600 hover:bg-emerald-500 active:scale-95 text-white font-extrabold text-[10px] rounded-lg transition-all cursor-pointer shadow-xs shrink-0"
+                              title={`Download ${item.compressedResult.fileName}`}
                             >
-                              {item.isSaving ? (
-                                <RefreshCw className="w-3.5 h-3.5 text-indigo-500 animate-spin" />
-                              ) : (
-                                <Cloud className={`w-3.5 h-3.5 ${item.saveStatus?.success ? "text-emerald-500" : ""}`} />
-                              )}
+                              <Download className="w-3 h-3" />
+                              <span>Download</span>
                             </button>
-                          ) : (
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                onLogin();
-                              }}
-                              className="p-1 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/20 text-slate-400 hover:text-indigo-500 dark:text-slate-500 transition-colors cursor-pointer shrink-0"
-                              title="Sign in to save this file to Google Drive"
-                            >
-                              <Cloud className="w-3.5 h-3.5" />
-                            </button>
-                          )
+                            {user ? (
+                              <button
+                                onClick={(e) => handleSaveItemToDrive(item, e)}
+                                disabled={item.isSaving}
+                                className="p-1 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/20 text-slate-400 hover:text-indigo-500 dark:text-slate-500 transition-colors cursor-pointer shrink-0 disabled:opacity-30"
+                                title={item.isSaving ? "Saving to Drive..." : item.saveStatus?.success ? "Saved to Drive! Click to upload again." : "Save this individual file to Google Drive"}
+                              >
+                                {item.isSaving ? (
+                                  <RefreshCw className="w-3.5 h-3.5 text-indigo-500 animate-spin" />
+                                ) : (
+                                  <Cloud className={`w-3.5 h-3.5 ${item.saveStatus?.success ? "text-emerald-500" : ""}`} />
+                                )}
+                              </button>
+                            ) : (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  onLogin();
+                                }}
+                                className="p-1 rounded-lg hover:bg-indigo-50 dark:hover:bg-indigo-950/20 text-slate-400 hover:text-indigo-500 dark:text-slate-500 transition-colors cursor-pointer shrink-0"
+                                title="Sign in to save this file to Google Drive"
+                              >
+                                <Cloud className="w-3.5 h-3.5" />
+                              </button>
+                            )}
+                          </>
                         )}
                         {item.isCompressing ? (
                           <RefreshCw className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400 animate-spin shrink-0" title="Active compression" />
@@ -7506,6 +7532,54 @@ export default function ImageCompressor({
               ) : compressedResult ? (
                 /* Post-compression view */
                 <div className="space-y-6 flex-1 flex flex-col justify-between">
+                  {/* Primary Download Callout Hero Card */}
+                  <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-500/15 via-teal-500/10 to-indigo-500/15 dark:from-emerald-950/60 dark:via-teal-950/50 dark:to-indigo-950/60 border-2 border-emerald-500/50 flex flex-col md:flex-row items-stretch md:items-center justify-between gap-4 shadow-xl shadow-emerald-500/15 animate-in fade-in duration-300" id="hero-download-callout">
+                    <div className="flex items-center gap-3.5 text-left">
+                      <div className="w-12 h-12 rounded-2xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-emerald-600/30">
+                        <Download className="w-6 h-6 animate-bounce" />
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-black uppercase tracking-widest text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-950/90 px-2 py-0.5 rounded-md border border-emerald-500/30">
+                            Ready for Download
+                          </span>
+                          <span className="text-[10px] font-extrabold text-slate-500 dark:text-slate-400">
+                            {compressedResult.width}×{compressedResult.height} px
+                          </span>
+                        </div>
+                        <h3 className="text-sm font-black text-slate-900 dark:text-white truncate max-w-sm sm:max-w-md mt-0.5" title={compressedResult.fileName}>
+                          {compressedResult.fileName}
+                        </h3>
+                        <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-0.5">
+                          Optimized Size: <strong className="text-emerald-600 dark:text-emerald-400 font-extrabold">{formatFileSize(compressedResult.compressedSize)}</strong> (Saved {compressedResult.savingPercentage}%)
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5 shrink-0">
+                      <button
+                        onClick={handleDownload}
+                        className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 active:scale-97 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-xl shadow-emerald-600/30 transition-all cursor-pointer border border-emerald-400 flex items-center justify-center gap-2 group"
+                        id="btn-hero-download-now"
+                      >
+                        <Download className="w-4 h-4 group-hover:translate-y-0.5 transition-transform" />
+                        <span>Download Optimized File</span>
+                      </button>
+
+                      {queue.filter(item => item.compressedResult).length > 1 && (
+                        <button
+                          onClick={handleDownloadAllAsZip}
+                          disabled={isZipping}
+                          className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 active:scale-97 text-white font-extrabold text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-indigo-600/20 transition-all cursor-pointer border border-indigo-400 flex items-center justify-center gap-2 disabled:opacity-50"
+                          id="btn-hero-download-all-zip"
+                        >
+                          <FileArchive className="w-4 h-4 text-indigo-200" />
+                          <span>Download All ({queue.filter(item => item.compressedResult).length}) as ZIP</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
                   {/* Sync Details Banner */}
                   <div className="bg-white dark:bg-slate-900 p-3.5 rounded-xl border border-slate-200/50 dark:border-slate-800 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 shadow-sm" id="banner-compress-status">
                     <div className="flex flex-col xs:flex-row xs:items-center gap-3">
@@ -7530,6 +7604,16 @@ export default function ImageCompressor({
                     </div>
 
                     <div className="flex items-center space-x-3 sm:space-x-4 ml-13 sm:ml-0 shrink-0">
+                      <button
+                        onClick={handleDownload}
+                        className="inline-flex items-center gap-1.5 px-3.5 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-[10px] font-extrabold cursor-pointer transition-all select-none shadow-sm uppercase tracking-wider"
+                        title="Download file directly"
+                        id="btn-trigger-banner-download"
+                      >
+                        <Download className="w-3.5 h-3.5" />
+                        Download
+                      </button>
+
                       <button
                         onClick={() => setIsPreviewModalOpen(true)}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/40 dark:hover:bg-indigo-900/40 text-indigo-650 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-900/50 rounded-xl text-[10px] font-black cursor-pointer transition-all select-none shadow-xs text-left uppercase tracking-wider"
@@ -8626,45 +8710,45 @@ export default function ImageCompressor({
 
         {/* Compressed Action Row */}
         {compressedResult && activeItem && (
-          <div className="space-y-4 pt-3 w-full font-sans">
-            <div className="flex flex-col sm:flex-row gap-4 w-full">
+          <div className="space-y-3 pt-3 w-full font-sans" id="compressed-action-row-footer">
+            <div className="flex flex-col sm:flex-row gap-3 w-full">
               <button
                 onClick={handleDownload}
-                className="flex-1 inline-flex items-center justify-center px-4 py-3 border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-905/60 rounded-xl bg-white dark:bg-slate-950 text-slate-800 dark:text-slate-200 text-xs font-semibold shadow-sm transition-all cursor-pointer"
+                className="flex-1 inline-flex items-center justify-center px-6 py-3.5 bg-emerald-600 hover:bg-emerald-500 active:scale-98 text-white font-black text-xs uppercase tracking-wider rounded-xl shadow-xl shadow-emerald-600/25 transition-all cursor-pointer border border-emerald-400 group"
                 id="btn-download-compressed"
               >
-                <Download className="w-4 h-4 mr-2 text-slate-400" />
-                Download Current File
+                <Download className="w-4 h-4 mr-2 group-hover:translate-y-0.5 transition-transform" />
+                Download Optimized File ({formatFileSize(compressedResult.compressedSize)})
               </button>
 
               <button
                 onClick={() => setIsComparisonModalOpen(true)}
-                className="flex-1 inline-flex items-center justify-center px-4 py-3 bg-gradient-to-r from-indigo-550 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold text-xs rounded-xl shadow-md hover:shadow-lg transition-all cursor-pointer border border-indigo-500/20"
+                className="inline-flex items-center justify-center px-4 py-3.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs rounded-xl border border-slate-200 dark:border-slate-800 transition-all cursor-pointer"
                 id="btn-social-comparison-export"
               >
-                <Share2 className="w-4 h-4 mr-2" />
-                Export Comparison Image
+                <Share2 className="w-4 h-4 mr-2 text-indigo-500" />
+                Export Comparison
               </button>
 
               {user ? (
                 <button
                   onClick={handleSaveToDrive}
                   disabled={isSaving}
-                  className="flex-1 inline-flex items-center justify-center px-4 py-3 rounded-xl bg-slate-950 dark:bg-indigo-650 text-white hover:bg-slate-900 dark:hover:bg-indigo-500 font-semibold text-xs shadow-md transition-all cursor-pointer disabled:opacity-50"
+                  className="inline-flex items-center justify-center px-4 py-3.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs border border-slate-200 dark:border-slate-800 transition-all cursor-pointer disabled:opacity-50"
                   id="btn-save-compressed-drive"
                 >
-                  <Cloud className="w-4 h-4 mr-2 text-emerald-400 animate-pulse" />
-                  {isSaving ? "Saving to Google Drive..." : "Save to Google Drive"}
+                  <Cloud className="w-4 h-4 mr-2 text-emerald-500" />
+                  {isSaving ? "Saving..." : "Save to Drive"}
                 </button>
               ) : (
                 <button
                   onClick={onLogin}
-                  className="flex-1 inline-flex items-center justify-center px-4 py-3 rounded-xl bg-slate-205 dark:bg-slate-800 text-slate-850 dark:text-slate-200 hover:bg-slate-300 dark:hover:bg-slate-700 font-semibold text-xs transition-all pointer sm:w-auto cursor-pointer"
+                  className="inline-flex items-center justify-center px-4 py-3.5 rounded-xl bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-xs border border-slate-200 dark:border-slate-800 transition-all cursor-pointer"
                   title="Authenticate Drive upload via your Google Workspace account"
                   id="btn-prompt-login-compress"
                 >
-                  <Cloud className="w-4 h-4 mr-2 text-slate-600" />
-                  Sign in to Save to Drive
+                  <Cloud className="w-4 h-4 mr-2 text-slate-400" />
+                  Sign in to Drive
                 </button>
               )}
             </div>

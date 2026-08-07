@@ -2450,1232 +2450,254 @@ export default function App() {
                 initial={{ opacity: 0, y: 12 }}
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -12 }}
-                transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-                className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-8 space-y-8"
+                transition={{ duration: 0.2, ease: "easeOut" }}
+                className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-6 space-y-8"
               >
-              
-              {/* Dynamic Hour Greeting & Real-time micro clock row */}
-              {(() => {
-                const getHourGreeting = () => {
-                  const hr = currentTime.getHours();
-                  if (hr < 12) return "Good morning";
-                  if (hr < 17) return "Good afternoon";
-                  return "Good evening";
-                };
-                const creatorName = user?.displayName || (user?.email ? user.email.split("@")[0] : "Creator");
-                const cleanName = user?.displayName ? user.displayName : creatorName.charAt(0).toUpperCase() + creatorName.slice(1);
-                const timeString = currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-                const dateString = currentTime.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
-                return (
-                  <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-6 border-b border-slate-150 dark:border-slate-850 gap-4 select-none">
-                    <div>
-                      <h1 className={`text-2xl sm:text-3xl font-black tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
-                        {getHourGreeting()}, <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500">{cleanName}!</span>
-                      </h1>
-                      <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
-                        Welcome to Toolkit Pro — your premium standalone space for professional-grade design, encoding, and optimization.
-                      </p>
-                    </div>
-                    <div className={`flex items-center gap-3 px-4.5 py-2.5 rounded-2xl border ${
-                      theme === "dark" ? "bg-slate-900/60 border-slate-800" : "bg-white border-slate-200/60 shadow-3xs"
-                    }`}>
-                      <Clock className="w-4 h-4 text-indigo-500 animate-pulse" />
-                      <div className="text-right">
-                        <p className="text-xs font-black font-mono leading-none tracking-wider">{timeString}</p>
-                        <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-none mt-1 font-semibold">{dateString}</p>
-                      </div>
-                    </div>
+                {/* Hero Section matching the requested design */}
+                <section className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-[#4f46e5] via-[#6366f1] to-[#7c3aed] text-white shadow-xl py-12 px-6 sm:px-10 text-center flex flex-col items-center justify-center space-y-6">
+                  {/* Dotted grid pattern overlay */}
+                  <div className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.25)_1.5px,transparent_1.5px)] [background-size:24px_24px] pointer-events-none" />
+
+                  {/* Top Pill Badge */}
+                  <div className="relative z-10 inline-flex items-center justify-center px-6 py-1.5 rounded-full border border-white/35 bg-white/10 backdrop-blur-md text-[11px] font-extrabold text-white uppercase tracking-widest shadow-sm">
+                    CREATOR RESOURCES
                   </div>
-                );
-              })()}
 
-              {/* Hero Welcome banner */}
-              <section className={`relative border rounded-3xl overflow-hidden transition-all duration-300 py-10 lg:py-12 ${
-                theme === "dark"
-                  ? "bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950/20 border-slate-850"
-                  : "bg-gradient-to-br from-white via-slate-50/50 to-indigo-50/10 border-slate-200 shadow-xs"
-              }`}>
-                {/* Glowing radial accent background */}
-                <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,_var(--tw-gradient-stops))] from-indigo-500/5 via-transparent to-transparent pointer-events-none" />
+                  {/* Main Headline */}
+                  <h1 className="relative z-10 text-3xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-white font-serif max-w-4xl leading-tight sm:leading-none">
+                    Tools &amp; Guides for{" "}
+                    <span className="text-amber-200 italic font-serif font-normal">
+                      Digital Creators
+                    </span>
+                  </h1>
 
-                <div className="max-w-6xl mx-auto px-6 lg:px-8 relative z-10">
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
-                    
-                    {/* Left Column: Core Value Proposition & High Impact CTAs */}
-                    <div className="lg:col-span-7 space-y-6 text-left">
-                      <div className="flex flex-wrap items-center gap-2.5">
-                        <div className="inline-flex items-center gap-1.5 bg-emerald-50 dark:bg-emerald-955 px-3.5 py-1.5 rounded-full text-[11px] font-bold text-emerald-700 dark:text-emerald-300 uppercase tracking-widest leading-none shadow-sm shadow-emerald-500/5">
-                          <Sparkles className="w-3.5 h-3.5 text-amber-500 animate-spin" /> Toolkit Pro Drive Sync
-                        </div>
+                  {/* Subtitle */}
+                  <p className="relative z-10 text-sm sm:text-base md:text-lg text-indigo-100 font-medium max-w-2xl mx-auto leading-relaxed">
+                    High-performance, 100% client-side tools to compress images, convert WebP formats, design social graphics, and streamline your digital creator workflow.
+                  </p>
 
-                        {/* Installable PWA Badge with Tooltip */}
-                        <div className="relative group inline-block">
-                          <button
-                            disabled={pwaChecking}
-                            onClick={async () => {
-                              const promptToUse = typeof window !== "undefined" ? window.deferredInstallPrompt : null;
-                              if (promptToUse) {
-                                try {
-                                  await promptToUse.prompt();
-                                  const { outcome } = await promptToUse.userChoice;
-                                  console.log(`User response to native installation: ${outcome}`);
-                                  if (typeof window !== "undefined") {
-                                    window.deferredInstallPrompt = null;
-                                  }
-                                  setHasDeferredPrompt(false);
-                                } catch (err) {
-                                  console.error("Native install prompt trigger error:", err);
-                                }
-                              } else {
-                                setActiveTab("resources");
-                                setResourcesSubTab("installation");
-                                setTimeout(() => {
-                                  const el = document.getElementById("resources-panel-installation");
-                                  if (el) {
-                                    el.scrollIntoView({ behavior: "smooth", block: "start" });
-                                  }
-                                }, 100);
-                              }
-                            }}
-                            className={`relative overflow-hidden inline-flex items-center gap-1.5 bg-blue-50/80 hover:bg-blue-100 dark:bg-blue-950/40 dark:hover:bg-blue-900/40 border border-blue-150/40 dark:border-blue-900/30 px-3.5 py-1.5 pb-[7px] rounded-full text-[11px] font-extrabold text-blue-700 dark:text-blue-350 uppercase tracking-widest leading-none shadow-sm shadow-blue-500/5 cursor-pointer select-none transition-all hover:scale-102 hover:shadow-md ${
-                              hasDeferredPrompt ? "animate-pulse ring-2 ring-emerald-500/40 dark:ring-emerald-400/40" : ""
-                            } ${pwaChecking ? "opacity-90 cursor-wait" : ""}`}
-                            title={pwaChecking ? pwaStatusText : (hasDeferredPrompt ? "Install Toolkit Pro directly to your device now!" : "PWA Installable Software Utility")}
-                          >
-                            {pwaChecking ? (
-                              <>
-                                <Loader2 className="w-3 h-3 text-blue-500 animate-spin shrink-0" />
-                                <span className="flex items-center gap-1 text-[10px] text-blue-600 dark:text-blue-400">
-                                  Checking PWA ({pwaProgress}%)
-                                </span>
-                              </>
-                            ) : (
-                              <>
-                                <Monitor className="w-3 h-3 text-blue-500" />
-                                <span className="flex items-center gap-1">
-                                  {hasDeferredPrompt ? "Install App Now" : "Installable PWA"}
-                                  <span className={`inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500 ${hasDeferredPrompt ? "animate-ping" : "animate-pulse"}`} />
-                                </span>
-                              </>
-                            )}
-                            
-                            {pwaChecking && (
-                              <div 
-                                className="absolute bottom-0 left-0 h-[3px] bg-gradient-to-r from-blue-400 to-indigo-500 dark:from-blue-500 dark:to-indigo-400 transition-all duration-150 ease-out" 
-                                style={{ width: `${pwaProgress}%` }} 
-                              />
-                            )}
-                          </button>
-
-                          {/* Tooltip describing PWA benefits */}
-                          <div className="absolute left-1/2 -translate-x-1/2 top-full mt-2.5 z-40 w-72 p-4 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200 dark:border-slate-850 shadow-xl opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-300 pointer-events-none scale-95 group-hover:scale-100 text-left space-y-3">
-                            <div className="flex items-center gap-1.5 pb-1.5 border-b border-slate-100 dark:border-slate-850">
-                              <span className="p-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-955/55">
-                                {pwaChecking ? (
-                                  <Loader2 className="w-3.5 h-3.5 text-blue-500 animate-spin" />
-                                ) : (
-                                  <Sparkles className="w-3.5 h-3.5 text-emerald-500" />
-                                )}
-                              </span>
-                              <div>
-                                <h5 className="text-xs font-black text-slate-900 dark:text-white uppercase tracking-wider">
-                                  {pwaChecking ? "PWA Verification" : "Standalone Utility"}
-                                </h5>
-                                <p className="text-[9px] text-emerald-600 dark:text-emerald-400 font-bold uppercase tracking-widest">
-                                  {pwaChecking ? pwaStatusText : "Elevate Your Experience"}
-                                </p>
-                              </div>
-                            </div>
-             
-                            <ul className="space-y-2 text-[11px] text-slate-600 dark:text-slate-300">
-                              <li className="flex items-start gap-1.5">
-                                <span className="text-indigo-500 mt-0.5 text-xs">✦</span>
-                                <span><strong>No Browser Clutter:</strong> Removes URL bars to maximize rendering space for your active canvas.</span>
-                              </li>
-                              <li className="flex items-start gap-1.5">
-                                <span className="text-indigo-500 mt-0.5 text-xs">✦</span>
-                                <span><strong>Dock & Desktop Access:</strong> Launch application directly from macOS/Windows Dock or your home screen.</span>
-                              </li>
-                            </ul>
-             
-                            <div className="pt-1.5 border-t border-slate-100 dark:border-slate-850 flex items-center justify-between text-[9px] text-indigo-600 dark:text-indigo-400 font-extrabold uppercase tracking-wider">
-                              <span>Click to view installation guides</span>
-                              <span>➔</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Brand Logo Display on Left side */}
-                      <div className="inline-block animate-in fade-in zoom-in-95 duration-500">
-                        <div className="bg-white p-2 rounded-2xl border border-slate-200/65 shadow-xs flex items-center justify-center max-w-[180px] transition-all hover:scale-[1.03] duration-300">
-                          <img 
-                            src={brandLogo} 
-                            alt="Toolkit Pro" 
-                            className="h-7 sm:h-8 w-auto object-contain rounded-sm"
-                            referrerPolicy="no-referrer"
-                          />
-                        </div>
-                      </div>
-
-                      <h2 className={`text-3xl sm:text-4xl md:text-5xl font-black tracking-tight leading-tight uppercase font-sans ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
-                        Advanced Standalone Workspace <br />
-                        <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500">For Digital Creators</span>
-                      </h2>
-                      
-                      <p className={`text-sm sm:text-base leading-relaxed ${theme === "dark" ? "text-slate-300" : "text-slate-705"} max-w-2xl`}>
-                        Optimize JPG, PNG, and WebP asset bundles with precise compression. Craft gorgeous typographic graphic cards with customizable backdrop blurs. Encode scan coordinates, sample dominant hex spectrums, and backup files instantly to cloud-secured Google Drive folders. All processed fully client-side.
-                      </p>
-
-                      {/* Enhanced CTAs */}
-                      <div className="flex flex-wrap gap-4 pt-2">
+                  {/* Integrated Search Bar inside Hero */}
+                  <div className="relative z-10 w-full max-w-lg mt-2">
+                    <div className="relative">
+                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <input
+                        type="text"
+                        placeholder="Search image tools, converters, compressors..."
+                        value={homeSearchQuery}
+                        onChange={(e) => setHomeSearchQuery(e.target.value)}
+                        className="w-full pl-11 pr-10 py-3.5 rounded-2xl text-xs sm:text-sm font-semibold bg-white text-slate-900 placeholder-slate-400 shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 transition-all"
+                      />
+                      {homeSearchQuery && (
                         <button
-                          onClick={() => {
-                            const catalogElement = document.getElementById("home-insights-widgets-row") || document.getElementById("home-adsense-leaderboard-wrapper") || document.getElementById("dashboard-recent-activities-widget");
-                            if (catalogElement) {
-                              catalogElement.scrollIntoView({ behavior: "smooth", block: "start" });
-                            }
-                          }}
-                          className="inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-gradient-to-r from-indigo-600 via-purple-600 to-indigo-700 hover:from-indigo-500 hover:via-purple-500 hover:to-indigo-650 text-sm font-bold text-white shadow-lg shadow-indigo-500/20 transition-all duration-300 hover:scale-103 active:scale-97 cursor-pointer"
+                          onClick={() => setHomeSearchQuery("")}
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-600 p-1"
                         >
-                          <Search className="w-4 h-4" />
-                          <span>Explore Tools Catalog</span>
+                          ✕
                         </button>
-
-                        <button
-                          onClick={user ? () => setActiveTab("drive") : handleLogin}
-                          disabled={isLoggingIn}
-                          className={`inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl border text-sm font-bold transition-all duration-300 hover:scale-103 active:scale-97 cursor-pointer ${
-                            theme === "dark"
-                              ? "bg-slate-900/60 border-slate-800 text-slate-205 hover:bg-slate-850 hover:text-white"
-                              : "bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:text-slate-900 shadow-xs"
-                          }`}
-                        >
-                          {isLoggingIn ? (
-                            <Loader2 className="w-4 h-4 animate-spin" />
-                          ) : (
-                            <Cloud className="w-4 h-4 text-sky-500" />
-                          )}
-                          <span>{user ? "View Google Drive Space" : "Connect Google Drive"}</span>
-                        </button>
-                      </div>
-
-                      {/* Drive Auth state notifications inside Left Column */}
-                      {!user && (
-                        <div className="pt-3 max-w-md">
-                          {authError && (
-                            <div className="border border-rose-200/40 bg-rose-50 dark:bg-rose-955/15 text-rose-800 dark:text-rose-300 rounded-xl p-4 text-xs text-left flex flex-col space-y-3 animate-fade-in relative shadow-md">
-                              <div className="flex items-start space-x-2.5">
-                                <AlertCircle className="w-4 h-4 mt-0.5 text-rose-500 shrink-0 animate-bounce" />
-                                <div className="flex-1 space-y-1 pr-6">
-                                  <p className="font-bold text-rose-900 dark:text-rose-400">Authorization Notice</p>
-                                  <p className="leading-relaxed text-slate-700 dark:text-slate-200">{authError}</p>
-                                </div>
-                                <button 
-                                  onClick={() => setAuthError(null)} 
-                                  className="text-rose-500 hover:text-rose-700 dark:hover:text-rose-250 absolute top-3 right-3 p-1 cursor-pointer transition-colors text-xs font-bold"
-                                  title="Dismiss notification"
-                                >
-                                  ✕
-                                </button>
-                              </div>
-                              <div className="flex items-center gap-2 pt-2 border-t border-rose-200/40 dark:border-rose-900/40">
-                                <button
-                                  type="button"
-                                  onClick={handleLogin}
-                                  disabled={isLoggingIn}
-                                  className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 dark:bg-rose-900/80 hover:bg-rose-700 dark:hover:bg-rose-800 text-white font-bold text-[11px] transition-all shadow-sm select-none disabled:opacity-55 cursor-pointer active:scale-97"
-                                >
-                                  {isLoggingIn ? (
-                                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                                  ) : (
-                                    <RefreshCw className="w-3.5 h-3.5" />
-                                  )}
-                                  <span>{isLoggingIn ? "Connecting..." : "Retry Authorization"}</span>
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => setAuthError(null)}
-                                  className="px-2.5 py-1.5 rounded-lg bg-transparent border border-rose-250 dark:border-rose-900/60 text-rose-700 dark:text-rose-400 hover:bg-rose-100/50 dark:hover:bg-rose-955/20 font-semibold text-[11px] transition-all select-none cursor-pointer"
-                                >
-                                  Dismiss Error
-                                </button>
-                              </div>
-                            </div>
-                          )}
-
-                          <div
-                            onClick={() => handleOpenSettingsTab("drive")}
-                            className={`border rounded-xl p-3 flex items-center justify-between space-x-2 text-xs text-left cursor-pointer transition-all hover:scale-[1.01] group ${
-                              theme === "dark"
-                                ? "bg-amber-955/20 border-amber-900/40 text-amber-300 hover:border-amber-500/50"
-                                : "bg-amber-50/75 border-amber-200 text-amber-800 hover:border-amber-400 shadow-3xs"
-                            }`}
-                            title="Click to open Google Drive Settings & Cloud Sync controls"
-                          >
-                            <div className="flex items-start space-x-2.5">
-                              <AlertCircle className="w-4 h-4 mt-0.5 text-amber-500 shrink-0 group-hover:scale-110 transition-transform" />
-                              <p className="leading-relaxed">
-                                <strong>Cloud Backups Inactive:</strong> Connect your Workspace account to activate instant cloud sync and backup your canvas creations seamlessly!
-                              </p>
-                            </div>
-                            <span className="shrink-0 text-[10px] bg-amber-500/20 text-amber-400 font-bold px-2.5 py-1 rounded-lg border border-amber-500/30 flex items-center gap-1 group-hover:bg-amber-500/30 transition-all">
-                              <Cloud className="w-3 h-3 text-amber-400" /> Setup Drive
-                            </span>
-                          </div>
-                        </div>
                       )}
                     </div>
-
-                    {/* Right Column: Featured/Popular Tools Bento Grid Showcase */}
-                    <div className="lg:col-span-5 space-y-4">
-                      <div className={`p-4 sm:p-5 rounded-2xl border text-left space-y-3.5 select-none ${
-                        theme === "dark"
-                          ? "bg-slate-900/60 border-slate-805 shadow-md shadow-slate-950/25"
-                          : "bg-white border-slate-200 shadow-xs"
-                      }`}>
-                        <div className="flex items-center justify-between">
-                          <span className="text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest font-mono">
-                            Popular Workspaces
-                          </span>
-                          <span className="text-[9px] bg-indigo-50 dark:bg-indigo-950/50 text-indigo-650 dark:text-indigo-400 px-2 py-0.5 rounded-full font-black uppercase font-mono tracking-wider">
-                            Top Picks
-                          </span>
-                        </div>
-
-                        <div className="space-y-3">
-                          {[
-                            { id: "quote", title: "Quote Designer", icon: Quote, color: "text-indigo-600 bg-indigo-500/10 dark:text-indigo-400 dark:bg-indigo-950/50", desc: "Craft stunning glassmorphic typography cards with custom backdrop blurs and export coordinates." },
-                            { id: "compress", title: "Image Compressor", icon: FileImage, color: "text-emerald-650 bg-emerald-500/10 dark:text-emerald-400 dark:bg-emerald-950/50", desc: "Optimize bundle sizes with high-fidelity algorithms, EXIF preservation, and quick scale tools." },
-                            { id: "qr", title: "QR Code Generator", icon: QrCode, color: "text-amber-600 bg-amber-500/10 dark:text-amber-400 dark:bg-amber-950/50", desc: "Encode scanning codes with Reed-Solomon error correction and downloadable custom logo overlays." }
-                          ].map((shortcut) => {
-                            const Icon = shortcut.icon;
-                            return (
-                              <div
-                                key={shortcut.id}
-                                onClick={() => {
-                                  setActiveTab(shortcut.id as any);
-                                  setIsSitemapView(false);
-                                }}
-                                className={`p-3 rounded-xl border flex gap-3 transition-all duration-300 hover:scale-102 hover:border-indigo-500/40 cursor-pointer ${
-                                  theme === "dark"
-                                    ? "bg-slate-950/60 border-slate-800/80 hover:bg-slate-950"
-                                    : "bg-slate-50/50 border-slate-150 hover:bg-white hover:shadow-2xs"
-                                }`}
-                              >
-                                <div className={`p-2.5 rounded-xl shrink-0 h-10 w-10 flex items-center justify-center ${shortcut.color}`}>
-                                  <Icon className="w-5 h-5" />
-                                </div>
-                                <div className="space-y-0.5 min-w-0 flex-1">
-                                  <div className="flex items-center justify-between gap-1.5">
-                                    <h4 className={`text-xs font-extrabold tracking-tight ${theme === "dark" ? "text-slate-100" : "text-slate-900"}`}>
-                                      {shortcut.title}
-                                    </h4>
-                                    <span className="text-[9px] font-bold text-indigo-500 inline-flex items-center gap-0.5 opacity-100">
-                                      Launch <ArrowUpRight className="w-2.5 h-2.5" />
-                                    </span>
-                                  </div>
-                                  <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-normal line-clamp-2">
-                                    {shortcut.desc}
-                                  </p>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-
                   </div>
-                </div>
-              </section>
+                </section>
 
-              {/* Project Showcase Hub */}
-              <ProjectShowcaseHub
-                theme={theme}
-                onSelectTab={(tab) => {
-                  setActiveTab(tab as any);
-                  setIsSitemapView(false);
-                }}
-              />
-
-              {/* Persistent Recently Used Tools Row (localStorage) */}
-              {recentUsedTools.length > 0 && (
-                <div className={`border rounded-3xl p-6 transition-colors duration-200 select-none space-y-4 animate-in fade-in duration-300 ${
-                  theme === "dark"
-                    ? "bg-gradient-to-br from-slate-900 via-slate-950 to-indigo-950/10 border-slate-850"
-                    : "bg-white border-slate-200/70 shadow-3xs"
-                }`}>
-                  <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-3">
-                    <div className="flex items-center gap-2">
-                      <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-955 border border-indigo-100/30">
-                        <Clock className="w-4.5 h-4.5 text-indigo-550 dark:text-indigo-400 animate-pulse" />
-                      </div>
-                      <div>
-                        <h3 className={`text-xs font-black uppercase tracking-wider ${theme === "dark" ? "text-slate-200" : "text-slate-800"}`}>
-                          Recently Used Workspaces
-                        </h3>
-                        <p className="text-[10px] text-slate-405 dark:text-slate-500 mt-1">
-                          Jump straight back into your frequently opened developer utilities (persistent across browser sessions).
-                        </p>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => {
-                        if (confirm("Are you sure you want to clear your recently used tools history?")) {
-                          setRecentUsedTools([]);
-                          localStorage.removeItem("toolkit-pro-recent-used-tools");
-                        }
-                      }}
-                      className="text-[10px] font-extrabold uppercase tracking-wider px-2.5 py-1.5 rounded-xl border border-transparent hover:border-slate-150 dark:hover:border-slate-800 text-slate-400 hover:text-rose-600 dark:hover:text-rose-500 transition-all cursor-pointer"
-                    >
-                      Clear Recents
-                    </button>
+                {/* Primary Tools Catalog */}
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h2 className={`text-lg font-black tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                      All Available Tools
+                    </h2>
+                    <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">
+                      100% Client-Side Processing
+                    </span>
                   </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
-                    {recentUsedTools.map((toolId) => {
-                      const tool = TOOL_METADATA[toolId];
-                      if (!tool) return null;
-                      const iconName = tool.icon;
-                      const IconComponent = iconMap[iconName] || Quote;
+                  {(() => {
+                    const REAL_TOOLS = [
+                      {
+                        id: "compress",
+                        label: "Image Compressor & WebP",
+                        desc: "Shrink image file size, convert to WebP, compress JPG/PNG with exact target KB or percentage.",
+                        icon: FileImage,
+                        badge: "Optimize & Compress"
+                      },
+                      {
+                        id: "converter",
+                        label: "Image Format Converter",
+                        desc: "Convert image files instantly between WebP, PNG, JPG, BMP, and GIF formats.",
+                        icon: RefreshCw,
+                        badge: "Convert Formats"
+                      },
+                      {
+                        id: "bgremover",
+                        label: "Background Remover",
+                        desc: "Isolate subjects and erase image backgrounds with clean client-side processing.",
+                        icon: Eraser,
+                        badge: "Isolate Background"
+                      },
+                      {
+                        id: "quote",
+                        label: "Quote & Graphic Card Designer",
+                        desc: "Craft typographical graphic cards with customizable backdrop blurs and export styling.",
+                        icon: Quote,
+                        badge: "Design Graphics"
+                      },
+                      {
+                        id: "qr",
+                        label: "QR Code Generator",
+                        desc: "Generate custom styled QR codes with high ECC error correction and custom logo overlays.",
+                        icon: QrCode,
+                        badge: "Encode QR"
+                      },
+                      {
+                        id: "palette",
+                        label: "Color Extractor & WCAG",
+                        desc: "Extract dominant color palettes from any image and analyze WCAG contrast scores.",
+                        icon: Pipette,
+                        badge: "Analyze Colors"
+                      },
+                      {
+                        id: "pdf",
+                        label: "PDF Tools Suite",
+                        desc: "Combine image sets into clean PDF documents or export document layouts.",
+                        icon: FileText,
+                        badge: "PDF Documents"
+                      },
+                      {
+                        id: "video",
+                        label: "Video Creator",
+                        desc: "Animate static image frames into professional video clips and looping motion reels.",
+                        icon: Video,
+                        badge: "Motion Video"
+                      },
+                      {
+                        id: "drive",
+                        label: "Google Drive Sync",
+                        desc: "Backup your media and canvas creations directly to your secure Google Drive folder.",
+                        icon: Cloud,
+                        badge: "Cloud Sync"
+                      }
+                    ];
+
+                    const query = homeSearchQuery.toLowerCase().trim();
+                    const filteredTools = REAL_TOOLS.filter((t) => {
+                      if (!query) return true;
+                      return t.label.toLowerCase().includes(query) || t.desc.toLowerCase().includes(query) || t.badge.toLowerCase().includes(query);
+                    });
+
+                    if (filteredTools.length === 0) {
                       return (
-                        <div
-                          key={toolId}
-                          onClick={() => {
-                            setActiveTab(toolId as any);
-                            setIsSitemapView(false);
-                          }}
-                          className={`p-4 rounded-2xl border transition-all duration-300 hover:scale-102 flex flex-col justify-between group h-36 cursor-pointer relative overflow-hidden ${
-                            theme === "dark"
-                              ? "bg-slate-950/50 border-slate-805 hover:border-slate-700 text-slate-100"
-                              : "bg-slate-50/30 border-slate-150 hover:bg-white hover:border-indigo-200 hover:shadow-2xs text-slate-700"
-                          }`}
-                        >
-                          {/* Decorative accent wave */}
-                          <div className="absolute top-0 right-0 w-12 h-12 bg-indigo-500/5 rounded-full blur-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                          
-                          <div className="space-y-1.5">
-                            <div className="flex items-center justify-between">
-                              <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-500">
-                                <IconComponent className="w-4 h-4" />
-                              </div>
-                              <span className={`text-[8px] font-black uppercase font-mono px-1.5 py-0.5 rounded leading-none ${
-                                theme === "dark" ? "bg-slate-900 text-slate-405" : "bg-slate-150 text-slate-500"
-                              }`}>
-                                {tool.category}
-                              </span>
-                            </div>
-                            <h4 className={`text-xs font-extrabold tracking-tight group-hover:text-indigo-500 transition-colors ${
-                              theme === "dark" ? "text-white" : "text-slate-900"
-                            }`}>
-                              {tool.label}
-                            </h4>
-                            <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-tight line-clamp-2">
-                              {tool.desc}
-                            </p>
-                          </div>
-
-                          <div className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 pt-2 group-hover:text-indigo-500 transition-colors">
-                            <span>Open Space</span>
-                            <ArrowRight className="w-2.5 h-2.5 transform group-hover:translate-x-0.5 transition-transform" />
-                          </div>
+                        <div className={`p-8 text-center rounded-2xl border ${theme === "dark" ? "bg-slate-900/40 border-slate-800" : "bg-slate-50 border-slate-200"}`}>
+                          <p className="text-xs text-slate-400">No tools found matching "{homeSearchQuery}"</p>
                         </div>
                       );
-                    })}
-                  </div>
-                </div>
-              )}
+                    }
 
-              {/* Interactive Setup Progress Roadmap Checklist */}
-              <div className={`border rounded-3xl p-6 transition-colors duration-200 select-none ${
-                theme === "dark"
-                  ? "bg-gradient-to-br from-slate-900 to-slate-950 border-slate-850"
-                  : "bg-white border-slate-200/70 shadow-3xs"
-              }`}>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/55 border border-indigo-100/30">
-                        <Award className="w-4 h-4 text-indigo-500" />
-                      </div>
-                      <h3 className={`text-xs font-black uppercase tracking-wider ${theme === "dark" ? "text-slate-200" : "text-slate-800"}`}>
-                        Studio Setup Checklist & Creator Missions
-                      </h3>
-                    </div>
-                    <p className="text-[11px] text-slate-400 dark:text-slate-500 mt-1">
-                      Complete tasks to master Toolkit Pro's professional creator workflow integrations.
-                    </p>
-                  </div>
-                  {/* Progress Bar */}
-                  <div className="w-full sm:w-56 space-y-1.5 shrink-0">
-                    <div className="flex justify-between items-center text-[9px] font-bold font-mono">
-                      <span className="text-slate-405">COMPLETION STATE</span>
-                      <span className="text-indigo-600 dark:text-indigo-400">
-                        {Math.round((Object.values(checklist).filter(Boolean).length / Object.keys(checklist).length) * 100)}%
-                      </span>
-                    </div>
-                    <div className="h-2 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                      <div 
-                        className="h-full bg-gradient-to-r from-indigo-500 via-purple-500 to-emerald-500 transition-all duration-500 ease-out"
-                        style={{ width: `${(Object.values(checklist).filter(Boolean).length / Object.keys(checklist).length) * 100}%` }}
-                      />
-                    </div>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-                  {[
-                    { id: "quote", label: "Quote Designer", desc: "Craft typographic asset cards", badge: "Design" },
-                    { id: "compress", label: "Image Compressor", desc: "Minimize asset bundle sizes", badge: "Optimize" },
-                    { id: "qr", label: "QR Generator", desc: "Encode ECC scan coordinates", badge: "ECC Code" },
-                    { id: "palette", label: "Color Extractor", desc: "Sample hex color spectrums", badge: "Spectrums" },
-                    { id: "drive", label: "Google Drive Sync", desc: "Synchronize cloud folders", badge: "Backup" },
-                  ].map((item) => {
-                    const isDone = item.id === "drive" ? !!user : checklist[item.id];
                     return (
-                      <div
-                        key={item.id}
-                        className={`p-4 rounded-2xl border transition-all flex flex-col justify-between group h-40 ${
-                          isDone
-                            ? theme === "dark"
-                              ? "bg-emerald-955/10 border-emerald-900/30 text-emerald-300"
-                              : "bg-emerald-50/35 border-emerald-150 text-emerald-850"
-                            : theme === "dark"
-                              ? "bg-slate-900/40 border-slate-805 text-slate-300 hover:border-slate-700"
-                              : "bg-slate-50/30 border-slate-200/50 text-slate-700 hover:bg-slate-50 hover:border-slate-300"
-                        }`}
-                      >
-                        <div className="space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <button
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                        {filteredTools.map((tool) => {
+                          const Icon = tool.icon;
+                          return (
+                            <div
+                              key={tool.id}
                               onClick={() => {
-                                if (item.id === "drive") {
-                                  if (!user) handleLogin();
-                                } else {
-                                  toggleChecklistItem(item.id);
-                                }
+                                setActiveTab(tool.id as any);
+                                setIsSitemapView(false);
                               }}
-                              className="p-1 rounded-lg hover:bg-slate-100/50 dark:hover:bg-slate-800/50 cursor-pointer transition-colors"
-                              title={isDone ? "Mark incomplete" : "Mark completed"}
+                              className={`p-5 rounded-2xl border transition-all duration-200 hover:scale-[1.02] flex flex-col justify-between group cursor-pointer ${
+                                theme === "dark"
+                                  ? "bg-slate-900/70 border-slate-800 hover:border-indigo-500/50 text-slate-100"
+                                  : "bg-white border-slate-200 hover:border-indigo-300 shadow-2xs hover:shadow-md text-slate-800"
+                              }`}
                             >
-                              {isDone ? (
-                                <CheckCircle2 className="w-4.5 h-4.5 text-emerald-500 animate-in zoom-in-75 duration-200" />
-                              ) : (
-                                <Circle className="w-4.5 h-4.5 text-slate-300 dark:text-slate-650 group-hover:text-slate-400" />
-                              )}
-                            </button>
-                            <span className={`text-[8.5px] font-black uppercase font-mono px-1.5 py-0.5 rounded leading-none ${
-                              isDone ? "bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600" : "bg-slate-100 dark:bg-slate-800 text-slate-405"
-                            }`}>
-                              {item.badge}
-                            </span>
-                          </div>
-                          <h4 className="text-[11.5px] font-black tracking-tight uppercase leading-tight mt-1">{item.label}</h4>
-                          <p className="text-[9.5px] text-slate-400 dark:text-slate-505 leading-tight">{item.desc}</p>
-                        </div>
-
-                        <button
-                          onClick={() => {
-                            setActiveTab(item.id as any);
-                            setIsSitemapView(false);
-                          }}
-                          className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:text-indigo-505 dark:hover:text-indigo-300 cursor-pointer"
-                        >
-                          <span>Launch Tool</span>
-                          <ArrowRight className="w-2.5 h-2.5 transform group-hover:translate-x-0.5 transition-transform" />
-                        </button>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              {/* TOOL GRID CATALOG WITH CATEGORY FILTER PILLS */}
-              <div id="tools-catalog-section" className="space-y-4 select-none">
-                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                  <div>
-                    <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-indigo-500/10 border border-indigo-500/20 text-indigo-600 dark:text-indigo-400 text-[10px] font-mono font-black uppercase tracking-wider mb-1">
-                      <Grid className="w-3 h-3 text-indigo-500" />
-                      <span>Studio Tools</span>
-                    </div>
-                    <h3 className={`text-lg sm:text-xl font-black tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
-                      Tool Grid
-                    </h3>
-                    <p className="text-xs text-slate-400 dark:text-slate-500">
-                      Explore standalone tools to edit, compress, analyze, and convert media in real time.
-                    </p>
-                  </div>
-                  
-                  {/* High fidelity styled Search Input */}
-                  <div className="relative w-full md:w-72">
-                    <input
-                      type="text"
-                      placeholder="Search tools..."
-                      value={homeSearchQuery}
-                      onChange={(e) => setHomeSearchQuery(e.target.value)}
-                      className={`w-full pl-9 pr-8 py-2 rounded-xl text-xs font-semibold focus:outline-none transition-all ${
-                        theme === "dark"
-                          ? "bg-slate-900 border border-slate-800 text-slate-100 placeholder-slate-500 focus:border-indigo-500"
-                          : "bg-white border border-slate-200 text-slate-800 placeholder-slate-400 focus:border-indigo-500 shadow-3xs"
-                      }`}
-                    />
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                    {homeSearchQuery && (
-                      <button
-                        onClick={() => setHomeSearchQuery("")}
-                        className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 px-1.5 py-0.5 rounded-md text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white cursor-pointer"
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                </div>
-
-                {/* Category Filter Pills Bar */}
-                <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none">
-                  {["All Tools", "Design", "Utility", "Dev", "AI"].map((cat) => (
-                    <button
-                      key={cat}
-                      onClick={() => setCatalogCategoryFilter(cat)}
-                      className={`px-3.5 py-1.5 rounded-xl text-xs font-extrabold transition-all cursor-pointer whitespace-nowrap ${
-                        catalogCategoryFilter === cat
-                          ? "bg-indigo-600 text-white shadow-md shadow-indigo-500/20 scale-102"
-                          : theme === "dark"
-                            ? "bg-slate-900/80 text-slate-400 hover:text-slate-100 border border-slate-800"
-                            : "bg-slate-100/80 text-slate-600 hover:text-slate-900 border border-slate-200"
-                      }`}
-                    >
-                      {cat}
-                    </button>
-                  ))}
-                </div>
-
-                {/* Grid layout of all catalog items */}
-                {(() => {
-                  const ALL_CATALOG_TOOLS = [
-                    { id: "quote", label: "Image Icons", desc: "Rasterize vector icons and generate favicon packs with transparent matte layers.", badge: "Design", category: "Design", icon: Quote },
-                    { id: "compress", label: "Image Resizer", desc: "Re-dimension image resolution, scale pixels, and optimize social media aspect ratios.", badge: "Design", category: "Design", icon: FileImage },
-                    { id: "qr", label: "Image Scale", desc: "High fidelity cubic interpolation upscaler and vector matrix renderer.", badge: "Design", category: "Design", icon: QrCode },
-                    { id: "palette", label: "Image Resize", desc: "Batch resize image folders with aspect ratio locking and color profiling.", badge: "Dev", category: "Dev", icon: Pipette },
-                    { id: "video", label: "Before/After", desc: "Interactive image comparison slider before and after compression filters.", badge: "Utility", category: "Utility", icon: Video },
-                    { id: "pdf", label: "Desc Resizer", desc: "Vector text element resizer and multi-column typography layout tuner.", badge: "Dev", category: "Dev", icon: FileText },
-                    { id: "converter", label: "Pdf Transfer", desc: "Convert document layouts into clean raster graphics or PDF bundles.", badge: "Dev", category: "Dev", icon: RefreshCw },
-                    { id: "bgremover", label: "Image Resize", desc: "Automatic focal framing crop with client-side AI detection.", badge: "Dev", category: "Dev", icon: Eraser },
-                    { id: "drive", label: "Same Copier", desc: "Duplicate and sync asset layers across multi-device workspaces.", badge: "AI", category: "AI", icon: Cloud }
-                  ];
-
-                  const filtered = ALL_CATALOG_TOOLS.filter(tool => {
-                    const matchesCategory = catalogCategoryFilter === "All Tools" || tool.category === catalogCategoryFilter;
-                    const query = homeSearchQuery.toLowerCase().trim();
-                    if (!query) return matchesCategory;
-                    const matchesQuery = tool.label.toLowerCase().includes(query) || 
-                           tool.desc.toLowerCase().includes(query) || 
-                           tool.badge.toLowerCase().includes(query);
-                    return matchesCategory && matchesQuery;
-                  });
-
-                  if (filtered.length === 0) {
-                    return (
-                      <div className={`p-8 text-center rounded-3xl border ${
-                        theme === "dark" ? "bg-slate-900/40 border-slate-850" : "bg-slate-50 border-slate-200"
-                      }`}>
-                        <p className="text-xs text-slate-400">No tools found matching your current filter!</p>
-                      </div>
-                    );
-                  }
-
-                  return (
-                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-3 gap-4">
-                      {filtered.map((tool) => {
-                        const Icon = tool.icon;
-                        return (
-                          <div
-                            key={tool.id}
-                            onClick={() => {
-                              setActiveTab(tool.id as any);
-                              setIsSitemapView(false);
-                            }}
-                            className={`p-4.5 rounded-2xl border transition-all duration-300 hover:scale-102 flex flex-col justify-between group h-48 cursor-pointer relative overflow-hidden ${
-                              theme === "dark"
-                                ? "bg-slate-900/80 border-slate-800 hover:border-indigo-500/40 text-slate-100 shadow-lg shadow-slate-950/20"
-                                : "bg-white border-slate-200/80 hover:border-indigo-200 shadow-2xs hover:shadow-md text-slate-800"
-                            }`}
-                          >
-                            <div className="space-y-2">
-                              <div className="flex items-center justify-between">
-                                <div className="p-2.5 rounded-xl bg-indigo-500/10 text-indigo-500 group-hover:bg-indigo-600 group-hover:text-white transition-all">
-                                  <Icon className="w-4 h-4" />
+                              <div className="space-y-3">
+                                <div className="flex items-center justify-between">
+                                  <div className="p-3 rounded-xl bg-indigo-500/10 text-indigo-500 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                                    <Icon className="w-5 h-5" />
+                                  </div>
+                                  <span className="text-[10px] font-bold uppercase font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                                    {tool.badge}
+                                  </span>
                                 </div>
-                                <span className={`text-[9px] font-mono font-black uppercase px-2 py-0.5 rounded ${
-                                  tool.category === "Design" 
-                                    ? "bg-amber-500/10 text-amber-500"
-                                    : tool.category === "Dev"
-                                      ? "bg-sky-500/10 text-sky-500"
-                                      : tool.category === "AI"
-                                        ? "bg-purple-500/10 text-purple-500"
-                                        : "bg-emerald-500/10 text-emerald-500"
-                                }`}>
-                                  {tool.badge}
-                                </span>
+
+                                <h3 className={`text-sm font-black tracking-tight group-hover:text-indigo-500 transition-colors ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                                  {tool.label}
+                                </h3>
+
+                                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
+                                  {tool.desc}
+                                </p>
                               </div>
 
-                              <h4 className={`text-xs font-black tracking-tight group-hover:text-indigo-500 transition-colors ${
-                                theme === "dark" ? "text-white" : "text-slate-900"
-                              }`}>
-                                {tool.label}
-                              </h4>
-                              <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-relaxed line-clamp-2">
-                                {tool.desc}
-                              </p>
+                              <div className="pt-4 mt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
+                                <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">
+                                  <span>Open Tool</span>
+                                  <ArrowRight className="w-3.5 h-3.5" />
+                                </span>
+                              </div>
                             </div>
-
-                            <span className="inline-flex items-center gap-1 text-[10px] font-bold text-indigo-500 group-hover:translate-x-1 transition-transform pt-2">
-                              <span>Read more</span> <ArrowRight className="w-3 h-3" />
-                            </span>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  );
-                })()}
-              </div>
-
-              {/* Dynamic AdSense Leaderboard Placement Box */}
-              <div className="w-full select-none" id="home-adsense-leaderboard-wrapper">
-                <AdSenseMock slot="top-leaderboard-home" type="leaderboard" />
-              </div>
-
-              {/* Spotlight of the Day & System Stats Metrics Block */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 select-none">
-                {/* Highlight/Spotlight card */}
-                <div className={`lg:col-span-2 border rounded-3xl p-6 relative overflow-hidden transition-colors ${
-                  theme === "dark"
-                    ? "bg-gradient-to-br from-indigo-950/20 via-slate-900 to-slate-950 border-slate-850"
-                    : "bg-gradient-to-br from-indigo-50/15 via-white to-slate-50/50 border-slate-200 shadow-3xs"
-                }`}>
-                  <div className="absolute top-0 right-0 w-32 h-32 bg-indigo-500/10 rounded-full blur-2xl pointer-events-none" />
-                  
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="bg-indigo-100 dark:bg-indigo-950/60 text-indigo-600 dark:text-indigo-400 text-[9px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border border-indigo-200/40">
-                      Featured Creative Utility
-                    </span>
-                    <span className="flex items-center gap-1 text-[9px] font-bold text-emerald-600 dark:text-emerald-400 font-mono">
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" /> SECURE GPU
-                    </span>
-                  </div>
-
-                  <div className="space-y-3 max-w-xl">
-                    <h3 className={`text-lg sm:text-xl font-black tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
-                      Client-side Quantized Video & Typographic Quote Builder
-                    </h3>
-                    <p className="text-xs text-slate-400 dark:text-slate-405 leading-relaxed">
-                      Experience instant processing speed. Build stylized graphics with blurred backdrop filters and canvas noise presets, or animate layouts into horizontal/vertical motion videos. All processing occurs locally.
-                    </p>
-                  </div>
-
-                  <div className="flex flex-wrap items-center gap-3 mt-6">
-                    <button
-                      onClick={() => {
-                        setActiveTab("quote");
-                        setIsSitemapView(false);
-                      }}
-                      className="inline-flex items-center justify-center gap-1.5 px-4.5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 font-semibold text-xs text-white shadow-md transition-all active:scale-95 cursor-pointer"
-                    >
-                      <Quote className="w-3.5 h-3.5" />
-                      <span>Launch Quote Designer</span>
-                    </button>
-                    
-                    <button
-                      onClick={() => {
-                        setActiveTab("compress");
-                        setIsSitemapView(false);
-                      }}
-                      className={`inline-flex items-center justify-center gap-1.5 px-4.5 py-2.5 rounded-xl border font-semibold text-xs transition-all active:scale-95 cursor-pointer ${
-                        theme === "dark"
-                          ? "bg-slate-900 border-slate-800 text-slate-300 hover:bg-slate-850 hover:text-white"
-                          : "bg-white border-slate-200 text-slate-650 hover:bg-slate-50 hover:text-slate-900"
-                      }`}
-                    >
-                      <FileImage className="w-3.5 h-3.5" />
-                      <span>Compress Image Bundle</span>
-                    </button>
-                  </div>
+                          );
+                        })}
+                      </div>
+                    );
+                  })()}
                 </div>
 
-                {/* Live Performance / System Quick Stats */}
-                <div className={`border rounded-3xl p-6 transition-colors flex flex-col justify-between ${
-                  theme === "dark"
-                    ? "bg-slate-900 border-slate-805 text-slate-100"
-                    : "bg-white border-slate-200/60 text-slate-850 shadow-3xs"
-                }`}>
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between border-b border-slate-150 dark:border-slate-800 pb-3">
-                      <div className="flex items-center gap-1.5">
-                        <Activity className="w-4 h-4 text-emerald-500" />
-                        <span className="text-[10px] font-black uppercase tracking-wider font-mono">System Metrics</span>
+                {/* Saved Projects Section if available */}
+                {savedProjects.length > 0 && (
+                  <div className={`border rounded-2xl p-6 select-none ${
+                    theme === "dark" ? "bg-slate-900/60 border-slate-800" : "bg-white border-slate-200 shadow-3xs"
+                  }`}>
+                    <div className="flex items-center justify-between mb-4">
+                      <div className="flex items-center gap-2">
+                        <FolderOpen className="w-4 h-4 text-indigo-500" />
+                        <h3 className={`text-sm font-black uppercase tracking-wider ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                          Saved Projects ({savedProjects.length})
+                        </h3>
                       </div>
-                      <span className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
                     </div>
 
-                    <div className="space-y-3">
-                      {[
-                        { label: "PWA Offline Status", value: hasDeferredPrompt ? "Ready to Install" : "Fully Integrated", status: hasDeferredPrompt ? "info" : "success" },
-                        { label: "Google Drive Sync", value: user ? "Connected & Live" : "Backup Offline", status: user ? "success" : "warning" },
-                        { label: "Active Session Actions", value: `${recentActivities.length} Operations`, status: "success" },
-                        { label: "Hardware Accelerated", value: "Active (WebKit GPU)", status: "success" }
-                      ].map((metric, idx) => (
-                        <div key={idx} className="flex items-center justify-between text-[11px]">
-                          <span className="text-slate-400 dark:text-slate-505 font-medium">{metric.label}</span>
-                          <span className={`font-bold font-mono px-2 py-0.5 rounded-full text-[9px] ${
-                            metric.status === "success" 
-                              ? "bg-emerald-50 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400" 
-                              : metric.status === "warning"
-                                ? "bg-amber-50 dark:bg-amber-955/20 text-amber-600 dark:text-amber-400"
-                                : "bg-blue-50 dark:bg-blue-955/30 text-blue-600 dark:text-blue-400"
-                          }`}>
-                            {metric.value}
-                          </span>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                      {savedProjects.map((project) => (
+                        <div
+                          key={project.id}
+                          className={`p-4 rounded-xl border flex flex-col justify-between ${
+                            theme === "dark" ? "bg-slate-955/50 border-slate-800" : "bg-slate-50 border-slate-200"
+                          }`}
+                        >
+                          <div>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-[9px] font-black uppercase font-mono px-2 py-0.5 rounded bg-indigo-100 dark:bg-indigo-950 text-indigo-600 dark:text-indigo-400">
+                                {project.toolType}
+                              </span>
+                              <span className="text-[9px] text-slate-400 font-mono">
+                                {new Date(project.createdAt).toLocaleDateString()}
+                              </span>
+                            </div>
+                            <h4 className="text-xs font-black truncate text-slate-800 dark:text-slate-200">{project.name}</h4>
+                          </div>
+
+                          <div className="flex items-center justify-between pt-3 mt-2 border-t border-slate-200 dark:border-slate-800">
+                            <button
+                              onClick={() => handleLoadProject(project)}
+                              className="text-xs font-bold text-indigo-500 hover:text-indigo-600 cursor-pointer flex items-center gap-1"
+                            >
+                              <span>Load</span>
+                              <ArrowUpRight className="w-3 h-3" />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteProject(project.id)}
+                              className="text-slate-400 hover:text-rose-500 p-1 transition-colors cursor-pointer"
+                              title="Delete project"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>
                   </div>
-
-                  <div className="border-t border-slate-150 dark:border-slate-800 pt-3 mt-4 flex items-center justify-between text-[9px] text-slate-400 dark:text-slate-550 font-mono uppercase font-black">
-                    <span>Rendering Canvas</span>
-                    <span className="text-emerald-500 font-black">100% Client-side</span>
-                  </div>
-                </div>
-              </div>
-
-              {/* CREATOR PROJECTS HUB */}
-              <div className={`border rounded-3xl p-6 transition-colors duration-200 select-none ${
-                theme === "dark"
-                  ? "bg-gradient-to-br from-slate-900 to-slate-950 border-slate-850"
-                  : "bg-white border-slate-200/70 shadow-3xs"
-              }`}>
-                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6 border-b border-slate-100 dark:border-slate-800 pb-4">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <div className="p-1.5 rounded-lg bg-indigo-50 dark:bg-indigo-950/55 border border-indigo-100/30">
-                        <FolderOpen className="w-4 h-4 text-indigo-500" />
-                      </div>
-                      <h3 className={`text-xs font-black uppercase tracking-wider ${theme === "dark" ? "text-slate-200" : "text-slate-800"}`}>
-                        Creator Projects & Workspaces
-                      </h3>
-                      {user ? (
-                        <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase font-mono px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/50 text-emerald-600 dark:text-emerald-400 border border-emerald-200/20">
-                          ☁️ Cloud Sync Active
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center gap-1 text-[8px] font-black uppercase font-mono px-2 py-0.5 rounded-full bg-amber-100 dark:bg-amber-955/40 text-amber-600 dark:text-amber-400 border border-amber-200/20">
-                          💾 Offline Mode
-                        </span>
-                      )}
-                    </div>
-                    <p className="text-[11px] text-slate-400 dark:text-slate-505 mt-1">
-                      {user 
-                        ? "Your projects are stored securely in the cloud and synced across devices." 
-                        : "Your projects are saved locally in this browser. Authorize Drive/Login to sync to the cloud!"}
-                    </p>
-                  </div>
-
-                  {/* Create New Project Trigger */}
-                  <div className="flex items-center gap-2 shrink-0">
-                    <button
-                      onClick={() => {
-                        const name = window.prompt("Enter project name:");
-                        if (!name) return;
-                        const toolType = window.prompt("Enter tool type ('quote', 'qr', 'palette'):");
-                        if (toolType !== "quote" && toolType !== "qr" && toolType !== "palette") {
-                          alert("Invalid tool type. Please choose 'quote', 'qr', or 'palette'.");
-                          return;
-                        }
-                        handleSaveProject(name, toolType);
-                      }}
-                      disabled={isSavingProject}
-                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-sm cursor-pointer disabled:opacity-50"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      <span>Save Current Workspace</span>
-                    </button>
-                  </div>
-                </div>
-
-                {projectError && (
-                  <div className="p-3 mb-4 rounded-xl bg-rose-50 dark:bg-rose-955/10 text-[11px] font-semibold text-rose-600 dark:text-rose-400 border border-rose-200/30">
-                    {projectError}
-                  </div>
                 )}
-
-                {isLoadingProjects ? (
-                  <div className="py-12 text-center flex flex-col items-center justify-center">
-                    <Loader2 className="w-8 h-8 text-indigo-500 animate-spin mb-2" />
-                    <span className="text-xs text-slate-400">Loading workspaces...</span>
-                  </div>
-                ) : savedProjects.length === 0 ? (
-                  <div className="py-12 px-6 text-center flex flex-col items-center justify-center max-w-md mx-auto">
-                    {/* Modern SVG Illustration */}
-                    <svg className="w-36 h-36 mb-6 select-none drop-shadow-lg" viewBox="0 0 200 200" fill="none" xmlns="http://www.w3.org/2000/svg">
-                      <circle cx="100" cy="100" r="70" fill="url(#empty-glow)" opacity="0.15" />
-                      
-                      <g transform="translate(10, -5)">
-                        <rect x="60" y="60" width="70" height="75" rx="8" fill="url(#document-bg)" stroke="url(#document-border)" strokeWidth="2" />
-                        <rect x="72" y="75" width="46" height="4" rx="2" fill="url(#accent-color)" opacity="0.6" />
-                        <rect x="72" y="87" width="34" height="4" rx="2" fill="url(#body-color)" opacity="0.3" />
-                        <rect x="72" y="99" width="40" height="4" rx="2" fill="url(#body-color)" opacity="0.3" />
-                        <circle cx="118" cy="118" r="8" fill="url(#check-glow)" />
-                        <path d="M115 118L117 120L121 116" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
-                      </g>
-
-                      <path d="M45 55C45 49.4772 49.4772 45 55 45H85L98 60H145C150.523 60 155 64.4772 155 70V145C155 150.523 150.523 155 145 155H55C49.4772 155 45 150.523 45 145V55Z" fill="url(#folder-bg)" stroke="url(#folder-border)" strokeWidth="2.5" />
-                      <path d="M45 72C45 68.6863 47.6863 66 51 66H149C152.314 66 155 68.6863 155 72V145C155 150.523 150.523 155 145 155H55C49.4772 155 45 150.523 45 145V72Z" fill="url(#folder-front)" stroke="url(#folder-border)" strokeWidth="1.5" />
-
-                      <path d="M165 45L167.5 50.5L173 53L167.5 55.5L165 61L162.5 55.5L157 53L162.5 50.5L165 45Z" fill="#fbbf24" />
-                      <path d="M32 130L33.5 133.5L37 135L33.5 136.5L32 140L30.5 136.5L27 135L30.5 133.5L32 130Z" fill="url(#sparkle-grad)" />
-                      <circle cx="150" cy="120" r="3" fill="#a5b4fc" />
-                      <circle cx="50" cy="40" r="4" fill="#818cf8" opacity="0.7" />
-
-                      <defs>
-                        <radialGradient id="empty-glow" cx="50%" cy="50%" r="50%">
-                          <stop offset="0%" stopColor="#6366f1" />
-                          <stop offset="100%" stopColor="#6366f1" stopOpacity="0" />
-                        </radialGradient>
-                        <linearGradient id="folder-bg" x1="45" y1="45" x2="155" y2="155">
-                          <stop offset="0%" stopColor="#312e81" />
-                          <stop offset="100%" stopColor="#1e1b4b" />
-                        </linearGradient>
-                        <linearGradient id="folder-front" x1="45" y1="66" x2="155" y2="155">
-                          <stop offset="0%" stopColor="#4f46e5" />
-                          <stop offset="100%" stopColor="#312e81" />
-                        </linearGradient>
-                        <linearGradient id="folder-border" x1="45" y1="45" x2="155" y2="155">
-                          <stop offset="0%" stopColor="#818cf8" stopOpacity="0.8" />
-                          <stop offset="100%" stopColor="#4f46e5" stopOpacity="0.4" />
-                        </linearGradient>
-                        <linearGradient id="document-bg" x1="60" y1="60" x2="130" y2="135">
-                          <stop offset="0%" stopColor="#ffffff" />
-                          <stop offset="100%" stopColor="#f8fafc" />
-                        </linearGradient>
-                        <linearGradient id="document-border" x1="60" y1="60" x2="130" y2="135">
-                          <stop offset="0%" stopColor="#e2e8f0" />
-                          <stop offset="100%" stopColor="#cbd5e1" />
-                        </linearGradient>
-                        <linearGradient id="sparkle-grad" x1="27" y1="130" x2="37" y2="140">
-                          <stop offset="0%" stopColor="#fbbf24" />
-                          <stop offset="100%" stopColor="#f59e0b" />
-                        </linearGradient>
-                        <linearGradient id="check-glow" x1="110" y1="110" x2="126" y2="126">
-                          <stop offset="0%" stopColor="#34d399" />
-                          <stop offset="100%" stopColor="#059669" />
-                        </linearGradient>
-                        <radialGradient id="accent-color" cx="50%" cy="50%" r="50%">
-                          <stop offset="0%" stopColor="#6366f1" />
-                          <stop offset="100%" stopColor="#4f46e5" />
-                        </radialGradient>
-                        <radialGradient id="body-color" cx="50%" cy="50%" r="50%">
-                          <stop offset="0%" stopColor="#94a3b8" />
-                          <stop offset="100%" stopColor="#64748b" />
-                        </radialGradient>
-                      </defs>
-                    </svg>
-
-                    <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-tight">Your workspace catalog is empty</h4>
-                    <p className="text-[10px] text-slate-400 dark:text-slate-550 mt-1 mb-5 leading-relaxed">
-                      Make designs in Quote Creator, QR Matrix, or Palette Extractor, and click "Save Current Workspace" to build your project list!
-                    </p>
-
-                    <button
-                      onClick={() => {
-                        document.getElementById('tools-catalog-section')?.scrollIntoView({ behavior: 'smooth' });
-                      }}
-                      className="inline-flex items-center gap-1.5 px-4.5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-[10px] font-black uppercase tracking-wider transition-all duration-150 transform hover:-translate-y-0.5 active:translate-y-0 cursor-pointer shadow-md shadow-indigo-600/15 hover:shadow-indigo-600/30"
-                    >
-                      <span>Start your first project</span>
-                      <ArrowRight className="w-3.5 h-3.5" />
-                    </button>
-                  </div>
-                ) : (
-                  <div>
-                    {/* Project Specific Filter Input & Dropdown Controls */}
-                    <div className="mb-5 flex flex-col md:flex-row items-stretch md:items-center gap-3">
-                      <div className="relative flex-1">
-                        <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-450 dark:text-slate-400" />
-                        <input
-                          type="text"
-                          placeholder="Search saved projects by name..."
-                          value={projectSearchQuery}
-                          onChange={(e) => setProjectSearchQuery(e.target.value)}
-                          className={`w-full pl-10 pr-10 py-2.5 text-xs font-semibold rounded-2xl outline-hidden transition-all border ${
-                            theme === "dark"
-                              ? "bg-slate-955/50 border-slate-805 text-white placeholder-slate-500 focus:border-indigo-500/80 focus:ring-4 focus:ring-indigo-500/10"
-                              : "bg-slate-50 border-slate-200 text-slate-800 placeholder-slate-400 focus:border-indigo-500/50 focus:ring-4 focus:ring-indigo-500/5"
-                          }`}
-                        />
-                        {projectSearchQuery && (
-                          <button
-                            type="button"
-                            onClick={() => setProjectSearchQuery("")}
-                            className="absolute right-3.5 top-1/2 -translate-y-1/2 p-1 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-                          >
-                            <X className="w-3.5 h-3.5" />
-                          </button>
-                        )}
-                      </div>
-
-                      {/* Dropdown Filters */}
-                      <div className="flex items-center gap-2">
-                        {/* Tool Type Filter Dropdown */}
-                        <div className="relative">
-                          <select
-                            value={projectToolFilter}
-                            onChange={(e) => setProjectToolFilter(e.target.value)}
-                            className={`px-3 py-2.5 text-xs font-bold rounded-2xl border outline-hidden transition-all cursor-pointer ${
-                              theme === "dark"
-                                ? "bg-slate-900 border-slate-800 text-slate-200 focus:border-indigo-500"
-                                : "bg-white border-slate-200 text-slate-700 focus:border-indigo-500"
-                            }`}
-                          >
-                            <option value="all">Tool Type: All</option>
-                            <option value="quote">Quote Designer</option>
-                            <option value="qr">QR Code Generator</option>
-                            <option value="palette">Color Extractor</option>
-                          </select>
-                        </div>
-
-                        {/* Sort Dropdown */}
-                        <div className="relative">
-                          <select
-                            value={projectSortOption}
-                            onChange={(e) => setProjectSortOption(e.target.value as any)}
-                            className={`px-3 py-2.5 text-xs font-bold rounded-2xl border outline-hidden transition-all cursor-pointer ${
-                              theme === "dark"
-                                ? "bg-slate-900 border-slate-800 text-slate-200 focus:border-indigo-500"
-                                : "bg-white border-slate-200 text-slate-700 focus:border-indigo-500"
-                            }`}
-                          >
-                            <option value="recent">Sort: Most Recent</option>
-                            <option value="tool">Sort: Tool Type</option>
-                            <option value="alphabetical">Sort: Alphabetical</option>
-                          </select>
-                        </div>
-                      </div>
-
-                      {projectSearchQuery && (
-                        <div className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20 text-[10px] font-bold text-indigo-600 dark:text-indigo-400 select-none">
-                          <span>Found {savedProjects.filter(p => p.name.toLowerCase().includes(projectSearchQuery.toLowerCase())).length} of {savedProjects.length}</span>
-                        </div>
-                      )}
-                    </div>
-
-                    {(() => {
-                      let filteredProjects = savedProjects.filter((project) => {
-                        const matchesQuery = project.name.toLowerCase().includes(projectSearchQuery.toLowerCase());
-                        const matchesTool = projectToolFilter === "all" || project.toolType === projectToolFilter;
-                        return matchesQuery && matchesTool;
-                      });
-
-                      if (projectSortOption === "recent") {
-                        filteredProjects.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-                      } else if (projectSortOption === "alphabetical") {
-                        filteredProjects.sort((a, b) => a.name.localeCompare(b.name));
-                      } else if (projectSortOption === "tool") {
-                        filteredProjects.sort((a, b) => a.toolType.localeCompare(b.toolType));
-                      }
-
-                      if (filteredProjects.length === 0) {
-                        return (
-                          <div className="py-12 text-center flex flex-col items-center justify-center max-w-sm mx-auto">
-                            <div className="w-12 h-12 bg-slate-50 dark:bg-slate-900 border border-slate-200/50 dark:border-slate-800 rounded-2xl flex items-center justify-center mb-3 text-slate-400">
-                              <Search className="w-5 h-5 text-indigo-400" />
-                            </div>
-                            <h4 className="text-xs font-black text-slate-800 dark:text-slate-200 uppercase tracking-tight">No matching projects</h4>
-                            <p className="text-[10px] text-slate-400 dark:text-slate-550 mt-1 leading-relaxed">
-                              No saved workspaces match your active search and filter criteria.
-                            </p>
-                            <button
-                              onClick={() => {
-                                setProjectSearchQuery("");
-                                setProjectToolFilter("all");
-                              }}
-                              className="mt-4 inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:bg-slate-50 dark:hover:bg-slate-850 text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 cursor-pointer transition-all shadow-3xs"
-                            >
-                              Reset Filters
-                            </button>
-                          </div>
-                        );
-                      }
-
-                      return (
-                        <>
-                          <p className="text-[10px] text-slate-400 dark:text-slate-500 mb-4 uppercase font-bold tracking-wider flex items-center gap-1.5">
-                            <GripVertical className="w-3.5 h-3.5 text-indigo-400 animate-pulse" />
-                            <span>Drag and drop cards to reorder your workspace hierarchy</span>
-                          </p>
-                          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {filteredProjects.map((project) => {
-                              const originalIdx = savedProjects.findIndex(p => p.id === project.id);
-                              const isDragging = draggedProjectIndex === originalIdx;
-                              const isDragOver = dragOverProjectIndex === originalIdx;
-
-                              return (
-                                <div
-                                  key={project.id}
-                                  draggable
-                                  onDragStart={(e) => handleProjectDragStart(e, originalIdx)}
-                                  onDragOver={(e) => handleProjectDragOver(e, originalIdx)}
-                                  onDrop={(e) => handleProjectDrop(e, originalIdx)}
-                                  onDragEnd={handleProjectDragEnd}
-                                  className={`p-4 rounded-2xl border transition-all duration-200 flex flex-col justify-between group relative overflow-hidden cursor-grab active:cursor-grabbing ${
-                                    isDragging ? "opacity-30 scale-95 border-indigo-400/50" : ""
-                                  } ${
-                                    isDragOver
-                                      ? "border-indigo-500 bg-indigo-50/10 dark:bg-indigo-950/20 scale-102 border-dashed"
-                                      : theme === "dark"
-                                        ? "bg-slate-900/40 border-slate-805 text-slate-300 hover:border-slate-700"
-                                        : "bg-slate-50/40 border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300"
-                                  }`}
-                                >
-                                  <div>
-                                    <div className="flex items-center justify-between mb-2">
-                                      <span className={`text-[8.5px] font-black uppercase font-mono px-2 py-0.5 rounded leading-none ${
-                                        project.toolType === "quote" 
-                                          ? "bg-purple-100 dark:bg-purple-950/40 text-purple-600 dark:text-purple-400" 
-                                          : project.toolType === "qr"
-                                            ? "bg-emerald-100 dark:bg-emerald-950/40 text-emerald-600 dark:text-emerald-400"
-                                            : "bg-amber-100 dark:bg-amber-955/40 text-amber-600 dark:text-amber-400"
-                                      }`}>
-                                        {project.toolType === "quote" ? "Quote Designer" : project.toolType === "qr" ? "QR Matrix" : "Color Extractor"}
-                                      </span>
-                                      <div className="flex items-center gap-1.5">
-                                        <span className="text-[9px] text-slate-400 dark:text-slate-505 font-mono">
-                                          {new Date(project.createdAt).toLocaleDateString()}
-                                        </span>
-                                        <GripVertical className="w-3.5 h-3.5 text-slate-400 dark:text-slate-600 cursor-grab group-hover:text-indigo-400 transition-colors" />
-                                      </div>
-                                    </div>
-                                    <h4 className={`text-xs font-black tracking-tight uppercase leading-snug ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
-                                      {highlightText(project.name, projectSearchQuery)}
-                                    </h4>
-                                  </div>
-
-                                  <div className="flex items-center justify-between gap-3 pt-4 mt-2 border-t border-slate-100 dark:border-slate-800/60">
-                                    <button
-                                      onClick={() => handleLoadProject(project)}
-                                      className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wider text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 cursor-pointer"
-                                    >
-                                      <span>Load Project</span>
-                                      <ArrowUpRight className="w-3 h-3" />
-                                    </button>
-
-                                    <button
-                                      onClick={() => handleDeleteProject(project.id)}
-                                      className="p-1 rounded-lg hover:bg-rose-50 dark:hover:bg-rose-950/30 text-slate-400 hover:text-rose-500 cursor-pointer transition-colors"
-                                      title="Delete project"
-                                    >
-                                      <Trash2 className="w-3.5 h-3.5" />
-                                    </button>
-                                  </div>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </div>
-                )}
-              </div>
-
-              {/* Interactive Session Insights & Activity Streams row */}
-              <div className="grid grid-cols-1 lg:grid-cols-5 gap-6 select-none" id="home-insights-widgets-row">
-                <div className="lg:col-span-3">
-                  <RecentActivitiesWidget 
-                    activities={recentActivities}
-                    onClear={() => {
-                      setRecentActivities([]);
-                      try {
-                        sessionStorage.removeItem("toolkit-session-activities");
-                      } catch (e) {
-                        console.error(e);
-                      }
-                    }}
-                    onTabChange={(tab) => {
-                      setActiveTab(tab);
-                      setIsSitemapView(false);
-                    }}
-                    theme={theme}
-                  />
-                </div>
-                <div className="lg:col-span-2">
-                  <UsageInsightsWidget
-                    usageData={getUsageInsightsData()}
-                    onReset={() => {
-                      const resetObj = {
-                        home: 0,
-                        quote: 0,
-                        compress: 0,
-                        qr: 0,
-                        palette: 0,
-                        video: 0,
-                        drive: 0,
-                        resources: 0,
-                        legal: 0
-                      };
-                      setToolUsage(resetObj);
-                      try {
-                        sessionStorage.setItem("toolkit-session-usage", JSON.stringify(resetObj));
-                      } catch (e) {
-                        console.error(e);
-                      }
-                    }}
-                    onTabChange={(tab) => {
-                      setActiveTab(tab);
-                      setIsSitemapView(false);
-                    }}
-                    theme={theme}
-                  />
-                </div>
-              </div>
-
-              {/* AI Studio Tools Section */}
-              <AiStudioTools
-                theme={theme}
-                onSelectTab={(tab) => {
-                  setActiveTab(tab as any);
-                  setIsSitemapView(false);
-                }}
-              />
-
-              {/* Immersive Pro Tier Unlocked Section */}
-              <ProTierSection
-                theme={theme}
-                onSelectTab={(tab) => {
-                  setActiveTab(tab as any);
-                  setIsSitemapView(false);
-                }}
-              />
-
-              {/* High-Converting Homepage CTA Section */}
-              <HomeCtaSection
-                theme={theme}
-                user={user}
-                isLoggingIn={isLoggingIn}
-                onLogin={handleLogin}
-                onSelectTab={(tab) => {
-                  setActiveTab(tab);
-                  setIsSitemapView(false);
-                }}
-              />
-
-              {/* Social Proof Testimonials Section */}
-              <Testimonials theme={theme} />
-
-              {/* Searchable FAQ Accordion Base Section */}
-              <FaqSection theme={theme} />
-            </motion.div>
-          ) : (
+              </motion.div>
+            ) : (
             <motion.main
               key="tool-workspace-main-view"
               initial={{ opacity: 0, y: 12 }}
