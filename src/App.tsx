@@ -2453,6 +2453,41 @@ export default function App() {
                 transition={{ duration: 0.2, ease: "easeOut" }}
                 className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-6 space-y-8"
               >
+                {/* Dynamic Hour Greeting & Real-time micro clock row */}
+                {(() => {
+                  const getHourGreeting = () => {
+                    const hr = currentTime.getHours();
+                    if (hr < 12) return "Good morning";
+                    if (hr < 17) return "Good afternoon";
+                    return "Good evening";
+                  };
+                  const creatorName = user?.displayName || (user?.email ? user.email.split("@")[0] : "Creator");
+                  const cleanName = user?.displayName ? user.displayName : creatorName.charAt(0).toUpperCase() + creatorName.slice(1);
+                  const timeString = currentTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                  const dateString = currentTime.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+                  return (
+                    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-6 border-b border-slate-200/80 dark:border-slate-800 gap-4 select-none">
+                      <div>
+                        <h1 className={`text-2xl sm:text-3xl font-black tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                          {getHourGreeting()}, <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500">{cleanName}!</span>
+                        </h1>
+                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                          Welcome to Toolkit Pro — your premium standalone space for professional-grade design, encoding, and optimization.
+                        </p>
+                      </div>
+                      <div className={`flex items-center gap-3 px-4 py-2.5 rounded-2xl border ${
+                        theme === "dark" ? "bg-slate-900/80 border-slate-800 text-slate-100" : "bg-white border-slate-200/90 shadow-2xs text-slate-800"
+                      }`}>
+                        <Clock className="w-4 h-4 text-indigo-500 animate-pulse shrink-0" />
+                        <div className="text-right">
+                          <p className="text-xs font-black font-mono leading-none tracking-wider">{timeString}</p>
+                          <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-none mt-1 font-semibold">{dateString}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
                 {/* Hero Section matching the requested design */}
                 <section className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-[#4f46e5] via-[#6366f1] to-[#7c3aed] text-white shadow-xl py-12 px-6 sm:px-10 text-center flex flex-col items-center justify-center space-y-6">
                   {/* Dotted grid pattern overlay */}
@@ -2517,63 +2552,72 @@ export default function App() {
                         label: "Image Compressor & WebP",
                         desc: "Shrink image file size, convert to WebP, compress JPG/PNG with exact target KB or percentage.",
                         icon: FileImage,
-                        badge: "Optimize & Compress"
+                        badge: "Optimize & Compress",
+                        image: "https://images.unsplash.com/photo-1542038784456-1ea8e935640e?w=600&auto=format&fit=crop&q=80"
                       },
                       {
                         id: "converter",
                         label: "Image Format Converter",
                         desc: "Convert image files instantly between WebP, PNG, JPG, BMP, and GIF formats.",
                         icon: RefreshCw,
-                        badge: "Convert Formats"
+                        badge: "Convert Formats",
+                        image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80"
                       },
                       {
                         id: "bgremover",
                         label: "Background Remover",
                         desc: "Isolate subjects and erase image backgrounds with clean client-side processing.",
                         icon: Eraser,
-                        badge: "Isolate Background"
+                        badge: "Isolate Background",
+                        image: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=600&auto=format&fit=crop&q=80"
                       },
                       {
                         id: "quote",
                         label: "Quote & Graphic Card Designer",
                         desc: "Craft typographical graphic cards with customizable backdrop blurs and export styling.",
                         icon: Quote,
-                        badge: "Design Graphics"
+                        badge: "Design Graphics",
+                        image: "https://images.unsplash.com/photo-1507238691740-187a5b1d37b8?w=600&auto=format&fit=crop&q=80"
                       },
                       {
                         id: "qr",
                         label: "QR Code Generator",
                         desc: "Generate custom styled QR codes with high ECC error correction and custom logo overlays.",
                         icon: QrCode,
-                        badge: "Encode QR"
+                        badge: "Encode QR",
+                        image: "https://images.unsplash.com/photo-1595079672179-f2326ab45769?w=600&auto=format&fit=crop&q=80"
                       },
                       {
                         id: "palette",
                         label: "Color Extractor & WCAG",
                         desc: "Extract dominant color palettes from any image and analyze WCAG contrast scores.",
                         icon: Pipette,
-                        badge: "Analyze Colors"
+                        badge: "Analyze Colors",
+                        image: "https://images.unsplash.com/photo-1550684848-fac1c5b4e853?w=600&auto=format&fit=crop&q=80"
                       },
                       {
                         id: "pdf",
                         label: "PDF Tools Suite",
                         desc: "Combine image sets into clean PDF documents or export document layouts.",
                         icon: FileText,
-                        badge: "PDF Documents"
+                        badge: "PDF Documents",
+                        image: "https://images.unsplash.com/photo-1568667256549-094345857637?w=600&auto=format&fit=crop&q=80"
                       },
                       {
                         id: "video",
                         label: "Video Creator",
                         desc: "Animate static image frames into professional video clips and looping motion reels.",
                         icon: Video,
-                        badge: "Motion Video"
+                        badge: "Motion Video",
+                        image: "https://images.unsplash.com/photo-1574717024653-61fd2cf4d44d?w=600&auto=format&fit=crop&q=80"
                       },
                       {
                         id: "drive",
                         label: "Google Drive Sync",
                         desc: "Backup your media and canvas creations directly to your secure Google Drive folder.",
                         icon: Cloud,
-                        badge: "Cloud Sync"
+                        badge: "Cloud Sync",
+                        image: "https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=600&auto=format&fit=crop&q=80"
                       }
                     ];
 
@@ -2592,7 +2636,7 @@ export default function App() {
                     }
 
                     return (
-                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
                         {filteredTools.map((tool) => {
                           const Icon = tool.icon;
                           return (
@@ -2602,36 +2646,53 @@ export default function App() {
                                 setActiveTab(tool.id as any);
                                 setIsSitemapView(false);
                               }}
-                              className={`p-5 rounded-2xl border transition-all duration-200 hover:scale-[1.02] flex flex-col justify-between group cursor-pointer ${
+                              className={`rounded-2xl border overflow-hidden transition-all duration-300 hover:scale-[1.02] flex flex-col justify-between group cursor-pointer ${
                                 theme === "dark"
-                                  ? "bg-slate-900/70 border-slate-800 hover:border-indigo-500/50 text-slate-100"
-                                  : "bg-white border-slate-200 hover:border-indigo-300 shadow-2xs hover:shadow-md text-slate-800"
+                                  ? "bg-slate-900/80 border-slate-800 hover:border-indigo-500/50 text-slate-100 shadow-md"
+                                  : "bg-white border-slate-200/90 hover:border-indigo-300 shadow-xs hover:shadow-xl text-slate-800"
                               }`}
                             >
-                              <div className="space-y-3">
-                                <div className="flex items-center justify-between">
-                                  <div className="p-3 rounded-xl bg-indigo-500/10 text-indigo-500 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
-                                    <Icon className="w-5 h-5" />
-                                  </div>
-                                  <span className="text-[10px] font-bold uppercase font-mono px-2 py-0.5 rounded bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400">
+                              {/* Top Banner Image Container */}
+                              <div className="relative w-full h-36 sm:h-40 overflow-hidden bg-slate-100 dark:bg-slate-800">
+                                <img
+                                  src={tool.image}
+                                  alt={tool.label}
+                                  className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500"
+                                  referrerPolicy="no-referrer"
+                                />
+                                <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent" />
+                                
+                                {/* Badge Tag on Image */}
+                                <div className="absolute top-3 right-3 z-10">
+                                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-md text-white border border-white/20 shadow-sm">
                                     {tool.badge}
                                   </span>
                                 </div>
 
-                                <h3 className={`text-sm font-black tracking-tight group-hover:text-indigo-500 transition-colors ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
-                                  {tool.label}
-                                </h3>
-
-                                <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                                  {tool.desc}
-                                </p>
+                                {/* Floating Icon Badge */}
+                                <div className="absolute bottom-3 left-3 z-10 p-2.5 rounded-xl bg-white/95 dark:bg-slate-900/95 text-indigo-600 dark:text-indigo-400 shadow-md group-hover:bg-indigo-600 group-hover:text-white transition-colors duration-300">
+                                  <Icon className="w-5 h-5" />
+                                </div>
                               </div>
 
-                              <div className="pt-4 mt-2 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
-                                <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 group-hover:translate-x-1 transition-transform inline-flex items-center gap-1">
-                                  <span>Open Tool</span>
-                                  <ArrowRight className="w-3.5 h-3.5" />
-                                </span>
+                              {/* Card Content Details */}
+                              <div className="p-5 flex-1 flex flex-col justify-between space-y-3">
+                                <div className="space-y-2">
+                                  <h3 className={`text-base font-black tracking-tight group-hover:text-indigo-500 transition-colors ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                                    {tool.label}
+                                  </h3>
+
+                                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2">
+                                    {tool.desc}
+                                  </p>
+                                </div>
+
+                                <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
+                                  <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 group-hover:translate-x-1.5 transition-transform duration-200 inline-flex items-center gap-1.5">
+                                    <span>Open Tool</span>
+                                    <ArrowRight className="w-3.5 h-3.5" />
+                                  </span>
+                                </div>
                               </div>
                             </div>
                           );
@@ -3004,12 +3065,11 @@ export default function App() {
       </div>
 
       {/* Footer copyright */}
-      <footer className={`border-t py-16 mt-16 transition-colors duration-200 ${
-        theme === "dark"
-          ? "border-slate-800 bg-gradient-to-b from-slate-900 to-indigo-950/20 text-slate-300"
-          : "border-slate-200/60 bg-gradient-to-b from-slate-50 via-indigo-50/10 to-slate-100 text-slate-800"
-      }`}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12">
+      <footer className="border-t border-indigo-400/30 py-16 mt-16 relative bg-gradient-to-r from-[#4f46e5] via-[#6366f1] to-[#7c3aed] text-white shadow-2xl overflow-hidden">
+        {/* Dotted grid pattern overlay matching header/hero */}
+        <div className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.18)_1.5px,transparent_1.5px)] [background-size:24px_24px] pointer-events-none" />
+
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12 relative z-10">
           
           {/* Main Footer Column Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-8 lg:gap-12">
@@ -3017,7 +3077,7 @@ export default function App() {
             {/* Column 1: Brand & Tagline - 4 Cols */}
             <div className="lg:col-span-4 space-y-4">
               <div className="flex items-center space-x-3">
-                <div className="bg-white px-2 py-1 rounded-xl border border-slate-200/60 shadow-3xs flex items-center justify-center transition-all duration-300">
+                <div className="bg-white px-2 py-1 rounded-xl border border-white/40 shadow-sm flex items-center justify-center transition-all duration-300">
                   <img 
                     src={brandLogo} 
                     alt="Toolkit Pro Logo" 
@@ -3025,11 +3085,11 @@ export default function App() {
                     referrerPolicy="no-referrer"
                   />
                 </div>
-                <span className="text-md font-black tracking-tight font-sans">
-                  Toolkit<span className="text-indigo-600">Pro</span>
+                <span className="text-md font-black tracking-tight font-sans text-white">
+                  Toolkit<span className="text-amber-300">Pro</span>
                 </span>
               </div>
-              <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed max-w-sm">
+              <p className="text-xs text-indigo-100 leading-relaxed max-w-sm">
                 A high-performance workspace engineered for digital creators, designers, and marketers. Optimize web formats, extract median-cut palettes, generate QR matrices, and design gorgeous editorial quote cards instantly.
               </p>
 
@@ -3038,7 +3098,7 @@ export default function App() {
                   href="https://toolkit-pro-chi.vercel.app" 
                   target="_blank" 
                   rel="noopener noreferrer" 
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 transition-all cursor-pointer hover:underline select-none"
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-200 hover:text-white transition-all cursor-pointer hover:underline select-none"
                   id="suppport-server-link-brand"
                 >
                   <span className="animate-pulse">☕</span>
@@ -3049,19 +3109,18 @@ export default function App() {
               {/* Social Media Connections - beautifully built interactive icons */}
               <div className="flex items-center gap-2 pt-2" id="social-links-connector-hub">
                 {[
-                  { icon: <Github className="w-3.5 h-3.5" />, label: "GitHub", href: "https://github.com", color: "hover:text-slate-900 dark:hover:text-white hover:border-slate-400" },
-                  { icon: <Twitter className="w-3.5 h-3.5" />, label: "Twitter", href: "https://twitter.com", color: "hover:text-sky-500 hover:border-sky-400" },
-                  { icon: <Linkedin className="w-3.5 h-3.5" />, label: "LinkedIn", href: "https://linkedin.com", color: "hover:text-blue-600 hover:border-blue-500" },
-                 { icon: <Facebook className="w-3.5 h-3.5" />, label: "Facebook", href: "https://facebook.com", color: "hover:text-blue-700 hover:border-blue-600" },
-                  { icon: <Globe className="w-3.5 h-3.5" />, label: "Website", href: "https://toolkit-pro-chi.vercel.app", color: "hover:text-emerald-600 hover:border-emerald-500" },
-               
-                   ].map((social, idx) => (
+                  { icon: <Github className="w-3.5 h-3.5" />, label: "GitHub", href: "https://github.com" },
+                  { icon: <Twitter className="w-3.5 h-3.5" />, label: "Twitter", href: "https://twitter.com" },
+                  { icon: <Linkedin className="w-3.5 h-3.5" />, label: "LinkedIn", href: "https://linkedin.com" },
+                  { icon: <Facebook className="w-3.5 h-3.5" />, label: "Facebook", href: "https://facebook.com" },
+                  { icon: <Globe className="w-3.5 h-3.5" />, label: "Website", href: "https://toolkit-pro-chi.vercel.app" },
+                ].map((social, idx) => (
                   <a
                     key={idx}
                     href={social.href}
                     target="_blank"
                     rel="noreferrer"
-                    className={`p-2 rounded-xl border border-slate-200 dark:border-slate-800/80 bg-white dark:bg-slate-900/40 text-slate-600 dark:text-slate-350 shadow-3xs hover:shadow-2xs hover:scale-105 transition-all duration-200 flex items-center justify-center cursor-pointer hover:-translate-y-0.5 ${social.color}`}
+                    className="p-2 rounded-xl border border-white/25 bg-white/10 hover:bg-white/25 text-white shadow-3xs hover:scale-105 transition-all duration-200 flex items-center justify-center cursor-pointer hover:-translate-y-0.5"
                     title={`Connect on ${social.label}`}
                   >
                     {social.icon}
@@ -3072,10 +3131,10 @@ export default function App() {
 
             {/* Column 2: Interactive Services (Links) - 2 Cols */}
             <div className="lg:col-span-2 space-y-4">
-              <h4 className="text-[10px] font-black tracking-widest uppercase text-indigo-650 dark:text-indigo-450 select-none">
+              <h4 className="text-[10px] font-black tracking-widest uppercase text-amber-200 select-none">
                 Interactive Utilities
               </h4>
-              <ul className="space-y-2.5 text-xs text-slate-500 dark:text-slate-400">
+              <ul className="space-y-2.5 text-xs text-indigo-100">
                 {[
                   { id: "quote", label: "Quote Card Designer" },
                   { id: "compress", label: "Image Compressor" },
@@ -3097,9 +3156,9 @@ export default function App() {
                           }
                         }, 50);
                       }}
-                      className="hover:text-indigo-650 dark:hover:text-indigo-400 font-semibold cursor-pointer transition-colors duration-150 flex items-center gap-1.5"
+                      className="hover:text-amber-200 font-semibold cursor-pointer transition-colors duration-150 flex items-center gap-1.5"
                     >
-                      <span className="text-indigo-400">•</span>
+                      <span className="text-amber-300">•</span>
                       <span>{item.label}</span>
                     </button>
                   </li>
@@ -3109,10 +3168,10 @@ export default function App() {
 
             {/* Column 3: Creator Editorial Guides - 3 Cols */}
             <div className="lg:col-span-3 space-y-4">
-              <h4 className="text-[10px] font-black tracking-widest uppercase text-indigo-650 dark:text-indigo-450 select-none">
+              <h4 className="text-[10px] font-black tracking-widest uppercase text-amber-200 select-none">
                 Knowledge Hub Publications
               </h4>
-              <ul className="space-y-2.5 text-xs text-slate-500 dark:text-slate-400">
+              <ul className="space-y-2.5 text-xs text-indigo-100">
                 {[
                   { id: "compression-guide", title: "Lossless Image Compression Guide" },
                   { id: "webp-vs-png-vs-jpg", title: "Next-Gen Web Formats compared" },
@@ -3135,7 +3194,7 @@ export default function App() {
                           }
                         }, 50);
                       }}
-                      className="hover:text-indigo-650 dark:hover:text-indigo-400 transition-colors duration-150 inline-flex items-center gap-1.5 cursor-pointer max-w-full text-left truncate font-semibold"
+                      className="hover:text-amber-200 transition-colors duration-150 inline-flex items-center gap-1.5 cursor-pointer max-w-full text-left truncate font-semibold"
                       title={`Read: ${post.title}`}
                     >
                       <span>📖</span>
@@ -3148,10 +3207,10 @@ export default function App() {
 
             {/* Column 4: Newsletter Subscription - 3 Cols */}
             <div className="lg:col-span-3 space-y-4">
-              <h4 className="text-[10px] font-black tracking-widest uppercase text-indigo-650 dark:text-indigo-450 select-none">
+              <h4 className="text-[10px] font-black tracking-widest uppercase text-amber-200 select-none">
                 Subscribe to Newsletter
               </h4>
-              <p className="text-[11px] text-slate-500 dark:text-slate-300 leading-normal">
+              <p className="text-[11px] text-indigo-100 leading-normal">
                 Join our list of designers and developers receiving tools, preset packs, and resources.
               </p>
               
@@ -3167,11 +3226,11 @@ export default function App() {
                   type="email"
                   required
                   placeholder="Enter creator email"
-                  className="w-full text-xs px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/30 transition-colors"
+                  className="w-full text-xs px-3 py-2 rounded-xl border border-white/30 bg-white/10 text-white placeholder-indigo-200 focus:outline-none focus:ring-2 focus:ring-amber-300 transition-colors"
                 />
                 <button
                   type="submit"
-                  className="w-full bg-slate-950 dark:bg-slate-900 hover:bg-slate-900 dark:hover:bg-slate-850 text-white font-extrabold text-[10px] uppercase tracking-wider py-2 rounded-xl transition-colors cursor-pointer border border-transparent dark:border-slate-800/80"
+                  className="w-full bg-white text-indigo-950 hover:bg-amber-100 font-extrabold text-[10px] uppercase tracking-wider py-2 rounded-xl transition-colors cursor-pointer shadow-md"
                 >
                   Join List
                 </button>
@@ -3181,9 +3240,7 @@ export default function App() {
           </div>
 
           {/* Quick-links for manual AdSense verification agents */}
-          <div className={`flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs font-semibold border-t border-b py-4 ${
-            theme === "dark" ? "text-slate-400 border-slate-800" : "text-slate-600 border-slate-200/50"
-          }`}>
+          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs font-semibold border-t border-b border-white/20 py-4 text-indigo-100">
             <button
               onClick={() => {
                 setActiveTab("legal");
@@ -3194,11 +3251,11 @@ export default function App() {
                   if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
                 }, 50);
               }}
-              className="hover:text-indigo-650 dark:hover:text-indigo-400 cursor-pointer"
+              className="hover:text-white cursor-pointer transition-colors"
             >
               Privacy Policy
             </button>
-            <span className="text-slate-300 dark:text-slate-700 select-none">•</span>
+            <span className="text-white/40 select-none">•</span>
             
             <button
               onClick={() => {
@@ -3210,11 +3267,11 @@ export default function App() {
                   if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
                 }, 50);
               }}
-              className="hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer"
+              className="hover:text-white cursor-pointer transition-colors"
             >
               Terms of Service
             </button>
-            <span className="text-slate-300 dark:text-slate-700 select-none">•</span>
+            <span className="text-white/40 select-none">•</span>
             
             <button
               onClick={() => {
@@ -3226,11 +3283,11 @@ export default function App() {
                   if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
                 }, 50);
               }}
-              className="hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer"
+              className="hover:text-white cursor-pointer transition-colors"
             >
-              About Shaheera
+              About &amp; Disclaimers
             </button>
-            <span className="text-slate-300 dark:text-slate-700 select-none">•</span>
+            <span className="text-white/40 select-none">•</span>
             
             <button
               onClick={() => {
@@ -3242,16 +3299,16 @@ export default function App() {
                   if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
                 }, 50);
               }}
-              className="hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer"
+              className="hover:text-white cursor-pointer transition-colors"
             >
               Contact & Support
             </button>
-            <span className="text-slate-300 dark:text-slate-700 select-none">•</span>
+            <span className="text-white/40 select-none">•</span>
             
-            <a href="https://toolkit-pro-chi.vercel.app" target="_blank" rel="noopener noreferrer" className="text-amber-600 hover:text-amber-700 dark:text-amber-400 dark:hover:text-amber-300 cursor-pointer font-bold flex items-center gap-1">
+            <a href="https://toolkit-pro-chi.vercel.app" target="_blank" rel="noopener noreferrer" className="text-amber-200 hover:text-white cursor-pointer font-bold flex items-center gap-1">
               <span>☕</span> Support Free Server
             </a>
-            <span className="text-slate-300 dark:text-slate-700 select-none">•</span>
+            <span className="text-white/40 select-none">•</span>
             
             <button
               onClick={() => {
@@ -3263,11 +3320,11 @@ export default function App() {
                   if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
                 }, 50);
               }}
-              className="hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer"
+              className="hover:text-white cursor-pointer transition-colors"
             >
               AdSense Content Center
             </button>
-            <span className="text-slate-300 dark:text-slate-700 select-none">•</span>
+            <span className="text-white/40 select-none">•</span>
             
             <button
               onClick={() => {
@@ -3277,23 +3334,23 @@ export default function App() {
                   if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
                 }, 50);
               }}
-              className="hover:text-indigo-600 dark:hover:text-indigo-400 cursor-pointer"
+              className="hover:text-white cursor-pointer transition-colors"
               title="Dynamic SEO Sitemap & Diagnostic Log"
             >
               Dynamic Sitemap
             </button>
-            <span className="text-slate-300 dark:text-slate-700 select-none">•</span>
+            <span className="text-white/40 select-none">•</span>
             
             <button
               onClick={() => setIsFeedbackOpen(true)}
-              className="hover:text-indigo-650 dark:hover:text-amber-400 cursor-pointer font-bold flex items-center gap-1.5 text-slate-700 dark:text-slate-300"
+              className="hover:text-amber-200 cursor-pointer font-bold flex items-center gap-1.5 text-white transition-colors"
               id="footer-feedback-trigger-btn"
               title="Share rating and commentary feedback about your experience"
             >
-              <MessageSquare className="w-3.5 h-3.5 text-indigo-500 dark:text-amber-400" />
+              <MessageSquare className="w-3.5 h-3.5 text-amber-300" />
               <span>Send Feedback</span>
             </button>
-            <span className="text-slate-300 dark:text-slate-700 select-none">•</span>
+            <span className="text-white/40 select-none">•</span>
 
             <button
               onClick={() => {
@@ -3306,16 +3363,16 @@ export default function App() {
                   tab: activeTab
                 });
               }}
-              className="hover:bg-amber-500 hover:text-white dark:hover:bg-amber-600 cursor-pointer font-bold flex items-center gap-1.5 text-amber-600 dark:text-amber-400 border border-amber-200 dark:border-amber-900/40 bg-white dark:bg-slate-900/40 px-3 py-1.5 rounded-xl transition-all shadow-3xs hover:scale-102 active:scale-97 select-none"
+              className="hover:bg-amber-300 hover:text-indigo-950 cursor-pointer font-bold flex items-center gap-1.5 text-amber-200 border border-amber-300/40 bg-white/10 px-3 py-1.5 rounded-xl transition-all shadow-3xs hover:scale-102 active:scale-97 select-none"
               title="Visualize exact physical printed document using a scaled A4 page layout preview container"
               id="footer-print-preview-trigger-btn"
             >
-              <Printer className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+              <Printer className="w-3.5 h-3.5 text-amber-300" />
               <span>
                 Print Preview
               </span>
             </button>
-            <span className="text-slate-300 dark:text-slate-700 select-none">•</span>
+            <span className="text-white/40 select-none">•</span>
 
             <button
               onClick={() => {
@@ -3329,11 +3386,11 @@ export default function App() {
                   tab: activeTab
                 });
               }}
-              className="hover:bg-indigo-50 dark:hover:bg-slate-800/80 cursor-pointer font-bold flex items-center gap-1.5 text-indigo-600 dark:text-amber-400 border border-indigo-100 dark:border-slate-800 bg-white dark:bg-slate-900/40 px-3 py-1.5 rounded-xl transition-all shadow-3xs hover:scale-102 active:scale-97 select-none"
+              className="hover:bg-white hover:text-indigo-950 cursor-pointer font-bold flex items-center gap-1.5 text-white border border-white/30 bg-white/10 px-3 py-1.5 rounded-xl transition-all shadow-3xs hover:scale-102 active:scale-97 select-none"
               title="Print high-fidelity design layout of the active creator space utilizing dedicated stylesheet media queries"
               id="footer-print-view-trigger-btn"
             >
-              <Printer className="w-3.5 h-3.5 text-indigo-500 dark:text-amber-400 animate-pulse" />
+              <Printer className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
               <span>
                 Print Now
               </span>
@@ -3341,10 +3398,10 @@ export default function App() {
           </div>
 
           {/* Bottom Bar: Copyright and Badging */}
-          <div className="flex flex-col sm:flex-row items-center justify-between text-[11px] text-slate-500 dark:text-slate-350 font-medium pt-2">
+          <div className="flex flex-col sm:flex-row items-center justify-between text-[11px] text-indigo-100 font-medium pt-2">
             <p>© 2026 Toolkit Pro Suite. All rights registered.</p>
-            <p className={`mt-2 sm:mt-0 font-semibold flex items-center gap-1.5 select-none ${theme === "dark" ? "text-slate-500" : "text-slate-400"}`}>
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+            <p className="mt-2 sm:mt-0 font-semibold flex items-center gap-1.5 select-none text-indigo-200">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 animate-pulse" />
               <span>Google Workspace Secured Integration • Built for Creators</span>
             </p>
           </div>
