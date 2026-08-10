@@ -10,6 +10,7 @@ import {
   Sparkles,
   Info
 } from "lucide-react";
+import { CollapsibleSection } from "./CollapsibleSection";
 
 interface BackgroundRemoverProps {
   theme: "light" | "dark";
@@ -398,45 +399,53 @@ export default function BackgroundRemover({ theme }: BackgroundRemoverProps) {
               </div>
             </div>
 
-            {/* Similarity tolerance slider */}
-            <div className="space-y-1.5 border-t pt-4 border-slate-100 dark:border-slate-850">
-              <div className="flex justify-between items-center text-xs text-slate-400">
-                <span className="font-bold">Match Sensitivity</span>
-                <span className="font-mono text-[10px] text-rose-500">{tolerance}%</span>
+            {/* Advanced Matte Fine-Tuning Parameters Accordion */}
+            <CollapsibleSection
+              title="Advanced Matte Parameters"
+              subtitle="Match sensitivity, tolerance & edge feathering"
+              icon={Sliders}
+              defaultOpen={false}
+            >
+              {/* Similarity tolerance slider */}
+              <div className="space-y-1.5">
+                <div className="flex justify-between items-center text-xs text-slate-400">
+                  <span className="font-bold">Match Sensitivity</span>
+                  <span className="font-mono text-[10px] text-rose-500 font-extrabold">{tolerance}%</span>
+                </div>
+                <input
+                  type="range"
+                  min="5"
+                  max="100"
+                  step="2"
+                  value={tolerance}
+                  onChange={(e) => setTolerance(parseInt(e.target.value))}
+                  className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-rose-500"
+                />
+                <p className="text-[9px] text-slate-450 dark:text-slate-500 leading-tight">
+                  Controls how closely matching other colors must be to the selected target key.
+                </p>
               </div>
-              <input
-                type="range"
-                min="5"
-                max="100"
-                step="2"
-                value={tolerance}
-                onChange={(e) => setTolerance(parseInt(e.target.value))}
-                className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-rose-500"
-              />
-              <p className="text-[9px] text-slate-455 dark:text-slate-500 leading-tight">
-                Controls how closely matching other colors must be to the selected target key.
-              </p>
-            </div>
 
-            {/* Edge feathering softness slider */}
-            <div className="space-y-1.5 border-t pt-4 border-slate-100 dark:border-slate-850">
-              <div className="flex justify-between items-center text-xs text-slate-400">
-                <span className="font-bold">Matte Edge Softness</span>
-                <span className="font-mono text-[10px] text-rose-500">{feather} px</span>
+              {/* Edge feathering softness slider */}
+              <div className="space-y-1.5 pt-2 border-t border-slate-200/60 dark:border-slate-800/60">
+                <div className="flex justify-between items-center text-xs text-slate-400">
+                  <span className="font-bold">Matte Edge Softness</span>
+                  <span className="font-mono text-[10px] text-rose-500 font-extrabold">{feather} px</span>
+                </div>
+                <input
+                  type="range"
+                  min="0"
+                  max="40"
+                  step="2"
+                  value={feather}
+                  onChange={(e) => setFeather(parseInt(e.target.value))}
+                  className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-rose-500"
+                />
+                <p className="text-[9px] text-slate-450 dark:text-slate-500 leading-tight">
+                  Smooths outline contours to reduce jagged pixel artifacts.
+                </p>
               </div>
-              <input
-                type="range"
-                min="0"
-                max="40"
-                step="2"
-                value={feather}
-                onChange={(e) => setFeather(parseInt(e.target.value))}
-                className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-rose-500"
-              />
-              <p className="text-[9px] text-slate-455 dark:text-slate-500 leading-tight">
-                Smooths outline contours to reduce jagged pixel artifacts.
-              </p>
-            </div>
+            </CollapsibleSection>
 
             {/* Download Isolated Asset */}
             <button

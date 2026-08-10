@@ -29,17 +29,17 @@ export function ProTierSection({
       aria-labelledby="pro-tier-heading"
       className={`border rounded-3xl p-6 sm:p-10 transition-colors duration-300 relative overflow-hidden select-none ${
         theme === "dark"
-          ? "bg-gradient-to-br from-slate-950 via-indigo-950/80 to-slate-900 border-indigo-500/40 shadow-2xl shadow-indigo-950/50"
-          : "bg-gradient-to-br from-indigo-900 via-indigo-950 to-purple-950 text-white border-indigo-500/30 shadow-xl"
+          ? "bg-slate-950 border-slate-800 shadow-2xl text-white"
+          : "bg-slate-900 text-white border-slate-800 shadow-xl"
       }`}
     >
       {/* Decorative ambient lighting spheres */}
-      <div className="absolute top-0 right-1/4 w-96 h-96 bg-indigo-500/15 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-purple-500/15 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute top-0 right-1/4 w-96 h-96 bg-blue-600/10 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute bottom-0 left-1/4 w-96 h-96 bg-sky-500/10 rounded-full blur-3xl pointer-events-none" />
 
       <div className="relative z-10 max-w-4xl mx-auto space-y-8 text-center">
         {/* Top Floating Badge */}
-        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-gradient-to-r from-indigo-500/20 to-purple-500/20 border border-indigo-400/40 text-indigo-300 text-xs font-black font-mono tracking-widest uppercase shadow-md backdrop-blur-md">
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-blue-500/10 border border-blue-500/30 text-blue-400 text-xs font-black font-mono tracking-widest uppercase shadow-md backdrop-blur-md">
           <Crown className="w-4 h-4 text-amber-300 animate-pulse" />
           <span>Pro Tier Unlocked</span>
         </div>
@@ -50,10 +50,10 @@ export function ProTierSection({
             id="pro-tier-heading"
             className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black tracking-tight text-white leading-tight"
           >
-            Unlock <span className="bg-gradient-to-r from-amber-300 via-indigo-200 to-purple-300 bg-clip-text text-transparent">Toolkit Pro Ultra</span> — Your Advanced Suite Awaits
+            Unlock <span className="bg-gradient-to-r from-blue-400 via-sky-300 to-teal-300 bg-clip-text text-transparent">Toolkit Pro Ultra</span> — Your Advanced Suite Awaits
           </h2>
 
-          <p className="text-xs sm:text-sm md:text-base text-indigo-200 max-w-2xl mx-auto font-medium">
+          <p className="text-xs sm:text-sm md:text-base text-slate-300 max-w-2xl mx-auto font-medium">
             Get Priority Support, Unlimited Render Queues, High-Speed WebAssembly Encoders & Holographic Asset Vaults.
           </p>
         </div>

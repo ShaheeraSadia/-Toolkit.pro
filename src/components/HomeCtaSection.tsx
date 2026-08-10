@@ -22,13 +22,13 @@ export function HomeCtaSection({
       aria-labelledby="cta-heading"
       className={`border rounded-3xl p-6 sm:p-10 md:p-12 transition-colors duration-300 relative overflow-hidden select-none ${
         theme === "dark"
-          ? "bg-gradient-to-br from-indigo-950 via-slate-900 to-slate-950 border-indigo-900/60 shadow-xl shadow-indigo-950/30"
-          : "bg-gradient-to-br from-indigo-600 via-indigo-700 to-purple-800 text-white border-indigo-500/30 shadow-lg shadow-indigo-500/20"
+          ? "bg-slate-950 border-slate-800 text-white shadow-xl"
+          : "bg-slate-900 text-white border-slate-800 shadow-xl"
       }`}
     >
-      {/* Decorative ambient background flares */}
-      <div className="absolute -top-12 -right-12 w-64 h-64 bg-purple-400/20 rounded-full blur-3xl pointer-events-none" />
-      <div className="absolute -bottom-12 -left-12 w-64 h-64 bg-indigo-400/20 rounded-full blur-3xl pointer-events-none" />
+      {/* Decorative ambient blue background flares */}
+      <div className="absolute -top-12 -right-12 w-64 h-64 bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
+      <div className="absolute -bottom-12 -left-12 w-64 h-64 bg-sky-500/15 rounded-full blur-3xl pointer-events-none" />
 
       <div className="relative z-10 max-w-4xl mx-auto text-center space-y-6">
         {/* Rating & Trust Badge */}
@@ -58,11 +58,11 @@ export function HomeCtaSection({
         <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 pt-2">
           <button
             onClick={() => onSelectTab("quote")}
-            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-white text-indigo-950 font-black text-xs sm:text-sm shadow-xl hover:bg-indigo-50 transition-all duration-300 transform hover:scale-102 active:scale-98 cursor-pointer"
+            className="w-full sm:w-auto inline-flex items-center justify-center gap-2 px-6 py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-500 text-white font-black text-xs sm:text-sm shadow-xl transition-all duration-300 transform hover:scale-102 active:scale-98 cursor-pointer"
           >
-            <Quote className="w-4 h-4 text-indigo-600" />
+            <Quote className="w-4 h-4 text-white" />
             <span>Launch Workspace Free</span>
-            <ArrowRight className="w-4 h-4 text-indigo-600" />
+            <ArrowRight className="w-4 h-4 text-white" />
           </button>
 
           <button

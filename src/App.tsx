@@ -43,6 +43,8 @@ import { useLanguage } from "./context/LanguageContext";
 import { motion, AnimatePresence } from "motion/react";
 // @ts-ignore
 import brandLogo from "./assets/images/toolkit_pro_logo_1781887052514.jpg";
+// @ts-ignore
+import qrCodeCardThumb from "./assets/images/qr_code_card_thumb_1786188233748.jpg";
 
 import {
   Sparkles,
@@ -2488,26 +2490,27 @@ export default function App() {
                   );
                 })()}
 
-                {/* Hero Section matching the requested design */}
-                <section className="relative rounded-3xl overflow-hidden bg-gradient-to-r from-[#4f46e5] via-[#6366f1] to-[#7c3aed] text-white shadow-xl py-12 px-6 sm:px-10 text-center flex flex-col items-center justify-center space-y-6">
-                  {/* Dotted grid pattern overlay */}
-                  <div className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.25)_1.5px,transparent_1.5px)] [background-size:24px_24px] pointer-events-none" />
+                {/* Hero Section matching the requested brand design */}
+                <section className="relative rounded-3xl overflow-hidden bg-slate-950 border border-slate-800/90 text-white shadow-xl py-12 px-6 sm:px-10 text-center flex flex-col items-center justify-center space-y-6">
+                  {/* Subtle Electric Blue ambient glow & Grid Pattern */}
+                  <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-[32rem] h-[32rem] bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
+                  <div className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.08)_1.5px,transparent_1.5px)] [background-size:24px_24px] pointer-events-none" />
 
                   {/* Top Pill Badge */}
-                  <div className="relative z-10 inline-flex items-center justify-center px-6 py-1.5 rounded-full border border-white/35 bg-white/10 backdrop-blur-md text-[11px] font-extrabold text-white uppercase tracking-widest shadow-sm">
+                  <div className="relative z-10 inline-flex items-center justify-center px-5 py-1.5 rounded-full border border-blue-500/30 bg-blue-500/10 backdrop-blur-md text-[11px] font-extrabold text-blue-400 uppercase tracking-widest shadow-xs">
                     CREATOR RESOURCES
                   </div>
 
                   {/* Main Headline */}
                   <h1 className="relative z-10 text-3xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-white font-serif max-w-4xl leading-tight sm:leading-none">
                     Tools &amp; Guides for{" "}
-                    <span className="text-amber-200 italic font-serif font-normal">
+                    <span className="text-blue-400 italic font-serif font-normal">
                       Digital Creators
                     </span>
                   </h1>
 
                   {/* Subtitle */}
-                  <p className="relative z-10 text-sm sm:text-base md:text-lg text-indigo-100 font-medium max-w-2xl mx-auto leading-relaxed">
+                  <p className="relative z-10 text-sm sm:text-base md:text-lg text-slate-300 font-medium max-w-2xl mx-auto leading-relaxed">
                     High-performance, 100% client-side tools to compress images, convert WebP formats, design social graphics, and streamline your digital creator workflow.
                   </p>
 
@@ -2520,12 +2523,12 @@ export default function App() {
                         placeholder="Search image tools, converters, compressors..."
                         value={homeSearchQuery}
                         onChange={(e) => setHomeSearchQuery(e.target.value)}
-                        className="w-full pl-11 pr-10 py-3.5 rounded-2xl text-xs sm:text-sm font-semibold bg-white text-slate-900 placeholder-slate-400 shadow-lg focus:outline-none focus:ring-2 focus:ring-indigo-300 transition-all"
+                        className="w-full pl-11 pr-10 py-3.5 rounded-2xl text-xs sm:text-sm font-semibold bg-slate-900 border border-slate-750 text-slate-100 placeholder-slate-400 shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
                       />
                       {homeSearchQuery && (
                         <button
                           onClick={() => setHomeSearchQuery("")}
-                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-600 p-1"
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-200 p-1"
                         >
                           ✕
                         </button>
@@ -2585,7 +2588,7 @@ export default function App() {
                         desc: "Generate custom styled QR codes with high ECC error correction and custom logo overlays.",
                         icon: QrCode,
                         badge: "Encode QR",
-                        image: "https://images.unsplash.com/photo-1595079672179-f2326ab45769?w=600&auto=format&fit=crop&q=80"
+                        image: qrCodeCardThumb
                       },
                       {
                         id: "palette",
@@ -2648,8 +2651,8 @@ export default function App() {
                               }}
                               className={`rounded-2xl border overflow-hidden transition-all duration-300 hover:scale-[1.02] flex flex-col justify-between group cursor-pointer ${
                                 theme === "dark"
-                                  ? "bg-slate-900/80 border-slate-800 hover:border-indigo-500/50 text-slate-100 shadow-md"
-                                  : "bg-white border-slate-200/90 hover:border-indigo-300 shadow-xs hover:shadow-xl text-slate-800"
+                                  ? "bg-slate-900/80 border-slate-800 hover:border-blue-500/50 text-slate-100 shadow-md hover:shadow-blue-500/10"
+                                  : "bg-white border-slate-200/90 hover:border-blue-400 shadow-xs hover:shadow-xl text-slate-800"
                               }`}
                             >
                               {/* Top Banner Image Container */}
@@ -2659,18 +2662,21 @@ export default function App() {
                                   alt={tool.label}
                                   className="w-full h-full object-cover group-hover:scale-108 transition-transform duration-500"
                                   referrerPolicy="no-referrer"
+                                  onError={(e) => {
+                                    (e.target as HTMLImageElement).src = `https://picsum.photos/seed/${tool.id}/600/400`;
+                                  }}
                                 />
                                 <div className="absolute inset-0 bg-gradient-to-t from-slate-950/80 via-slate-950/20 to-transparent" />
                                 
                                 {/* Badge Tag on Image */}
                                 <div className="absolute top-3 right-3 z-10">
-                                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-black/40 backdrop-blur-md text-white border border-white/20 shadow-sm">
+                                  <span className="text-[10px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full bg-slate-950/70 backdrop-blur-md text-slate-200 border border-slate-700/60 shadow-sm">
                                     {tool.badge}
                                   </span>
                                 </div>
 
                                 {/* Floating Icon Badge */}
-                                <div className="absolute bottom-3 left-3 z-10 p-2.5 rounded-xl bg-white/95 dark:bg-slate-900/95 text-indigo-600 dark:text-indigo-400 shadow-md group-hover:bg-indigo-600 group-hover:text-white transition-colors duration-300">
+                                <div className="absolute bottom-3 left-3 z-10 p-2.5 rounded-xl bg-white/95 dark:bg-slate-900/95 text-blue-600 dark:text-blue-400 shadow-md group-hover:bg-blue-600 group-hover:text-white transition-colors duration-300">
                                   <Icon className="w-5 h-5" />
                                 </div>
                               </div>
@@ -2678,7 +2684,7 @@ export default function App() {
                               {/* Card Content Details */}
                               <div className="p-5 flex-1 flex flex-col justify-between space-y-3">
                                 <div className="space-y-2">
-                                  <h3 className={`text-base font-black tracking-tight group-hover:text-indigo-500 transition-colors ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                                  <h3 className={`text-base font-black tracking-tight group-hover:text-blue-500 transition-colors ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
                                     {tool.label}
                                   </h3>
 
@@ -2688,7 +2694,7 @@ export default function App() {
                                 </div>
 
                                 <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
-                                  <span className="text-xs font-bold text-indigo-600 dark:text-indigo-400 group-hover:translate-x-1.5 transition-transform duration-200 inline-flex items-center gap-1.5">
+                                  <span className="text-xs font-bold text-blue-600 dark:text-blue-400 group-hover:translate-x-1.5 transition-transform duration-200 inline-flex items-center gap-1.5">
                                     <span>Open Tool</span>
                                     <ArrowRight className="w-3.5 h-3.5" />
                                   </span>
@@ -3065,9 +3071,9 @@ export default function App() {
       </div>
 
       {/* Footer copyright */}
-      <footer className="border-t border-indigo-400/30 py-16 mt-16 relative bg-gradient-to-r from-[#4f46e5] via-[#6366f1] to-[#7c3aed] text-white shadow-2xl overflow-hidden">
-        {/* Dotted grid pattern overlay matching header/hero */}
-        <div className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.18)_1.5px,transparent_1.5px)] [background-size:24px_24px] pointer-events-none" />
+      <footer className="border-t border-slate-800 py-16 mt-16 relative bg-slate-950 text-slate-100 shadow-2xl overflow-hidden">
+        {/* Subtle grid pattern overlay */}
+        <div className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.06)_1.5px,transparent_1.5px)] [background-size:24px_24px] pointer-events-none" />
 
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12 relative z-10">
           
@@ -3077,7 +3083,7 @@ export default function App() {
             {/* Column 1: Brand & Tagline - 4 Cols */}
             <div className="lg:col-span-4 space-y-4">
               <div className="flex items-center space-x-3">
-                <div className="bg-white px-2 py-1 rounded-xl border border-white/40 shadow-sm flex items-center justify-center transition-all duration-300">
+                <div className="bg-slate-900 px-2 py-1 rounded-xl border border-slate-700 shadow-sm flex items-center justify-center transition-all duration-300">
                   <img 
                     src={brandLogo} 
                     alt="Toolkit Pro Logo" 
@@ -3086,10 +3092,10 @@ export default function App() {
                   />
                 </div>
                 <span className="text-md font-black tracking-tight font-sans text-white">
-                  Toolkit<span className="text-amber-300">Pro</span>
+                  Toolkit<span className="text-blue-400">Pro</span>
                 </span>
               </div>
-              <p className="text-xs text-indigo-100 leading-relaxed max-w-sm">
+              <p className="text-xs text-slate-400 leading-relaxed max-w-sm">
                 A high-performance workspace engineered for digital creators, designers, and marketers. Optimize web formats, extract median-cut palettes, generate QR matrices, and design gorgeous editorial quote cards instantly.
               </p>
 

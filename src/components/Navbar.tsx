@@ -340,9 +340,9 @@ export default function Navbar({
   const isToolActive = ["quote", "compress", "qr", "palette", "video"].includes(activeTab);
 
   return (
-    <header className="sticky top-0 z-50 select-none border-b border-indigo-400/30 transition-all duration-300 relative bg-gradient-to-r from-[#4f46e5] via-[#6366f1] to-[#7c3aed] text-white shadow-xl shadow-indigo-950/25">
-      {/* Top Multi-Color Gradient Bar for Professional Studio Look */}
-      <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-indigo-300 via-purple-300 to-emerald-300 z-50 pointer-events-none" />
+    <header className="sticky top-0 z-50 select-none border-b border-slate-800 transition-all duration-300 relative bg-slate-900/95 backdrop-blur-xl text-slate-100 shadow-md">
+      {/* Top Brand Accent Bar */}
+      <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-blue-500 via-sky-400 to-emerald-400 z-50 pointer-events-none" />
 
       <div className="w-full px-2 sm:px-4 lg:px-6">
         <div className="h-16 flex items-center justify-between gap-1.5 sm:gap-2.5 w-full">
@@ -381,20 +381,20 @@ export default function Navbar({
           {/* Center-Left: Global Command Palette Search Widget */}
           <button
             onClick={handleTriggerSearch}
-            className="flex items-center justify-between w-36 sm:w-44 md:w-48 lg:w-52 px-3 py-1.5 rounded-xl text-left border border-white/20 bg-white/10 hover:bg-white/20 text-white select-none transition-all hover:scale-101 cursor-pointer shrink-0 shadow-inner"
+            className="flex items-center justify-between w-36 sm:w-44 md:w-48 lg:w-52 px-3 py-1.5 rounded-xl text-left border border-slate-700/80 bg-slate-800/80 hover:bg-slate-800 text-slate-200 select-none transition-all hover:border-blue-500/50 cursor-pointer shrink-0 shadow-xs"
             title="Search Workspace & Utilities (Ctrl+K)"
           >
             <div className="flex items-center gap-1.5 sm:gap-2">
-              <Search className="w-3.5 h-3.5 text-indigo-200 shrink-0" />
-              <span className="text-[11px] font-extrabold truncate text-white">Search tools...</span>
+              <Search className="w-3.5 h-3.5 text-blue-400 shrink-0" />
+              <span className="text-[11px] font-bold truncate text-slate-200">Search tools...</span>
             </div>
-            <kbd className="hidden xs:inline-flex items-center px-1.5 py-0.5 text-[9px] font-black rounded-lg font-mono shrink-0 select-none bg-white/20 border border-white/30 text-white">
+            <kbd className="hidden xs:inline-flex items-center px-1.5 py-0.5 text-[9px] font-bold rounded-lg font-mono shrink-0 select-none bg-slate-700/90 border border-slate-600 text-slate-300">
               Ctrl+K
             </kbd>
           </button>
 
           {/* Center-Right: Segmented Tabs Capsule Control Nav */}
-          <nav className="hidden md:flex items-center gap-1 sm:gap-1.5 bg-black/25 p-1 rounded-2xl border border-white/20 select-none shrink-0 animate-in fade-in zoom-in-95 duration-300">
+          <nav className="hidden md:flex items-center gap-1 sm:gap-1.5 bg-slate-950/80 p-1 rounded-2xl border border-slate-800 select-none shrink-0 animate-in fade-in zoom-in-95 duration-300">
             {/* Interactive utilities megamenu */}
             <div className="relative">
               <button
@@ -404,14 +404,14 @@ export default function Navbar({
                 }}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   isToolActive
-                    ? "bg-white text-indigo-950 font-extrabold shadow-sm"
-                    : "text-white/85 hover:text-white hover:bg-white/15"
+                    ? "bg-blue-600 text-white font-extrabold shadow-sm"
+                    : "text-slate-300 hover:text-white hover:bg-slate-800/60"
                 }`}
                 onClick={() => setShowToolsDropdown(!showToolsDropdown)}
               >
-                <LayoutGrid className="w-3.5 h-3.5 text-indigo-200" />
+                <LayoutGrid className="w-3.5 h-3.5 text-blue-400 group-hover:text-white" />
                 <span>Interactives</span>
-                <ChevronDown className={`w-3 h-3 text-white/70 transition-transform duration-300 ${showToolsDropdown ? "rotate-180" : ""}`} />
+                <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform duration-300 ${showToolsDropdown ? "rotate-180" : ""}`} />
               </button>
 
               {/* Mega hover subgrid */}
