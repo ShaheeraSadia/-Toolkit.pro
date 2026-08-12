@@ -2492,9 +2492,8 @@ export default function App() {
 
                 {/* Hero Section matching the requested brand design */}
                 <section className="relative rounded-3xl overflow-hidden bg-slate-950 border border-slate-800/90 text-white shadow-xl py-12 px-6 sm:px-10 text-center flex flex-col items-center justify-center space-y-6">
-                  {/* Subtle Electric Blue ambient glow & Grid Pattern */}
+                  {/* Subtle Electric Blue ambient glow */}
                   <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-[32rem] h-[32rem] bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
-                  <div className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.08)_1.5px,transparent_1.5px)] [background-size:24px_24px] pointer-events-none" />
 
                   {/* Top Pill Badge */}
                   <div className="relative z-10 inline-flex items-center justify-center px-5 py-1.5 rounded-full border border-blue-500/30 bg-blue-500/10 backdrop-blur-md text-[11px] font-extrabold text-blue-400 uppercase tracking-widest shadow-xs">
@@ -3072,9 +3071,6 @@ export default function App() {
 
       {/* Footer copyright */}
       <footer className="border-t border-slate-800 py-16 mt-16 relative bg-slate-950 text-slate-100 shadow-2xl overflow-hidden">
-        {/* Subtle grid pattern overlay */}
-        <div className="absolute inset-0 bg-[radial-gradient(rgba(255,255,255,0.06)_1.5px,transparent_1.5px)] [background-size:24px_24px] pointer-events-none" />
-
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12 relative z-10">
           
           {/* Main Footer Column Grid */}
@@ -3104,7 +3100,7 @@ export default function App() {
                   href="https://toolkit-pro-chi.vercel.app" 
                   target="_blank" 
                   rel="noopener noreferrer" 
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-amber-200 hover:text-white transition-all cursor-pointer hover:underline select-none"
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-400 hover:text-white transition-all cursor-pointer hover:underline select-none"
                   id="suppport-server-link-brand"
                 >
                   <span className="animate-pulse">☕</span>
@@ -3137,10 +3133,10 @@ export default function App() {
 
             {/* Column 2: Interactive Services (Links) - 2 Cols */}
             <div className="lg:col-span-2 space-y-4">
-              <h4 className="text-[10px] font-black tracking-widest uppercase text-amber-200 select-none">
+              <h4 className="text-[10px] font-black tracking-widest uppercase text-blue-400 select-none">
                 Interactive Utilities
               </h4>
-              <ul className="space-y-2.5 text-xs text-indigo-100">
+              <ul className="space-y-2.5 text-xs text-slate-300">
                 {[
                   { id: "quote", label: "Quote Card Designer" },
                   { id: "compress", label: "Image Compressor" },
@@ -3162,9 +3158,9 @@ export default function App() {
                           }
                         }, 50);
                       }}
-                      className="hover:text-amber-200 font-semibold cursor-pointer transition-colors duration-150 flex items-center gap-1.5"
+                      className="hover:text-blue-400 font-semibold cursor-pointer transition-colors duration-150 flex items-center gap-1.5"
                     >
-                      <span className="text-amber-300">•</span>
+                      <span className="text-blue-400">•</span>
                       <span>{item.label}</span>
                     </button>
                   </li>
@@ -3174,10 +3170,10 @@ export default function App() {
 
             {/* Column 3: Creator Editorial Guides - 3 Cols */}
             <div className="lg:col-span-3 space-y-4">
-              <h4 className="text-[10px] font-black tracking-widest uppercase text-amber-200 select-none">
+              <h4 className="text-[10px] font-black tracking-widest uppercase text-blue-400 select-none">
                 Knowledge Hub Publications
               </h4>
-              <ul className="space-y-2.5 text-xs text-indigo-100">
+              <ul className="space-y-2.5 text-xs text-slate-300">
                 {[
                   { id: "compression-guide", title: "Lossless Image Compression Guide" },
                   { id: "webp-vs-png-vs-jpg", title: "Next-Gen Web Formats compared" },
@@ -3200,7 +3196,7 @@ export default function App() {
                           }
                         }, 50);
                       }}
-                      className="hover:text-amber-200 transition-colors duration-150 inline-flex items-center gap-1.5 cursor-pointer max-w-full text-left truncate font-semibold"
+                      className="hover:text-blue-400 transition-colors duration-150 inline-flex items-center gap-1.5 cursor-pointer max-w-full text-left truncate font-semibold"
                       title={`Read: ${post.title}`}
                     >
                       <span>📖</span>
@@ -3213,10 +3209,10 @@ export default function App() {
 
             {/* Column 4: Newsletter Subscription - 3 Cols */}
             <div className="lg:col-span-3 space-y-4">
-              <h4 className="text-[10px] font-black tracking-widest uppercase text-amber-200 select-none">
+              <h4 className="text-[10px] font-black tracking-widest uppercase text-blue-400 select-none">
                 Subscribe to Newsletter
               </h4>
-              <p className="text-[11px] text-indigo-100 leading-normal">
+              <p className="text-[11px] text-slate-300 leading-normal">
                 Join our list of designers and developers receiving tools, preset packs, and resources.
               </p>
               
@@ -3232,11 +3228,11 @@ export default function App() {
                   type="email"
                   required
                   placeholder="Enter creator email"
-                  className="w-full text-xs px-3 py-2 rounded-xl border border-white/30 bg-white/10 text-white placeholder-indigo-200 focus:outline-none focus:ring-2 focus:ring-amber-300 transition-colors"
+                  className="w-full text-xs px-3 py-2 rounded-xl border border-slate-700 bg-slate-900 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
                 />
                 <button
                   type="submit"
-                  className="w-full bg-white text-indigo-950 hover:bg-amber-100 font-extrabold text-[10px] uppercase tracking-wider py-2 rounded-xl transition-colors cursor-pointer shadow-md"
+                  className="w-full bg-blue-600 text-white hover:bg-blue-500 font-extrabold text-[10px] uppercase tracking-wider py-2 rounded-xl transition-colors cursor-pointer shadow-md"
                 >
                   Join List
                 </button>
@@ -3311,7 +3307,7 @@ export default function App() {
             </button>
             <span className="text-white/40 select-none">•</span>
             
-            <a href="https://toolkit-pro-chi.vercel.app" target="_blank" rel="noopener noreferrer" className="text-amber-200 hover:text-white cursor-pointer font-bold flex items-center gap-1">
+            <a href="https://toolkit-pro-chi.vercel.app" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-white cursor-pointer font-bold flex items-center gap-1">
               <span>☕</span> Support Free Server
             </a>
             <span className="text-white/40 select-none">•</span>
@@ -3349,11 +3345,11 @@ export default function App() {
             
             <button
               onClick={() => setIsFeedbackOpen(true)}
-              className="hover:text-amber-200 cursor-pointer font-bold flex items-center gap-1.5 text-white transition-colors"
+              className="hover:text-blue-400 cursor-pointer font-bold flex items-center gap-1.5 text-white transition-colors"
               id="footer-feedback-trigger-btn"
               title="Share rating and commentary feedback about your experience"
             >
-              <MessageSquare className="w-3.5 h-3.5 text-amber-300" />
+              <MessageSquare className="w-3.5 h-3.5 text-blue-400" />
               <span>Send Feedback</span>
             </button>
             <span className="text-white/40 select-none">•</span>
@@ -3369,11 +3365,11 @@ export default function App() {
                   tab: activeTab
                 });
               }}
-              className="hover:bg-amber-300 hover:text-indigo-950 cursor-pointer font-bold flex items-center gap-1.5 text-amber-200 border border-amber-300/40 bg-white/10 px-3 py-1.5 rounded-xl transition-all shadow-3xs hover:scale-102 active:scale-97 select-none"
+              className="hover:bg-blue-600 hover:text-white cursor-pointer font-bold flex items-center gap-1.5 text-blue-400 border border-blue-500/40 bg-slate-900 px-3 py-1.5 rounded-xl transition-all shadow-3xs hover:scale-102 active:scale-97 select-none"
               title="Visualize exact physical printed document using a scaled A4 page layout preview container"
               id="footer-print-preview-trigger-btn"
             >
-              <Printer className="w-3.5 h-3.5 text-amber-300" />
+              <Printer className="w-3.5 h-3.5 text-blue-400" />
               <span>
                 Print Preview
               </span>
@@ -3396,7 +3392,7 @@ export default function App() {
               title="Print high-fidelity design layout of the active creator space utilizing dedicated stylesheet media queries"
               id="footer-print-view-trigger-btn"
             >
-              <Printer className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+              <Printer className="w-3.5 h-3.5 text-blue-400 animate-pulse" />
               <span>
                 Print Now
               </span>
