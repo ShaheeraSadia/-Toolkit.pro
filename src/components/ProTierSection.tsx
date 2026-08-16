@@ -50,7 +50,7 @@ export function ProTierSection({
             id="pro-tier-heading"
             className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-black tracking-tight text-white leading-tight"
           >
-            Unlock <span className="bg-gradient-to-r from-blue-400 via-sky-300 to-teal-300 bg-clip-text text-transparent">Toolkit Pro Ultra</span> — Your Advanced Suite Awaits
+            Unlock <span className="text-blue-400">Toolkit Pro Ultra</span> — Your Advanced Suite Awaits
           </h2>
 
           <p className="text-xs sm:text-sm md:text-base text-slate-300 max-w-2xl mx-auto font-medium">

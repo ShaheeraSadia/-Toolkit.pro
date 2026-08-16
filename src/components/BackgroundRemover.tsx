@@ -214,7 +214,7 @@ export default function BackgroundRemover({ theme }: BackgroundRemoverProps) {
       {/* Header Banner */}
       <div className="pb-5 border-b border-slate-150 dark:border-slate-850 select-none">
         <h1 className={`text-2xl md:text-3xl font-black tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
-          Dynamic <span className="bg-clip-text text-transparent bg-gradient-to-r from-pink-500 via-rose-500 to-red-500">Background Remover</span>
+          Dynamic <span className="text-blue-600 dark:text-blue-400">Background Remover</span>
         </h1>
         <p className="text-xs text-slate-400 mt-1">
           Chroma key backgrounds out of any picture. Click anywhere on your image canvas with the eyedropper, fine-tune matching sensitivity, and download transparent PNG assets.

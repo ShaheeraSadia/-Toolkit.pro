@@ -2471,19 +2471,19 @@ export default function App() {
                     <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-6 border-b border-slate-200/80 dark:border-slate-800 gap-4 select-none">
                       <div>
                         <h1 className={`text-2xl sm:text-3xl font-black tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
-                          {getHourGreeting()}, <span className="bg-clip-text text-transparent bg-gradient-to-r from-indigo-500 via-purple-500 to-pink-500">{cleanName}!</span>
+                          {getHourGreeting()}, <span className="text-blue-600 dark:text-blue-400 font-black">{cleanName}!</span>
                         </h1>
-                        <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
+                        <p className={`text-sm mt-1 leading-relaxed ${theme === "dark" ? "text-slate-300" : "text-slate-700 font-medium"}`}>
                           Welcome to Toolkit Pro — your premium standalone space for professional-grade design, encoding, and optimization.
                         </p>
                       </div>
                       <div className={`flex items-center gap-3 px-4 py-2.5 rounded-2xl border ${
                         theme === "dark" ? "bg-slate-900/80 border-slate-800 text-slate-100" : "bg-white border-slate-200/90 shadow-2xs text-slate-800"
                       }`}>
-                        <Clock className="w-4 h-4 text-indigo-500 animate-pulse shrink-0" />
+                        <Clock className="w-4 h-4 text-blue-600 dark:text-blue-400 animate-pulse shrink-0" />
                         <div className="text-right">
                           <p className="text-xs font-black font-mono leading-none tracking-wider">{timeString}</p>
-                          <p className="text-[10px] text-slate-400 dark:text-slate-500 leading-none mt-1 font-semibold">{dateString}</p>
+                          <p className={`text-[10px] leading-none mt-1 font-bold ${theme === "dark" ? "text-slate-400" : "text-slate-600"}`}>{dateString}</p>
                         </div>
                       </div>
                     </div>
@@ -2491,43 +2491,61 @@ export default function App() {
                 })()}
 
                 {/* Hero Section matching the requested brand design */}
-                <section className="relative rounded-3xl overflow-hidden bg-slate-950 border border-slate-800/90 text-white shadow-xl py-12 px-6 sm:px-10 text-center flex flex-col items-center justify-center space-y-6">
+                <section className={`relative rounded-3xl overflow-hidden border py-12 px-6 sm:px-10 text-center flex flex-col items-center justify-center space-y-6 transition-all duration-300 ${
+                  theme === "dark"
+                    ? "bg-slate-950 border-slate-800/90 text-white shadow-xl"
+                    : "bg-gradient-to-b from-blue-50/40 via-slate-50/80 to-white border-slate-200/90 text-slate-900 shadow-sm"
+                }`}>
                   {/* Subtle Electric Blue ambient glow */}
-                  <div className="absolute -top-24 left-1/2 -translate-x-1/2 w-[32rem] h-[32rem] bg-blue-600/15 rounded-full blur-3xl pointer-events-none" />
+                  <div className={`absolute -top-24 left-1/2 -translate-x-1/2 w-[32rem] h-[32rem] rounded-full blur-3xl pointer-events-none ${
+                    theme === "dark" ? "bg-blue-600/15" : "bg-blue-200/30"
+                  }`} />
 
                   {/* Top Pill Badge */}
-                  <div className="relative z-10 inline-flex items-center justify-center px-5 py-1.5 rounded-full border border-blue-500/30 bg-blue-500/10 backdrop-blur-md text-[11px] font-extrabold text-blue-400 uppercase tracking-widest shadow-xs">
+                  <div className={`relative z-10 inline-flex items-center justify-center px-5 py-1.5 rounded-full border text-[11px] font-extrabold uppercase tracking-widest shadow-2xs ${
+                    theme === "dark"
+                      ? "border-blue-500/30 bg-blue-500/10 backdrop-blur-md text-blue-400"
+                      : "border-blue-300 bg-blue-50 text-blue-700"
+                  }`}>
                     CREATOR RESOURCES
                   </div>
 
                   {/* Main Headline */}
-                  <h1 className="relative z-10 text-3xl sm:text-5xl md:text-6xl font-extrabold tracking-tight text-white font-serif max-w-4xl leading-tight sm:leading-none">
+                  <h1 className={`relative z-10 text-3xl sm:text-5xl md:text-6xl font-extrabold tracking-tight font-serif max-w-4xl leading-tight sm:leading-none ${
+                    theme === "dark" ? "text-white" : "text-slate-900"
+                  }`}>
                     Tools &amp; Guides for{" "}
-                    <span className="text-blue-400 italic font-serif font-normal">
+                    <span className="text-blue-600 dark:text-blue-400 italic font-serif font-normal">
                       Digital Creators
                     </span>
                   </h1>
 
                   {/* Subtitle */}
-                  <p className="relative z-10 text-sm sm:text-base md:text-lg text-slate-300 font-medium max-w-2xl mx-auto leading-relaxed">
+                  <p className={`relative z-10 text-sm sm:text-base md:text-lg font-medium max-w-2xl mx-auto leading-relaxed ${
+                    theme === "dark" ? "text-slate-200" : "text-slate-700"
+                  }`}>
                     High-performance, 100% client-side tools to compress images, convert WebP formats, design social graphics, and streamline your digital creator workflow.
                   </p>
 
                   {/* Integrated Search Bar inside Hero */}
                   <div className="relative z-10 w-full max-w-lg mt-2">
                     <div className="relative">
-                      <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+                      <Search className={`absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 ${theme === "dark" ? "text-slate-400" : "text-slate-500"}`} />
                       <input
                         type="text"
                         placeholder="Search image tools, converters, compressors..."
                         value={homeSearchQuery}
                         onChange={(e) => setHomeSearchQuery(e.target.value)}
-                        className="w-full pl-11 pr-10 py-3.5 rounded-2xl text-xs sm:text-sm font-semibold bg-slate-900 border border-slate-750 text-slate-100 placeholder-slate-400 shadow-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all"
+                        className={`w-full pl-11 pr-10 py-3.5 rounded-2xl text-xs sm:text-sm font-semibold border shadow-xs focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-all ${
+                          theme === "dark"
+                            ? "bg-slate-900 border-slate-750 text-slate-100 placeholder-slate-400"
+                            : "bg-white border-slate-200 text-slate-900 placeholder-slate-500"
+                        }`}
                       />
                       {homeSearchQuery && (
                         <button
                           onClick={() => setHomeSearchQuery("")}
-                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-200 p-1"
+                          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-xs font-bold text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 p-1"
                         >
                           ✕
                         </button>
@@ -2542,7 +2560,7 @@ export default function App() {
                     <h2 className={`text-lg font-black tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
                       All Available Tools
                     </h2>
-                    <span className="text-xs font-semibold text-slate-400 dark:text-slate-500">
+                    <span className={`text-xs font-bold ${theme === "dark" ? "text-slate-400" : "text-slate-600"}`}>
                       100% Client-Side Processing
                     </span>
                   </div>
@@ -2687,7 +2705,7 @@ export default function App() {
                                     {tool.label}
                                   </h3>
 
-                                  <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed line-clamp-2">
+                                  <p className={`text-xs leading-relaxed line-clamp-2 ${theme === "dark" ? "text-slate-300" : "text-slate-600 font-medium"}`}>
                                     {tool.desc}
                                   </p>
                                 </div>
@@ -3070,7 +3088,16 @@ export default function App() {
       </div>
 
       {/* Footer copyright */}
-      <footer className="border-t border-slate-800 py-16 mt-16 relative bg-slate-950 text-slate-100 shadow-2xl overflow-hidden">
+      <footer className={`border-t py-16 mt-16 relative transition-colors duration-300 overflow-hidden ${
+        theme === "dark"
+          ? "bg-slate-950 border-slate-800 text-slate-100 shadow-2xl"
+          : "bg-slate-50 border-slate-200/90 text-slate-700 shadow-xs"
+      }`}>
+        {/* Subtle Ambient Light/Dark Glow */}
+        <div className={`absolute -top-24 left-1/2 -translate-x-1/2 w-[40rem] h-[20rem] rounded-full blur-3xl pointer-events-none ${
+          theme === "dark" ? "bg-blue-600/10" : "bg-blue-200/30"
+        }`} />
+
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-12 relative z-10">
           
           {/* Main Footer Column Grid */}
@@ -3079,7 +3106,11 @@ export default function App() {
             {/* Column 1: Brand & Tagline - 4 Cols */}
             <div className="lg:col-span-4 space-y-4">
               <div className="flex items-center space-x-3">
-                <div className="bg-slate-900 px-2 py-1 rounded-xl border border-slate-700 shadow-sm flex items-center justify-center transition-all duration-300">
+                <div className={`px-2 py-1 rounded-xl border shadow-xs flex items-center justify-center transition-all duration-300 ${
+                  theme === "dark"
+                    ? "bg-slate-900 border-slate-700"
+                    : "bg-white border-slate-200"
+                }`}>
                   <img 
                     src={brandLogo} 
                     alt="Toolkit Pro Logo" 
@@ -3087,11 +3118,11 @@ export default function App() {
                     referrerPolicy="no-referrer"
                   />
                 </div>
-                <span className="text-md font-black tracking-tight font-sans text-white">
-                  Toolkit<span className="text-blue-400">Pro</span>
+                <span className={`text-md font-black tracking-tight font-sans ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
+                  Toolkit<span className="text-blue-600 dark:text-blue-400">Pro</span>
                 </span>
               </div>
-              <p className="text-xs text-slate-400 leading-relaxed max-w-sm">
+              <p className={`text-xs leading-relaxed max-w-sm ${theme === "dark" ? "text-slate-300" : "text-slate-700 font-medium"}`}>
                 A high-performance workspace engineered for digital creators, designers, and marketers. Optimize web formats, extract median-cut palettes, generate QR matrices, and design gorgeous editorial quote cards instantly.
               </p>
 
@@ -3100,7 +3131,7 @@ export default function App() {
                   href="https://toolkit-pro-chi.vercel.app" 
                   target="_blank" 
                   rel="noopener noreferrer" 
-                  className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-400 hover:text-white transition-all cursor-pointer hover:underline select-none"
+                  className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 dark:text-blue-400 hover:underline transition-all cursor-pointer select-none"
                   id="suppport-server-link-brand"
                 >
                   <span className="animate-pulse">☕</span>
@@ -3122,7 +3153,11 @@ export default function App() {
                     href={social.href}
                     target="_blank"
                     rel="noreferrer"
-                    className="p-2 rounded-xl border border-white/25 bg-white/10 hover:bg-white/25 text-white shadow-3xs hover:scale-105 transition-all duration-200 flex items-center justify-center cursor-pointer hover:-translate-y-0.5"
+                    className={`p-2 rounded-xl border shadow-2xs hover:scale-105 transition-all duration-200 flex items-center justify-center cursor-pointer hover:-translate-y-0.5 ${
+                      theme === "dark"
+                        ? "border-slate-700 bg-slate-800 text-slate-200 hover:bg-slate-700 hover:text-white"
+                        : "border-slate-200 bg-white text-slate-600 hover:bg-blue-50/70 hover:border-blue-200 hover:text-blue-600"
+                    }`}
                     title={`Connect on ${social.label}`}
                   >
                     {social.icon}
@@ -3133,10 +3168,10 @@ export default function App() {
 
             {/* Column 2: Interactive Services (Links) - 2 Cols */}
             <div className="lg:col-span-2 space-y-4">
-              <h4 className="text-[10px] font-black tracking-widest uppercase text-blue-400 select-none">
+              <h4 className="text-[10px] font-black tracking-widest uppercase text-blue-600 dark:text-blue-400 select-none">
                 Interactive Utilities
               </h4>
-              <ul className="space-y-2.5 text-xs text-slate-300">
+              <ul className={`space-y-2.5 text-xs ${theme === "dark" ? "text-slate-300" : "text-slate-600"}`}>
                 {[
                   { id: "quote", label: "Quote Card Designer" },
                   { id: "compress", label: "Image Compressor" },
@@ -3158,9 +3193,9 @@ export default function App() {
                           }
                         }, 50);
                       }}
-                      className="hover:text-blue-400 font-semibold cursor-pointer transition-colors duration-150 flex items-center gap-1.5"
+                      className="hover:text-blue-600 dark:hover:text-blue-400 font-semibold cursor-pointer transition-colors duration-150 flex items-center gap-1.5"
                     >
-                      <span className="text-blue-400">•</span>
+                      <span className="text-blue-500 dark:text-blue-400">•</span>
                       <span>{item.label}</span>
                     </button>
                   </li>
@@ -3170,10 +3205,10 @@ export default function App() {
 
             {/* Column 3: Creator Editorial Guides - 3 Cols */}
             <div className="lg:col-span-3 space-y-4">
-              <h4 className="text-[10px] font-black tracking-widest uppercase text-blue-400 select-none">
+              <h4 className="text-[10px] font-black tracking-widest uppercase text-blue-600 dark:text-blue-400 select-none">
                 Knowledge Hub Publications
               </h4>
-              <ul className="space-y-2.5 text-xs text-slate-300">
+              <ul className={`space-y-2.5 text-xs ${theme === "dark" ? "text-slate-300" : "text-slate-600"}`}>
                 {[
                   { id: "compression-guide", title: "Lossless Image Compression Guide" },
                   { id: "webp-vs-png-vs-jpg", title: "Next-Gen Web Formats compared" },
@@ -3196,7 +3231,7 @@ export default function App() {
                           }
                         }, 50);
                       }}
-                      className="hover:text-blue-400 transition-colors duration-150 inline-flex items-center gap-1.5 cursor-pointer max-w-full text-left truncate font-semibold"
+                      className="hover:text-blue-600 dark:hover:text-blue-400 transition-colors duration-150 inline-flex items-center gap-1.5 cursor-pointer max-w-full text-left truncate font-semibold"
                       title={`Read: ${post.title}`}
                     >
                       <span>📖</span>
@@ -3209,10 +3244,10 @@ export default function App() {
 
             {/* Column 4: Newsletter Subscription - 3 Cols */}
             <div className="lg:col-span-3 space-y-4">
-              <h4 className="text-[10px] font-black tracking-widest uppercase text-blue-400 select-none">
+              <h4 className="text-[10px] font-black tracking-widest uppercase text-blue-600 dark:text-blue-400 select-none">
                 Subscribe to Newsletter
               </h4>
-              <p className="text-[11px] text-slate-300 leading-normal">
+              <p className={`text-[11px] leading-normal ${theme === "dark" ? "text-slate-300" : "text-slate-700 font-medium"}`}>
                 Join our list of designers and developers receiving tools, preset packs, and resources.
               </p>
               
@@ -3228,11 +3263,15 @@ export default function App() {
                   type="email"
                   required
                   placeholder="Enter creator email"
-                  className="w-full text-xs px-3 py-2 rounded-xl border border-slate-700 bg-slate-900 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors"
+                  className={`w-full text-xs px-3 py-2 rounded-xl border focus:outline-none focus:ring-2 focus:ring-blue-500 transition-colors ${
+                    theme === "dark"
+                      ? "border-slate-700 bg-slate-900 text-white placeholder-slate-400"
+                      : "border-slate-200 bg-white text-slate-900 placeholder-slate-400 shadow-2xs"
+                  }`}
                 />
                 <button
                   type="submit"
-                  className="w-full bg-blue-600 text-white hover:bg-blue-500 font-extrabold text-[10px] uppercase tracking-wider py-2 rounded-xl transition-colors cursor-pointer shadow-md"
+                  className="w-full bg-blue-600 text-white hover:bg-blue-500 font-extrabold text-[10px] uppercase tracking-wider py-2 rounded-xl transition-colors cursor-pointer shadow-xs"
                 >
                   Join List
                 </button>
@@ -3242,7 +3281,9 @@ export default function App() {
           </div>
 
           {/* Quick-links for manual AdSense verification agents */}
-          <div className="flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs font-semibold border-t border-b border-white/20 py-4 text-indigo-100">
+          <div className={`flex flex-wrap items-center justify-center gap-x-5 gap-y-2 text-xs font-semibold border-t border-b py-4 ${
+            theme === "dark" ? "border-slate-800 text-slate-200" : "border-slate-200 text-slate-700"
+          }`}>
             <button
               onClick={() => {
                 setActiveTab("legal");
@@ -3253,11 +3294,11 @@ export default function App() {
                   if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
                 }, 50);
               }}
-              className="hover:text-white cursor-pointer transition-colors"
+              className="hover:text-blue-600 dark:hover:text-white cursor-pointer transition-colors"
             >
               Privacy Policy
             </button>
-            <span className="text-white/40 select-none">•</span>
+            <span className={theme === "dark" ? "text-slate-700" : "text-slate-300"}>•</span>
             
             <button
               onClick={() => {
@@ -3269,11 +3310,11 @@ export default function App() {
                   if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
                 }, 50);
               }}
-              className="hover:text-white cursor-pointer transition-colors"
+              className="hover:text-blue-600 dark:hover:text-white cursor-pointer transition-colors"
             >
               Terms of Service
             </button>
-            <span className="text-white/40 select-none">•</span>
+            <span className={theme === "dark" ? "text-slate-700" : "text-slate-300"}>•</span>
             
             <button
               onClick={() => {
@@ -3285,11 +3326,11 @@ export default function App() {
                   if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
                 }, 50);
               }}
-              className="hover:text-white cursor-pointer transition-colors"
+              className="hover:text-blue-600 dark:hover:text-white cursor-pointer transition-colors"
             >
               About &amp; Disclaimers
             </button>
-            <span className="text-white/40 select-none">•</span>
+            <span className={theme === "dark" ? "text-slate-700" : "text-slate-300"}>•</span>
             
             <button
               onClick={() => {
@@ -3301,16 +3342,16 @@ export default function App() {
                   if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
                 }, 50);
               }}
-              className="hover:text-white cursor-pointer transition-colors"
+              className="hover:text-blue-600 dark:hover:text-white cursor-pointer transition-colors"
             >
               Contact & Support
             </button>
-            <span className="text-white/40 select-none">•</span>
+            <span className={theme === "dark" ? "text-slate-700" : "text-slate-300"}>•</span>
             
-            <a href="https://toolkit-pro-chi.vercel.app" target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-white cursor-pointer font-bold flex items-center gap-1">
+            <a href="https://toolkit-pro-chi.vercel.app" target="_blank" rel="noopener noreferrer" className="text-blue-600 dark:text-blue-400 hover:underline cursor-pointer font-bold flex items-center gap-1">
               <span>☕</span> Support Free Server
             </a>
-            <span className="text-white/40 select-none">•</span>
+            <span className={theme === "dark" ? "text-slate-700" : "text-slate-300"}>•</span>
             
             <button
               onClick={() => {
@@ -3322,11 +3363,11 @@ export default function App() {
                   if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
                 }, 50);
               }}
-              className="hover:text-white cursor-pointer transition-colors"
+              className="hover:text-blue-600 dark:hover:text-white cursor-pointer transition-colors"
             >
               AdSense Content Center
             </button>
-            <span className="text-white/40 select-none">•</span>
+            <span className={theme === "dark" ? "text-slate-700" : "text-slate-300"}>•</span>
             
             <button
               onClick={() => {
@@ -3336,23 +3377,23 @@ export default function App() {
                   if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
                 }, 50);
               }}
-              className="hover:text-white cursor-pointer transition-colors"
+              className="hover:text-blue-600 dark:hover:text-white cursor-pointer transition-colors"
               title="Dynamic SEO Sitemap & Diagnostic Log"
             >
               Dynamic Sitemap
             </button>
-            <span className="text-white/40 select-none">•</span>
+            <span className={theme === "dark" ? "text-slate-700" : "text-slate-300"}>•</span>
             
             <button
               onClick={() => setIsFeedbackOpen(true)}
-              className="hover:text-blue-400 cursor-pointer font-bold flex items-center gap-1.5 text-white transition-colors"
+              className="hover:text-blue-600 dark:hover:text-blue-400 cursor-pointer font-bold flex items-center gap-1.5 transition-colors"
               id="footer-feedback-trigger-btn"
               title="Share rating and commentary feedback about your experience"
             >
-              <MessageSquare className="w-3.5 h-3.5 text-blue-400" />
+              <MessageSquare className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
               <span>Send Feedback</span>
             </button>
-            <span className="text-white/40 select-none">•</span>
+            <span className={theme === "dark" ? "text-slate-700" : "text-slate-300"}>•</span>
 
             <button
               onClick={() => {
@@ -3365,16 +3406,20 @@ export default function App() {
                   tab: activeTab
                 });
               }}
-              className="hover:bg-blue-600 hover:text-white cursor-pointer font-bold flex items-center gap-1.5 text-blue-400 border border-blue-500/40 bg-slate-900 px-3 py-1.5 rounded-xl transition-all shadow-3xs hover:scale-102 active:scale-97 select-none"
+              className={`cursor-pointer font-bold flex items-center gap-1.5 border px-3 py-1.5 rounded-xl transition-all shadow-2xs hover:scale-102 active:scale-97 select-none ${
+                theme === "dark"
+                  ? "hover:bg-blue-600 hover:text-white text-blue-400 border-blue-500/40 bg-slate-900"
+                  : "bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+              }`}
               title="Visualize exact physical printed document using a scaled A4 page layout preview container"
               id="footer-print-preview-trigger-btn"
             >
-              <Printer className="w-3.5 h-3.5 text-blue-400" />
+              <Printer className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400" />
               <span>
                 Print Preview
               </span>
             </button>
-            <span className="text-white/40 select-none">•</span>
+            <span className={theme === "dark" ? "text-slate-700" : "text-slate-300"}>•</span>
 
             <button
               onClick={() => {
@@ -3388,11 +3433,15 @@ export default function App() {
                   tab: activeTab
                 });
               }}
-              className="hover:bg-white hover:text-indigo-950 cursor-pointer font-bold flex items-center gap-1.5 text-white border border-white/30 bg-white/10 px-3 py-1.5 rounded-xl transition-all shadow-3xs hover:scale-102 active:scale-97 select-none"
+              className={`cursor-pointer font-bold flex items-center gap-1.5 border px-3 py-1.5 rounded-xl transition-all shadow-2xs hover:scale-102 active:scale-97 select-none ${
+                theme === "dark"
+                  ? "hover:bg-white hover:text-indigo-950 text-white border-white/30 bg-white/10"
+                  : "bg-white border-slate-200 text-slate-700 hover:bg-slate-100 hover:text-slate-900"
+              }`}
               title="Print high-fidelity design layout of the active creator space utilizing dedicated stylesheet media queries"
               id="footer-print-view-trigger-btn"
             >
-              <Printer className="w-3.5 h-3.5 text-blue-400 animate-pulse" />
+              <Printer className="w-3.5 h-3.5 text-blue-600 dark:text-blue-400 animate-pulse" />
               <span>
                 Print Now
               </span>
@@ -3400,10 +3449,12 @@ export default function App() {
           </div>
 
           {/* Bottom Bar: Copyright and Badging */}
-          <div className="flex flex-col sm:flex-row items-center justify-between text-[11px] text-indigo-100 font-medium pt-2">
+          <div className={`flex flex-col sm:flex-row items-center justify-between text-[11px] font-medium pt-2 ${
+            theme === "dark" ? "text-slate-300" : "text-slate-600 font-medium"
+          }`}>
             <p>© 2026 Toolkit Pro Suite. All rights registered.</p>
-            <p className="mt-2 sm:mt-0 font-semibold flex items-center gap-1.5 select-none text-indigo-200">
-              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0 animate-pulse" />
+            <p className="mt-2 sm:mt-0 font-semibold flex items-center gap-1.5 select-none">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0 animate-pulse" />
               <span>Google Workspace Secured Integration • Built for Creators</span>
             </p>
           </div>

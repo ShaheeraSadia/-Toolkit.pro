@@ -340,7 +340,11 @@ export default function Navbar({
   const isToolActive = ["quote", "compress", "qr", "palette", "video"].includes(activeTab);
 
   return (
-    <header className="sticky top-0 z-50 select-none border-b border-slate-800 transition-all duration-300 relative bg-slate-900/95 backdrop-blur-xl text-slate-100 shadow-md">
+    <header className={`sticky top-0 z-50 select-none border-b transition-all duration-300 relative backdrop-blur-xl shadow-xs ${
+      theme === "dark" 
+        ? "bg-slate-900/95 border-slate-800 text-slate-100" 
+        : "bg-white/95 border-slate-200/80 text-slate-800"
+    }`}>
       {/* Top Brand Accent Bar */}
       <div className="absolute top-0 left-0 right-0 h-[2.5px] bg-gradient-to-r from-blue-500 via-sky-400 to-emerald-400 z-50 pointer-events-none" />
 
@@ -352,7 +356,11 @@ export default function Navbar({
             {onToggleSidebar && (
               <button
                 onClick={onToggleSidebar}
-                className="p-2 rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 text-white cursor-pointer hover:scale-105 active:scale-95 transition-all shadow-2xs"
+                className={`p-2 rounded-xl border cursor-pointer hover:scale-105 active:scale-95 transition-all shadow-2xs ${
+                  theme === "dark"
+                    ? "border-slate-700 bg-slate-800/80 hover:bg-slate-700 text-white"
+                    : "border-slate-200 bg-slate-100 hover:bg-slate-200 text-slate-700"
+                }`}
                 title="Toggle Sidebar Menu"
                 aria-label="Toggle Navigation Sidebar"
               >
@@ -364,7 +372,11 @@ export default function Navbar({
               onClick={() => handleTabClick("home")}
               className="flex items-center space-x-2.5 cursor-pointer group shrink-0"
             >
-              <div className="px-2 py-1.5 rounded-xl border border-white/30 bg-white/95 shadow-sm flex items-center justify-center transition-all group-hover:scale-[1.03] duration-300">
+              <div className={`px-2 py-1.5 rounded-xl border shadow-xs flex items-center justify-center transition-all group-hover:scale-[1.03] duration-300 ${
+                theme === "dark"
+                  ? "border-slate-700 bg-slate-800"
+                  : "border-slate-200 bg-white"
+              }`}>
                 <img 
                   src={brandLogo} 
                   alt="Toolkit Pro Logo" 
@@ -372,7 +384,11 @@ export default function Navbar({
                   referrerPolicy="no-referrer"
                 />
               </div>
-              <span className="hidden xl:inline-flex items-center rounded-full bg-emerald-400/20 px-2.5 py-0.5 text-[9.5px] font-black text-emerald-100 border border-emerald-400/30 uppercase tracking-wider font-mono">
+              <span className={`hidden xl:inline-flex items-center rounded-full px-2.5 py-0.5 text-[9.5px] font-black uppercase tracking-wider font-mono border ${
+                theme === "dark"
+                  ? "bg-emerald-400/20 text-emerald-100 border-emerald-400/30"
+                  : "bg-emerald-50 text-emerald-700 border-emerald-200"
+              }`}>
                 AdSense ID
               </span>
             </div>
@@ -381,20 +397,32 @@ export default function Navbar({
           {/* Center-Left: Global Command Palette Search Widget */}
           <button
             onClick={handleTriggerSearch}
-            className="flex items-center justify-between w-36 sm:w-44 md:w-48 lg:w-52 px-3 py-1.5 rounded-xl text-left border border-slate-700/80 bg-slate-800/80 hover:bg-slate-800 text-slate-200 select-none transition-all hover:border-blue-500/50 cursor-pointer shrink-0 shadow-xs"
+            className={`flex items-center justify-between w-36 sm:w-44 md:w-48 lg:w-52 px-3 py-1.5 rounded-xl text-left border select-none transition-all hover:border-blue-500/50 cursor-pointer shrink-0 shadow-2xs ${
+              theme === "dark"
+                ? "border-slate-700/80 bg-slate-800/80 hover:bg-slate-800 text-slate-200"
+                : "border-slate-200 bg-slate-100/90 hover:bg-slate-100 text-slate-700"
+            }`}
             title="Search Workspace & Utilities (Ctrl+K)"
           >
             <div className="flex items-center gap-1.5 sm:gap-2">
-              <Search className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-              <span className="text-[11px] font-bold truncate text-slate-200">Search tools...</span>
+              <Search className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 shrink-0" />
+              <span className="text-[11px] font-bold truncate">Search tools...</span>
             </div>
-            <kbd className="hidden xs:inline-flex items-center px-1.5 py-0.5 text-[9px] font-bold rounded-lg font-mono shrink-0 select-none bg-slate-700/90 border border-slate-600 text-slate-300">
+            <kbd className={`hidden xs:inline-flex items-center px-1.5 py-0.5 text-[9px] font-bold rounded-lg font-mono shrink-0 select-none border ${
+              theme === "dark"
+                ? "bg-slate-700/90 border-slate-600 text-slate-300"
+                : "bg-white border-slate-200 text-slate-600"
+            }`}>
               Ctrl+K
             </kbd>
           </button>
 
           {/* Center-Right: Segmented Tabs Capsule Control Nav */}
-          <nav className="hidden md:flex items-center gap-1 sm:gap-1.5 bg-slate-950/80 p-1 rounded-2xl border border-slate-800 select-none shrink-0 animate-in fade-in zoom-in-95 duration-300">
+          <nav className={`hidden md:flex items-center gap-1 sm:gap-1.5 p-1 rounded-2xl border select-none shrink-0 animate-in fade-in zoom-in-95 duration-300 ${
+            theme === "dark"
+              ? "bg-slate-950/80 border-slate-800"
+              : "bg-slate-100/80 border-slate-200/90"
+          }`}>
             {/* Interactive utilities megamenu */}
             <div className="relative">
               <button
@@ -405,13 +433,15 @@ export default function Navbar({
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   isToolActive
                     ? "bg-blue-600 text-white font-extrabold shadow-sm"
-                    : "text-slate-300 hover:text-white hover:bg-slate-800/60"
+                    : theme === "dark"
+                      ? "text-slate-300 hover:text-white hover:bg-slate-800/60"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-white/80"
                 }`}
                 onClick={() => setShowToolsDropdown(!showToolsDropdown)}
               >
-                <LayoutGrid className="w-3.5 h-3.5 text-blue-400 group-hover:text-white" />
+                <LayoutGrid className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 group-hover:text-white" />
                 <span>Interactives</span>
-                <ChevronDown className={`w-3 h-3 text-slate-400 transition-transform duration-300 ${showToolsDropdown ? "rotate-180" : ""}`} />
+                <ChevronDown className={`w-3 h-3 transition-transform duration-300 ${showToolsDropdown ? "rotate-180" : ""}`} />
               </button>
 
               {/* Mega hover subgrid */}
@@ -459,14 +489,18 @@ export default function Navbar({
                 }}
                 className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   showRecentDropdown
-                    ? "bg-white text-indigo-950 shadow-sm font-extrabold"
-                    : "text-white/85 hover:text-white hover:bg-white/15"
+                    ? theme === "dark"
+                      ? "bg-slate-800 text-white shadow-sm font-extrabold"
+                      : "bg-white text-slate-900 shadow-xs font-extrabold"
+                    : theme === "dark"
+                      ? "text-slate-300 hover:text-white hover:bg-slate-800/60"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-white/80"
                 }`}
                 onClick={() => setShowRecentDropdown(!showRecentDropdown)}
               >
-                <History className="w-3.5 h-3.5 text-indigo-200 shrink-0" />
+                <History className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-300 shrink-0" />
                 <span>Recents</span>
-                <ChevronDown className={`w-3 h-3 text-white/70 transition-transform duration-300 ${showRecentDropdown ? "rotate-180" : ""}`} />
+                <ChevronDown className={`w-3 h-3 transition-transform duration-300 ${showRecentDropdown ? "rotate-180" : ""}`} />
               </button>
 
               {/* Interactive session checklist */}
@@ -552,18 +586,22 @@ export default function Navbar({
               onClick={() => handleTabClick("chatbot")}
               className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === "chatbot"
-                  ? "text-indigo-950 font-extrabold"
-                  : "text-white/85 hover:text-white hover:bg-white/15"
+                  ? theme === "dark" ? "text-white font-extrabold" : "text-blue-700 font-extrabold"
+                  : theme === "dark"
+                    ? "text-slate-300 hover:text-white hover:bg-slate-800/60"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-white/80"
               }`}
             >
               {activeTab === "chatbot" && (
                 <motion.div
                   layoutId="navbarTabActivePill"
-                  className="absolute inset-0 rounded-xl bg-white shadow-md"
+                  className={`absolute inset-0 rounded-xl shadow-xs ${
+                    theme === "dark" ? "bg-slate-800" : "bg-white"
+                  }`}
                   transition={{ type: "spring", stiffness: 380, damping: 28 }}
                 />
               )}
-              <Bot className={`w-3.5 h-3.5 shrink-0 relative z-10 animate-pulse ${activeTab === "chatbot" ? "text-purple-600" : "text-purple-300"}`} />
+              <Bot className={`w-3.5 h-3.5 shrink-0 relative z-10 animate-pulse ${activeTab === "chatbot" ? "text-blue-600 dark:text-blue-400" : "text-slate-400 dark:text-slate-400"}`} />
               <span className="relative z-10">AI Chatbot</span>
             </button>
 
@@ -572,18 +610,22 @@ export default function Navbar({
               onClick={() => handleTabClick("voice")}
               className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === "voice"
-                  ? "text-indigo-950 font-extrabold"
-                  : "text-white/85 hover:text-white hover:bg-white/15"
+                  ? theme === "dark" ? "text-white font-extrabold" : "text-blue-700 font-extrabold"
+                  : theme === "dark"
+                    ? "text-slate-300 hover:text-white hover:bg-slate-800/60"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-white/80"
               }`}
             >
               {activeTab === "voice" && (
                 <motion.div
                   layoutId="navbarTabActivePill"
-                  className="absolute inset-0 rounded-xl bg-white shadow-md"
+                  className={`absolute inset-0 rounded-xl shadow-xs ${
+                    theme === "dark" ? "bg-slate-800" : "bg-white"
+                  }`}
                   transition={{ type: "spring", stiffness: 380, damping: 28 }}
                 />
               )}
-              <Mic className={`w-3.5 h-3.5 shrink-0 relative z-10 ${activeTab === "voice" ? "text-rose-600" : "text-rose-300"}`} />
+              <Mic className={`w-3.5 h-3.5 shrink-0 relative z-10 ${activeTab === "voice" ? "text-rose-600" : "text-slate-400 dark:text-slate-400"}`} />
               <span className="relative z-10">Voice Studio</span>
             </button>
 
@@ -592,21 +634,25 @@ export default function Navbar({
               onClick={() => handleTabClick("drive")}
               className={`relative flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === "drive"
-                  ? "text-indigo-950 font-extrabold"
-                  : "text-white/85 hover:text-white hover:bg-white/15"
+                  ? theme === "dark" ? "text-white font-extrabold" : "text-blue-700 font-extrabold"
+                  : theme === "dark"
+                    ? "text-slate-300 hover:text-white hover:bg-slate-800/60"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-white/80"
               }`}
             >
               {activeTab === "drive" && (
                 <motion.div
                   layoutId="navbarTabActivePill"
-                  className="absolute inset-0 rounded-xl bg-white shadow-md"
+                  className={`absolute inset-0 rounded-xl shadow-xs ${
+                    theme === "dark" ? "bg-slate-800" : "bg-white"
+                  }`}
                   transition={{ type: "spring", stiffness: 380, damping: 28 }}
                 />
               )}
-              <Cloud className={`w-3.5 h-3.5 shrink-0 relative z-10 animate-pulse ${activeTab === "drive" ? "text-sky-600" : "text-sky-300"}`} />
+              <Cloud className={`w-3.5 h-3.5 shrink-0 relative z-10 animate-pulse ${activeTab === "drive" ? "text-sky-600" : "text-slate-400 dark:text-slate-400"}`} />
               <span className="relative z-10">Drive</span>
               {user && driveCount > 0 && (
-                <span className="relative z-10 bg-emerald-400/20 border border-emerald-400/30 text-emerald-200 px-1.5 py-0.2 rounded-md text-[9px] font-mono font-bold leading-none shrink-0 ml-0.5 shadow-2xs">
+                <span className="relative z-10 bg-emerald-100 dark:bg-emerald-400/20 border border-emerald-300 dark:border-emerald-400/30 text-emerald-800 dark:text-emerald-200 px-1.5 py-0.2 rounded-md text-[9px] font-mono font-bold leading-none shrink-0 ml-0.5 shadow-2xs">
                   {driveCount}
                 </span>
               )}
@@ -623,20 +669,24 @@ export default function Navbar({
                 onClick={() => setShowMoreDropdown(!showMoreDropdown)}
                 className={`relative flex items-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                   ["resources", "legal"].includes(activeTab) || showMoreDropdown
-                    ? "text-indigo-950 font-extrabold"
-                    : "text-white/85 hover:text-white hover:bg-white/15"
+                    ? theme === "dark" ? "text-white font-extrabold" : "text-blue-700 font-extrabold"
+                    : theme === "dark"
+                      ? "text-slate-300 hover:text-white hover:bg-slate-800/60"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-white/80"
                 }`}
               >
                 {["resources", "legal"].includes(activeTab) && (
                   <motion.div
                     layoutId="navbarTabActivePill"
-                    className="absolute inset-0 rounded-xl bg-white shadow-md"
+                    className={`absolute inset-0 rounded-xl shadow-xs ${
+                      theme === "dark" ? "bg-slate-800" : "bg-white"
+                    }`}
                     transition={{ type: "spring", stiffness: 380, damping: 28 }}
                   />
                 )}
-                <MoreHorizontal className={`w-3.5 h-3.5 relative z-10 ${["resources", "legal"].includes(activeTab) ? "text-indigo-600" : "text-indigo-200"}`} />
+                <MoreHorizontal className={`w-3.5 h-3.5 relative z-10 ${["resources", "legal"].includes(activeTab) ? "text-blue-600 dark:text-blue-400" : "text-slate-400 dark:text-slate-400"}`} />
                 <span className="relative z-10 hidden xs:inline">More</span>
-                <ChevronDown className={`w-3 h-3 text-white/70 relative z-10 transition-transform duration-300 ${showMoreDropdown ? "rotate-180" : ""}`} />
+                <ChevronDown className={`w-3 h-3 relative z-10 transition-transform duration-300 ${showMoreDropdown ? "rotate-180" : ""}`} />
               </button>
 
               {showMoreDropdown && (
@@ -764,10 +814,14 @@ export default function Navbar({
                     setShowInstallModal(true);
                   }
                 }}
-                className="relative flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-xl text-[11px] font-black transition-all cursor-pointer select-none leading-none shadow-md hover:scale-[1.02] active:scale-[0.98] bg-white text-indigo-950 hover:bg-indigo-50 border border-white/40"
+                className={`relative flex items-center gap-1.5 px-2.5 py-1.5 sm:px-3 sm:py-1.5 rounded-xl text-[11px] font-black transition-all cursor-pointer select-none leading-none shadow-xs hover:scale-[1.02] active:scale-[0.98] border ${
+                  theme === "dark"
+                    ? "bg-slate-800 text-white hover:bg-slate-700 border-slate-700"
+                    : "bg-blue-50 text-blue-700 hover:bg-blue-100 border-blue-200"
+                }`}
                 title="Install Toolkit Pro as a native standalone app"
               >
-                <Download className={`w-3.5 h-3.5 shrink-0 text-indigo-700 ${(installPrompt || (typeof window !== "undefined" && window.deferredInstallPrompt)) ? "animate-bounce" : ""}`} />
+                <Download className={`w-3.5 h-3.5 shrink-0 ${(installPrompt || (typeof window !== "undefined" && window.deferredInstallPrompt)) ? "animate-bounce" : ""}`} />
                 <span className="hidden sm:inline">Install App</span>
                 <span className="sm:hidden">Install</span>
                 <span className="absolute -top-1 -right-1 flex h-2 w-2">
@@ -783,14 +837,18 @@ export default function Navbar({
             {/* Elegant Sun/Moon Dark Selector Switch */}
             <button
               onClick={onToggleTheme}
-              className="p-2 rounded-xl border border-white/20 bg-white/10 hover:bg-white/20 text-amber-300 transition-all cursor-pointer select-none"
+              className={`p-2 rounded-xl border transition-all cursor-pointer select-none ${
+                theme === "dark"
+                  ? "border-slate-700 bg-slate-800 text-amber-300 hover:bg-slate-700"
+                  : "border-slate-200 bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
               title={theme === "dark" ? "Light Mode Active (Ctrl+Alt+T)" : "Dark Mode Active (Ctrl+Alt+T)"}
               id="btn-toggle-theme"
             >
               {theme === "dark" ? (
                 <Sun className="w-3.5 h-3.5" />
               ) : (
-                <Moon className="w-3.5 h-3.5 text-white" />
+                <Moon className="w-3.5 h-3.5 text-slate-700" />
               )}
             </button>
 
@@ -799,8 +857,10 @@ export default function Navbar({
               onClick={onToggleHighContrast}
               className={`p-2 rounded-xl border transition-all cursor-pointer select-none ${
                 highContrast
-                  ? "bg-yellow-400 border-yellow-300 text-black font-black shadow-md"
-                  : "border-white/20 bg-white/10 hover:bg-white/20 text-white"
+                  ? "bg-amber-400 border-amber-300 text-black font-black shadow-md"
+                  : theme === "dark"
+                    ? "border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700"
+                    : "border-slate-200 bg-slate-100 text-slate-600 hover:bg-slate-200"
               }`}
               title={highContrast ? "Disable High Contrast Accessibility Mode" : "Enable High Contrast Accessibility Mode"}
               id="btn-toggle-high-contrast"
@@ -813,20 +873,24 @@ export default function Navbar({
               onClick={onToggleTooltips}
               className={`p-2 rounded-xl border transition-all cursor-pointer select-none relative flex items-center gap-1.5 ${
                 tooltipsEnabled
-                  ? "bg-white border-white/40 text-indigo-950 font-bold shadow-md"
-                  : "border-white/20 bg-white/10 hover:bg-white/20 text-white"
+                  ? theme === "dark"
+                    ? "bg-blue-950/60 border-blue-800 text-blue-300 font-bold shadow-md"
+                    : "bg-blue-50 border-blue-200 text-blue-700 font-bold shadow-xs"
+                  : theme === "dark"
+                    ? "border-slate-700 bg-slate-800 text-slate-300 hover:bg-slate-700"
+                    : "border-slate-200 bg-slate-100 text-slate-600 hover:bg-slate-200"
               }`}
               title={tooltipsEnabled ? "Workspace Tooltips Active (Click to disable popovers on inputs & buttons)" : "Enable Contextual Tooltips (Shows popovers on workspace inputs & buttons)"}
               id="btn-toggle-tooltips"
             >
-              <HelpCircle className={`w-3.5 h-3.5 ${tooltipsEnabled ? "animate-pulse text-indigo-600" : ""}`} />
+              <HelpCircle className={`w-3.5 h-3.5 ${tooltipsEnabled ? "animate-pulse text-blue-600 dark:text-blue-400" : ""}`} />
               <span className="hidden xl:inline text-xs font-bold leading-none">
                 {tooltipsEnabled ? "Tooltips ON" : "Tooltips"}
               </span>
               {tooltipsEnabled && (
                 <span className="absolute -top-0.5 -right-0.5 flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-300 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-400"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-300 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-blue-500"></span>
                 </span>
               )}
             </button>

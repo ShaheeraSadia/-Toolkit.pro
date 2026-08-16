@@ -218,7 +218,7 @@ export default function ImageConverter({ theme }: ImageConverterProps) {
       {/* Header Banner */}
       <div className="pb-5 border-b border-slate-150 dark:border-slate-850 select-none">
         <h1 className={`text-2xl md:text-3xl font-black tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
-          Client-side <span className="bg-clip-text text-transparent bg-gradient-to-r from-teal-500 via-emerald-500 to-green-500">Image Converter</span>
+          Client-side <span className="text-blue-600 dark:text-blue-400">Image Converter</span>
         </h1>
         <p className="text-xs text-slate-400 mt-1">
           Convert between PNG, JPEG, WEBP, and BMP. Resize dimensions, adjust rendering quality, and compare file sizes dynamically in your sandbox.

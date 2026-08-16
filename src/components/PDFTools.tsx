@@ -320,7 +320,7 @@ export default function PDFTools({ theme }: PDFToolsProps) {
       <div className="flex flex-col md:flex-row md:items-center md:justify-between pb-5 border-b border-slate-150 dark:border-slate-850 gap-4 select-none">
         <div>
           <h1 className={`text-2xl md:text-3xl font-black tracking-tight ${theme === "dark" ? "text-white" : "text-slate-900"}`}>
-            Premium <span className="bg-clip-text text-transparent bg-gradient-to-r from-red-500 via-orange-500 to-amber-500">PDF Tools Suite</span>
+            Premium <span className="text-blue-600 dark:text-blue-400">PDF Tools Suite</span>
           </h1>
           <p className="text-xs text-slate-400 mt-1">
             Reorder asset items, manage margins, orient frames, and generate beautifully formatted PDFs completely client-side.
