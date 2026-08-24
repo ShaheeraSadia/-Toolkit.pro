@@ -5,6 +5,7 @@ import { WebSocketServer, WebSocket } from "ws";
 import { createServer as createViteServer } from "vite";
 import { GoogleGenAI, GenerateVideosOperation, Modality, LiveServerMessage } from "@google/genai";
 import dotenv from "dotenv";
+import fs from "fs";
 import { generateSitemapXml } from "./sitemap.xml.ts";
 
 dotenv.config();
@@ -57,8 +58,31 @@ app.use(express.urlencoded({ limit: "50mb", extended: true }));
 
 // Dynamic XML Sitemap Generator endpoint for search engines indexation
 app.get("/sitemap.xml", (req, res) => {
-  res.header("Content-Type", "application/xml");
+  res.header("Content-Type", "application/xml; charset=utf-8");
+  res.header("Cache-Control", "public, max-age=3600");
   res.send(generateSitemapXml(req));
+});
+
+// Robots.txt endpoint for search engines & AdSense crawler
+app.get("/robots.txt", (req, res) => {
+  res.header("Content-Type", "text/plain; charset=utf-8");
+  res.header("Cache-Control", "public, max-age=86400");
+  const robotsPath = path.join(process.cwd(), "public", "robots.txt");
+  if (fs.existsSync(robotsPath)) {
+    return res.sendFile(robotsPath);
+  }
+  res.send(`User-agent: Mediapartners-Google\nAllow: /\n\nUser-agent: Googlebot\nAllow: /\nDisallow: /api/\n\nUser-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: https://toolkit-pro-chi.vercel.app/sitemap.xml\n`);
+});
+
+// Google AdSense Publisher Verification ads.txt endpoint
+app.get("/ads.txt", (req, res) => {
+  res.header("Content-Type", "text/plain; charset=utf-8");
+  res.header("Cache-Control", "public, max-age=86400");
+  const adsPath = path.join(process.cwd(), "public", "ads.txt");
+  if (fs.existsSync(adsPath)) {
+    return res.sendFile(adsPath);
+  }
+  res.send(`google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0\n`);
 });
 
 // API route to generate SEO optimized templates via the Gemini API

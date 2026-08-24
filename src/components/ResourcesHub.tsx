@@ -580,26 +580,48 @@ export default function ResourcesHub({
   }, [selectedSeoPage]);
 
   const SITEMAP_URLS = [
-    { url: "", alias: "Home (Quote Designer)", priority: "1.0", changefreq: "daily", description: "Primary creative quote composer workspace." },
-    { url: "?tab=compress", alias: "Image Compressor Pro", priority: "0.9", changefreq: "weekly", description: "Lossless / lossy premium web image compiler." },
-    { url: "?tab=qr", alias: "QR Code Matrix Gen", priority: "0.9", changefreq: "weekly", description: "Dynamic Reed-Solomon scanning coordinates generator." },
-    { url: "?tab=palette", alias: "Aesthetic Color Extractor", priority: "0.8", changefreq: "weekly", description: "Median Cut palette quantifier and contrast checks." },
-    { url: "?tab=drive", alias: "Cloud Drive Explorer Pane", priority: "0.8", changefreq: "daily", description: "Archived asset review and Workspace synchronizer." },
-    { url: "?tab=resources", alias: "AdSense Content Index Hub", priority: "0.7", changefreq: "daily", description: "Root list of high-value creator articles and guides." },
-    { url: "?tab=resources&amp;article=compression-guide", alias: "Guide: Compression Optimization", priority: "0.6", changefreq: "monthly", description: "Deep dive editorial on photo algorithms." },
-    { url: "?tab=resources&amp;article=webp-vs-png-vs-jpg", alias: "Guide: Next-Gen Web Formats", priority: "0.6", changefreq: "monthly", description: "WebP, PNG, and JPEG formatting comparison." },
-    { url: "?tab=resources&amp;article=qr-code-encoding", alias: "Guide: QR Matrix Standard", priority: "0.6", changefreq: "monthly", description: "Engineering behind physical scan blocks." },
-    { url: "?tab=resources&amp;article=pinterest-seo", alias: "Guide: Pinboards Image SEO", priority: "0.6", changefreq: "monthly", description: "Viral vertical image SEO methodologies." },
-    { url: "?tab=resources&amp;article=color-palette-extraction", alias: "Guide: Design Color Coding", priority: "0.6", changefreq: "monthly", description: "Quantization, Median Cut, and 60-30-10 styling guide." },
-    { url: "?tab=resources&amp;article=workspace-workflow-optimization", alias: "Guide: Workspace Workflow Optimization", priority: "0.6", changefreq: "monthly", description: "System guidelines on high-productivity design mechanics." },
-    { url: "?tab=resources&amp;article=ux-color-psychology", alias: "Guide: UX Color Psychology & CRO", priority: "0.6", changefreq: "monthly", description: "Subconscious user response triggers and conversion ratios." },
-    { url: "?tab=resources&amp;article=exif-image-metadata", alias: "Guide: EXIF Metadata Performance", priority: "0.6", changefreq: "monthly", description: "How stripping hidden photo headers improves mobile site speeds." },
-    { url: "?tab=resources&amp;article=core-web-vitals-vitals", alias: "Guide: Core Web Vitals & CLS", priority: "0.6", changefreq: "monthly", description: "Technical audits on eliminating dynamic layout shifts." },
-    { url: "?tab=resources&amp;article=ai-video-editing-workflows", alias: "Guide: AI Video Workflows", priority: "0.6", changefreq: "monthly", description: "Deep dive on post-generation and traditional editors." },
-    { url: "?tab=legal&amp;sub=privacy", alias: "Legal: Privacy Protection Policy", priority: "0.5", changefreq: "yearly", description: "AdSense cookies declarations and safety rules." },
-    { url: "?tab=legal&amp;sub=terms", alias: "Legal: Terms & Conditions", priority: "0.5", changefreq: "yearly", description: "Permitted usage parameters and liability disclaimers." },
-    { url: "?tab=legal&amp;sub=about", alias: "About: Creator Profile", priority: "0.5", changefreq: "yearly", description: "Development background of Shaheera Sadia." },
-    { url: "?tab=legal&amp;sub=contact", alias: "Contact: Developer Support Registry", priority: "0.5", changefreq: "yearly", description: "Encrypted submission and support request form." }
+    // Core Tools
+    { url: "", alias: "Home (Quote Designer)", priority: "1.00", changefreq: "daily", description: "Primary creative quote composer workspace." },
+    { url: "?tab=quote", alias: "Quote Designer Pro", priority: "0.90", changefreq: "weekly", description: "Typographic quote card maker & social poster." },
+    { url: "?tab=compress", alias: "Image Compressor Pro", priority: "0.90", changefreq: "weekly", description: "Lossless / lossy premium web image compiler." },
+    { url: "?tab=qr", alias: "QR Code Matrix Gen", priority: "0.90", changefreq: "weekly", description: "Dynamic Reed-Solomon scanning coordinates generator." },
+    { url: "?tab=palette", alias: "Aesthetic Color Extractor", priority: "0.90", changefreq: "weekly", description: "Median Cut palette quantifier and contrast checks." },
+    { url: "?tab=video", alias: "AI Video & Scene Studio", priority: "0.85", changefreq: "weekly", description: "Cinematic storyboard animator and video compiler." },
+    { url: "?tab=bgremover", alias: "AI Background Remover", priority: "0.85", changefreq: "weekly", description: "Intelligent subject isolator and cutout engine." },
+    { url: "?tab=pdf", alias: "PDF Optimizer & Splitter", priority: "0.85", changefreq: "weekly", description: "Client-side document processor and page trimmer." },
+    { url: "?tab=converter", alias: "Universal Format Transcoder", priority: "0.85", changefreq: "weekly", description: "WebP, AVIF, PNG, JPEG batch transcoder." },
+    { url: "?tab=chatbot", alias: "AI Writing Assistant", priority: "0.80", changefreq: "weekly", description: "Creative copywriter and prompt optimizer." },
+    { url: "?tab=voice", alias: "Audio Recorder & Voice Studio", priority: "0.80", changefreq: "weekly", description: "Microphone recorder and speech audio tools." },
+    { url: "?tab=drive", alias: "Cloud Drive Explorer Pane", priority: "0.75", changefreq: "daily", description: "Archived asset review and Workspace synchronizer." },
+    
+    // High-Value Content & Educational Guides (AdSense Quality Standard)
+    { url: "?tab=resources", alias: "AdSense Content Index Hub", priority: "0.90", changefreq: "daily", description: "Root list of high-value creator articles and guides." },
+    { url: "?tab=resources&amp;article=qr-code-encoding", alias: "Guide: QR Matrix Complete Guide 2026", priority: "0.85", changefreq: "weekly", description: "Engineering behind physical scan blocks and phone camera decoding." },
+    { url: "?tab=resources&amp;article=compression-guide", alias: "Guide: Compression Optimization", priority: "0.85", changefreq: "weekly", description: "Deep dive editorial on lossy vs lossless photo algorithms." },
+    { url: "?tab=resources&amp;article=webp-vs-png-vs-jpg", alias: "Guide: Next-Gen Web Formats", priority: "0.85", changefreq: "weekly", description: "WebP, PNG, and JPEG performance comparison." },
+    { url: "?tab=resources&amp;article=pinterest-seo", alias: "Guide: Pinboards Image SEO", priority: "0.85", changefreq: "weekly", description: "Viral vertical image SEO methodologies (2:3 aspect ratio)." },
+    { url: "?tab=resources&amp;article=color-palette-extraction", alias: "Guide: Design Color Coding", priority: "0.85", changefreq: "weekly", description: "Quantization, Median Cut, and 60-30-10 styling rules." },
+    { url: "?tab=resources&amp;article=workspace-workflow-optimization", alias: "Guide: Workspace Optimization", priority: "0.80", changefreq: "monthly", description: "System guidelines on high-productivity design mechanics." },
+    { url: "?tab=resources&amp;article=ux-color-psychology", alias: "Guide: UX Color Psychology & CRO", priority: "0.80", changefreq: "monthly", description: "Subconscious user response triggers and conversion ratios." },
+    { url: "?tab=resources&amp;article=exif-image-metadata", alias: "Guide: EXIF Metadata Performance", priority: "0.80", changefreq: "monthly", description: "How stripping hidden photo headers improves mobile site speeds." },
+    { url: "?tab=resources&amp;article=core-web-vitals-vitals", alias: "Guide: Core Web Vitals & CLS", priority: "0.80", changefreq: "monthly", description: "Technical audits on eliminating dynamic layout shifts." },
+    { url: "?tab=resources&amp;article=svg-optimization-secrets", alias: "Guide: SVG Optimization Secrets", priority: "0.80", changefreq: "monthly", description: "Vector coordinates cleaning and viewport parameters." },
+    { url: "?tab=resources&amp;article=web-typography-loading", alias: "Guide: Web Typography & Preloading", priority: "0.80", changefreq: "monthly", description: "Modern font-display swap and variable font delivery." },
+    { url: "?tab=resources&amp;article=robots-txt-sitemaps", alias: "Guide: robots.txt & Sitemap Indexing", priority: "0.80", changefreq: "monthly", description: "Crawling directives and absolute canonical links strategy." },
+    { url: "?tab=resources&amp;article=structured-schema-seo", alias: "Guide: JSON-LD Schema Markup", priority: "0.80", changefreq: "monthly", description: "Rich Snippets schema structures for WebApplications." },
+    { url: "?tab=resources&amp;article=ai-video-editing-workflows", alias: "Guide: AI Video Workflows", priority: "0.80", changefreq: "monthly", description: "Deep dive on post-generation and traditional editors." },
+    { url: "?tab=resources&amp;article=seo-tools-step-by-step-guide", alias: "Guide: SEO Meta & Sitemap Playbook", priority: "0.80", changefreq: "monthly", description: "Step-by-step developer tutorial for search indexing." },
+
+    // AdSense & Publisher Compliance Sub-pages (Mandatory)
+    { url: "?tab=legal", alias: "Legal: Compliance & Trust Hub", priority: "0.70", changefreq: "monthly", description: "Centralized privacy, terms, and AdSense certification." },
+    { url: "?tab=legal&amp;sub=privacy", alias: "Legal: Privacy Protection Policy", priority: "0.65", changefreq: "monthly", description: "AdSense cookies declarations, tracking transparency, and GDPR compliance." },
+    { url: "?tab=legal&amp;sub=terms", alias: "Legal: Terms & Conditions", priority: "0.65", changefreq: "monthly", description: "Permitted usage parameters, copyright ownership, and liability limits." },
+    { url: "?tab=legal&amp;sub=about", alias: "About: Creator Profile", priority: "0.65", changefreq: "monthly", description: "Development mission of Shaheera Sadia and editorial principles." },
+    { url: "?tab=legal&amp;sub=contact", alias: "Contact: Support & Inquiries", priority: "0.65", changefreq: "monthly", description: "Publisher contact channels, email registry, and feedback inbox." },
+    { url: "?tab=legal&amp;sub=adsense", alias: "Legal: Google AdSense Disclosure", priority: "0.65", changefreq: "monthly", description: "Ad placement policy, publisher transparency, and verification logs." },
+
+    // Diagnostic Explorer
+    { url: "?sitemap=true", alias: "Visual Sitemap Indexer", priority: "0.50", changefreq: "monthly", description: "Interactive site directory and indexing diagnostic console." }
   ];
 
   const generateXmlString = (originUrl: string) => {

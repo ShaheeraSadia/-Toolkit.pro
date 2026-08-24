@@ -1,4 +1,23 @@
-User-agent: *
+# Robots.txt for Toolkit Pro Suite
+# Optimized for Googlebot, Mediapartners-Google (Google AdSense), and Bingbot
+
+User-agent: Mediapartners-Google
 Allow: /
 
+User-agent: Googlebot
+Allow: /
+Disallow: /api/
+
+User-agent: Googlebot-Image
+Allow: /
+
+User-agent: Bingbot
+Allow: /
+Disallow: /api/
+
+User-agent: *
+Allow: /
+Disallow: /api/
+
+# Sitemap location for automated search engine crawling
 Sitemap: https://toolkit-pro-chi.vercel.app/sitemap.xml
