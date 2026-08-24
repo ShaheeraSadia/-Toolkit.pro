@@ -452,19 +452,6 @@ export default function BackgroundRemover({ theme }: BackgroundRemoverProps) {
               onClick={() => {
                 if (!outputUrl) return;
 
-                // Open target link
-                try {
-                  const adLink = document.createElement("a");
-                  adLink.href = "https://omg10.com/4/11170621";
-                  adLink.target = "_blank";
-                  adLink.rel = "noopener noreferrer";
-                  document.body.appendChild(adLink);
-                  adLink.click();
-                  document.body.removeChild(adLink);
-                } catch (e) {
-                  console.error(e);
-                }
-
                 const link = document.createElement("a");
                 const nameParts = sourceName.split(".");
                 nameParts.pop();

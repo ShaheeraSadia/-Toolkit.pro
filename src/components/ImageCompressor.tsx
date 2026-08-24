@@ -3866,13 +3866,6 @@ export default function ImageCompressor({
       title: "Download Completed",
       message: `Successfully downloaded "${compressedResult.fileName}" (1 file).`
     });
-
-    // Support Monetag Direct Link Integration (Zone ID: 11170621)
-    try {
-      window.open("https://omg10.com/4/11170621", "_blank", "noopener,noreferrer");
-    } catch (e) {
-      console.warn("Direct link popup blocked by browser policies", e);
-    }
   };
 
   const handleDownloadItem = (item: QueueItem, e?: React.MouseEvent) => {
@@ -3884,11 +3877,6 @@ export default function ImageCompressor({
       title: "Download Completed",
       message: `Successfully downloaded "${item.compressedResult.fileName}".`
     });
-    try {
-      window.open("https://omg10.com/4/11170621", "_blank", "noopener,noreferrer");
-    } catch (err) {
-      console.warn("Direct link popup blocked by browser policies", err);
-    }
   };
 
   const handleSaveToDrive = async () => {
@@ -4057,13 +4045,6 @@ export default function ImageCompressor({
         title: "ZIP Download Completed",
         message: `Successfully packaged and downloaded ${compressedItems.length} compressed image(s) in a single ZIP archive.`
       });
-
-      // Support Monetag Direct Link Integration (Zone ID: 11170621)
-      try {
-        window.open("https://omg10.com/4/11170621", "_blank", "noopener,noreferrer");
-      } catch (e) {
-        console.warn("Direct link popup blocked by browser policies", e);
-      }
     } catch (err: any) {
       console.error("ZIP creation failed:", err);
       alert("Could not compile ZIP file: " + (err.message || String(err)));
@@ -4093,13 +4074,6 @@ export default function ImageCompressor({
       title: "Batch Download Triggered",
       message: `Initiated individual file downloads for all ${compressedItems.length} compressed image(s).`
     });
-
-    // Support Monetag Direct Link Integration (Zone ID: 11170621)
-    try {
-      window.open("https://omg10.com/4/11170621", "_blank", "noopener,noreferrer");
-    } catch (e) {
-      console.warn("Direct link popup blocked by browser policies", e);
-    }
   };
 
   // Keyboard shortcut Alt + D to Download All as ZIP (Image Compressor Tab specific/triggered)

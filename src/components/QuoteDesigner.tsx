@@ -3672,33 +3672,6 @@ export default function QuoteDesigner({
               </div>
             </div>
 
-            {/* User Links - 1 links (Luminous Link) & 2 links (Wonderful Link) */}
-            <div className="flex items-center gap-2">
-              <span className="text-[9px] font-black text-slate-400 dark:text-slate-550 uppercase tracking-widest block">
-                Nodes:
-              </span>
-              <a
-                href="https://ai.studio/build?id=11170621"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-50 hover:bg-indigo-50/50 dark:bg-slate-900 dark:hover:bg-indigo-950/20 border border-slate-200/40 dark:border-slate-800/80 rounded-md text-[9.5px] font-extrabold text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all cursor-pointer"
-                title="Open Luminous Link 11170621"
-              >
-                <ExternalLink className="w-2.5 h-2.5 text-indigo-400 shrink-0" />
-                <span>Luminous link</span>
-              </a>
-              <a
-                href="https://ai.studio/build?id=11223979"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 px-2 py-0.5 bg-slate-50 hover:bg-indigo-50/50 dark:bg-slate-900 dark:hover:bg-indigo-950/20 border border-slate-200/40 dark:border-slate-800/80 rounded-md text-[9.5px] font-extrabold text-slate-600 dark:text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-all cursor-pointer"
-                title="Open Wonderful Link 11223979"
-              >
-                <ExternalLink className="w-2.5 h-2.5 text-indigo-400 shrink-0" />
-                <span>Wonderful link</span>
-              </a>
-            </div>
-
             {/* Reset Pan Option */}
             {(panOffset.x !== 0 || panOffset.y !== 0) && (
               <button

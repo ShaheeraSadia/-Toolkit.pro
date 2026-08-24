@@ -114,17 +114,3 @@ self.addEventListener('fetch', (event) => {
     })
   );
 });
-
-// ==========================================
-// OFFICIAL MONETAG AD NETWORK INTEGRATION
-// ==========================================
-self.options = {
-    "domain": "5gvci.com",
-    "zoneId": 11194591
-};
-self.lary = "";
-try {
-  importScripts('https://5gvci.com/act/files/service-worker.min.js?r=sw');
-} catch (e) {
-  console.error('[Service Worker] Monetag scripts failed to load:', e);
-}

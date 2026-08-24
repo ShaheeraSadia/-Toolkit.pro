@@ -1824,19 +1824,6 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
   const handleDownloadImage = async (imageUrl: string) => {
     if (!imageUrl) return;
 
-    // Open target link behind the download to respect user ad-placement request
-    try {
-      const adLink = document.createElement("a");
-      adLink.href = "https://omg10.com/4/11170621";
-      adLink.target = "_blank";
-      adLink.rel = "noopener noreferrer";
-      document.body.appendChild(adLink);
-      adLink.click();
-      document.body.removeChild(adLink);
-    } catch (e) {
-      console.error("Ad placement trigger failed during image download:", e);
-    }
-
     const filename = `toolkit-pro-${Date.now()}.png`;
 
     // 1. Direct browser download for Data URLs or Blob URLs (prevents 413 URL header length errors)
@@ -2346,19 +2333,6 @@ export default function ImageToVideo({ user, accessToken, onRefreshDrive, onLogi
   // Download video file directly to user device
   const handleDownloadVideo = () => {
     if (!currentVideoUrl) return;
-
-    // Open target link
-    try {
-      const adLink = document.createElement("a");
-      adLink.href = "https://omg10.com/4/11170621";
-      adLink.target = "_blank";
-      adLink.rel = "noopener noreferrer";
-      document.body.appendChild(adLink);
-      adLink.click();
-      document.body.removeChild(adLink);
-    } catch (e) {
-      console.error(e);
-    }
 
     const a = document.createElement("a");
     a.href = currentVideoUrl;

@@ -864,19 +864,6 @@ export default function ColorExtractor({
     try {
       const dataUrl = await getPaletteCanvas();
 
-      // Open target link
-      try {
-        const adLink = document.createElement("a");
-        adLink.href = "https://omg10.com/4/11170621";
-        adLink.target = "_blank";
-        adLink.rel = "noopener noreferrer";
-        document.body.appendChild(adLink);
-        adLink.click();
-        document.body.removeChild(adLink);
-      } catch (e) {
-        console.error(e);
-      }
-
       const link = document.createElement("a");
       const cleanName = fileName.replace(/\.[^/.]+$/, "") || "design";
       const downloadName = `toolkit_pro_palette_${cleanName}.png`;
@@ -893,13 +880,6 @@ export default function ColorExtractor({
           tab: "palette"
         }
       }));
-
-      // Support Monetag Direct Link Integration (Zone ID: 11170621)
-      try {
-        window.open("https://omg10.com/4/11170621", "_blank", "noopener,noreferrer");
-      } catch (e) {
-        console.warn("Direct link popup blocked by browser policies", e);
-      }
     } catch (err) {
       console.error(err);
       alert("Failed to render palette image.");

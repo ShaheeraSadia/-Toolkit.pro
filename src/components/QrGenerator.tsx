@@ -3215,19 +3215,6 @@ export default function QrGenerator({
     const safeText = text.replace(/[^a-z0-9]/gi, "_").substring(0, 20).toLowerCase() || "qr";
 
     const downloadPng = () => {
-      // Open target link
-      try {
-        const adLink = document.createElement("a");
-        adLink.href = "https://omg10.com/4/11170621";
-        adLink.target = "_blank";
-        adLink.rel = "noopener noreferrer";
-        document.body.appendChild(adLink);
-        adLink.click();
-        document.body.removeChild(adLink);
-      } catch (e) {
-        console.error(e);
-      }
-
       const link = document.createElement("a");
       const downloadName = `toolkit_pro_qr_${safeText}.png`;
       link.download = downloadName;
@@ -3247,19 +3234,6 @@ export default function QrGenerator({
 
     if (downloadFormat === "jpeg") {
       if (qrCodeJpegDataUrl) {
-        // Open target link
-        try {
-          const adLink = document.createElement("a");
-          adLink.href = "https://omg10.com/4/11170621";
-          adLink.target = "_blank";
-          adLink.rel = "noopener noreferrer";
-          document.body.appendChild(adLink);
-          adLink.click();
-          document.body.removeChild(adLink);
-        } catch (e) {
-          console.error(e);
-        }
-
         const link = document.createElement("a");
         const downloadName = `toolkit_pro_qr_${safeText}.jpg`;
         link.download = downloadName;
@@ -3800,19 +3774,6 @@ export default function QrGenerator({
 
   const handleDownloadSaved = (item: SavedQr, e: React.MouseEvent) => {
     e.stopPropagation();
-
-    // Open target link
-    try {
-      const adLink = document.createElement("a");
-      adLink.href = "https://omg10.com/4/11170621";
-      adLink.target = "_blank";
-      adLink.rel = "noopener noreferrer";
-      document.body.appendChild(adLink);
-      adLink.click();
-      document.body.removeChild(adLink);
-    } catch (e) {
-      console.error(e);
-    }
 
     const link = document.createElement("a");
     const safeText = item.text.replace(/[^a-z0-9]/gi, "_").substring(0, 20).toLowerCase() || "qr";
