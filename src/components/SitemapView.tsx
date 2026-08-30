@@ -689,7 +689,7 @@ export default function SitemapView({ theme, onTabChange, onClose }: SitemapView
       {/* Structured data injection */}
       <script 
         type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(sitemapSchema) }}
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(sitemapSchema).replace(/</g, "\\u003c") }}
       />
 
       {/* Header Diagnostic Row */}

@@ -1009,6 +1009,18 @@ export default function App() {
 
   const [previewScale, setPreviewScale] = useState<number>(0.85);
   const [previewHtml, setPreviewHtml] = useState<string>("");
+
+  // Client-side HTML sanitizer to eliminate any potential script or event handler injections in preview mode
+  const sanitizeHtmlForPreview = React.useCallback((html: string): string => {
+    if (!html) return "";
+    return html
+      .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, "")
+      .replace(/\son\w+\s*=\s*(["'][^"']*["']|[^\s>]+)/gi, "")
+      .replace(/javascript:/gi, "blocked-javascript:")
+      .replace(/<iframe\b[^<]*(?:(?!<\/iframe>)<[^<]*)*<\/iframe>/gi, "")
+      .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, "")
+      .replace(/<embed\b[^<]*(?:(?!<\/embed>)<[^<]*)*<\/embed>/gi, "");
+  }, []);
   const [showCropMarks, setShowCropMarks] = useState<boolean>(true);
   const [showSafeArea, setShowSafeArea] = useState<boolean>(true);
   const [showBleed, setShowBleed] = useState<boolean>(false);
@@ -1701,11 +1713,11 @@ export default function App() {
     }
   };
 
-  const [legalSubTab, setLegalSubTab] = useState<"privacy" | "terms" | "about" | "contact">(() => {
+  const [legalSubTab, setLegalSubTab] = useState<"privacy" | "terms" | "security" | "about" | "contact">(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const subParam = params.get("sub") as any;
-      if (subParam && ["privacy", "terms", "about", "contact"].includes(subParam)) {
+      if (subParam && ["privacy", "terms", "security", "about", "contact"].includes(subParam)) {
         return subParam;
       }
     }
@@ -3307,6 +3319,22 @@ export default function App() {
             <button
               onClick={() => {
                 setActiveTab("legal");
+                setLegalSubTab("security");
+                setIsSitemapView(false);
+                setTimeout(() => {
+                  const element = document.getElementById("compliance-center-root");
+                  if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
+                }, 50);
+              }}
+              className="hover:text-blue-600 dark:hover:text-white cursor-pointer transition-colors"
+            >
+              Security &amp; Hacker Defense
+            </button>
+            <span className={theme === "dark" ? "text-slate-700" : "text-slate-300"}>•</span>
+
+            <button
+              onClick={() => {
+                setActiveTab("legal");
                 setLegalSubTab("terms");
                 setIsSitemapView(false);
                 setTimeout(() => {
@@ -4845,17 +4873,17 @@ export default function App() {
                           : "none",
                         transition: "filter 0.3s ease"
                       }}
-                      dangerouslySetInnerHTML={{ __html: previewHtml }}
+                      dangerouslySetInnerHTML={{ __html: sanitizeHtmlForPreview(previewHtml) }}
                     />
                     {centerDesign && (
-                      <style dangerouslySetInnerHTML={{ __html: `
+                      <style>{`
                         .print-preview-content-area > * {
                           margin-left: auto !important;
                           margin-right: auto !important;
                           margin-top: auto !important;
                           margin-bottom: auto !important;
                         }
-                      `}} />
+                      `}</style>
                     )}
                   </motion.div>
                 </div>

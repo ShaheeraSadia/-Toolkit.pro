@@ -52,9 +52,269 @@ function getAiClient(req: express.Request): GoogleGenAI {
 const app = express();
 const PORT = 3000;
 
+// Trust reverse proxies (Google Cloud Run, Vercel, Nginx) so client IP detection is accurate
+app.set("trust proxy", 1);
+
+// Disable X-Powered-By header to prevent server framework fingerprinting
+app.disable("x-powered-by");
+
+// ==========================================
+// 1. Security HTTP Headers Middleware
+// ==========================================
+app.use((req, res, next) => {
+  // Prevent browsers from MIME-sniffing away from declared content-type
+  res.setHeader("X-Content-Type-Options", "nosniff");
+  // Defense against legacy browser XSS
+  res.setHeader("X-XSS-Protection", "1; mode=block");
+  // Strict Referrer-Policy to prevent leaking URLs or tokens in outbound links
+  res.setHeader("Referrer-Policy", "strict-origin-when-cross-origin");
+  // Prevent Internet Explorer from executing downloads in site context
+  res.setHeader("X-Download-Options", "noopen");
+  // Restrict sensitive browser APIs not required by the app
+  res.setHeader("Permissions-Policy", "payment=(), usb=(), accelerometer=(), gyroscope=(), magnetometer=()");
+  
+  // Allow framing in authorized preview environments (AI Studio, Cloud Run, Vercel) while preventing arbitrary clickjacking
+  res.setHeader(
+    "Content-Security-Policy",
+    "frame-ancestors 'self' https://*.google.com https://*.run.app https://ai.studio https://*.vercel.app;"
+  );
+
+  // Prevent intermediate proxy caching of sensitive API requests
+  if (req.path.startsWith("/api/")) {
+    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+    res.setHeader("Pragma", "no-cache");
+    res.setHeader("Expires", "0");
+  }
+
+  next();
+});
+
+// Helper to extract reliable client IP behind proxies
+function getClientIp(req: express.Request | http.IncomingMessage): string {
+  const forwarded = req.headers["x-forwarded-for"];
+  if (typeof forwarded === "string") {
+    return forwarded.split(",")[0].trim();
+  } else if (Array.isArray(forwarded) && forwarded.length > 0) {
+    return forwarded[0].trim();
+  }
+  return (req as any).socket?.remoteAddress || "127.0.0.1";
+}
+
+// ==========================================
+// 2. In-Memory Sliding-Window Rate Limiter
+// ==========================================
+interface RateLimitConfig {
+  windowMs: number;
+  maxRequests: number;
+  message?: string;
+  name: string;
+}
+
+class InMemoryRateLimiter {
+  private requests: Map<string, number[]> = new Map();
+  private windowMs: number;
+  private maxRequests: number;
+  private message: string;
+  private name: string;
+
+  constructor(config: RateLimitConfig) {
+    this.windowMs = config.windowMs;
+    this.maxRequests = config.maxRequests;
+    this.message = config.message || "Security rate limit exceeded. Please wait a moment before trying again.";
+    this.name = config.name;
+
+    // Prune stale records every 3 minutes to keep memory footprint minimal
+    setInterval(() => {
+      const now = Date.now();
+      for (const [ip, timestamps] of this.requests.entries()) {
+        const valid = timestamps.filter(t => now - t < this.windowMs);
+        if (valid.length === 0) {
+          this.requests.delete(ip);
+        } else {
+          this.requests.set(ip, valid);
+        }
+      }
+    }, 3 * 60 * 1000).unref();
+  }
+
+  public check(ip: string): { allowed: boolean; remaining: number; resetTime: number } {
+    const now = Date.now();
+    const timestamps = (this.requests.get(ip) || []).filter(t => now - t < this.windowMs);
+
+    if (timestamps.length >= this.maxRequests) {
+      const earliest = timestamps[0];
+      const resetTime = Math.ceil((earliest + this.windowMs - now) / 1000);
+      return { allowed: false, remaining: 0, resetTime: Math.max(1, resetTime) };
+    }
+
+    timestamps.push(now);
+    this.requests.set(ip, timestamps);
+    const resetTime = Math.ceil((timestamps[0] + this.windowMs - now) / 1000);
+    return {
+      allowed: true,
+      remaining: Math.max(0, this.maxRequests - timestamps.length),
+      resetTime: Math.max(1, resetTime),
+    };
+  }
+
+  public middleware() {
+    return (req: express.Request, res: express.Response, next: express.NextFunction) => {
+      const ip = getClientIp(req);
+      const { allowed, remaining, resetTime } = this.check(ip);
+
+      res.setHeader("X-RateLimit-Limit", this.maxRequests.toString());
+      res.setHeader("X-RateLimit-Remaining", remaining.toString());
+      res.setHeader("X-RateLimit-Reset", resetTime.toString());
+
+      if (!allowed) {
+        console.warn(`[Security Alert] Rate limit reached on ${this.name} for IP: ${ip}`);
+        res.setHeader("Retry-After", resetTime.toString());
+        return res.status(429).json({
+          error: "Too Many Requests",
+          message: this.message,
+          retryAfterSeconds: resetTime,
+        });
+      }
+
+      next();
+    };
+  }
+}
+
+// Global API Limiter: 150 requests per 10 minutes per IP
+const globalApiLimiter = new InMemoryRateLimiter({
+  name: "Global API",
+  windowMs: 10 * 60 * 1000,
+  maxRequests: 150,
+  message: "Too many requests to Toolkit Pro API. Please slow down and try again in a few minutes.",
+});
+
+// Resource-Heavy AI Limiter: 20 requests per 5 minutes per IP (video/image generation)
+const aiHeavyLimiter = new InMemoryRateLimiter({
+  name: "AI Heavy Generation",
+  windowMs: 5 * 60 * 1000,
+  maxRequests: 20,
+  message: "AI generation request limit reached. Please wait a few minutes before submitting another visual render.",
+});
+
+// Conversational & Prompt Limiter: 45 requests per 5 minutes per IP
+const aiLightLimiter = new InMemoryRateLimiter({
+  name: "AI Conversational",
+  windowMs: 5 * 60 * 1000,
+  maxRequests: 45,
+  message: "AI assistance request frequency limit reached. Please wait a moment before sending more messages.",
+});
+
+// Link shortener limiter: 25 requests per 5 minutes per IP
+const urlShortenerLimiter = new InMemoryRateLimiter({
+  name: "URL Shortener",
+  windowMs: 5 * 60 * 1000,
+  maxRequests: 25,
+  message: "Link shortener rate limit reached. Please wait a moment before shortening another link.",
+});
+
+// ==========================================
+// 3. Input Sanitization & Anti-Prototype Pollution
+// ==========================================
+function sanitizeObject(obj: any, depth = 0): any {
+  if (depth > 8 || !obj || typeof obj !== "object") return obj;
+
+  // Protect against prototype pollution
+  if (Object.prototype.hasOwnProperty.call(obj, "__proto__")) delete obj.__proto__;
+  if (Object.prototype.hasOwnProperty.call(obj, "constructor")) delete obj.constructor;
+  if (Object.prototype.hasOwnProperty.call(obj, "prototype")) delete obj.prototype;
+
+  for (const key of Object.keys(obj)) {
+    if (key === "__proto__" || key === "constructor" || key === "prototype") {
+      delete obj[key];
+      continue;
+    }
+
+    if (typeof obj[key] === "string") {
+      // Strip null bytes and dangerous control characters
+      obj[key] = obj[key].replace(/\0/g, "");
+    } else if (typeof obj[key] === "object" && obj[key] !== null) {
+      sanitizeObject(obj[key], depth + 1);
+    }
+  }
+  return obj;
+}
+
+function inputSanitizationMiddleware(req: express.Request, res: express.Response, next: express.NextFunction) {
+  if (req.body && typeof req.body === "object") {
+    sanitizeObject(req.body);
+  }
+  if (req.query && typeof req.query === "object") {
+    sanitizeObject(req.query);
+  }
+  if (req.params && typeof req.params === "object") {
+    sanitizeObject(req.params);
+  }
+  next();
+}
+
+// ==========================================
+// 4. API Cross-Origin & CSRF Guard
+// ==========================================
+function apiOriginGuard(req: express.Request, res: express.Response, next: express.NextFunction) {
+  if (req.method !== "POST" && req.method !== "PUT" && req.method !== "DELETE") {
+    return next();
+  }
+
+  const origin = req.headers.origin as string | undefined;
+  if (!origin) {
+    return next();
+  }
+
+  try {
+    const originUrl = new URL(origin);
+    const host = req.headers.host;
+    const originHost = originUrl.host;
+
+    if (host && (originHost === host || originUrl.hostname === "localhost" || originUrl.hostname === "127.0.0.1")) {
+      return next();
+    }
+
+    const allowedDomainPatterns = [
+      /\.run\.app$/,
+      /\.vercel\.app$/,
+      /\.google\.com$/,
+      /\.aistudio\.google$/,
+      /^localhost(:\d+)?$/,
+      /^127\.0\.0\.1(:\d+)?$/
+    ];
+
+    const isAllowed = allowedDomainPatterns.some(pattern => pattern.test(originUrl.hostname));
+    if (isAllowed) {
+      return next();
+    }
+
+    console.warn(`[Security Alert] Blocked unauthorized cross-origin request from: ${origin} to ${req.path}`);
+    return res.status(403).json({
+      error: "Forbidden",
+      message: "Cross-origin API calls from unauthorized domains are blocked for security."
+    });
+  } catch (err) {
+    return res.status(400).json({ error: "Invalid Origin header syntax." });
+  }
+}
+
 // Enable JSON and URL-encoded bodies with increased size limits for base64 image uploads
 app.use(express.json({ limit: "50mb" }));
 app.use(express.urlencoded({ limit: "50mb", extended: true }));
+app.use(inputSanitizationMiddleware);
+app.use("/api", globalApiLimiter.middleware());
+app.use("/api", apiOriginGuard);
+
+// Health check endpoint for uptime monitors and readiness probes
+app.get("/api/health", (req, res) => {
+  res.json({ 
+    status: "healthy", 
+    timestamp: new Date().toISOString(), 
+    security: "hardened",
+    version: "1.0.0" 
+  });
+});
 
 // Dynamic XML Sitemap Generator endpoint for search engines indexation
 app.get("/sitemap.xml", (req, res) => {
@@ -86,7 +346,7 @@ app.get("/ads.txt", (req, res) => {
 });
 
 // API route to generate SEO optimized templates via the Gemini API
-app.post("/api/seo/generate", async (req, res) => {
+app.post("/api/seo/generate", aiLightLimiter.middleware(), async (req, res) => {
   try {
     const ai = getAiClient(req);
     const { pagePreset, brandName, focusKeyword, userGoal, currentTitle, currentDesc } = req.body;
@@ -140,7 +400,7 @@ RULES:
 });
 
 // API route to suggest creative, thematic names for color palettes using Gemini API
-app.post("/api/palette/suggest-names", async (req, res) => {
+app.post("/api/palette/suggest-names", aiLightLimiter.middleware(), async (req, res) => {
   try {
     const ai = getAiClient(req);
     const { colors } = req.body;
@@ -193,7 +453,7 @@ Each item in the array must have:
 });
 
 // API route to suggest highly cinematic and detailed expansions for AI video prompt subjects using Gemini API
-app.post("/api/video/enhance-prompt", async (req, res) => {
+app.post("/api/video/enhance-prompt", aiLightLimiter.middleware(), async (req, res) => {
   try {
     const ai = getAiClient(req);
     const { subject, style, camera } = req.body;
@@ -233,7 +493,7 @@ The camera motion is: "${camera || "Slow Zoom"}".`;
 });
 
 // API route to enhance an image prompt using Gemini AI
-app.post("/api/image/enhance-prompt", async (req, res) => {
+app.post("/api/image/enhance-prompt", aiLightLimiter.middleware(), async (req, res) => {
   try {
     const ai = getAiClient(req);
     const { prompt, style } = req.body;
@@ -273,7 +533,7 @@ RULES:
 });
 
 // API route to generate images using the gemini-3.1-flash-lite-image model
-app.post("/api/image/generate", async (req, res) => {
+app.post("/api/image/generate", aiHeavyLimiter.middleware(), async (req, res) => {
   try {
     const ai = getAiClient(req);
     const { prompt, aspectRatio = "1:1", style = "none", modelChoice = "gemini-3.1-flash-lite-image", imageSize = "1K", enableSearch = false } = req.body;
@@ -453,7 +713,7 @@ function createVisualCanvasSvgDataUrl(promptText: string, width: number, height:
 }
 
 // API route to generate free images with multi-tier failovers (Gemini -> Pollinations -> Vector Canvas)
-app.post("/api/image/generate-free", async (req, res) => {
+app.post("/api/image/generate-free", aiHeavyLimiter.middleware(), async (req, res) => {
   try {
     const { prompt, aspectRatio = "1:1", style = "none", modelChoice = "flux" } = req.body;
     if (!prompt) {
@@ -636,7 +896,7 @@ app.all("/api/image/download", async (req, res) => {
 });
 
 // API route to generate cinematic attributes, captions, and Unsplash search tags based on user prompt
-app.post("/api/video/generate-scene", async (req, res) => {
+app.post("/api/video/generate-scene", aiHeavyLimiter.middleware(), async (req, res) => {
   try {
     const ai = getAiClient(req);
     const { prompt } = req.body;
@@ -684,7 +944,7 @@ Ensure all parameters are perfectly aligned with the mood, colors, and action sp
 });
 
 // API route to auto-generate beautiful subtitle captions based on a prompt or audio track details
-app.post("/api/video/generate-subtitles", async (req, res) => {
+app.post("/api/video/generate-subtitles", aiLightLimiter.middleware(), async (req, res) => {
   try {
     const ai = getAiClient(req);
     const { mode, prompt, audioName, audioGenre, audioDescription, numSlides, slideContexts } = req.body;
@@ -778,7 +1038,7 @@ function formatGoogleGenAIError(error: any): string {
 }
 
 // API route to initiate Veo AI video generation
-app.post("/api/video/generate", async (req, res) => {
+app.post("/api/video/generate", aiHeavyLimiter.middleware(), async (req, res) => {
   try {
     const activeApiKey = getActiveApiKey(req);
     const ai = getAiClient(req);
@@ -1045,7 +1305,7 @@ app.post("/api/video/generate", async (req, res) => {
 });
 
 // API route alias for direct compatibility with custom payloads (motion_bucket_id, steps, audio_sync)
-app.post("/api/generate-video", async (req, res) => {
+app.post("/api/generate-video", aiHeavyLimiter.middleware(), async (req, res) => {
   try {
     const activeApiKey = getActiveApiKey(req);
     const ai = getAiClient(req);
@@ -1238,7 +1498,7 @@ app.post("/api/video/download", async (req, res) => {
 });
 
 // API route to shorten a URL utilizing high-availability failsafe providers (is.gd with tinyurl.com fallback)
-app.post("/api/url/shorten", async (req, res) => {
+app.post("/api/url/shorten", urlShortenerLimiter.middleware(), async (req, res) => {
   try {
     const { url } = req.body;
     if (!url) {
@@ -1249,6 +1509,28 @@ app.post("/api/url/shorten", async (req, res) => {
     let targetUrl = url.trim();
     if (!/^https?:\/\//i.test(targetUrl)) {
       targetUrl = "https://" + targetUrl;
+    }
+
+    // SSRF Validation: Block internal/loopback/cloud-metadata addresses
+    try {
+      const parsedUrl = new URL(targetUrl);
+      if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+        return res.status(400).json({ error: "Only standard HTTP and HTTPS URLs can be shortened." });
+      }
+      const hostLower = parsedUrl.hostname.toLowerCase();
+      if (
+        hostLower === "localhost" ||
+        hostLower === "127.0.0.1" ||
+        hostLower === "0.0.0.0" ||
+        hostLower === "::1" ||
+        hostLower === "169.254.169.254" ||
+        hostLower.endsWith(".internal") ||
+        hostLower.endsWith(".local")
+      ) {
+        return res.status(400).json({ error: "Prohibited URL: Internal network and cloud metadata addresses cannot be shortened." });
+      }
+    } catch (e) {
+      return res.status(400).json({ error: "Invalid target URL syntax." });
     }
 
     console.log(`Shortening URL: ${targetUrl}`);
@@ -1289,13 +1571,17 @@ app.post("/api/url/shorten", async (req, res) => {
 // ==========================================
 // Gemini Multi-Turn Chat API Endpoint
 // ==========================================
-app.post("/api/gemini/chat", async (req, res) => {
+app.post("/api/gemini/chat", aiLightLimiter.middleware(), async (req, res) => {
   try {
     const aiClient = getAiClient(req);
     const { history, message, modelChoice = "gemini-3.5-flash", systemRole = "general" } = req.body;
 
     if (!message || typeof message !== "string" || !message.trim()) {
       return res.status(400).json({ error: "A valid non-empty message string is required." });
+    }
+
+    if (message.length > 25000) {
+      return res.status(400).json({ error: "Message length exceeds the 25,000 character maximum permitted for safety." });
     }
 
     const roleInstructions: Record<string, string> = {
@@ -1352,9 +1638,34 @@ app.post("/api/gemini/chat", async (req, res) => {
 const httpServer = http.createServer(app);
 const wss = new WebSocketServer({ server: httpServer, path: "/live" });
 
+// Active Live WebSocket connection tracker to prevent socket exhaustion
+const activeLiveConnectionsPerIp = new Map<string, number>();
+const MAX_LIVE_CONNECTIONS_PER_IP = 4;
+
 // Handle WebSocket connection for Gemini Live API real-time audio interaction
 wss.on("connection", async (clientWs: WebSocket, req: http.IncomingMessage) => {
-  console.log("[Live API] Client connected to /live");
+  const clientIp = getClientIp(req);
+  const currentActive = activeLiveConnectionsPerIp.get(clientIp) || 0;
+  if (currentActive >= MAX_LIVE_CONNECTIONS_PER_IP) {
+    console.warn(`[Security Alert] Max concurrent Live API WebSocket connections reached for IP: ${clientIp}`);
+    clientWs.send(JSON.stringify({ error: "Too many simultaneous Live audio connections from this IP address." }));
+    clientWs.close(1008, "Policy Violation: Rate limit exceeded");
+    return;
+  }
+  activeLiveConnectionsPerIp.set(clientIp, currentActive + 1);
+
+  const cleanupIpSocket = () => {
+    const count = activeLiveConnectionsPerIp.get(clientIp) || 1;
+    if (count <= 1) {
+      activeLiveConnectionsPerIp.delete(clientIp);
+    } else {
+      activeLiveConnectionsPerIp.set(clientIp, count - 1);
+    }
+  };
+
+  clientWs.on("close", cleanupIpSocket);
+
+  console.log(`[Live API] Client connected to /live (IP: ${clientIp})`);
   let session: any = null;
 
   try {
@@ -1463,6 +1774,27 @@ wss.on("connection", async (clientWs: WebSocket, req: http.IncomingMessage) => {
       clientWs.close();
     }
   }
+});
+
+// Centralized API 404 handler for unmatched /api routes
+app.all("/api/*", (req, res) => {
+  res.status(404).json({
+    error: "Endpoint Not Found",
+    message: `API endpoint ${req.method} ${req.path} does not exist.`
+  });
+});
+
+// Centralized safe error handler for unhandled exceptions in routes
+app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
+  console.error("[Security Guard] Internal error caught:", err);
+  if (res.headersSent) {
+    return next(err);
+  }
+  const status = typeof err.status === "number" && err.status >= 400 && err.status < 600 ? err.status : 500;
+  res.status(status).json({
+    error: status === 500 ? "Internal Server Error" : "Request Processing Failed",
+    message: "A secure server processing error occurred. Please try again later."
+  });
 });
 
 // Setup function for Vite or static middleware

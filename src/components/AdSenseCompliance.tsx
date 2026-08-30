@@ -7,16 +7,19 @@ import {
   AlertCircle,
   HelpCircle,
   Lock,
-  UserCheck
+  UserCheck,
+  Server,
+  KeyRound,
+  Cpu
 } from "lucide-react";
 
 interface AdSenseComplianceProps {
-  subTab?: "privacy" | "terms" | "about" | "contact";
-  onChangeSubTab?: (tab: "privacy" | "terms" | "about" | "contact") => void;
+  subTab?: "privacy" | "terms" | "security" | "about" | "contact";
+  onChangeSubTab?: (tab: "privacy" | "terms" | "security" | "about" | "contact") => void;
 }
 
 export default function AdSenseCompliance({ subTab, onChangeSubTab }: AdSenseComplianceProps) {
-  const [localSubTab, setLocalSubTab] = useState<"privacy" | "terms" | "about" | "contact">("privacy");
+  const [localSubTab, setLocalSubTab] = useState<"privacy" | "terms" | "security" | "about" | "contact">("privacy");
   const activeSubTab = subTab !== undefined ? subTab : localSubTab;
   const setActiveSubTab = onChangeSubTab !== undefined ? onChangeSubTab : setLocalSubTab;
   
@@ -65,7 +68,7 @@ export default function AdSenseCompliance({ subTab, onChangeSubTab }: AdSenseCom
           aria-label="Compliance Hub Sub-tabs"
           className="lg:w-1/4 flex lg:flex-col gap-1 overflow-x-auto lg:overflow-x-visible pb-3 lg:pb-0 border-b lg:border-b-0 lg:border-r border-slate-100 dark:border-slate-800/80 pr-0 lg:pr-4 shrink-0"
           onKeyDown={(e) => {
-            const keys = ["privacy", "terms", "about", "contact"] as const;
+            const keys = ["privacy", "security", "terms", "about", "contact"] as const;
             const idx = keys.indexOf(activeSubTab);
             if (e.key === "ArrowDown" || e.key === "ArrowRight") {
               e.preventDefault();
@@ -88,6 +91,7 @@ export default function AdSenseCompliance({ subTab, onChangeSubTab }: AdSenseCom
         >
           {[
             { id: "privacy", label: "Privacy Policy", icon: ShieldCheck },
+            { id: "security", label: "Security & Protection", icon: Lock },
             { id: "terms", label: "Terms of Service", icon: FileText },
             { id: "about", label: "About Creator", icon: UserCheck },
             { id: "contact", label: "Get In Touch", icon: Mail },
@@ -184,6 +188,127 @@ export default function AdSenseCompliance({ subTab, onChangeSubTab }: AdSenseCom
               <div className="text-[10px] text-slate-400 dark:text-slate-500 mt-4 border-t border-slate-100 dark:border-slate-800/80 pt-3 flex items-center justify-between animate-fade-in">
                 <span>Last Updated: July 2026</span>
                 <span>GDPR & CCPA Compliant</span>
+              </div>
+            </div>
+          )}
+
+          {activeSubTab === "security" && (
+            <div className="space-y-6 animate-fade-in text-xs text-slate-650 dark:text-slate-300 leading-relaxed" id="compliance-security-pane">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 dark:border-slate-800/80 pb-3">
+                <div>
+                  <h4 className="text-sm font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                    <Lock className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    Web Application Security & Hacker Protection
+                  </h4>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-0.5">
+                    Multi-layer defense infrastructure protecting user privacy, API quotas, and application integrity.
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 px-2.5 py-1 rounded-full bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200/80 dark:border-emerald-800/80 text-emerald-700 dark:text-emerald-300 text-[11px] font-semibold">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  Security Controls Enforced
+                </div>
+              </div>
+
+              {/* Security Pillar Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 space-y-2">
+                  <div className="flex items-center gap-2 text-slate-900 dark:text-white font-bold text-xs">
+                    <Server className="w-4 h-4 text-blue-500" />
+                    <span>DDoS & Sliding-Window Rate Limiting</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                    All endpoints enforce per-IP in-memory sliding window rate limits. Automated bots, script scrapers, and denial-of-service attempts are blocked before consuming server resources.
+                  </p>
+                  <div className="flex items-center gap-2 text-[10px] font-mono text-slate-500">
+                    <span className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800">150 req / 10m API</span>
+                    <span className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800">45 req / 5m AI</span>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 space-y-2">
+                  <div className="flex items-center gap-2 text-slate-900 dark:text-white font-bold text-xs">
+                    <ShieldCheck className="w-4 h-4 text-emerald-500" />
+                    <span>HTTP Security Headers & Frame Defense</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Includes X-Content-Type-Options: nosniff to prevent MIME-sniffing attacks, strict Referrer-Policy, and Content Security Policy frame-ancestors to prohibit clickjacking.
+                  </p>
+                  <div className="flex items-center gap-2 text-[10px] font-mono text-slate-500">
+                    <span className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800">nosniff</span>
+                    <span className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800">strict-origin</span>
+                    <span className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800">Anti-Clickjack</span>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 space-y-2">
+                  <div className="flex items-center gap-2 text-slate-900 dark:text-white font-bold text-xs">
+                    <Cpu className="w-4 h-4 text-purple-500" />
+                    <span>Zero-Knowledge Client-Side Processing</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Image compression, EXIF extraction, PDF generation, vector QR generation, and color histograms execute directly inside your browser memory. Your files are never uploaded to or stored on remote servers.
+                  </p>
+                  <div className="flex items-center gap-2 text-[10px] font-mono text-slate-500">
+                    <span className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800">In-Browser Canvas</span>
+                    <span className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800">Zero Server Upload</span>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 space-y-2">
+                  <div className="flex items-center gap-2 text-slate-900 dark:text-white font-bold text-xs">
+                    <KeyRound className="w-4 h-4 text-amber-500" />
+                    <span>Server-Side Secret & Cloud Isolation</span>
+                  </div>
+                  <p className="text-[11px] text-slate-600 dark:text-slate-400 leading-relaxed">
+                    Gemini API keys, third-party credentials, and sensitive environment secrets are strictly retained in server memory. Client bundles never contain backend keys or administrative credentials.
+                  </p>
+                  <div className="flex items-center gap-2 text-[10px] font-mono text-slate-500">
+                    <span className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800">No Client Secrets</span>
+                    <span className="px-1.5 py-0.5 rounded bg-slate-200 dark:bg-slate-800">OAuth 2.0 Auth</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Frequently Asked Security Questions */}
+              <div className="space-y-3 pt-2">
+                <h5 className="font-bold text-xs text-slate-900 dark:text-white uppercase tracking-wider">
+                  Protection Against Common Web Exploits
+                </h5>
+
+                <div className="space-y-2.5">
+                  <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 text-[11px] space-y-1">
+                    <p className="font-semibold text-slate-800 dark:text-slate-200">
+                      • Can hackers access or tamper with other users&apos; saved quotes or designs?
+                    </p>
+                    <p className="text-slate-600 dark:text-slate-400 pl-3 leading-relaxed">
+                      No. Database rules enforce strict user-level authorization where only requests matching the verified OAuth token (<code className="text-[10px] font-mono bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded">request.auth.uid == userId</code>) can read or modify data. Any attempts to access other documents receive an immediate HTTP 403 Forbidden.
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 text-[11px] space-y-1">
+                    <p className="font-semibold text-slate-800 dark:text-slate-200">
+                      • How are Cross-Site Scripting (XSS) and Script Injection attacks blocked?
+                    </p>
+                    <p className="text-slate-600 dark:text-slate-400 pl-3 leading-relaxed">
+                      All rendered HTML preview blocks undergo automated client-side sanitization that strips inline scripts, script tags, event handlers (<code className="text-[10px] font-mono bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded">onload</code>, <code className="text-[10px] font-mono bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded">onerror</code>), and <code className="text-[10px] font-mono bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded">javascript:</code> pseudo-protocols. JSON-LD metadata scripts are rigorously escaped to prevent script tag breakouts.
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-slate-50 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 text-[11px] space-y-1">
+                    <p className="font-semibold text-slate-800 dark:text-slate-200">
+                      • How is Server-Side Request Forgery (SSRF) prevented in the URL shortener?
+                    </p>
+                    <p className="text-slate-600 dark:text-slate-400 pl-3 leading-relaxed">
+                      Submitted target URLs are parsed and inspected to block loopback interfaces (<code className="text-[10px] font-mono bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded">127.0.0.1</code>, <code className="text-[10px] font-mono bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded">localhost</code>), cloud metadata endpoints (<code className="text-[10px] font-mono bg-slate-200 dark:bg-slate-800 px-1 py-0.5 rounded">169.254.169.254</code>), and internal domain resolutions.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="text-[10px] text-slate-400 dark:text-slate-500 border-t border-slate-100 dark:border-slate-800/80 pt-3 flex items-center justify-between">
+                <span>Security Standard: OWASP Top 10 Aligned</span>
+                <span>Direct Contact: shaheerasadia@gmail.com</span>
               </div>
             </div>
           )}
