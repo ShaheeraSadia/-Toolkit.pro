@@ -24,7 +24,8 @@ import {
   SlidersHorizontal,
   ExternalLink,
   Lock,
-  Layers
+  Layers,
+  Smartphone
 } from "lucide-react";
 import { ActiveTab } from "../types";
 
@@ -171,6 +172,22 @@ export default function SitemapView({ theme, onTabChange, onClose }: SitemapView
       group: "tools" as const,
       keywords: ["image transcoder", "webp to png", "heic to jpg", "avif converter"],
       metaDescription: "Convert images and graphic files between WebP, AVIF, PNG, JPG, and ICO formats instantly."
+    },
+    {
+      id: "android" as ActiveTab,
+      name: "Android App Studio & Veo 3.1",
+      url: "/?tab=android",
+      rawPath: "?tab=android",
+      description: "Native Android workspace integration with Kotlin Compose, Veo 3.1 AI video prompt generation, and offline Room DB schema tools.",
+      status: "ACTIVE (200 OK)",
+      lastModified: "2026-08-30",
+      changefreq: "weekly",
+      priority: "0.85",
+      icon: Smartphone,
+      category: "Creative Tools",
+      group: "tools" as const,
+      keywords: ["android app studio", "veo 3.1 ai generator", "kotlin compose templates", "mobile room db"],
+      metaDescription: "Develop Android app components, generate Veo 3.1 AI video previews, and inspect Room database schemas."
     },
     {
       id: "chatbot" as ActiveTab,

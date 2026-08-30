@@ -20,6 +20,7 @@ export function generateSitemapXml(req?: any): string {
     { id: "bgremover", changefreq: "weekly", priority: "0.85" },
     { id: "pdf", changefreq: "weekly", priority: "0.85" },
     { id: "converter", changefreq: "weekly", priority: "0.85" },
+    { id: "android", changefreq: "weekly", priority: "0.85" },
     { id: "chatbot", changefreq: "weekly", priority: "0.80" },
     { id: "voice", changefreq: "weekly", priority: "0.80" },
     { id: "drive", changefreq: "daily", priority: "0.75" },

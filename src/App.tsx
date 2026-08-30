@@ -69,6 +69,8 @@ import {
   ArrowUp,
   Keyboard,
   MessageSquare,
+  Bot,
+  Mic,
   Printer,
   Monitor,
   Smartphone,
@@ -2301,7 +2303,7 @@ export default function App() {
                 animate={{ x: 0, opacity: 1 }}
                 exit={{ x: "-100%", opacity: 0 }}
                 transition={{ type: "spring", stiffness: 380, damping: 33 }}
-                className={`fixed top-16 bottom-0 left-0 z-45 w-72 border-r flex flex-col transition-colors duration-200 lg:sticky lg:top-16 lg:h-[calc(100vh-4rem)] ${
+                className={`fixed top-[102px] bottom-0 left-0 z-45 w-72 border-r flex flex-col transition-colors duration-200 lg:sticky lg:top-[102px] lg:h-[calc(100vh-102px)] ${
                   theme === "dark"
                     ? "bg-slate-900 border-slate-800 text-slate-100"
                     : "bg-white border-slate-200 text-slate-800"
@@ -2362,6 +2364,8 @@ export default function App() {
                     { id: "converter", label: t("image_converter", "Image Converter"), icon: RefreshCw, desc: "Format conversion scale", badge: "NEW" },
                     { id: "bgremover", label: t("bg_remover", "Background Remover"), icon: Eraser, desc: "Isolate subject matte", badge: "NEW" },
                     { id: "android", label: t("android_studio", "Android App Studio"), icon: Smartphone, desc: "Veo 3.1 & Native Room DB", badge: "VEO" },
+                    { id: "chatbot", label: t("ai_chatbot", "AI Chatbot"), icon: Bot, desc: "Gemini multi-turn chat" },
+                    { id: "voice", label: t("voice_studio", "Voice Studio"), icon: Mic, desc: "Real-time Live API voice" },
                     { id: "drive", label: t("my_drive", "Drive Panel"), icon: Cloud, desc: "Cloud files index", badge: files.length > 0 ? files.length : undefined },
                     { id: "resources", label: t("guides", "Guides & SEO"), icon: BookOpen, desc: "Sitemaps & templates" },
                     { id: "legal", label: t("compliance", "Compliance & Safety"), icon: ShieldCheck, desc: "Policies & support" },

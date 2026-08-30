@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { User } from "firebase/auth";
 import { motion } from "motion/react";
 import { 
@@ -16,6 +16,8 @@ import {
   Pipette, 
   Video,
   ChevronDown,
+  ChevronLeft,
+  ChevronRight,
   Sun,
   Moon,
   History,
@@ -282,7 +284,7 @@ export default function Navbar({
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed)) {
           return parsed.filter((t): t is ActiveTab => 
-            ["home", "quote", "compress", "qr", "palette", "video", "drive", "resources", "legal", "android"].includes(t)
+            ["home", "quote", "compress", "qr", "palette", "video", "drive", "resources", "legal", "android", "pdf", "converter", "bgremover", "chatbot", "voice"].includes(t)
           );
         }
       }
@@ -295,7 +297,7 @@ export default function Navbar({
   useEffect(() => {
     setRecentTabs((prev) => {
       const updated = [activeTab, ...prev.filter((t) => t !== activeTab)];
-      const sliced = updated.slice(0, 5);
+      const sliced = updated.slice(0, 6);
       try {
         sessionStorage.setItem("toolkit-recent-tools", JSON.stringify(sliced));
       } catch (e) {
@@ -305,12 +307,80 @@ export default function Navbar({
     });
   }, [activeTab]);
 
+  const ALL_NAV_ITEMS: {
+    id: ActiveTab;
+    label: string;
+    shortLabel: string;
+    icon: React.ComponentType<any>;
+    badge?: string;
+    badgeColor?: string;
+    iconColor?: string;
+  }[] = [
+    { id: "home", label: "Dashboard Home", shortLabel: "Home", icon: Home, iconColor: "text-blue-500 dark:text-blue-400" },
+    { id: "quote", label: "Quote Designer", shortLabel: "Quotes", icon: Quote, iconColor: "text-indigo-500 dark:text-indigo-400" },
+    { id: "compress", label: "Image Compressor", shortLabel: "Compressor", icon: FileImage, iconColor: "text-emerald-500 dark:text-emerald-400" },
+    { id: "qr", label: "QR Matrix Generator", shortLabel: "QR Matrix", icon: QrCode, iconColor: "text-amber-500 dark:text-amber-400" },
+    { id: "palette", label: "Color Extractor", shortLabel: "Palette", icon: Pipette, iconColor: "text-pink-500 dark:text-pink-400" },
+    { id: "video", label: "AI Video Creator", shortLabel: "Video", icon: Video, iconColor: "text-purple-500 dark:text-purple-400" },
+    { id: "pdf", label: "PDF Tools Suite", shortLabel: "PDF Suite", icon: FileText, badge: "NEW", badgeColor: "bg-red-500 text-white", iconColor: "text-red-500 dark:text-red-400" },
+    { id: "converter", label: "Image Converter", shortLabel: "Converter", icon: RefreshCw, badge: "NEW", badgeColor: "bg-teal-500 text-white", iconColor: "text-teal-500 dark:text-teal-400" },
+    { id: "bgremover", label: "Background Remover", shortLabel: "BG Remover", icon: Eraser, badge: "NEW", badgeColor: "bg-pink-500 text-white", iconColor: "text-pink-500 dark:text-pink-400" },
+    { id: "android", label: "Android App Studio", shortLabel: "Android Studio", icon: Smartphone, badge: "VEO", badgeColor: "bg-emerald-600 text-white", iconColor: "text-emerald-500 dark:text-emerald-400" },
+    { id: "chatbot", label: "AI Chatbot Assistant", shortLabel: "AI Chatbot", icon: Bot, iconColor: "text-purple-500 dark:text-purple-400" },
+    { id: "voice", label: "Live Voice Studio", shortLabel: "Voice Studio", icon: Mic, iconColor: "text-rose-500 dark:text-rose-400" },
+    { id: "drive", label: "Google Drive Workspace", shortLabel: "Drive", icon: Cloud, iconColor: "text-sky-500 dark:text-sky-400" },
+    { id: "resources", label: "Guides & SEO Articles", shortLabel: "Guides & SEO", icon: BookOpen, iconColor: "text-teal-500 dark:text-teal-400" },
+    { id: "legal", label: "Compliance & Safety", shortLabel: "Compliance", icon: ShieldCheck, iconColor: "text-slate-500 dark:text-slate-400" },
+  ];
+
+  const navRibbonRef = useRef<HTMLDivElement>(null);
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const checkScrollability = () => {
+    if (!navRibbonRef.current) return;
+    const { scrollLeft, scrollWidth, clientWidth } = navRibbonRef.current;
+    setCanScrollLeft(scrollLeft > 6);
+    setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 6);
+  };
+
+  useEffect(() => {
+    checkScrollability();
+    const handleResize = () => checkScrollability();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
+  useEffect(() => {
+    if (!navRibbonRef.current) return;
+    const activeEl = document.getElementById(`nav-btn-${activeTab}`);
+    if (activeEl) {
+      activeEl.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    }
+    const timer = setTimeout(checkScrollability, 300);
+    return () => clearTimeout(timer);
+  }, [activeTab]);
+
+  const handleNavScroll = (direction: "left" | "right") => {
+    if (!navRibbonRef.current) return;
+    const distance = 260;
+    navRibbonRef.current.scrollBy({
+      left: direction === "left" ? -distance : distance,
+      behavior: "smooth",
+    });
+    setTimeout(checkScrollability, 300);
+  };
+
   const tools = [
     { id: "quote", label: "Quote Designer", icon: Quote, desc: "Aesthetic graphic visuals" },
     { id: "compress", label: "Image Compressor", icon: FileImage, desc: "Ultra-fast size reduction" },
     { id: "qr", label: "QR Code Generator", icon: QrCode, desc: "Scan metrics with Reed-Solomon" },
     { id: "palette", label: "Color Extractor", icon: Pipette, desc: "Median Cut color analyzer" },
     { id: "video", label: "Video Creator", icon: Video, desc: "Interactive timeline editor" },
+    { id: "pdf", label: "PDF Tools Suite", icon: FileText, desc: "Convert & build PDF documents" },
+    { id: "converter", label: "Image Converter", icon: RefreshCw, desc: "WebP, PNG, JPEG conversion" },
+    { id: "bgremover", label: "Background Remover", icon: Eraser, desc: "Instant transparent alpha matte" },
+    { id: "android", label: "Android App Studio", icon: Smartphone, desc: "Veo 3.1 & simulated Android" },
     { id: "chatbot", label: "AI Chatbot", icon: MessageSquare, desc: "Multi-turn Gemini chat thread" },
     { id: "voice", label: "Live Voice Studio", icon: Mic, desc: "Real-time voice Live API" },
   ];
@@ -337,7 +407,7 @@ export default function Navbar({
     }
   };
 
-  const isToolActive = ["quote", "compress", "qr", "palette", "video"].includes(activeTab);
+  const isToolActive = ["quote", "compress", "qr", "palette", "video", "pdf", "converter", "bgremover", "android"].includes(activeTab);
 
   return (
     <header className={`sticky top-0 z-50 select-none border-b transition-all duration-300 relative backdrop-blur-xl shadow-xs ${
@@ -417,100 +487,39 @@ export default function Navbar({
             </kbd>
           </button>
 
-          {/* Center-Right: Segmented Tabs Capsule Control Nav */}
-          <nav className={`hidden md:flex items-center gap-1 sm:gap-1.5 p-1 rounded-2xl border select-none shrink-0 animate-in fade-in zoom-in-95 duration-300 ${
-            theme === "dark"
-              ? "bg-slate-950/80 border-slate-800"
-              : "bg-slate-100/80 border-slate-200/90"
-          }`}>
-            {/* Interactive utilities megamenu */}
+          {/* Center: Recents Quick History Dropdown & Quick Actions */}
+          <div className="hidden lg:flex items-center gap-2 select-none shrink-0">
+            {/* Quick Recents Dropdown */}
             <div className="relative">
               <button
-                onMouseEnter={() => {
-                  setShowToolsDropdown(true);
-                  setShowRecentDropdown(false);
+                onClick={() => {
+                  setShowRecentDropdown(!showRecentDropdown);
+                  setShowSettingsDropdown(false);
                 }}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  isToolActive
-                    ? "bg-blue-600 text-white font-extrabold shadow-sm"
-                    : theme === "dark"
-                      ? "text-slate-300 hover:text-white hover:bg-slate-800/60"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-white/80"
-                }`}
-                onClick={() => setShowToolsDropdown(!showToolsDropdown)}
-              >
-                <LayoutGrid className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 group-hover:text-white" />
-                <span>Interactives</span>
-                <ChevronDown className={`w-3 h-3 transition-transform duration-300 ${showToolsDropdown ? "rotate-180" : ""}`} />
-              </button>
-
-              {/* Mega hover subgrid */}
-              {showToolsDropdown && (
-                <div 
-                  onMouseLeave={() => setShowToolsDropdown(false)}
-                  className="absolute left-0 mt-2.5 w-72 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 p-2 shadow-2xl animate-fade-in z-50 duration-200"
-                >
-                  <div className="px-3.5 py-2 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest border-b border-slate-100 dark:border-slate-850 mb-1.5 flex items-center justify-between select-none">
-                    <span>Power Suites</span>
-                    <Sparkles className="w-3 h-3 text-indigo-500 animate-pulse" />
-                  </div>
-                  {tools.map((t) => {
-                    const Icon = t.icon;
-                    return (
-                      <button
-                        key={t.id}
-                        onClick={() => handleTabClick(t.id as ActiveTab)}
-                        className={`w-full flex items-center gap-3 p-2.5 rounded-xl text-left hover:bg-slate-50 dark:hover:bg-slate-900 transition-all cursor-pointer ${
-                          activeTab === t.id 
-                            ? "bg-slate-50/90 dark:bg-slate-900 border border-slate-100/30 dark:border-slate-850/30 font-bold" 
-                            : "border border-transparent"
-                        }`}
-                      >
-                        <div className={`p-2 rounded-lg ${activeTab === t.id ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-400" : "bg-slate-150 text-slate-550 dark:bg-slate-800 dark:text-slate-400"}`}>
-                          <Icon className="w-4 h-4" />
-                        </div>
-                        <div>
-                          <p className="text-xs font-bold text-slate-900 dark:text-slate-100 leading-tight">{t.label}</p>
-                          <p className="text-[10px] text-slate-400 dark:text-slate-500 mt-1 leading-none font-medium">{t.desc}</p>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {/* Recent utility trace view drop */}
-            <div className="relative">
-              <button
-                onMouseEnter={() => {
-                  setShowRecentDropdown(true);
-                  setShowToolsDropdown(false);
-                }}
-                className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
                   showRecentDropdown
                     ? theme === "dark"
-                      ? "bg-slate-800 text-white shadow-sm font-extrabold"
-                      : "bg-white text-slate-900 shadow-xs font-extrabold"
+                      ? "bg-slate-800 text-white border-slate-700 shadow-sm font-extrabold"
+                      : "bg-white text-slate-900 border-slate-300 shadow-xs font-extrabold"
                     : theme === "dark"
-                      ? "text-slate-300 hover:text-white hover:bg-slate-800/60"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-white/80"
+                      ? "text-slate-300 hover:text-white hover:bg-slate-800/60 border-slate-800 bg-slate-900/60"
+                      : "text-slate-600 hover:text-slate-900 hover:bg-white/80 border-slate-200 bg-slate-100/60"
                 }`}
-                onClick={() => setShowRecentDropdown(!showRecentDropdown)}
+                title="Recently used tools & activities"
               >
-                <History className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-300 shrink-0" />
-                <span>Recents</span>
-                <ChevronDown className={`w-3 h-3 transition-transform duration-300 ${showRecentDropdown ? "rotate-180" : ""}`} />
+                <History className="w-3.5 h-3.5 text-indigo-500 dark:text-indigo-400 shrink-0" />
+                <span className="hidden xl:inline">Recents</span>
+                <ChevronDown className={`w-3 h-3 transition-transform duration-200 ${showRecentDropdown ? "rotate-180" : ""}`} />
               </button>
 
               {/* Interactive session checklist */}
               {showRecentDropdown && (
                 <div 
                   onMouseLeave={() => setShowRecentDropdown(false)}
-                  className="absolute left-0 mt-2.5 w-72 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 p-2 shadow-2xl animate-fade-in z-50 text-left"
+                  className="absolute left-0 mt-2 w-72 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 p-2 shadow-2xl animate-fade-in z-50 text-left"
                 >
                   <div className="px-3.5 py-2 text-[10px] font-black text-slate-400 dark:text-slate-500 uppercase tracking-widest border-b border-slate-100 dark:border-slate-850 flex items-center justify-between select-none font-mono">
-                    <span>Active Session logs</span>
+                    <span>Active Session History</span>
                     <span className="bg-indigo-50 dark:bg-indigo-950/40 text-indigo-600 dark:text-indigo-400 text-[8px] px-2 py-0.5 rounded-md font-extrabold uppercase">
                       Trace
                     </span>
@@ -581,194 +590,38 @@ export default function Navbar({
               )}
             </div>
 
-            {/* AI Chatbot button */}
-            <button
-              onClick={() => handleTabClick("chatbot")}
-              className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === "chatbot"
-                  ? theme === "dark" ? "text-white font-extrabold" : "text-blue-700 font-extrabold"
-                  : theme === "dark"
-                    ? "text-slate-300 hover:text-white hover:bg-slate-800/60"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-white/80"
-              }`}
-            >
-              {activeTab === "chatbot" && (
-                <motion.div
-                  layoutId="navbarTabActivePill"
-                  className={`absolute inset-0 rounded-xl shadow-xs ${
-                    theme === "dark" ? "bg-slate-800" : "bg-white"
-                  }`}
-                  transition={{ type: "spring", stiffness: 380, damping: 28 }}
-                />
-              )}
-              <Bot className={`w-3.5 h-3.5 shrink-0 relative z-10 animate-pulse ${activeTab === "chatbot" ? "text-blue-600 dark:text-blue-400" : "text-slate-400 dark:text-slate-400"}`} />
-              <span className="relative z-10">AI Chatbot</span>
-            </button>
-
-            {/* Live Voice Studio button */}
-            <button
-              onClick={() => handleTabClick("voice")}
-              className={`relative flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === "voice"
-                  ? theme === "dark" ? "text-white font-extrabold" : "text-blue-700 font-extrabold"
-                  : theme === "dark"
-                    ? "text-slate-300 hover:text-white hover:bg-slate-800/60"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-white/80"
-              }`}
-            >
-              {activeTab === "voice" && (
-                <motion.div
-                  layoutId="navbarTabActivePill"
-                  className={`absolute inset-0 rounded-xl shadow-xs ${
-                    theme === "dark" ? "bg-slate-800" : "bg-white"
-                  }`}
-                  transition={{ type: "spring", stiffness: 380, damping: 28 }}
-                />
-              )}
-              <Mic className={`w-3.5 h-3.5 shrink-0 relative z-10 ${activeTab === "voice" ? "text-rose-600" : "text-slate-400 dark:text-slate-400"}`} />
-              <span className="relative z-10">Voice Studio</span>
-            </button>
-
-            {/* Google Drive connected index panel */}
-            <button
-              onClick={() => handleTabClick("drive")}
-              className={`relative flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                activeTab === "drive"
-                  ? theme === "dark" ? "text-white font-extrabold" : "text-blue-700 font-extrabold"
-                  : theme === "dark"
-                    ? "text-slate-300 hover:text-white hover:bg-slate-800/60"
-                    : "text-slate-600 hover:text-slate-900 hover:bg-white/80"
-              }`}
-            >
-              {activeTab === "drive" && (
-                <motion.div
-                  layoutId="navbarTabActivePill"
-                  className={`absolute inset-0 rounded-xl shadow-xs ${
-                    theme === "dark" ? "bg-slate-800" : "bg-white"
-                  }`}
-                  transition={{ type: "spring", stiffness: 380, damping: 28 }}
-                />
-              )}
-              <Cloud className={`w-3.5 h-3.5 shrink-0 relative z-10 animate-pulse ${activeTab === "drive" ? "text-sky-600" : "text-slate-400 dark:text-slate-400"}`} />
-              <span className="relative z-10">Drive</span>
-              {user && driveCount > 0 && (
-                <span className="relative z-10 bg-emerald-100 dark:bg-emerald-400/20 border border-emerald-300 dark:border-emerald-400/30 text-emerald-800 dark:text-emerald-200 px-1.5 py-0.2 rounded-md text-[9px] font-mono font-bold leading-none shrink-0 ml-0.5 shadow-2xs">
-                  {driveCount}
-                </span>
-              )}
-            </button>
-
-            {/* More Dropdown (Guides, Compliance, SEO Audit, AI Keys) */}
-            <div className="relative">
+            {/* Quick SEO Audit button */}
+            {onOpenSeoModal && (
               <button
-                onMouseEnter={() => {
-                  setShowMoreDropdown(true);
-                  setShowToolsDropdown(false);
-                  setShowRecentDropdown(false);
-                }}
-                onClick={() => setShowMoreDropdown(!showMoreDropdown)}
-                className={`relative flex items-center gap-1 px-2.5 py-1.5 sm:px-3 sm:py-2 rounded-xl text-xs font-bold transition-all cursor-pointer ${
-                  ["resources", "legal"].includes(activeTab) || showMoreDropdown
-                    ? theme === "dark" ? "text-white font-extrabold" : "text-blue-700 font-extrabold"
-                    : theme === "dark"
-                      ? "text-slate-300 hover:text-white hover:bg-slate-800/60"
-                      : "text-slate-600 hover:text-slate-900 hover:bg-white/80"
+                onClick={onOpenSeoModal}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                  theme === "dark"
+                    ? "text-slate-300 hover:text-white hover:bg-slate-800/60 border-slate-800 bg-slate-900/60"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-white/80 border-slate-200 bg-slate-100/60"
                 }`}
+                title="SEO & AdSense Meta Audit"
               >
-                {["resources", "legal"].includes(activeTab) && (
-                  <motion.div
-                    layoutId="navbarTabActivePill"
-                    className={`absolute inset-0 rounded-xl shadow-xs ${
-                      theme === "dark" ? "bg-slate-800" : "bg-white"
-                    }`}
-                    transition={{ type: "spring", stiffness: 380, damping: 28 }}
-                  />
-                )}
-                <MoreHorizontal className={`w-3.5 h-3.5 relative z-10 ${["resources", "legal"].includes(activeTab) ? "text-blue-600 dark:text-blue-400" : "text-slate-400 dark:text-slate-400"}`} />
-                <span className="relative z-10 hidden xs:inline">More</span>
-                <ChevronDown className={`w-3 h-3 relative z-10 transition-transform duration-300 ${showMoreDropdown ? "rotate-180" : ""}`} />
+                <Sparkles className="w-3.5 h-3.5 text-indigo-500 shrink-0" />
+                <span className="hidden xl:inline">SEO Audit</span>
               </button>
+            )}
 
-              {showMoreDropdown && (
-                <div
-                  onMouseLeave={() => setShowMoreDropdown(false)}
-                  className="absolute right-0 sm:left-0 mt-2.5 w-60 rounded-2xl bg-white dark:bg-slate-950 border border-slate-200/80 dark:border-slate-800 p-2 shadow-2xl animate-fade-in z-50 text-left font-sans"
-                >
-                  <div className="px-3 py-1.5 text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-100 dark:border-slate-850 mb-1 font-mono">
-                    Navigation & Tools
-                  </div>
-
-                  <button
-                    onClick={() => handleTabClick("resources")}
-                    className={`w-full flex items-center gap-2.5 p-2 rounded-xl text-left hover:bg-slate-50 dark:hover:bg-slate-900 transition-all cursor-pointer ${
-                      activeTab === "resources" ? "bg-slate-50 dark:bg-slate-900 font-bold text-teal-600 dark:text-teal-400" : "text-slate-700 dark:text-slate-300"
-                    }`}
-                  >
-                    <BookOpen className="w-4 h-4 text-teal-500 shrink-0" />
-                    <div>
-                      <p className="text-xs font-bold leading-tight">Guides & SEO</p>
-                      <p className="text-[9.5px] text-slate-400 mt-0.5">Sitemaps & tutorials</p>
-                    </div>
-                  </button>
-
-                  <button
-                    onClick={() => handleTabClick("legal")}
-                    className={`w-full flex items-center gap-2.5 p-2 rounded-xl text-left hover:bg-slate-50 dark:hover:bg-slate-900 transition-all cursor-pointer ${
-                      activeTab === "legal" ? "bg-slate-50 dark:bg-slate-900 font-bold text-emerald-600 dark:text-emerald-400" : "text-slate-700 dark:text-slate-300"
-                    }`}
-                  >
-                    <ShieldCheck className="w-4 h-4 text-emerald-500 shrink-0" />
-                    <div>
-                      <p className="text-xs font-bold leading-tight">Compliance & Safety</p>
-                      <p className="text-[9.5px] text-slate-400 mt-0.5">Policies & support</p>
-                    </div>
-                  </button>
-
-                  {onOpenSeoModal && (
-                    <button
-                      onClick={() => {
-                        setShowMoreDropdown(false);
-                        onOpenSeoModal();
-                      }}
-                      className="w-full flex items-center justify-between p-2 rounded-xl text-left hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-700 dark:text-slate-300 transition-all cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <Sparkles className="w-4 h-4 text-indigo-500 shrink-0" />
-                        <div>
-                          <p className="text-xs font-bold leading-tight">SEO Audit</p>
-                          <p className="text-[9.5px] text-slate-400 mt-0.5">Pre-Drive checks</p>
-                        </div>
-                      </div>
-                      <span className="bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 text-[8.5px] font-mono font-black px-1.5 py-0.5 rounded uppercase">
-                        Audit
-                      </span>
-                    </button>
-                  )}
-
-                  {onOpenApiKeyModal && (
-                    <button
-                      onClick={() => {
-                        setShowMoreDropdown(false);
-                        onOpenApiKeyModal();
-                      }}
-                      className="w-full flex items-center justify-between p-2 rounded-xl text-left hover:bg-slate-50 dark:hover:bg-slate-900 text-slate-700 dark:text-slate-300 transition-all cursor-pointer"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        <Key className="w-4 h-4 text-purple-500 shrink-0" />
-                        <div>
-                          <p className="text-xs font-bold leading-tight">AI API Keys</p>
-                          <p className="text-[9.5px] text-slate-400 mt-0.5">Gemini, OpenAI, etc.</p>
-                        </div>
-                      </div>
-                      <span className="bg-purple-100 dark:bg-purple-950 text-purple-700 dark:text-purple-300 text-[8.5px] font-mono font-black px-1.5 py-0.5 rounded uppercase">
-                        Keys
-                      </span>
-                    </button>
-                  )}
-                </div>
-              )}
-            </div>
-          </nav>
+            {/* Quick AI API Keys button */}
+            {onOpenApiKeyModal && (
+              <button
+                onClick={onOpenApiKeyModal}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border ${
+                  theme === "dark"
+                    ? "text-slate-300 hover:text-white hover:bg-slate-800/60 border-slate-800 bg-slate-900/60"
+                    : "text-slate-600 hover:text-slate-900 hover:bg-white/80 border-slate-200 bg-slate-100/60"
+                }`}
+                title="Configure AI API Keys (Gemini, OpenAI, etc.)"
+              >
+                <Key className="w-3.5 h-3.5 text-purple-500 shrink-0" />
+                <span className="hidden xl:inline">API Keys</span>
+              </button>
+            )}
+          </div>
 
           {/* Right Action panel */}
           <div className="flex items-center space-x-1.5 sm:space-x-2 shrink-0 select-none animate-in fade-in slide-in-from-right-4 duration-300">
@@ -1162,23 +1015,28 @@ export default function Navbar({
               <button
                 onClick={onLogin}
                 disabled={isLoggingIn}
-                className={`inline-flex items-center justify-center gap-1.5 font-bold text-xs sm:text-sm px-3 py-1.5 rounded-xl transition-all hover:scale-101 cursor-pointer shadow-md disabled:opacity-50 select-none border shrink-0 ${
+                className={`inline-flex items-center justify-center gap-1.5 font-bold text-xs sm:text-sm px-2.5 sm:px-3.5 py-1.5 rounded-xl transition-all hover:scale-101 cursor-pointer shadow-md disabled:opacity-50 select-none border shrink-0 ${
                   theme === "dark"
                     ? "bg-white hover:bg-slate-50 text-slate-950 border-slate-100/15"
                     : "bg-slate-950 hover:bg-slate-900 text-white border-slate-950"
                 }`}
                 id="navbar-signin"
+                title="Connect Google Drive Workspace"
               >
-                <span>Authorize Drive</span>
+                <Cloud className="w-3.5 h-3.5 shrink-0" />
+                <span className="hidden sm:inline">Authorize Drive</span>
+                <span className="sm:hidden">Authorize</span>
               </button>
             )}
 
             {/* Mobile Burger Side Panel control */}
             <button
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              className={`lg:hidden p-2 rounded-xl transition-colors cursor-pointer select-none border border-transparent hover:border-slate-150 dark:hover:border-slate-800/80 ${
+              className={`lg:hidden p-2 rounded-xl transition-colors cursor-pointer select-none border border-transparent hover:border-slate-150 dark:hover:border-slate-800/80 shrink-0 ${
                 theme === "dark" ? "text-slate-300" : "text-slate-655"
               }`}
+              title="Toggle mobile menu"
+              aria-label="Toggle navigation drawer"
             >
               {mobileMenuOpen ? (
                 <X className="w-4.5 h-4.5" />
@@ -1190,6 +1048,105 @@ export default function Navbar({
 
         </div>
       </div>
+
+      {/* Universal All-Nav-Buttons Horizontal Ribbon */}
+      <nav 
+        aria-label="Primary Application Navigation"
+        className={`w-full border-t relative flex items-center transition-colors select-none ${
+          theme === "dark" 
+            ? "border-slate-800/90 bg-slate-950/80" 
+            : "border-slate-200/80 bg-slate-50/90"
+        }`}
+      >
+        {/* Left Scroll Chevron Indicator & Button */}
+        {canScrollLeft && (
+          <div className="absolute left-0 top-0 bottom-0 z-20 flex items-center pl-1 pr-4 bg-gradient-to-r from-white via-white/95 to-transparent dark:from-slate-950 dark:via-slate-950/95 dark:to-transparent pointer-events-none">
+            <button
+              onClick={() => handleNavScroll("left")}
+              className="p-1 rounded-lg border shadow-sm transition-all pointer-events-auto cursor-pointer hover:scale-105 active:scale-95 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
+              title="Scroll navigation left"
+              aria-label="Scroll navigation left"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Scrollable Container with All 15 Buttons */}
+        <div
+          ref={navRibbonRef}
+          onScroll={checkScrollability}
+          className="flex-1 flex items-center gap-1 sm:gap-1.5 overflow-x-auto scrollbar-none py-1.5 px-2 sm:px-4 lg:px-6 scroll-smooth"
+        >
+          {ALL_NAV_ITEMS.map((item) => {
+            const Icon = item.icon;
+            const isActive = activeTab === item.id;
+            return (
+              <button
+                key={item.id}
+                id={`nav-btn-${item.id}`}
+                onClick={() => handleTabClick(item.id)}
+                className={`relative inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 cursor-pointer select-none border group ${
+                  isActive
+                    ? theme === "dark"
+                      ? "bg-slate-800 border-slate-600 text-white shadow-sm ring-1 ring-white/10"
+                      : "bg-white border-blue-200/90 text-blue-700 shadow-2xs ring-1 ring-blue-500/10"
+                    : theme === "dark"
+                      ? "border-transparent text-slate-300 hover:text-white hover:bg-slate-900/90"
+                      : "border-transparent text-slate-600 hover:text-slate-900 hover:bg-slate-100/90"
+                }`}
+                title={item.label}
+              >
+                {isActive && (
+                  <motion.div
+                    layoutId="activeNavRibbonPill"
+                    className="absolute inset-0 rounded-xl pointer-events-none -z-10"
+                    transition={{ type: "spring", stiffness: 450, damping: 32 }}
+                  />
+                )}
+
+                <Icon className={`w-3.5 h-3.5 shrink-0 transition-transform group-hover:scale-110 ${
+                  isActive ? (item.iconColor || "text-blue-500") : "opacity-75 group-hover:opacity-100"
+                }`} />
+
+                <span className="whitespace-nowrap leading-none tracking-tight">
+                  {item.shortLabel}
+                </span>
+
+                {/* Drive File Count Badge */}
+                {item.id === "drive" && user && driveCount > 0 && (
+                  <span className="inline-flex items-center justify-center px-1.5 py-0.2 rounded-md text-[9px] font-mono font-black leading-none bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                    {driveCount}
+                  </span>
+                )}
+
+                {/* Badge (NEW, VEO) */}
+                {item.badge && (
+                  <span className={`inline-flex items-center justify-center px-1.5 py-0.2 rounded-full text-[8px] font-mono font-black uppercase leading-none shadow-3xs ${
+                    item.badgeColor || "bg-indigo-600 text-white"
+                  }`}>
+                    {item.badge}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Right Scroll Chevron Indicator & Button */}
+        {canScrollRight && (
+          <div className="absolute right-0 top-0 bottom-0 z-20 flex items-center pr-1 pl-4 bg-gradient-to-l from-white via-white/95 to-transparent dark:from-slate-950 dark:via-slate-950/95 dark:to-transparent pointer-events-none">
+            <button
+              onClick={() => handleNavScroll("right")}
+              className="p-1 rounded-lg border shadow-sm transition-all pointer-events-auto cursor-pointer hover:scale-105 active:scale-95 bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200"
+              title="Scroll navigation right"
+              aria-label="Scroll navigation right"
+            >
+              <ChevronRight className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        )}
+      </nav>
 
       {/* Mobile Drawer Slide list */}
       {mobileMenuOpen && (
@@ -1236,26 +1193,15 @@ export default function Navbar({
             </button>
           )}
           
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 select-none font-sans">
-            {[
-              { id: "home", label: "Home", icon: Home },
-              { id: "quote", label: "Quotes", icon: Quote },
-              { id: "compress", label: "Compressor", icon: FileImage },
-              { id: "qr", label: "QR Matrix", icon: QrCode },
-              { id: "palette", label: "Palette Ext", icon: Pipette },
-              { id: "video", label: "AI Video", icon: Video },
-              { id: "pdf", label: "PDF Suite", icon: FileText },
-              { id: "converter", label: "Converter", icon: RefreshCw },
-              { id: "bgremover", label: "BG Remover", icon: Eraser },
-              { id: "android", label: "Android", icon: Smartphone },
-            ].map((t) => {
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 select-none font-sans">
+            {ALL_NAV_ITEMS.map((t) => {
               const Icon = t.icon;
               const isSelected = activeTab === t.id;
               return (
                 <button
                   key={t.id}
-                  onClick={() => handleTabClick(t.id as ActiveTab)}
-                  className={`flex items-center gap-2 p-3 rounded-xl text-left transition-colors border select-none cursor-pointer ${
+                  onClick={() => handleTabClick(t.id)}
+                  className={`flex items-center justify-between p-2.5 rounded-xl text-left transition-colors border select-none cursor-pointer ${
                     isSelected
                       ? theme === "dark"
                         ? "bg-white text-slate-950 border-white font-bold shadow-sm"
@@ -1265,8 +1211,20 @@ export default function Navbar({
                         : "bg-slate-50 border-slate-200/40 text-slate-600 hover:bg-slate-100"
                   }`}
                 >
-                  <Icon className="w-4 h-4 shrink-0" />
-                  <span className="text-xs font-bold leading-none">{t.label}</span>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <Icon className={`w-4 h-4 shrink-0 ${isSelected ? "" : t.iconColor || "text-blue-500"}`} />
+                    <span className="text-xs font-bold leading-tight truncate">{t.shortLabel}</span>
+                  </div>
+                  {t.id === "drive" && user && driveCount > 0 && (
+                    <span className="text-[8.5px] font-mono font-bold px-1.5 py-0.2 rounded-md bg-emerald-100 dark:bg-emerald-950 text-emerald-700 dark:text-emerald-300 shrink-0 ml-1">
+                      {driveCount}
+                    </span>
+                  )}
+                  {t.badge && (
+                    <span className={`text-[7.5px] font-mono font-black px-1.5 py-0.2 rounded-full uppercase leading-none shrink-0 ml-1 ${t.badgeColor || "bg-indigo-600 text-white"}`}>
+                      {t.badge}
+                    </span>
+                  )}
                 </button>
               );
             })}
