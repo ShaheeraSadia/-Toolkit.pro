@@ -188,7 +188,7 @@ export default function ToolGuide({ activeTab, theme }: ToolGuideProps) {
       {/* Header Panel */}
       <div 
         onClick={() => setIsExpanded(!isExpanded)}
-        className="flex items-center justify-between p-5 md:px-6 cursor-pointer select-none transition-colors duration-150 hover:bg-slate-50/50 dark:hover:bg-slate-850/30"
+        className="flex items-center justify-between p-5 md:px-6 cursor-pointer select-none transition-colors duration-150 hover:bg-slate-50/70 dark:hover:bg-slate-800/40"
       >
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center p-2.5 rounded-2xl bg-indigo-500/10 dark:bg-indigo-500/20 text-indigo-600 dark:text-indigo-400">
@@ -198,11 +198,11 @@ export default function ToolGuide({ activeTab, theme }: ToolGuideProps) {
             <div className="flex flex-wrap items-center gap-x-2.5 gap-y-1">
               <h3 className="text-sm font-black tracking-tight text-slate-900 dark:text-white uppercase flex items-center gap-1.5">
                 {guide.titleEn} Guide
-                <span className="hidden sm:inline-block h-3 w-px bg-slate-200 dark:bg-slate-800" />
-                <span className="text-[13px] text-slate-500 dark:text-slate-400 font-medium lowercase font-mono">how it works</span>
+                <span className="hidden sm:inline-block h-3 w-px bg-slate-300 dark:bg-slate-700" />
+                <span className="text-[13px] text-slate-600 dark:text-slate-300 font-semibold lowercase font-mono">how it works</span>
               </h3>
             </div>
-            <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1 max-w-xl line-clamp-1">
+            <p className="text-xs text-slate-600 dark:text-slate-300 mt-1 max-w-xl line-clamp-1 font-medium">
               {guide.descEn}
             </p>
           </div>
@@ -210,7 +210,7 @@ export default function ToolGuide({ activeTab, theme }: ToolGuideProps) {
 
         <button 
           type="button"
-          className="p-1.5 rounded-xl border border-slate-100 dark:border-slate-850 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 bg-white dark:bg-slate-900 transition-all shadow-3xs"
+          className="p-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-200 hover:text-slate-900 dark:hover:text-white bg-white dark:bg-slate-800 transition-all shadow-3xs cursor-pointer"
           aria-label={isExpanded ? "Collapse guide" : "Expand guide"}
         >
           {isExpanded ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
@@ -219,33 +219,33 @@ export default function ToolGuide({ activeTab, theme }: ToolGuideProps) {
 
       {/* Expandable Body Panel */}
       {isExpanded && (
-        <div className="px-5 md:px-6 pb-6 pt-1 border-t border-slate-100 dark:border-slate-850/60 animate-in fade-in slide-in-from-top-1 duration-200">
+        <div className="px-5 md:px-6 pb-6 pt-1 border-t border-slate-200/80 dark:border-slate-800 animate-in fade-in slide-in-from-top-1 duration-200">
           
           {/* Main Overview */}
-          <div className="pb-6 border-b border-slate-100 dark:border-slate-850/60">
+          <div className="pb-5 border-b border-slate-200/80 dark:border-slate-800">
             <div className="space-y-1.5 text-left">
-              <span className="inline-flex items-center gap-1 text-[10px] font-extrabold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">
-                <Info className="w-3.5 h-3.5" /> Overview
+              <span className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300">
+                <Info className="w-4 h-4 text-indigo-600 dark:text-indigo-400" /> Overview
               </span>
-              <p className="text-xs text-slate-650 dark:text-slate-300 leading-relaxed font-sans max-w-3xl">
+              <p className="text-xs sm:text-[13px] text-slate-800 dark:text-slate-200 leading-relaxed font-sans max-w-3xl font-normal">
                 {guide.descEn}
               </p>
             </div>
           </div>
 
           {/* Core Interactive Step Guide */}
-          <div className="py-6">
-            <span className="inline-flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-widest text-slate-500 dark:text-slate-400 mb-4">
-              <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" /> Operational Step-by-Step
+          <div className="py-5">
+            <span className="inline-flex items-center gap-1.5 text-xs font-black uppercase tracking-wider text-slate-800 dark:text-slate-200 mb-3.5">
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" /> Operational Step-by-Step
             </span>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3.5">
               {guide.stepsEn.map((step, idx) => (
-                <div key={idx} className="p-3.5 rounded-2xl bg-slate-50/70 dark:bg-slate-900/40 border border-slate-100 dark:border-slate-850/60 flex flex-col justify-start text-left">
-                  <span className="inline-flex items-center justify-center w-6 h-6 mb-2 rounded-full bg-indigo-50 dark:bg-indigo-950/50 border border-indigo-100 dark:border-indigo-900/40 text-[10px] font-black text-indigo-600 dark:text-indigo-400 font-mono">
+                <div key={idx} className="p-4 rounded-2xl bg-slate-50/90 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700/80 flex flex-col justify-start text-left shadow-2xs">
+                  <span className="inline-flex items-center justify-center w-7 h-7 mb-2.5 rounded-full bg-indigo-100 dark:bg-indigo-900/80 border border-indigo-300 dark:border-indigo-600 text-xs font-black text-indigo-700 dark:text-indigo-200 font-mono shadow-xs">
                     0{idx + 1}
                   </span>
-                  <p className="text-xs text-slate-600 dark:text-slate-350 leading-relaxed">
+                  <p className="text-xs text-slate-700 dark:text-slate-200 leading-relaxed font-medium">
                     {step}
                   </p>
                 </div>
@@ -256,16 +256,16 @@ export default function ToolGuide({ activeTab, theme }: ToolGuideProps) {
           {/* Pro Tips Panel */}
           <div className={`mt-1 p-4 rounded-2xl border ${
             theme === "dark" 
-              ? "bg-indigo-950/20 border-indigo-900/40 text-indigo-300" 
-              : "bg-indigo-50/30 border-indigo-100/80 text-indigo-950"
+              ? "bg-indigo-950/40 border-indigo-800/80 text-indigo-100" 
+              : "bg-indigo-50/70 border-indigo-200 text-indigo-950"
           }`}>
             <div className="flex items-start gap-3 text-left">
-              <span className="p-1.5 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5">
+              <span className="p-2 rounded-xl bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 shrink-0 mt-0.5">
                 <Lightbulb className="w-4 h-4" />
               </span>
               <div>
-                <p className="text-[10px] font-extrabold uppercase tracking-widest text-indigo-600 dark:text-indigo-400">Pro Tip</p>
-                <p className="text-xs text-slate-650 dark:text-slate-300 leading-relaxed mt-0.5">
+                <p className="text-xs font-black uppercase tracking-wider text-indigo-700 dark:text-indigo-300">Pro Tip</p>
+                <p className="text-xs sm:text-[13px] text-slate-800 dark:text-slate-200 leading-relaxed mt-1 font-medium">
                   {guide.proTipEn}
                 </p>
               </div>

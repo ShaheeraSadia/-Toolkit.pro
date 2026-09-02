@@ -87,11 +87,81 @@ h1, h2, h3, h4, h5, h6 {
   line-height: 1.25;
 }
 
-.text-slate-400, .text-slate-405 {
-  color: #64748b; /* Satisfies WCAG AA 4.5:1 minimum contrast rule */
+/* Light Mode Text Contrast Defaults (Ensures WCAG AAA / AA crisp readability) */
+body {
+  color: #0f172a;
 }
-.dark .text-slate-400, .dark .text-slate-405 {
-  color: #cbd5e1; /* Increased contrast in dark mode */
+.text-slate-400 {
+  color: #475569;
+}
+.text-slate-405,
+.text-slate-450 {
+  color: #334155;
+}
+.text-slate-500,
+.text-slate-505,
+.text-slate-550 {
+  color: #1e293b;
+}
+
+/* Dark Mode Universal Text Contrast Safeguards */
+.dark body {
+  color: #f8fafc;
+}
+.dark h1, .dark h2, .dark h3, .dark h4, .dark h5, .dark h6 {
+  color: #ffffff;
+}
+.dark .text-slate-300,
+.dark .text-slate-305 {
+  color: #f1f5f9;
+}
+.dark .text-slate-400,
+.dark .text-slate-405 {
+  color: #e2e8f0;
+}
+.dark .text-slate-450,
+.dark .text-slate-500,
+.dark .text-slate-505,
+.dark .text-slate-550,
+.dark .text-slate-600,
+.dark .text-slate-650,
+.dark .text-slate-700,
+.dark .text-slate-705,
+.dark .text-slate-750,
+.dark .text-slate-800,
+.dark .text-slate-805,
+.dark .text-slate-850,
+.dark .text-slate-900,
+.dark .text-slate-905,
+.dark .text-slate-950 {
+  color: #cbd5e1;
+}
+
+.dark .text-indigo-400,
+.dark .text-indigo-405,
+.dark .text-indigo-450,
+.dark .text-indigo-500,
+.dark .text-indigo-501,
+.dark .text-indigo-505,
+.dark .text-indigo-650,
+.dark .text-indigo-655 {
+  color: #a5b4fc;
+}
+
+.dark .text-emerald-450,
+.dark .text-emerald-650,
+.dark .text-emerald-700 {
+  color: #6ee7b7;
+}
+
+.dark .text-amber-650,
+.dark .text-amber-955 {
+  color: #fde68a;
+}
+
+.dark .text-rose-550,
+.dark .text-rose-650 {
+  color: #fda4af;
 }
 
 /* Page wrap overrides for mobile responsiveness */

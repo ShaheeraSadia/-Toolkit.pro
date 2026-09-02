@@ -4891,9 +4891,9 @@ export default function ImageCompressor({
                 </div>
 
                 <div className="space-y-1">
-                  <div className="flex justify-between text-[9px] font-bold text-slate-400 dark:text-slate-550">
+                  <div className="flex justify-between text-[9px] font-bold text-slate-600 dark:text-slate-300">
                     <span>Aggressive</span>
-                    <span className="text-emerald-500">🎯 Optimal (80%)</span>
+                    <span className="text-emerald-600 dark:text-emerald-400">🎯 Optimal (80%)</span>
                     <span>High Quality</span>
                   </div>
                   <input
@@ -4922,11 +4922,11 @@ export default function ImageCompressor({
                   return (
                     <div className="mt-3 bg-white dark:bg-slate-950/80 border border-slate-200/60 dark:border-slate-800/60 rounded-xl p-3 space-y-2 shadow-2xs">
                       <div className="flex items-center justify-between text-[10px]">
-                        <span className="font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                        <span className="font-bold text-slate-600 dark:text-slate-300 flex items-center gap-1">
                           <Zap className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />
                           Est. Batch Savings:
                         </span>
-                        <span className="font-black text-emerald-650 dark:text-emerald-450 bg-emerald-500/10 dark:bg-emerald-500/20 px-2 py-0.5 rounded-md text-[9px]">
+                        <span className="font-black text-emerald-700 dark:text-emerald-300 bg-emerald-500/10 dark:bg-emerald-500/20 px-2 py-0.5 rounded-md text-[9px]">
                           -{savedPercentage}% Size Reduction
                         </span>
                       </div>
@@ -5105,15 +5105,15 @@ export default function ImageCompressor({
         <div className="bg-white dark:bg-slate-950 p-4 rounded-xl border border-slate-200/50 dark:border-slate-800/80 space-y-3 shadow-sm font-sans text-left" id="compression-summary-realtime">
           <div className="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-2">
             <h4 className="text-[11px] font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5">
-              <Sparkles className="w-3.5 h-3.5 text-indigo-505" /> Compression Summary
+              <Sparkles className="w-3.5 h-3.5 text-indigo-600 dark:text-indigo-400" /> Compression Summary
             </h4>
-            <span className="text-[10px] font-semibold text-slate-400 bg-slate-50 dark:bg-slate-900 px-2 py-0.5 rounded-full">
+            <span className="text-[10px] font-bold text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-900 px-2 py-0.5 rounded-full border border-slate-200 dark:border-slate-800">
               {queue.length} File{queue.length !== 1 ? 's' : ''}
             </span>
           </div>
 
           {queue.length === 0 ? (
-            <div className="text-center py-3 text-[11px] text-slate-400 dark:text-slate-500">
+            <div className="text-center py-3 text-[11px] text-slate-600 dark:text-slate-300 font-medium">
               No images in queue. Drop or load files to forecast mobile performance metrics and Core Web Vitals rankings.
             </div>
           ) : (() => {
@@ -7288,9 +7288,9 @@ export default function ImageCompressor({
         <div className="flex-1 flex flex-col bg-slate-100 dark:bg-slate-950 border border-slate-200/50 dark:border-slate-800 p-3.5 sm:p-6 min-h-[280px] sm:min-h-[380px] rounded-2xl">
           {!activeItem ? (
             <div className="flex-1 flex flex-col items-center justify-center text-center py-8">
-              <FileImage className="w-12 h-12 text-slate-305 dark:text-slate-700 mb-2.5 animate-bounce" />
-              <h4 className="text-sm font-semibold text-slate-700 dark:text-slate-305">Workspace Queue is Empty</h4>
-              <p className="text-xs text-slate-400 dark:text-slate-500 max-w-xs mt-1">
+              <FileImage className="w-12 h-12 text-slate-400 dark:text-slate-600 mb-2.5 animate-bounce" />
+              <h4 className="text-sm font-bold text-slate-800 dark:text-slate-100">Workspace Queue is Empty</h4>
+              <p className="text-xs text-slate-600 dark:text-slate-300 max-w-xs mt-1 font-medium">
                 Upload or drag multiple creator images into the workspace to initialize a compressed comparative layout.
               </p>
             </div>
@@ -8752,44 +8752,44 @@ export default function ImageCompressor({
       </div>
 
       {/* Recent Sessions Sidebar: 3 Cols */}
-      <div className="lg:col-span-2 xl:col-span-3 bg-slate-50 dark:bg-slate-905/30 rounded-2xl p-4 sm:p-5 border border-slate-100 dark:border-slate-800/60 flex flex-col space-y-4 text-left" id="recent-sessions-sidebar">
+      <div className="lg:col-span-2 xl:col-span-3 bg-slate-50 dark:bg-slate-900/60 rounded-2xl p-4 sm:p-5 border border-slate-200 dark:border-slate-800 flex flex-col space-y-4 text-left shadow-xs" id="recent-sessions-sidebar">
         <div>
-          <h3 className="text-sm font-semibold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5 mb-1 select-none">
-            <History className="w-4 h-4 text-indigo-500 animate-[spin_10s_linear_infinite]" /> Recent Sessions & Recovery
+          <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-1.5 mb-1 select-none">
+            <History className="w-4 h-4 text-indigo-600 dark:text-indigo-400 animate-[spin_10s_linear_infinite]" /> Recent Sessions & Recovery
           </h3>
-          <p className="text-[11px] text-slate-505 dark:text-slate-400">
+          <p className="text-xs text-slate-600 dark:text-slate-300 font-medium">
             Access, manage settings, restore previous interrupted batches, or direct download your last 10 compression jobs.
           </p>
         </div>
 
         {localBackupAvailable && (
-          <div className="bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/60 p-3.5 rounded-xl flex flex-col space-y-2 select-none shadow-3xs border-dashed">
+          <div className="bg-emerald-50/70 dark:bg-emerald-950/40 border border-emerald-300/80 dark:border-emerald-800/80 p-3.5 rounded-xl flex flex-col space-y-2 select-none shadow-3xs border-dashed">
             <div className="flex items-center justify-between">
-              <span className="text-[9px] font-black uppercase text-emerald-600 dark:text-emerald-400 bg-emerald-100/60 dark:bg-emerald-950 px-2 py-0.5 rounded flex items-center gap-1">
+              <span className="text-[9px] font-black uppercase text-emerald-700 dark:text-emerald-300 bg-emerald-100 dark:bg-emerald-900/80 px-2 py-0.5 rounded flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-ping" />
                 Interrupted Draft
               </span>
-              <span className="text-[9px] font-mono text-slate-400 dark:text-slate-500">
+              <span className="text-[9px] font-mono font-bold text-slate-600 dark:text-slate-300">
                 {localBackupData?.timestamp ? new Date(localBackupData.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "Recently"}
               </span>
             </div>
-            <p className="text-[10px] text-slate-600 dark:text-slate-400 leading-relaxed font-medium">
-              An active session with <strong className="font-bold text-slate-800 dark:text-slate-200">{localBackupData?.items?.length || 0} file(s)</strong> was interrupted. Restore it to retrieve files, quality, and configurations!
+            <p className="text-xs text-slate-700 dark:text-slate-200 leading-relaxed font-medium">
+              An active session with <strong className="font-bold text-slate-900 dark:text-white">{localBackupData?.items?.length || 0} file(s)</strong> was interrupted. Restore it to retrieve files, quality, and configurations!
             </p>
             <div className="flex gap-1.5 pt-1">
               <button
                 type="button"
                 onClick={handleDiscardLocalBackup}
-                className="flex-1 py-1 rounded bg-slate-100 hover:bg-slate-200 dark:bg-slate-900 dark:hover:bg-slate-850 text-slate-500 dark:text-slate-450 text-[9px] font-bold cursor-pointer"
+                className="flex-1 py-1.5 rounded-lg bg-slate-200 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-bold cursor-pointer transition-colors"
               >
                 Discard
               </button>
               <button
                 type="button"
                 onClick={handleRestoreLocalBackup}
-                className="flex-1 py-1 rounded bg-emerald-600 hover:bg-emerald-500 text-white text-[9px] font-black uppercase tracking-wide cursor-pointer flex items-center justify-center gap-1 shadow-sm"
+                className="flex-1 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white text-[10px] font-black uppercase tracking-wide cursor-pointer flex items-center justify-center gap-1 shadow-sm transition-colors"
               >
-                <RefreshCw className="w-2.5 h-2.5 animate-spin" style={{ animationDuration: '3s' }} />
+                <RefreshCw className="w-3 h-3 animate-spin" style={{ animationDuration: '3s' }} />
                 <span>Restore</span>
               </button>
             </div>
@@ -8798,10 +8798,10 @@ export default function ImageCompressor({
 
         <div className="flex-1 flex flex-col space-y-3 overflow-y-auto max-h-[500px]" id="sessions-timeline-container">
           {sessions.length === 0 ? (
-            <div className="flex-1 flex flex-col items-center justify-center text-center p-4 border border-dashed border-slate-205 dark:border-slate-800/80 rounded-xl bg-white dark:bg-slate-950/20 py-8">
-              <History className="w-8 h-8 text-slate-300 dark:text-slate-705 mb-2.5 animate-pulse" />
-              <p className="text-xs font-bold text-slate-650 dark:text-slate-300">No Historical Batches</p>
-              <p className="text-[10px] text-slate-450 dark:text-slate-500 mt-1 max-w-[170px] leading-normal">
+            <div className="flex-1 flex flex-col items-center justify-center text-center p-4 border border-dashed border-slate-300 dark:border-slate-800 rounded-xl bg-white dark:bg-slate-950/40 py-8">
+              <History className="w-8 h-8 text-slate-400 dark:text-slate-600 mb-2.5 animate-pulse" />
+              <p className="text-xs font-bold text-slate-800 dark:text-slate-100">No Historical Batches</p>
+              <p className="text-[11px] text-slate-600 dark:text-slate-300 mt-1 max-w-[170px] leading-normal font-medium">
                 Batch compress files in your active queue to log auto snapshots.
               </p>
             </div>
