@@ -2469,7 +2469,7 @@ export default function App() {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -12 }}
                 transition={{ duration: 0.2, ease: "easeOut" }}
-                className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-6 space-y-8"
+                className="flex-1 max-w-7xl 2xl:max-w-[1600px] 3xl:max-w-[1800px] mx-auto px-3 sm:px-6 lg:px-8 w-full py-4 sm:py-6 space-y-6 sm:space-y-8"
               >
                 {/* Dynamic Hour Greeting & Real-time micro clock row */}
                 {(() => {
@@ -2804,7 +2804,7 @@ export default function App() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -12 }}
               transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
-              className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 w-full py-8 space-y-5"
+              className="flex-1 max-w-7xl 2xl:max-w-[1600px] 3xl:max-w-[1800px] mx-auto px-3 sm:px-6 lg:px-8 w-full py-4 sm:py-8 space-y-5"
             >
               {/* Breadcrumb path & Top Workspace Quick Switcher bar */}
               <div className="space-y-3 select-none">
@@ -5052,11 +5052,11 @@ export default function App() {
       </AnimatePresence>
 
       {/* Floating launcher badges for quick clicking visual palette and accessibility discovery */}
-      <div className="fixed bottom-6 right-6 z-40 flex items-center gap-3">
+      <div className="fixed bottom-4 right-3 sm:bottom-6 sm:right-6 z-40 flex items-center gap-1.5 sm:gap-3 pb-safe">
         {/* Visual App Tour launcher */}
         <button
           onClick={() => setIsTourOpen(true)}
-          className="bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-850 hover:text-indigo-650 dark:hover:text-amber-400 p-3 sm:px-4 sm:py-3.5 rounded-full sm:rounded-2xl shadow-xl flex items-center gap-2.5 transition-all duration-300 hover:scale-103 active:scale-97 select-none cursor-pointer border border-slate-200 dark:border-slate-800"
+          className="hidden sm:flex bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-850 hover:text-indigo-650 dark:hover:text-amber-400 p-3 sm:px-4 sm:py-3.5 rounded-full sm:rounded-2xl shadow-xl items-center gap-2.5 transition-all duration-300 hover:scale-103 active:scale-97 select-none cursor-pointer border border-slate-200 dark:border-slate-800"
           title="Restart Interactive App Tour"
           id="floating-tour-launcher-btn"
         >
@@ -5069,7 +5069,7 @@ export default function App() {
         {/* Visual Keyboard Shortcuts Accessibility Launcher Button */}
         <button
           onClick={() => setIsShortcutsHelpOpen(true)}
-          className="bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-850 hover:text-indigo-650 dark:hover:text-indigo-400 p-3 sm:px-4 sm:py-3.5 rounded-full sm:rounded-2xl shadow-xl flex items-center gap-2.5 transition-all duration-300 hover:scale-103 active:scale-97 select-none cursor-pointer border border-slate-200 dark:border-slate-800"
+          className="hidden sm:flex bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-850 hover:text-indigo-650 dark:hover:text-indigo-400 p-3 sm:px-4 sm:py-3.5 rounded-full sm:rounded-2xl shadow-xl items-center gap-2.5 transition-all duration-300 hover:scale-103 active:scale-97 select-none cursor-pointer border border-slate-200 dark:border-slate-800"
           title="Open Keyboard Shortcuts Cheat-Sheet (?)"
           id="floating-shortcuts-launcher-btn"
         >
@@ -5085,7 +5085,7 @@ export default function App() {
         {/* Floating Command Panel badge */}
         <button
           onClick={() => setIsCommandPaletteOpen(true)}
-          className="bg-indigo-650 hover:bg-indigo-700 text-white p-3 sm:px-4.5 sm:py-3.5 rounded-full sm:rounded-2xl shadow-xl flex items-center gap-2.5 transition-all duration-300 hover:scale-103 active:scale-97 select-none cursor-pointer border border-indigo-400/20"
+          className="bg-indigo-650 hover:bg-indigo-700 text-white p-2.5 sm:px-4.5 sm:py-3.5 rounded-full sm:rounded-2xl shadow-xl flex items-center gap-2 sm:gap-2.5 transition-all duration-300 hover:scale-103 active:scale-97 select-none cursor-pointer border border-indigo-400/20"
           title="Open Command Palette Search (Ctrl+K)"
           id="floating-palette-launcher-btn"
         >
@@ -5103,7 +5103,7 @@ export default function App() {
       {showScrollTop && (
         <button
           onClick={handleScrollToTop}
-          className="fixed bottom-24 right-6.5 sm:right-7.5 z-40 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:text-indigo-650 dark:hover:text-indigo-400 hover:border-indigo-200 dark:hover:border-slate-700/60 p-3 rounded-full shadow-2xl transition-all duration-300 hover:scale-110 active:scale-93 select-none cursor-pointer animate-fade-in group"
+          className="fixed bottom-18 sm:bottom-24 right-3.5 sm:right-7.5 z-40 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:text-indigo-650 dark:hover:text-indigo-400 hover:border-indigo-200 dark:hover:border-slate-700/60 p-2.5 sm:p-3 rounded-full shadow-2xl transition-all duration-300 hover:scale-110 active:scale-93 select-none cursor-pointer animate-fade-in group pb-safe"
           title="Zoom to scroll-top frame"
           id="scroll-to-top-floating-btn"
         >

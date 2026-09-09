@@ -3814,7 +3814,7 @@ export default function QrGenerator({
       )}
 
       {/* Parameters Controls Row: 5 Cols */}
-      <div className="lg:col-span-12 xl:col-span-5 bg-slate-50 rounded-2xl p-6 border border-slate-100 flex flex-col space-y-6">
+      <div className="lg:col-span-6 xl:col-span-5 bg-slate-50 rounded-2xl p-6 border border-slate-100 flex flex-col space-y-6">
         <div>
           <h3 className="text-sm font-semibold text-slate-900 uppercase tracking-wider flex items-center gap-1.5 mb-1 col-span-1 border-0">
             <Settings className="w-4 h-4 text-indigo-500" /> Vector Settings
@@ -5538,7 +5538,7 @@ export default function QrGenerator({
       </div>
 
       {/* Screen Preview: 7 Cols */}
-      <div className="lg:col-span-12 xl:col-span-7 flex flex-col justify-between space-y-4">
+      <div className="lg:col-span-6 xl:col-span-7 flex flex-col justify-between space-y-4">
         {saveStatus && (
           <div
             className={`p-4 rounded-xl border text-sm flex items-center ${

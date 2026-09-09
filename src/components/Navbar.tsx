@@ -467,7 +467,7 @@ export default function Navbar({
           {/* Center-Left: Global Command Palette Search Widget */}
           <button
             onClick={handleTriggerSearch}
-            className={`flex items-center justify-between w-36 sm:w-44 md:w-48 lg:w-52 px-3 py-1.5 rounded-xl text-left border select-none transition-all hover:border-blue-500/50 cursor-pointer shrink-0 shadow-2xs ${
+            className={`flex items-center justify-center sm:justify-between w-9 sm:w-44 md:w-48 lg:w-52 p-2 sm:px-3 sm:py-1.5 rounded-xl text-left border select-none transition-all hover:border-blue-500/50 cursor-pointer shrink-0 shadow-2xs ${
               theme === "dark"
                 ? "border-slate-700/80 bg-slate-800/80 hover:bg-slate-800 text-slate-200"
                 : "border-slate-200 bg-slate-100/90 hover:bg-slate-100 text-slate-700"
@@ -476,7 +476,7 @@ export default function Navbar({
           >
             <div className="flex items-center gap-1.5 sm:gap-2">
               <Search className="w-3.5 h-3.5 text-blue-500 dark:text-blue-400 shrink-0" />
-              <span className="text-[11px] font-bold truncate">Search tools...</span>
+              <span className="hidden sm:inline text-[11px] font-bold truncate">Search tools...</span>
             </div>
             <kbd className={`hidden xs:inline-flex items-center px-1.5 py-0.5 text-[9px] font-bold rounded-lg font-mono shrink-0 select-none border ${
               theme === "dark"
@@ -685,7 +685,9 @@ export default function Navbar({
             )}
 
             {/* Seamless Language Selector Dropdown Button */}
-            <LanguageSelector theme={theme} variant="compact" />
+            <div className="hidden sm:block">
+              <LanguageSelector theme={theme} variant="compact" />
+            </div>
 
             {/* Elegant Sun/Moon Dark Selector Switch */}
             <button
@@ -708,7 +710,7 @@ export default function Navbar({
             {/* Elegant High Contrast Accessibility Mode Toggler */}
             <button
               onClick={onToggleHighContrast}
-              className={`p-2 rounded-xl border transition-all cursor-pointer select-none ${
+              className={`hidden md:flex p-2 rounded-xl border transition-all cursor-pointer select-none ${
                 highContrast
                   ? "bg-amber-400 border-amber-300 text-black font-black shadow-md"
                   : theme === "dark"
@@ -724,7 +726,7 @@ export default function Navbar({
             {/* Contextual Workspace Tooltips Mode Toggler */}
             <button
               onClick={onToggleTooltips}
-              className={`p-2 rounded-xl border transition-all cursor-pointer select-none relative flex items-center gap-1.5 ${
+              className={`hidden lg:flex p-2 rounded-xl border transition-all cursor-pointer select-none relative items-center gap-1.5 ${
                 tooltipsEnabled
                   ? theme === "dark"
                     ? "bg-blue-950/60 border-blue-800 text-blue-300 font-bold shadow-md"
@@ -749,7 +751,7 @@ export default function Navbar({
             </button>
 
             {/* Elegant Global Settings & Focus Soundscapes Popover */}
-            <div className="relative">
+            <div className="relative hidden sm:block">
               <button
                 onClick={() => {
                   setShowSettingsDropdown(!showSettingsDropdown);
@@ -1015,7 +1017,7 @@ export default function Navbar({
               <button
                 onClick={onLogin}
                 disabled={isLoggingIn}
-                className={`inline-flex items-center justify-center gap-1.5 font-bold text-xs sm:text-sm px-2.5 sm:px-3.5 py-1.5 rounded-xl transition-all hover:scale-101 cursor-pointer shadow-md disabled:opacity-50 select-none border shrink-0 ${
+                className={`hidden sm:inline-flex items-center justify-center gap-1.5 font-bold text-xs sm:text-sm px-2.5 sm:px-3.5 py-1.5 rounded-xl transition-all hover:scale-101 cursor-pointer shadow-md disabled:opacity-50 select-none border shrink-0 ${
                   theme === "dark"
                     ? "bg-white hover:bg-slate-50 text-slate-950 border-slate-100/15"
                     : "bg-slate-950 hover:bg-slate-900 text-white border-slate-950"
@@ -1286,6 +1288,73 @@ export default function Navbar({
           )}
 
           <div className={`border-t pt-3.5 space-y-2 ${theme === "dark" ? "border-slate-850" : "border-slate-200/50"}`}>
+            {/* Mobile Accessibility & Settings Quick Action Grid */}
+            <div className="grid grid-cols-2 gap-2 pb-1">
+              <button
+                type="button"
+                onClick={onToggleHighContrast}
+                className={`flex items-center justify-between p-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer select-none ${
+                  highContrast
+                    ? "bg-amber-400 border-amber-300 text-black font-black"
+                    : theme === "dark"
+                      ? "border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-850"
+                      : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                <span className="flex items-center gap-1.5">
+                  <Contrast className="w-3.5 h-3.5" /> High Contrast
+                </span>
+                <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono ${highContrast ? "bg-black text-amber-300 font-black" : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400"}`}>
+                  {highContrast ? "ON" : "OFF"}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onToggleTooltips}
+                className={`flex items-center justify-between p-2.5 rounded-xl border text-xs font-bold transition-all cursor-pointer select-none ${
+                  tooltipsEnabled
+                    ? theme === "dark"
+                      ? "bg-blue-950/60 border-blue-800 text-blue-300"
+                      : "bg-blue-50 border-blue-200 text-blue-700"
+                    : theme === "dark"
+                      ? "border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-850"
+                      : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                }`}
+              >
+                <span className="flex items-center gap-1.5">
+                  <HelpCircle className="w-3.5 h-3.5" /> Tooltips
+                </span>
+                <span className={`text-[9px] px-1.5 py-0.5 rounded font-mono ${tooltipsEnabled ? "bg-blue-600 text-white font-black" : "bg-slate-200 dark:bg-slate-800 text-slate-600 dark:text-slate-400"}`}>
+                  {tooltipsEnabled ? "ON" : "OFF"}
+                </span>
+              </button>
+            </div>
+
+            {!user && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  onLogin();
+                }}
+                disabled={isLoggingIn}
+                className={`w-full flex items-center justify-between p-2.5 rounded-xl text-xs font-bold border transition-all cursor-pointer select-none ${
+                  theme === "dark"
+                    ? "bg-slate-900 border-slate-800 text-white hover:bg-slate-850"
+                    : "bg-slate-950 text-white border-slate-950 hover:bg-slate-900"
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <Cloud className="w-4 h-4 text-blue-400" />
+                  <span>Connect Google Drive</span>
+                </span>
+                <span className="text-[9px] uppercase font-mono px-2 py-0.5 rounded bg-blue-500/20 text-blue-300 font-bold">
+                  Connect
+                </span>
+              </button>
+            )}
+
             {/* Mobile Language Selector */}
             <div className="pb-1">
               <LanguageSelector theme={theme} variant="full" />
