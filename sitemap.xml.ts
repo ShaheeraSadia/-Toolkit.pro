@@ -29,11 +29,14 @@ export function generateSitemapXml(req?: any): string {
   ];
 
   const subTabs = [
+    { sub: "adsense", priority: "0.70" },
     { sub: "privacy", priority: "0.65" },
+    { sub: "cookies", priority: "0.65" },
+    { sub: "disclaimer", priority: "0.65" },
     { sub: "terms", priority: "0.65" },
+    { sub: "security", priority: "0.65" },
     { sub: "about", priority: "0.65" },
     { sub: "contact", priority: "0.65" },
-    { sub: "adsense", priority: "0.65" },
   ];
 
   const articles = [

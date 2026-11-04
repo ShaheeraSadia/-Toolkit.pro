@@ -614,11 +614,13 @@ export default function ResourcesHub({
 
     // AdSense & Publisher Compliance Sub-pages (Mandatory)
     { url: "?tab=legal", alias: "Legal: Compliance & Trust Hub", priority: "0.70", changefreq: "monthly", description: "Centralized privacy, terms, and AdSense certification." },
+    { url: "?tab=legal&amp;sub=adsense", alias: "Legal: Google AdSense Disclosure", priority: "0.70", changefreq: "monthly", description: "Ad placement policy, publisher transparency, and verification logs." },
     { url: "?tab=legal&amp;sub=privacy", alias: "Legal: Privacy Protection Policy", priority: "0.65", changefreq: "monthly", description: "AdSense cookies declarations, tracking transparency, and GDPR compliance." },
+    { url: "?tab=legal&amp;sub=cookies", alias: "Legal: Cookie Policy & Consent", priority: "0.65", changefreq: "monthly", description: "Cookie categories, Google EU User Consent disclosures, and CMP management." },
+    { url: "?tab=legal&amp;sub=disclaimer", alias: "Legal: Advertising & FTC Disclaimer", priority: "0.65", changefreq: "monthly", description: "Google AdSense monetization statement and editorial independence." },
     { url: "?tab=legal&amp;sub=terms", alias: "Legal: Terms & Conditions", priority: "0.65", changefreq: "monthly", description: "Permitted usage parameters, copyright ownership, and liability limits." },
     { url: "?tab=legal&amp;sub=about", alias: "About: Creator Profile", priority: "0.65", changefreq: "monthly", description: "Development mission of Shaheera Sadia and editorial principles." },
     { url: "?tab=legal&amp;sub=contact", alias: "Contact: Support & Inquiries", priority: "0.65", changefreq: "monthly", description: "Publisher contact channels, email registry, and feedback inbox." },
-    { url: "?tab=legal&amp;sub=adsense", alias: "Legal: Google AdSense Disclosure", priority: "0.65", changefreq: "monthly", description: "Ad placement policy, publisher transparency, and verification logs." },
 
     // Diagnostic Explorer
     { url: "?sitemap=true", alias: "Visual Sitemap Indexer", priority: "0.50", changefreq: "monthly", description: "Interactive site directory and indexing diagnostic console." }

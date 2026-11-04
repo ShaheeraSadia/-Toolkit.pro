@@ -13,8 +13,9 @@ import ColorExtractor from "./components/ColorExtractor";
 import ImageToVideo from "./components/ImageToVideo";
 import DriveExplorer from "./components/DriveExplorer";
 import ResourcesHub from "./components/ResourcesHub";
-import AdSenseCompliance from "./components/AdSenseCompliance";
+import AdSenseCompliance, { ComplianceSubTab } from "./components/AdSenseCompliance";
 import AdSenseMock from "./components/AdSenseMock";
+import CookieConsentBanner from "./components/CookieConsentBanner";
 import SitemapView from "./components/SitemapView";
 import CommandPalette from "./components/CommandPalette";
 import ShortcutsModal from "./components/ShortcutsModal";
@@ -72,6 +73,8 @@ import {
   Bot,
   Mic,
   Printer,
+  DollarSign,
+  Cookie,
   Monitor,
   Smartphone,
   Download,
@@ -1713,15 +1716,15 @@ export default function App() {
     }
   };
 
-  const [legalSubTab, setLegalSubTab] = useState<"privacy" | "terms" | "security" | "about" | "contact">(() => {
+  const [legalSubTab, setLegalSubTab] = useState<ComplianceSubTab>(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
       const subParam = params.get("sub") as any;
-      if (subParam && ["privacy", "terms", "security", "about", "contact"].includes(subParam)) {
+      if (subParam && ["adsense", "privacy", "cookies", "disclaimer", "terms", "security", "about", "contact"].includes(subParam)) {
         return subParam;
       }
     }
-    return "privacy";
+    return "adsense";
   });
 
   const [selectedArticleId, setSelectedArticleId] = useState<string | null>(() => {
@@ -3303,6 +3306,23 @@ export default function App() {
             <button
               onClick={() => {
                 setActiveTab("legal");
+                setLegalSubTab("adsense");
+                setIsSitemapView(false);
+                setTimeout(() => {
+                  const element = document.getElementById("compliance-center-root");
+                  if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
+                }, 50);
+              }}
+              className="text-emerald-600 dark:text-emerald-400 font-extrabold hover:underline cursor-pointer transition-colors flex items-center gap-1"
+            >
+              <DollarSign className="w-3.5 h-3.5" />
+              <span>AdSense Hub</span>
+            </button>
+            <span className={theme === "dark" ? "text-slate-700" : "text-slate-300"}>•</span>
+
+            <button
+              onClick={() => {
+                setActiveTab("legal");
                 setLegalSubTab("privacy");
                 setIsSitemapView(false);
                 setTimeout(() => {
@@ -3315,20 +3335,20 @@ export default function App() {
               Privacy Policy
             </button>
             <span className={theme === "dark" ? "text-slate-700" : "text-slate-300"}>•</span>
-            
+
             <button
               onClick={() => {
-                setActiveTab("legal");
-                setLegalSubTab("security");
-                setIsSitemapView(false);
-                setTimeout(() => {
-                  const element = document.getElementById("compliance-center-root");
-                  if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
-                }, 50);
+                if ((window as any).openCookieConsentSettings) {
+                  (window as any).openCookieConsentSettings();
+                } else {
+                  setActiveTab("legal");
+                  setLegalSubTab("cookies");
+                }
               }}
-              className="hover:text-blue-600 dark:hover:text-white cursor-pointer transition-colors"
+              className="hover:text-amber-500 dark:hover:text-amber-400 cursor-pointer transition-colors flex items-center gap-1"
             >
-              Security &amp; Hacker Defense
+              <Cookie className="w-3.5 h-3.5 text-amber-500" />
+              <span>Cookie Settings</span>
             </button>
             <span className={theme === "dark" ? "text-slate-700" : "text-slate-300"}>•</span>
 
@@ -3347,6 +3367,38 @@ export default function App() {
               Terms of Service
             </button>
             <span className={theme === "dark" ? "text-slate-700" : "text-slate-300"}>•</span>
+
+            <button
+              onClick={() => {
+                setActiveTab("legal");
+                setLegalSubTab("disclaimer");
+                setIsSitemapView(false);
+                setTimeout(() => {
+                  const element = document.getElementById("compliance-center-root");
+                  if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
+                }, 50);
+              }}
+              className="hover:text-blue-600 dark:hover:text-white cursor-pointer transition-colors"
+            >
+              Advertising Disclaimer
+            </button>
+            <span className={theme === "dark" ? "text-slate-700" : "text-slate-300"}>•</span>
+            
+            <button
+              onClick={() => {
+                setActiveTab("legal");
+                setLegalSubTab("security");
+                setIsSitemapView(false);
+                setTimeout(() => {
+                  const element = document.getElementById("compliance-center-root");
+                  if (element) element.scrollIntoView({ behavior: "smooth", block: "start" });
+                }, 50);
+              }}
+              className="hover:text-blue-600 dark:hover:text-white cursor-pointer transition-colors"
+            >
+              Security Defense
+            </button>
+            <span className={theme === "dark" ? "text-slate-700" : "text-slate-300"}>•</span>
             
             <button
               onClick={() => {
@@ -3360,7 +3412,7 @@ export default function App() {
               }}
               className="hover:text-blue-600 dark:hover:text-white cursor-pointer transition-colors"
             >
-              About &amp; Disclaimers
+              About Creator
             </button>
             <span className={theme === "dark" ? "text-slate-700" : "text-slate-300"}>•</span>
             
@@ -5174,6 +5226,17 @@ export default function App() {
           </div>
         </div>
       )}
+
+      {/* Google EU User Consent & GDPR Cookie Consent Management Banner */}
+      <CookieConsentBanner 
+        theme={theme} 
+        onOpenPrivacyPolicy={() => {
+          setActiveTab("legal");
+          setLegalSubTab("privacy");
+          setIsSitemapView(false);
+          window.scrollTo({ top: 350, behavior: "smooth" });
+        }}
+      />
 
       {/* Global Workspace Contextual Tooltips Engine */}
       <WorkspaceTooltips enabled={tooltipsEnabled} theme={theme} />
