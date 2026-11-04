@@ -15,6 +15,7 @@ import DriveExplorer from "./components/DriveExplorer";
 import ResourcesHub from "./components/ResourcesHub";
 import AdSenseCompliance, { ComplianceSubTab } from "./components/AdSenseCompliance";
 import AdSenseMock from "./components/AdSenseMock";
+import ToolEditorialSection from "./components/ToolEditorialSection";
 import CookieConsentBanner from "./components/CookieConsentBanner";
 import SitemapView from "./components/SitemapView";
 import CommandPalette from "./components/CommandPalette";
@@ -3095,10 +3096,10 @@ export default function App() {
                   </motion.div>
                 </AnimatePresence>
 
-                {/* AdSense Inline Responsive Banner below active editor grids */}
-                <div className={`mt-8 pt-6 border-t select-none ${theme === "dark" ? "border-slate-800" : "border-slate-50"}`}>
-                  <AdSenseMock slot="content-footer-responsive" type="responsive" />
-                </div>
+                {/* Substantial Publisher Content & Educational Documentation Hub wrapping compliant AdSense placement */}
+                {activeTab !== "home" && activeTab !== "legal" && activeTab !== "resources" && (
+                  <ToolEditorialSection toolId={activeTab} theme={theme} />
+                )}
               </motion.div>
             </motion.main>
           )}

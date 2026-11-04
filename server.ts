@@ -334,15 +334,103 @@ app.get("/robots.txt", (req, res) => {
   res.send(`User-agent: Mediapartners-Google\nAllow: /\n\nUser-agent: Googlebot\nAllow: /\nDisallow: /api/\n\nUser-agent: *\nAllow: /\nDisallow: /api/\n\nSitemap: https://toolkit-pro-chi.vercel.app/sitemap.xml\n`);
 });
 
+// Helper to retrieve the current ads.txt content dynamically
+function getAdsTxtContent(): string {
+  const envPubId = (process.env.ADSENSE_PUB_ID || process.env.VITE_ADSENSE_PUB_ID || "").trim();
+  const candidates = [
+    path.join(process.cwd(), "public", "ads.txt"),
+    path.join(process.cwd(), "dist", "ads.txt"),
+    path.join(process.cwd(), "build", "ads.txt")
+  ];
+
+  for (const p of candidates) {
+    if (fs.existsSync(p)) {
+      try {
+        let content = fs.readFileSync(p, "utf-8").trim();
+        // If envPubId is present and not yet in content, prepend it
+        if (envPubId && !content.includes(envPubId)) {
+          const cleanPub = envPubId.startsWith("pub-") ? envPubId : `pub-${envPubId}`;
+          content = `# Google AdSense ads.txt - Configured via ADSENSE_PUB_ID\ngoogle.com, ${cleanPub}, DIRECT, f08c47fec0942fa0\n\n` + content;
+        }
+        return content + "\n";
+      } catch {
+        // continue
+      }
+    }
+  }
+
+  const activePub = envPubId
+    ? (envPubId.startsWith("pub-") ? envPubId : `pub-${envPubId}`)
+    : "pub-0000000000000000";
+  return `# Google AdSense ads.txt for Toolkit Pro Suite\ngoogle.com, ${activePub}, DIRECT, f08c47fec0942fa0\n`;
+}
+
 // Google AdSense Publisher Verification ads.txt endpoint
 app.get("/ads.txt", (req, res) => {
   res.header("Content-Type", "text/plain; charset=utf-8");
-  res.header("Cache-Control", "public, max-age=86400");
-  const adsPath = path.join(process.cwd(), "public", "ads.txt");
-  if (fs.existsSync(adsPath)) {
-    return res.sendFile(adsPath);
+  res.header("Cache-Control", "public, max-age=3600");
+  res.header("Access-Control-Allow-Origin", "*");
+  res.send(getAdsTxtContent());
+});
+
+// API endpoint to inspect ads.txt configuration
+app.get("/api/ads-txt", (req, res) => {
+  const content = getAdsTxtContent();
+  const envPubId = (process.env.ADSENSE_PUB_ID || process.env.VITE_ADSENSE_PUB_ID || "").trim();
+  const match = content.match(/google\.com,\s*(pub-\d+),/i);
+  const detectedPubId = match ? match[1] : (envPubId || "pub-0000000000000000");
+  const isConfigured = detectedPubId !== "pub-0000000000000000" && !detectedPubId.includes("0000000");
+
+  res.json({
+    content,
+    publisherId: detectedPubId,
+    isConfigured,
+    environmentPubId: envPubId || null,
+    domain: "toolkit-pro-chi.vercel.app"
+  });
+});
+
+// API endpoint to update ads.txt with user's real publisher ID
+app.post("/api/ads-txt", (req, res) => {
+  try {
+    const { publisherId, customContent } = req.body;
+    let newContent = "";
+
+    if (customContent && typeof customContent === "string") {
+      newContent = customContent.trim() + "\n";
+    } else if (publisherId && typeof publisherId === "string") {
+      const cleanPub = publisherId.trim().replace(/^ca-/, "");
+      const finalPub = cleanPub.startsWith("pub-") ? cleanPub : `pub-${cleanPub}`;
+      newContent = `# Google AdSense ads.txt for Toolkit Pro Suite\n# Verified Publisher Line\ngoogle.com, ${finalPub}, DIRECT, f08c47fec0942fa0\n`;
+    } else {
+      return res.status(400).json({ error: "Missing publisherId or customContent parameter." });
+    }
+
+    // Write to public/ads.txt and dist/ads.txt if exists
+    const targetPaths = [
+      path.join(process.cwd(), "public", "ads.txt"),
+      path.join(process.cwd(), "dist", "ads.txt")
+    ];
+
+    for (const p of targetPaths) {
+      try {
+        const dir = path.dirname(p);
+        if (fs.existsSync(dir)) {
+          fs.writeFileSync(p, newContent, "utf-8");
+        }
+      } catch {
+        // Ignore single failure if directory does not exist
+      }
+    }
+
+    return res.json({
+      success: true,
+      message: "ads.txt updated successfully on server.",
+      content: newContent
+    });
+  } catch (err: any) {
+    return res.status(500).json({ error: "Failed to update ads.txt", message: err.message });
   }
-  res.send(`google.com, pub-0000000000000000, DIRECT, f08c47fec0942fa0\n`);
 });
 
 // API route to generate SEO optimized templates via the Gemini API

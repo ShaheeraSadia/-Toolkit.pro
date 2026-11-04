@@ -7,9 +7,22 @@
     j=d.createElement(s),dl=l!='dataLayer'?'&l='+l:'';j.async=true;j.src=
     'https://www.googletagmanager.com/gtm.js?id='+i+dl;f.parentNode.insertBefore(j,f);
     })(window,document,'script','dataLayer','GTM-MTB986MN');</script>
-    <!-- Google AdSense Verification & Official Script -->
-    <meta name="google-adsense-account" content="ca-pub-0000000000000000" />
-    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-0000000000000000" crossorigin="anonymous"></script>
+    <!-- Google AdSense Verification & Official Script Integration -->
+    <meta name="google-adsense-account" id="adsense-account-meta" content="ca-pub-0000000000000000" />
+    <script>
+      (function(){
+        try {
+          var saved = localStorage.getItem('adsense_publisher_id');
+          if (saved && saved.indexOf('0000000') === -1) {
+            var meta = document.getElementById('adsense-account-meta');
+            if (meta) meta.setAttribute('content', saved);
+            var scr = document.getElementById('adsense-script');
+            if (scr) scr.src = 'https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=' + encodeURIComponent(saved);
+          }
+        } catch(e){}
+      })();
+    </script>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-0000000000000000" id="adsense-script" crossorigin="anonymous"></script>
     <!-- End Google Tag Manager -->
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-FLHZNQ6KWT"></script>
